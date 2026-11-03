@@ -198,7 +198,14 @@ describe("color groups", () => {
   const astFor = (classId: string): Group => ({
     type: "group",
     logic: "and",
-    children: [{ type: "class", classId }],
+    children: [
+      {
+        type: "member",
+        family: "class",
+        op: "in",
+        target: { mode: "ids", ids: [classId] },
+      },
+    ],
   });
   const emptyAst: Group = { type: "group", logic: "and", children: [] };
 
@@ -255,5 +262,55 @@ describe("color groups", () => {
     expect(migrateColorGroup(fakeClient, astRow)).toBe(astRow);
     expect(isLegacyColorGroup(astRow)).toBe(false);
     expect(isLegacyColorGroup({ id: "4", label: "", color: "sky", query: "class:books" })).toBe(true);
+  });
+
+  it("stored v1 ASTs rewrite to v2 in place; v2 rows pass through; garbage fails loud", () => {
+    // The v1-era device stores hold a v1 query AST per group — the one-time
+    // migration rewrites it through the pure v1→v2 mapping.
+    const v1Row = {
+      id: "5",
+      label: "V1 books",
+      color: "sky",
+      ast: {
+        type: "group",
+        logic: "and",
+        children: [
+          { type: "class", classId: "c-books" },
+          { type: "contentSet" },
+        ],
+      },
+    };
+    const migrated = migrateColorGroup(fakeClient, v1Row);
+    expect(migrated.error).toBeUndefined();
+    expect(migrated.ast).toEqual({
+      type: "group",
+      logic: "and",
+      children: [
+        {
+          type: "member",
+          family: "class",
+          op: "in",
+          target: { mode: "ids", ids: ["c-books"] },
+        },
+        { type: "content", op: "exists" },
+      ],
+    });
+
+    // A v2 row passes through untouched (identity — the guard the
+    // one-time rewrite must have, double-application is a no-op).
+    const v2Row = { id: "6", label: "V2", color: "rose", ast: astFor("c-red") };
+    expect(migrateColorGroup(fakeClient, v2Row)).toBe(v2Row);
+
+    // A non-v2 tree that is ALSO not a v1 AST (garbage) fails loud: the
+    // group stays, marked erroneous — painted nowhere.
+    const garbage = {
+      id: "7",
+      label: "Garbage",
+      color: "mint",
+      ast: { type: "group", logic: "and", children: [{ type: "weather" }] },
+    };
+    const failed = migrateColorGroup(fakeClient, garbage);
+    expect(failed.ast).toBeNull();
+    expect(failed.error).toBeTruthy();
   });
 });

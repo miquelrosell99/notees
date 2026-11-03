@@ -1,20 +1,19 @@
 /**
- * filterQuery tests — the transient filter layer's data: the FilterQuery
+ * filterQuery tests (v2) — the transient filter layer's data: the FilterQuery
  * shape (quick text plus a draft query-AST root group), the draft→composed
  * prune rules (half-typed rows drop, null when nothing survives — the quick
- * text never rides the AST; it narrows the rows through the ranked search,
- *), and the row-predicate semantics battery — the
- * structured content-contains substring, class closure, property eq/neq/
- * contains/ordering/exists with the ISO-date arms, the {today} created
- * window — now exercised through the ONE evaluation implementation
- * (planSectionView + createSectionViewMatcher) over a stub client. No store
- * — pure model units.
+ * text never rides the AST; it narrows the rows through the ranked search),
+ * and the row-predicate semantics battery — the structured content-contains
+ * substring, the member class closure, property eq/neq/contains/ordering/
+ * exists with the ISO-date arms, the {today} created window — now exercised
+ * through the ONE evaluation implementation (planSectionView +
+ * createSectionViewMatcher) over a stub client. No store — pure model units.
  */
 
 import { describe, expect, it } from "vitest";
 
 import { dayNodeId, monthNodeId, yearNodeId } from "@notees/domain";
-import type { Group } from "@notees/query";
+import type { Group, MemberFamily } from "@notees/query";
 
 import type { ClientNode, EffectiveProperty } from "../src/core/workspace-client/index.js";
 import {
@@ -35,6 +34,15 @@ import {
 const CLASS_A = "0192a000-0000-7000-8000-0000000000a1";
 const CLASS_B = "0192a000-0000-7000-8000-0000000000a2";
 const SCHEMA = "0192a000-0000-7000-8000-0000000000b1";
+
+/** A member in-ids condition (the builder's Manual default shape). */
+const memberIn = (family: MemberFamily, ids: string[] = []) =>
+  ({
+    type: "member",
+    family,
+    op: "in",
+    target: { mode: "ids", ids },
+  }) as const;
 
 function makeNode(facts: {
   id?: string;
@@ -85,7 +93,7 @@ function matches(
   const group = filterQueryToGroup(query);
   if (group === null) return true; // the inactive filter is the identity
   const plan = planSectionView({
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: group,
   });
@@ -115,29 +123,44 @@ describe("the FilterQuery shape", () => {
 
   it("createCondition seeds a half-typed default per family", () => {
     // The class family's default row rides the MULTI-VALUE membership
-    // register: "Class contains Day, Week" =
-    // closure-aware ANY-of over the picked list — the exact single-pill
-    // reading ("is") is the deliberate narrow operator, not the default.
-    expect(createCondition("class")).toEqual({ type: "classAny", classIds: [] });
-    expect(createCondition("type")).toEqual({ type: "isClass", isClass: true });
-    expect(createCondition("placement")).toEqual({ type: "isEmbedded", isEmbedded: false });
+    // register: "Class contains Day, Week" = closure-aware ANY-of over the
+    // picked list — the exact single-pill reading ("is") is the deliberate
+    // narrow operator. Both bind the v2 wire op "in" over an ids target.
+    expect(createCondition("class")).toEqual(memberIn("class"));
+    expect(createCondition("type")).toEqual({
+      type: "nodeField",
+      field: "isClass",
+      op: "eq",
+      value: "true",
+    });
+    expect(createCondition("placement")).toEqual({
+      type: "nodeField",
+      field: "isEmbedded",
+      op: "eq",
+      value: "false",
+    });
     expect(createCondition("content")).toEqual({ type: "content", op: "contains", value: "" });
     expect(createCondition("property")).toEqual({ type: "property", schemaId: "", op: "eq", value: "" });
-    // The single-target node families bind the LIST by default: tags is […], links is […] — ANY-of membership.
-    expect(createCondition("tags")).toEqual({ type: "tagAny", tagIds: [] });
-    expect(createCondition("links")).toEqual({ type: "linkedToAny", nodeIds: [] });
-    expect(createCondition("referencePath")).toEqual({ type: "referencePathOf", nodeIds: [] });
-    expect(createCondition("parent")).toEqual({ type: "parentOf", nodeIds: [] });
-    expect(createCondition("child")).toEqual({ type: "childOf", nodeIds: [] });
-    expect(createCondition("childPath")).toEqual({ type: "descendantOfAny", nodeIds: [] });
-    expect(createCondition("page")).toEqual({ type: "pageOf", nodeIds: [] });
-    expect(createCondition("parentPath")).toEqual({ type: "ancestorIn", nodeIds: [] });
-    expect(createCondition("root")).toEqual({ type: "rootIn", nodeIds: [] });
-    expect(createCondition("cover")).toEqual({ type: "coverAsset", op: "exists" });
-    expect(createCondition("banner")).toEqual({ type: "bannerAsset", op: "exists" });
-    expect(createCondition("alias")).toEqual({ type: "aliasedNode", op: "exists" });
-    expect(createCondition("created")).toEqual({ type: "createdAfter", timestamp: "" });
-    expect(createCondition("edited")).toEqual({ type: "updatedAfter", timestamp: "" });
+    // The node-target families bind the LIST by default: tags is […],
+    // links is […] — ANY-of membership over the Manual ids pick.
+    for (const family of [
+      "tags",
+      "links",
+      "referencePath",
+      "parent",
+      "child",
+      "childPath",
+      "page",
+      "parentPath",
+      "root",
+    ] as const) {
+      expect(createCondition(family)).toEqual(memberIn(family));
+    }
+    expect(createCondition("cover")).toEqual({ type: "nodeField", field: "coverAsset", op: "exists" });
+    expect(createCondition("banner")).toEqual({ type: "nodeField", field: "bannerAsset", op: "exists" });
+    expect(createCondition("alias")).toEqual({ type: "nodeField", field: "aliasedNode", op: "exists" });
+    expect(createCondition("created")).toEqual({ type: "date", field: "created", op: "after", timestamp: "" });
+    expect(createCondition("edited")).toEqual({ type: "date", field: "updated", op: "after", timestamp: "" });
   });
 });
 
@@ -147,140 +170,256 @@ describe("filterQueryToGroup — the draft prune", () => {
   });
 
   it("the quick text never rides the AST — it is the ranked search's input, not a condition", () => {
-    // the text facet's
-    // membership AND order come from `client.search`, which an AST condition
-    // cannot express — the composed group carries the structured draft only.
     expect(filterQueryToGroup({ text: "  zebra ", group: EMPTY_FILTER_QUERY.group })).toBeNull();
     expect(quickTextOf({ text: "  zebra ", group: EMPTY_FILTER_QUERY.group })).toBe("zebra");
     expect(quickTextOf({ text: "   ", group: EMPTY_FILTER_QUERY.group })).toBe("");
   });
 
-  it("drops half-typed conditions: blank content value, empty classId, empty schemaId, blank timestamps", () => {
+  it("drops half-typed conditions: blank content value, empty ids pick, empty schemaId, blank timestamps", () => {
     const draft: Group = {
       type: "group",
       logic: "and",
       children: [
         { type: "content", op: "contains", value: "   " },
-        { type: "class", classId: "" },
+        memberIn("class"),
         { type: "property", schemaId: "", op: "eq", value: "42" },
-        { type: "createdAfter", timestamp: "" },
-        { type: "createdBefore", timestamp: "  " },
-        { type: "isClass", isClass: true },
+        { type: "date", field: "created", op: "after", timestamp: "" },
+        { type: "date", field: "created", op: "before", timestamp: "  " },
+        { type: "nodeField", field: "isClass", op: "eq", value: "true" },
       ],
     };
     expect(filterQueryToGroup({ text: "", group: draft })).toEqual({
       type: "group",
       logic: "and",
-      children: [{ type: "isClass", isClass: true }],
+      children: [{ type: "nodeField", field: "isClass", op: "eq", value: "true" }],
     });
   });
 
-  it("drops the half-typed Odoo-set shapes, keeps the set bits", () => {
+  it("drops the half-typed membership shapes, keeps the set bits and the picked rows", () => {
     const draft: Group = {
       type: "group",
       logic: "and",
       children: [
-        { type: "classExact", classId: "" },
-        { type: "classAny", classIds: [] },
-        { type: "pageOf", nodeIds: [] },
-        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [] } },
-        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [
-          { type: "classExact", classId: "" },
-        ] } },
-        { type: "ancestorIn", nodeIds: [] },
-        { type: "ancestorInQuery", root: { type: "group", logic: "and", children: [] } },
-        { type: "rootIn", nodeIds: [] },
-        { type: "tag", tagId: "" },
-        { type: "tagAny", tagIds: [] },
-        { type: "linkedToAny", nodeIds: [] },
-        { type: "descendantOfAny", nodeIds: [] },
-        { type: "createdCmp", op: "eq", timestamp: "  " },
-        { type: "createdBetween", from: "2026-10-01", to: "" },
-        { type: "propertyBetween", schemaId: "", from: 1, to: 5 },
-        { type: "propertyBetween", schemaId: "0192a000-0000-7000-8000-0000000000dd", from: undefined, to: 5 },
-        { type: "classSet" },
-        { type: "contentSet" },
-        { type: "tagSet" },
-        { type: "linkSet" },
-        { type: "parentSet" },
-        { type: "pageSet" },
-        { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
-        { type: "classAny", classIds: ["0192a000-0000-7000-8000-0000000000bb"] },
-        { type: "pageOf", nodeIds: ["0192a000-0000-7000-8000-0000000000cc"] },
-        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [
-          { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
-        ] } },
-        { type: "tag", tagId: "0192a000-0000-7000-8000-0000000000ee" },
-        { type: "createdWithin", period: "today" },
+        memberIn("page"),
+        {
+          type: "member",
+          family: "page",
+          op: "in",
+          target: { mode: "query", root: { type: "group", logic: "and", children: [] } },
+        },
+        {
+          type: "member",
+          family: "page",
+          op: "in",
+          target: {
+            mode: "query",
+            root: { type: "group", logic: "and", children: [memberIn("class")] },
+          },
+        },
+        memberIn("parentPath"),
+        memberIn("root"),
+        memberIn("tags"),
+        memberIn("links"),
+        memberIn("childPath"),
+        { type: "date", field: "created", op: "eq", timestamp: "  " },
+        {
+          type: "date",
+          field: "created",
+          op: "between",
+          from: "2026-10-01",
+          to: "",
+        },
+        { type: "property", schemaId: "", op: "between", from: 1, to: 5 },
+        {
+          type: "property",
+          schemaId: "0192a000-0000-7000-8000-0000000000dd",
+          op: "between",
+          from: undefined,
+          to: 5,
+        },
+        { type: "member", family: "class", op: "exists" },
+        { type: "content", op: "exists" },
+        { type: "member", family: "tags", op: "exists" },
+        { type: "member", family: "links", op: "exists" },
+        { type: "member", family: "parent", op: "exists" },
+        { type: "member", family: "page", op: "exists" },
+        {
+          type: "member",
+          family: "class",
+          op: "exact",
+          target: { mode: "ids", ids: ["0192a000-0000-7000-8000-0000000000aa"] },
+        },
+        memberIn("class", ["0192a000-0000-7000-8000-0000000000bb"]),
+        memberIn("page", ["0192a000-0000-7000-8000-0000000000cc"]),
+        {
+          type: "member",
+          family: "page",
+          op: "in",
+          target: {
+            mode: "query",
+            root: {
+              type: "group",
+              logic: "and",
+              children: [
+                {
+                  type: "member",
+                  family: "class",
+                  op: "exact",
+                  target: { mode: "ids", ids: ["0192a000-0000-7000-8000-0000000000aa"] },
+                },
+              ],
+            },
+          },
+        },
+        memberIn("tags", ["0192a000-0000-7000-8000-0000000000ee"]),
+        { type: "date", field: "created", op: "within", period: "today" },
       ],
     };
     expect(filterQueryToGroup({ text: "", group: draft })).toEqual({
       type: "group",
       logic: "and",
       children: [
-        { type: "classSet" },
-        { type: "contentSet" },
-        { type: "tagSet" },
-        { type: "linkSet" },
-        { type: "parentSet" },
-        { type: "pageSet" },
-        { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
-        { type: "classAny", classIds: ["0192a000-0000-7000-8000-0000000000bb"] },
-        { type: "pageOf", nodeIds: ["0192a000-0000-7000-8000-0000000000cc"] },
-        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [
-          { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
-        ] } },
-        { type: "tag", tagId: "0192a000-0000-7000-8000-0000000000ee" },
-        { type: "createdWithin", period: "today" },
+        { type: "member", family: "class", op: "exists" },
+        { type: "content", op: "exists" },
+        { type: "member", family: "tags", op: "exists" },
+        { type: "member", family: "links", op: "exists" },
+        { type: "member", family: "parent", op: "exists" },
+        { type: "member", family: "page", op: "exists" },
+        {
+          type: "member",
+          family: "class",
+          op: "exact",
+          target: { mode: "ids", ids: ["0192a000-0000-7000-8000-0000000000aa"] },
+        },
+        memberIn("class", ["0192a000-0000-7000-8000-0000000000bb"]),
+        memberIn("page", ["0192a000-0000-7000-8000-0000000000cc"]),
+        {
+          type: "member",
+          family: "page",
+          op: "in",
+          target: {
+            mode: "query",
+            root: {
+              type: "group",
+              logic: "and",
+              children: [
+                {
+                  type: "member",
+                  family: "class",
+                  op: "exact",
+                  target: { mode: "ids", ids: ["0192a000-0000-7000-8000-0000000000aa"] },
+                },
+              ],
+            },
+          },
+        },
+        memberIn("tags", ["0192a000-0000-7000-8000-0000000000ee"]),
+        { type: "date", field: "created", op: "within", period: "today" },
       ],
     });
   });
 
-  it("drops half-typed dynamic target sets and blank edit-date timestamps", () => {
+  it("drops half-typed query targets and blank edit-date timestamps", () => {
     const draft: Group = {
       type: "group",
       logic: "and",
       children: [
-        { type: "linkedToQuery", root: { type: "group", logic: "and", children: [] } },
-        { type: "descendantOfQuery", root: { type: "group", logic: "and", children: [
-          { type: "class", classId: "" },
-        ] } },
-        { type: "classAnyQuery", root: { type: "group", logic: "and", children: [] } },
-        { type: "tagAnyQuery", root: { type: "group", logic: "and", children: [
-          { type: "tagAny", tagIds: [] },
-        ] } },
-        { type: "updatedAfter", timestamp: " " },
-        { type: "updatedBefore", timestamp: "" },
-        { type: "linkedTo", nodeId: "" },
+        {
+          type: "member",
+          family: "links",
+          op: "in",
+          target: { mode: "query", root: { type: "group", logic: "and", children: [] } },
+        },
+        {
+          type: "member",
+          family: "childPath",
+          op: "in",
+          target: {
+            mode: "query",
+            root: { type: "group", logic: "and", children: [memberIn("class")] },
+          },
+        },
+        {
+          type: "member",
+          family: "class",
+          op: "in",
+          target: { mode: "query", root: { type: "group", logic: "and", children: [] } },
+        },
+        {
+          type: "member",
+          family: "tags",
+          op: "in",
+          target: {
+            mode: "query",
+            root: { type: "group", logic: "and", children: [memberIn("tags")] },
+          },
+        },
+        { type: "date", field: "updated", op: "after", timestamp: " " },
+        { type: "date", field: "updated", op: "before", timestamp: "" },
+        memberIn("links"),
       ],
     };
     expect(filterQueryToGroup({ text: "", group: draft })).toBeNull();
   });
 
-  it("keeps a dynamic target set whose nested group has a surviving condition", () => {
+  it("keeps a query target whose nested group has a surviving condition", () => {
     const draft: Group = {
       type: "group",
       logic: "and",
       children: [
-        { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
-          { type: "isClass", isClass: false },
-          { type: "property", schemaId: "", op: "eq" },
-        ] } },
-        { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
-          { type: "classAny", classIds: [CLASS_A] },
-        ] } },
+        {
+          type: "member",
+          family: "links",
+          op: "in",
+          target: {
+            mode: "query",
+            root: {
+              type: "group",
+              logic: "and",
+              children: [
+                { type: "nodeField", field: "isClass", op: "eq", value: "false" },
+                { type: "property", schemaId: "", op: "eq" },
+              ],
+            },
+          },
+        },
+        {
+          type: "member",
+          family: "class",
+          op: "in",
+          target: {
+            mode: "query",
+            root: { type: "group", logic: "and", children: [memberIn("class", [CLASS_A])] },
+          },
+        },
       ],
     };
     expect(filterQueryToGroup({ text: "", group: draft })).toEqual({
       type: "group",
       logic: "and",
       children: [
-        { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
-          { type: "isClass", isClass: false },
-        ] } },
-        { type: "classAnyQuery", root: { type: "group", logic: "and", children: [
-          { type: "classAny", classIds: [CLASS_A] },
-        ] } },
+        {
+          type: "member",
+          family: "links",
+          op: "in",
+          target: {
+            mode: "query",
+            root: {
+              type: "group",
+              logic: "and",
+              children: [{ type: "nodeField", field: "isClass", op: "eq", value: "false" }],
+            },
+          },
+        },
+        {
+          type: "member",
+          family: "class",
+          op: "in",
+          target: {
+            mode: "query",
+            root: { type: "group", logic: "and", children: [memberIn("class", [CLASS_A])] },
+          },
+        },
       ],
     });
   });
@@ -290,10 +429,10 @@ describe("filterQueryToGroup — the draft prune", () => {
       type: "group",
       logic: "or",
       children: [
-        { type: "class", classId: CLASS_A },
+        memberIn("class", [CLASS_A]),
         { type: "property", schemaId: SCHEMA, op: "gte", value: "5" },
-        { type: "createdAfter", timestamp: "2026-01-01" },
-        { type: "coverAsset", op: "exists" },
+        { type: "date", field: "created", op: "after", timestamp: "2026-01-01" },
+        { type: "nodeField", field: "coverAsset", op: "exists" },
       ],
     };
     expect(filterQueryToGroup({ text: "", group: draft })).toEqual(draft);
@@ -309,10 +448,10 @@ describe("filterQueryToGroup — the draft prune", () => {
           logic: "or",
           children: [
             { type: "content", op: "contains", value: "" },
-            { type: "class", classId: CLASS_B },
+            memberIn("class", [CLASS_B]),
           ],
         },
-        { type: "not", child: { type: "class", classId: "" } },
+        { type: "not", child: memberIn("class") },
         {
           type: "not",
           child: {
@@ -330,7 +469,7 @@ describe("filterQueryToGroup — the draft prune", () => {
         {
           type: "group",
           logic: "or",
-          children: [{ type: "class", classId: CLASS_B }],
+          children: [memberIn("class", [CLASS_B])],
         },
         {
           type: "not",
@@ -346,7 +485,7 @@ describe("filterQueryToGroup — the draft prune", () => {
 });
 
 describe("the add-menu registry", () => {
-  it("offers the block families plus the group constructors, v1 order + the container families", () => {
+  it("offers the block families plus the group constructors, the established order + the container families", () => {
     expect(filterKindOptionsForConfig().map((option) => option.value)).toEqual([
       "class",
       "type",
@@ -406,14 +545,56 @@ describe("the row predicate through the one evaluator", () => {
     expect(matches(client, makeNode({ title: "The Zebra Stripes" }), withContent("yak"))).toBe(false);
   });
 
-  it("class is hierarchy-aware — the class or anything extending it", () => {
+  it("member class is hierarchy-aware — the class or anything extending it", () => {
     const client = stubClient({ classChildren: { [CLASS_A]: [CLASS_B] } });
     const query: FilterQuery = {
       text: "",
-      group: { type: "group", logic: "and", children: [{ type: "class", classId: CLASS_A }] },
+      group: {
+        type: "group",
+        logic: "and",
+        children: [
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [CLASS_A] } },
+        ],
+      },
     };
     expect(matches(client, makeNode({ classIds: [CLASS_A] }), query)).toBe(true);
     expect(matches(client, makeNode({ classIds: [CLASS_B] }), query)).toBe(true);
+    expect(matches(client, makeNode({ classIds: [] }), query)).toBe(false);
+  });
+
+  it("member not-in negates the closure membership (the wire op, no NOT wrap)", () => {
+    const client = stubClient({ classChildren: { [CLASS_A]: [CLASS_B] } });
+    const query: FilterQuery = {
+      text: "",
+      group: {
+        type: "group",
+        logic: "and",
+        children: [
+          {
+            type: "member",
+            family: "class",
+            op: "not-in",
+            target: { mode: "ids", ids: [CLASS_A] },
+          },
+        ],
+      },
+    };
+    expect(matches(client, makeNode({ classIds: [CLASS_A] }), query)).toBe(false);
+    expect(matches(client, makeNode({ classIds: [CLASS_B] }), query)).toBe(false);
+    expect(matches(client, makeNode({ classIds: [] }), query)).toBe(true);
+  });
+
+  it("the member set bits evaluate synchronously", () => {
+    const client = stubClient({});
+    const query: FilterQuery = {
+      text: "",
+      group: {
+        type: "group",
+        logic: "and",
+        children: [{ type: "member", family: "class", op: "exists" }],
+      },
+    };
+    expect(matches(client, makeNode({ classIds: [CLASS_A] }), query)).toBe(true);
     expect(matches(client, makeNode({ classIds: [] }), query)).toBe(false);
   });
 
@@ -519,8 +700,12 @@ describe("the row predicate through the one evaluator", () => {
         type: "group",
         logic: "and",
         children: [
-          ...(after !== undefined ? [{ type: "createdAfter", timestamp: after } as const] : []),
-          ...(before !== undefined ? [{ type: "createdBefore", timestamp: before } as const] : []),
+          ...(after !== undefined
+            ? [{ type: "date", field: "created", op: "after", timestamp: after } as const]
+            : []),
+          ...(before !== undefined
+            ? [{ type: "date", field: "created", op: "before", timestamp: before } as const]
+            : []),
         ],
       },
     });
@@ -555,9 +740,9 @@ describe("the row predicate through the one evaluator", () => {
         logic: "and",
         children: [
           { type: "content", op: "contains", value: "zebra" },
-          { type: "class", classId: CLASS_A },
+          memberIn("class", [CLASS_A]),
           { type: "property", schemaId: SCHEMA, op: "gte", value: "5" },
-          { type: "createdAfter", timestamp: "2026-01-01" },
+          { type: "date", field: "created", op: "after", timestamp: "2026-01-01" },
         ],
       },
     };
@@ -594,7 +779,7 @@ describe("the row predicate through the one evaluator", () => {
         type: "group",
         logic: "and",
         children: [
-          { type: "not", child: { type: "class", classId: CLASS_A } },
+          { type: "not", child: memberIn("class", [CLASS_A]) },
         ],
       },
     };

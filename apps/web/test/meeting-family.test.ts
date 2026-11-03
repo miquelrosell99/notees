@@ -312,13 +312,13 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, { iso: "2026-10-06" });
 
     const classAndDate = client.runQueryAst({
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: {
         type: "group",
         logic: "and",
         children: [
-          { type: "class", classId: MEETING_CLASS_ID },
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [MEETING_CLASS_ID] } },
           { type: "property", schemaId: SYSTEM_PROPERTY_UUIDS.eventDate, op: "exists" },
         ],
       },
@@ -327,12 +327,12 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
 
     // Extends breadth: meeting IS-A event, so the event class query sees it.
     const asEvent = client.runQueryAst({
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: {
         type: "group",
         logic: "and",
-        children: [{ type: "class", classId: EVENT_CLASS_ID }],
+        children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [EVENT_CLASS_ID] } }],
       },
     });
     expect(asEvent.ids).toContain(id);
@@ -438,22 +438,22 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, { iso: "2026-10-06" });
 
     const asBirthday = client.runQueryAst({
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: {
         type: "group",
         logic: "and",
-        children: [{ type: "class", classId: BIRTHDAY_CLASS_ID }],
+        children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [BIRTHDAY_CLASS_ID] } }],
       },
     });
     expect(asBirthday.ids).toContain(id);
     const asEvent = client.runQueryAst({
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: {
         type: "group",
         logic: "and",
-        children: [{ type: "class", classId: EVENT_CLASS_ID }],
+        children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [EVENT_CLASS_ID] } }],
       },
     });
     expect(asEvent.ids).toContain(id);

@@ -640,7 +640,14 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           ast: {
             type: "group",
             logic: "and",
-            children: [{ type: "class", classId: entry.classId }],
+            children: [
+              {
+                type: "member",
+                family: "class",
+                op: "in",
+                target: { mode: "ids", ids: [entry.classId] },
+              },
+            ],
           } as Group,
         }));
         colorGroups = [...colorGroups, ...fromClassColors];

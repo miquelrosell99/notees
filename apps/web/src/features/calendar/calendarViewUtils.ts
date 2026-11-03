@@ -129,25 +129,25 @@ export function createdPeriodBounds(parts: {
 
 /**
  * The created-in-period query over node.created_at (UTC ISO-8601 bounds).
- * Only main nodes list: a class or a present-as-main node
+ * Only main nodes list: a class or a standalone (is_embedded = 0) node
  * — blocks created in the window are inline scaffolding, never content.
  */
 export function buildCreatedInPeriodAst(after: string, before: string): QueryAst {
   return {
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: {
       type: "group",
       logic: "and",
       children: [
-        { type: "createdAfter", timestamp: after },
-        { type: "createdBefore", timestamp: before },
+        { type: "date", field: "created", op: "after", timestamp: after },
+        { type: "date", field: "created", op: "before", timestamp: before },
         {
           type: "group",
           logic: "or",
           children: [
-            { type: "isClass", isClass: true },
-            { type: "isEmbedded", isEmbedded: false },
+            { type: "nodeField", field: "isClass", op: "eq", value: "true" },
+            { type: "nodeField", field: "isEmbedded", op: "eq", value: "false" },
           ],
         },
       ],

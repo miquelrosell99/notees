@@ -170,7 +170,7 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
     const group = filterQueryToGroup(draft);
     return group === null
       ? (safeParseAst(tokenAst) ?? FACTORY_QUERY_AST)
-      : { version: 1, scope: { type: "entire_workspace" }, root: group };
+      : { version: 2, scope: { type: "entire_workspace" }, root: group };
   };
 
   /** The per-tab builder commit: rewrite the SELECTED tab's query. */

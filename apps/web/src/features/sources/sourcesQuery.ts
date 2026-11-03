@@ -308,11 +308,13 @@ export function buildSourcesAst(filters: SourcesFilters): QueryAst {
   // A stale/unknown type key degrades to the source base rather than
   // pinning an empty table.
   const classId = picked !== null ? SYSTEM_CLASS_UUIDS[picked] : SYSTEM_CLASS_UUIDS.source;
-  const children: QueryAst["root"]["children"] = [{ type: "class", classId }];
+  const children: QueryAst["root"]["children"] = [
+    { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [classId] } },
+  ];
   const q = (filters.q ?? "").trim();
   if (q !== "") children.push({ type: "content", op: "contains", value: q });
   return {
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: { type: "group", logic: "and", children },
   };

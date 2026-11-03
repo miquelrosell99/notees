@@ -1,16 +1,29 @@
 /**
- * The condition model of the filter block builder — the v1/Odoo register
- * ([type][operator][value][mode]) as pure functions over the draft query
- * AST: the family a condition belongs to, the operator column's options
- * per family (adapting to the selected property schema), the operator's
- * current value (+ its negation), and the operator-application morphs
- * (the picked ids / values / timestamps carry across them). No React —
- * the row components in FilterBlockBuilder.tsx render this model.
- * Extracted verbatim from FilterBlockBuilder.tsx (Stage D monolith
- * split).
+ * The condition model of the filter block builder — the Odoo register
+ * ([family][operator][value][target mode]) as pure functions over the v2
+ * draft query AST: the family a condition belongs to, the operator column's
+ * options per family (adapting to the selected property schema), the
+ * operator's current value (+ its negation), and the operator-application
+ * morphs (the picked ids / values / timestamps carry across them).
+ *
+ * v2 shape: the operator column maps onto the member family's orthogonal
+ * axes — a membership label flips ONLY `condition.op` between "in" and
+ * "not-in" (the target rides verbatim — the mode axis is never touched by
+ * an operator choice); the set bits re-materialize the condition as
+ * `op: "exists"` / "op: "not-exists"` (no target at all). NOT-wraps remain
+ * only where the register sugar predates the wire ops: the content/property/
+ * date negatives and the wire-field "is not set". No React — the row
+ * components in FilterBlockBuilder.tsx render this model.
  */
 
-import type { Child, Condition, PropertyOp } from "@notees/query";
+import type {
+  Child,
+  Condition,
+  MemberCondition,
+  MemberFamily,
+  PropertyOp,
+  TargetRef,
+} from "@notees/query";
 
 import type { BuilderFacts } from "./builderFacts.js";
 import {
@@ -18,12 +31,12 @@ import {
   type ConditionKind,
 } from "./filterQuery.js";
 
-// --- the block (v1/Odoo register: [type][operator][value][mode]) -----------------
+// --- the block ---------------------------------------------------------------------
 
 /**
  * A block's view of a child: a single condition, or a NOT wrapping one (the
- * negative operators — "is not", "is not set", "does not contain" — are
- * sugar over a not-wrap, so the draft AST carries them verbatim and the row
+ * content/property/date negatives and the wire-field "is not set" are sugar
+ * over a not-wrap, so the draft AST carries them verbatim and the row
  * renders them as an operator choice). NOT-around-a-GROUP stays a group
  * wrapper (the NotBlock), never a block.
  */
@@ -37,93 +50,33 @@ export function blockView(child: Child): { negated: boolean; condition: Conditio
   return { negated: false, condition: child };
 }
 
-/** The family a condition belongs to (the block TYPE column's value). */
+/**
+ * The family a condition belongs to (the block TYPE column's value). The v2
+ * member condition maps to its wire family; `name` joins `content` (the
+ * title register — the builder never authors it, but DSL-parsed ASTs can
+ * carry it in).
+ */
 export function familyOf(condition: Condition): ConditionKind {
   switch (condition.type) {
+    case "member":
+      return condition.family === "class" ? "class" : condition.family;
     case "content":
-    case "contentSet":
+    case "name":
       return "content";
-    case "class":
-    case "classExact":
-    case "classAny":
-    case "classAnyQuery":
-    case "classSelf":
-    case "classSet":
-      return "class";
-    case "isClass":
-      return "type";
-    case "isEmbedded":
-      return "placement";
     case "property":
-    case "propertyBetween":
-    case "propertyWithin":
       return "property";
-    case "linkedTo":
-    case "linkedToQuery":
-    case "linkedToSelf":
-    case "linkedToAny":
-    case "linkSet":
-      return "links";
-    case "referencePathOf":
-    case "referencePathOfQuery":
-    case "referencePathOfSelf":
-      return "referencePath";
-    case "parentOf":
-    case "parentOfQuery":
-    case "parentOfSelf":
-      return "parent";
-    case "childOf":
-    case "childOfQuery":
-    case "childOfSelf":
-    case "childSet":
-      return "child";
-    case "descendantOf":
-    case "descendantOfQuery":
-    case "descendantOfSelf":
-    case "descendantOfAny":
-    case "descendantSet":
-      return "childPath";
-    case "tag":
-    case "tagAny":
-    case "tagAnyQuery":
-    case "tagSelf":
-    case "tagSet":
-      return "tags";
-    case "parentSet":
-      return "parent";
-    case "pageOf":
-    case "pageOfQuery":
-    case "pageOfSelf":
-    case "pageSet":
-      return "page";
-    case "ancestorIn":
-    case "ancestorInQuery":
-    case "ancestorInSelf":
-      return "parentPath";
-    case "rootIn":
-    case "rootInQuery":
-    case "rootInSelf":
-      return "root";
-    case "coverAsset":
-      return "cover";
-    case "bannerAsset":
-      return "banner";
-    case "aliasedNode":
-      return "alias";
-    case "createdAfter":
-    case "createdBefore":
-    case "createdCmp":
-    case "createdBetween":
-    case "createdWithin":
-      return "created";
-    case "updatedAfter":
-    case "updatedBefore":
-    case "updatedCmp":
-    case "updatedBetween":
-    case "updatedWithin":
-      return "edited";
-    default:
-      return "class";
+    case "date":
+      return condition.field === "created" ? "created" : "edited";
+    case "nodeField":
+      return condition.field === "coverAsset"
+        ? "cover"
+        : condition.field === "bannerAsset"
+          ? "banner"
+          : condition.field === "aliasedNode"
+            ? "alias"
+            : condition.field === "isClass"
+              ? "type"
+              : "placement";
   }
 }
 
@@ -132,9 +85,61 @@ interface OperatorOption {
   label: string;
 }
 
-/** The operator column's options per family (the Odoo operator sets). The property family's list adapts to the SELECTED schema's
- * type; the edited family carries the set/not-set pair (created_at is always
- * set — the options would lie). */
+/**
+ * The membership register per member family: the operator column's positive
+ * and negative labels (unchanged from the v1 UI) and whether the family
+ * offers the set bits. Both positive labels map onto the SAME v2 op ("in" —
+ * v2 has no single/list split on the wire); the canonical label is what
+ * operatorOf reads back (the other is an offered alias that keeps the
+ * condition verbatim).
+ */
+const MEMBER_REGISTER: Record<
+  MemberFamily,
+  { positives: readonly string[]; canonical: string; negatives: readonly string[]; set: boolean }
+> = {
+  class: {
+    positives: ["is", "contains"],
+    canonical: "contains",
+    negatives: ["not-contains", "is-not"],
+    set: true,
+  },
+  tags: { positives: ["is"], canonical: "is", negatives: ["is-not"], set: true },
+  links: { positives: ["is"], canonical: "is", negatives: ["is-not"], set: true },
+  referencePath: {
+    positives: ["is-any-of"],
+    canonical: "is-any-of",
+    negatives: ["is-not-any-of"],
+    set: false,
+  },
+  parent: { positives: ["is"], canonical: "is", negatives: ["is-not"], set: true },
+  child: {
+    positives: ["contains-any-of"],
+    canonical: "contains-any-of",
+    negatives: ["not-contains-any-of"],
+    set: true,
+  },
+  childPath: {
+    positives: ["contains"],
+    canonical: "contains",
+    negatives: ["not-contains"],
+    set: true,
+  },
+  page: { positives: ["is"], canonical: "is", negatives: ["is-not"], set: true },
+  parentPath: {
+    positives: ["includes"],
+    canonical: "includes",
+    negatives: ["not-includes"],
+    set: true,
+  },
+  root: { positives: ["is"], canonical: "is", negatives: ["is-not"], set: false },
+};
+
+/**
+ * The operator column's options per family (the Odoo operator sets). The
+ * property family's list adapts to the SELECTED schema's type; the edited
+ * family carries no set pair (created_at/updated_at are written at create
+ * time — the options would lie).
+ */
 export function operatorOptions(
   family: ConditionKind,
   condition: Condition | undefined,
@@ -142,13 +147,12 @@ export function operatorOptions(
 ): readonly OperatorOption[] {
   switch (family) {
     case "class":
-      // The class set: BOTH class operators ride
-      // the extends-aware closure membership — "is fuente" matches a node
-      // classed book when book extends fuente. is/is not are the SINGLE-PILL
-      // form (binds the `class` closure-membership condition), contains/
-      // does not contain the LIST form (the "one of" operator collapsed into
-      // contains — the identical ANY-of semantics), is set/is not set test
-      // the set's emptiness. (Exact set equality — classExact — is
+      // The class set: BOTH class operators ride the extends-aware closure
+      // membership — "is fuente" matches a node classed book when book
+      // extends fuente. is / is not and contains / does not contain are the
+      // SAME v2 wire op ("in" over the picked ids — the single/list split
+      // was a v1 wire artifact); is set / is not set test the set's
+      // emptiness. (Exact set equality — the class member's "exact" op — is
       // legacy-wire-only: stored ASTs still parse/evaluate it, the UI no
       // longer binds it.)
       return [
@@ -175,10 +179,8 @@ export function operatorOptions(
       ];
     case "tags":
     case "links":
-      // The link/tag families (the multi-value
-      // register): contains/does not contain bind the LIST (ANY-of membership
-      // over the picked nodes — the "one of" operator collapsed into
-      // contains); is set/is not set test the reference's existence.
+      // The link/tag families (the multi-value register): contains/does not
+      // contain bind the LIST (ANY-of membership over the picked nodes).
       return [
         { value: "is", label: "contains" },
         { value: "is-not", label: "does not contain" },
@@ -186,16 +188,16 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "referencePath":
-      // v1's REFERENCE PATH: the self-or-ancestor link rollup (containment
-      // folded in) over the picked nodes / the subquery's matches / the host.
+      // The link-path rollup (containment folded in) over the picked nodes /
+      // the subquery's matches / the host.
       return [
         { value: "is-any-of", label: "contains" },
         { value: "is-not-any-of", label: "does not contain" },
       ];
     case "parent":
-      // v1's PARENT (single-value): the DIRECT
-      // PARENT is one node — is/is not bind a single slot (the wire list
-      // carries 0/1 elements), is set/is not set the has-a-parent bit.
+      // The DIRECT PARENT is one node — is/is not bind the picked list (the
+      // single-slot value control carries 0/1 elements), is set/is not set
+      // the has-a-parent bit.
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
@@ -203,7 +205,7 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "child":
-      // v1's CHILD: contains any of the picked nodes as DIRECT children.
+      // A DIRECT child is one of the picked nodes.
       return [
         { value: "contains-any-of", label: "contains" },
         { value: "not-contains-any-of", label: "does not contain" },
@@ -211,8 +213,8 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "childPath":
-      // v1's CHILD PATH: contains any of the picked nodes anywhere down
-      // their tree (the v1 "contains" wording).
+      // The subtree contains any of the picked nodes anywhere down their
+      // tree (the v1 "contains" wording).
       return [
         { value: "contains", label: "contains" },
         { value: "not-contains", label: "does not contain" },
@@ -230,9 +232,8 @@ export function operatorOptions(
         { value: "is-not", label: "is not" },
       ];
     case "page":
-      // v1's Page block (single-value): the
-      // CONTAINING PAGE is one node — is/is not bind a single slot, is set/
-      // is not set the lives-inside-a-page bit.
+      // The CONTAINING PAGE is one node — is/is not bind the picked list,
+      // is set/is not set the lives-inside-a-page bit.
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
@@ -240,8 +241,8 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "parentPath":
-      // v1's Parent path block: the ancestor chain contains any of the
-      // picked nodes (or the subquery's matches / the host page).
+      // The ancestor chain contains any of the picked nodes (or the
+      // subquery's matches / the host page).
       return [
         { value: "includes", label: "contains" },
         { value: "not-includes", label: "does not contain" },
@@ -249,10 +250,9 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "root":
-      // The root walk (single-value): the
-      // workspace-root ancestor is one node — is/is not bind a single slot.
-      // The set bit is vacuous — every node's root exists (a parentless row
-      // is its own root).
+      // The workspace-root ancestor is one node — is/is not bind the picked
+      // list. The set bit is vacuous — every node's root exists (a
+      // parentless row is its own root).
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
@@ -291,9 +291,7 @@ export function propertyOperatorOptions(
   condition: Condition | undefined,
   facts: BuilderFacts,
 ): readonly OperatorOption[] {
-  const schemaId = condition?.type === "property" || condition?.type === "propertyBetween" || condition?.type === "propertyWithin"
-    ? condition.schemaId
-    : "";
+  const schemaId = condition?.type === "property" ? condition.schemaId : "";
   const schema = facts.boundProperties.find((property) => property.id === schemaId);
   const set = [
     { value: "set", label: "is set" },
@@ -362,332 +360,98 @@ export function propertyOperatorOptions(
 /** The operator column's current value for a condition (+ its negation). */
 export function operatorOf(condition: Condition, negated: boolean): string {
   switch (condition.type) {
-    case "class":
-      // The single-pill closure register.
-      return negated ? "is-not" : "is";
-    case "classExact":
-      // Legacy-wire-only (exact set equality): rows still render their "is".
-      return negated ? "is-not" : "is";
-    case "classAny":
-    case "classAnyQuery":
-    case "classSelf":
-      // ANY-of closure membership over the picked list (the collapsed
-      // "one of" register).
-      return negated ? "not-contains" : "contains";
-    case "classSet":
-      return negated ? "not-set" : "set";
+    case "member": {
+      const register = MEMBER_REGISTER[condition.family];
+      if (condition.op === "exact") {
+        // Legacy-wire-only (exact set equality): rows still render their "is".
+        return negated ? "is-not" : "is";
+      }
+      if (condition.op === "exists") return negated ? "not-set" : "set";
+      if (condition.op === "not-exists") return negated ? "set" : "not-set";
+      // in / not-in read the family's canonical membership label (the
+      // single/list register collapsed onto the one wire op).
+      return condition.op === "not-in"
+        ? negated
+          ? register.canonical
+          : register.negatives[0]!
+        : negated
+          ? register.negatives[0]!
+          : register.canonical;
+    }
     case "content":
+    case "name":
+      if (condition.op === "exists") return negated ? "not-set" : "set";
       if (condition.op === "fts") return "fts";
       if (condition.op === "eq") return negated ? "is-not" : "is";
       if (condition.op === "starts") return "starts";
       if (condition.op === "ends") return "ends";
       return negated ? "not-contains" : "contains";
-    case "contentSet":
-      return negated ? "not-set" : "set";
-    case "name":
-      // Title-is-content: the content register minus the fts/edge arms (the
-      // builder never authors this condition — the DSL parse can carry it in).
-      if (condition.op === "exists") return negated ? "not-set" : "set";
-      if (condition.op === "eq" || condition.op === "neq") return negated ? "is-not" : "is";
-      return negated ? "not-contains" : "contains";
-    case "tag":
-      return negated ? "is-not" : "is";
-    case "tagAny":
-    case "tagAnyQuery":
-    case "tagSelf":
-      // The multi-value register: "is" binds the
-      // picked LIST — ANY-of membership.
-      return negated ? "is-not" : "is";
-    case "tagSet":
-      return negated ? "not-set" : "set";
-    case "linkedTo":
-    case "linkedToQuery":
-    case "linkedToSelf":
-      return negated ? "is-not" : "is";
-    case "linkedToAny":
-      // The multi-value register: "is" binds the picked LIST.
-      return negated ? "is-not" : "is";
-    case "linkSet":
-      return negated ? "not-set" : "set";
-    case "descendantOf":
-    case "descendantOfAny":
-    case "descendantOfQuery":
-    case "descendantOfSelf":
-      // The child-path register (contains / does not contain) — the legacy
-      // single id and the dynamic/self shapes read the same ANY-of wording;
-      // values outside the register would render the operator dropdown blank.
-      return negated ? "not-contains" : "contains";
-    case "descendantSet":
-      return negated ? "not-set" : "set";
-    case "parentOf":
-    case "parentOfQuery":
-    case "parentOfSelf":
-      // The single-value register.
-      return negated ? "is-not" : "is";
-    case "parentSet":
-      return negated ? "not-set" : "set";
-    case "childOf":
-    case "childOfQuery":
-    case "childOfSelf":
-      return negated ? "not-contains-any-of" : "contains-any-of";
-    case "childSet":
-      return negated ? "not-set" : "set";
-    case "referencePathOf":
-    case "referencePathOfQuery":
-    case "referencePathOfSelf":
-      return negated ? "is-not-any-of" : "is-any-of";
-    case "pageOf":
-    case "pageOfQuery":
-    case "pageOfSelf":
-      // The single-value register.
-      return negated ? "is-not" : "is";
-    case "pageSet":
-      return negated ? "not-set" : "set";
-    case "ancestorIn":
-    case "ancestorInQuery":
-    case "ancestorInSelf":
-      return negated ? "not-includes" : "includes";
-    case "rootIn":
-    case "rootInQuery":
-    case "rootInSelf":
-      // The single-value register.
-      return negated ? "is-not" : "is";
-    case "isClass":
-      return condition.isClass ? "is" : "is-not";
-    case "isEmbedded":
-      return condition.isEmbedded ? "is" : "is-not";
     case "property":
       if (condition.op === "exists") return negated ? "not-set" : "set";
+      if (condition.op === "between") return "between";
+      if (condition.op === "within") return "within";
       if (condition.op === "eq" && typeof condition.value === "boolean") {
         const truth = negated ? !condition.value : condition.value;
         return truth ? "is-true" : "is-false";
       }
       return condition.op;
-    case "propertyBetween":
-      return "between";
-    case "propertyWithin":
-      return "within";
-    case "createdAfter":
-      return "after";
-    case "createdBefore":
-      return "before";
-    case "createdCmp":
+    case "date":
       if (condition.op === "eq") return negated ? "is-not" : "is";
       if (condition.op === "neq") return negated ? "is" : "is-not";
       return condition.op;
-    case "createdBetween":
-      return "between";
-    case "createdWithin":
-      return "within";
-    case "updatedAfter":
-      return "after";
-    case "updatedBefore":
-      return "before";
-    case "updatedCmp":
-      if (condition.op === "eq") return negated ? "is-not" : "is";
-      if (condition.op === "neq") return negated ? "is" : "is-not";
-      return condition.op;
-    case "updatedBetween":
-      return "between";
-    case "updatedWithin":
-      return "within";
-    case "coverAsset":
-    case "bannerAsset":
-    case "aliasedNode":
+    case "nodeField":
+      if (condition.field === "isClass" || condition.field === "isEmbedded") {
+        const truth = condition.value !== "false";
+        return negated ? (truth ? "is-not" : "is") : truth ? "is" : "is-not";
+      }
       return negated ? "not-exists" : "exists";
   }
 }
 
 /**
- * The class family's operator application: BOTH
- * class operators ride the extends-aware closure membership — "is fuente"
- * matches a node classed book when book extends fuente. is / is not → the
- * SINGLE-PILL form (binds the `class` closure-membership condition, the
- * first carried id), contains / does not contain → the LIST form (closure
- * ANY-of over the picked ids, the collapsed "one of"), is set / is not set →
- * emptiness. Exact set equality (classExact) is legacy-wire-only — still
- * parsed/evaluated, no longer bound here. The picked ids carry across the
- * morphs so switching operators keeps the selection.
+ * The member morph — the orthogonality law: an operator choice touches ONLY
+ * the op axis. Positive labels → `op: "in"`, negative labels →
+ * `op: "not-in"`, each carrying the target VERBATIM (an ids list, a nested
+ * query, or the self marker — the mode survives every flip). The set bits
+ * re-materialize the condition as `exists` / `not-exists` (the set shapes
+ * carry no target); flipping back to a membership label re-materializes an
+ * `in` over an empty ids pick.
  */
-function applyClassOperator(condition: Condition, op: string): Child {
-  const carried: string[] =
-    condition.type === "classAny"
-      ? condition.classIds
-      : (condition.type === "class" || condition.type === "classExact") && condition.classId !== ""
-        ? [condition.classId]
-        : [];
-  const neg = (next: Condition): Child => ({ type: "not", child: next });
-  switch (op) {
-    case "is":
-      return { type: "class", classId: carried[0] ?? "" };
-    case "is-not":
-      return neg({ type: "class", classId: carried[0] ?? "" });
-    case "contains":
-      return { type: "classAny", classIds: carried };
-    case "not-contains":
-      return neg({ type: "classAny", classIds: carried });
-    case "set":
-      return { type: "classSet" };
-    case "not-set":
-      return neg({ type: "classSet" });
-    default:
-      return condition;
+function applyMemberOperator(condition: MemberCondition, op: string): Child {
+  const register = MEMBER_REGISTER[condition.family];
+  let carriedTarget: TargetRef | undefined;
+  if (condition.op === "in" || condition.op === "not-in") carriedTarget = condition.target;
+  if (condition.op === "exact") carriedTarget = condition.target;
+  const target = carriedTarget ?? { mode: "ids" as const, ids: [] };
+  const inOp = condition.op === "not-exists" ? "not-in" : "in";
+  if (register.positives.includes(op)) {
+    return { ...condition, op: inOp, target } as MemberCondition;
   }
-}
-
-/** Carried ids for the node-target families (links / parent / tags morphs). */
-function carriedNodeIds(condition: Condition): string[] {
-  if (condition.type === "tagAny") return condition.tagIds;
-  if (
-    condition.type === "linkedToAny" ||
-    condition.type === "descendantOfAny" ||
-    condition.type === "pageOf" ||
-    condition.type === "ancestorIn" ||
-    condition.type === "rootIn" ||
-    condition.type === "parentOf" ||
-    condition.type === "childOf" ||
-    condition.type === "referencePathOf"
-  ) {
-    return condition.nodeIds;
+  if (register.negatives.includes(op)) {
+    return { ...condition, op: "not-in", target } as MemberCondition;
   }
-  if (condition.type === "linkedTo" || condition.type === "descendantOf") {
-    return condition.nodeId !== "" ? [condition.nodeId] : [];
+  if (op === "set") {
+    return { type: "member", family: condition.family, op: "exists" };
   }
-  if (condition.type === "tag") {
-    return condition.tagId !== "" ? [condition.tagId] : [];
+  if (op === "not-set") {
+    return { type: "member", family: condition.family, op: "not-exists" };
   }
-  return [];
-}
-
-/**
- * The node-target morph: is /
- * is not bind the picked LIST (ANY-of membership — the collapsed "one of";
- * the legacy single shapes re-enter as the multi list carrying their id),
- * is set / is not set test the reference's existence.
- */
-function applyNodeTargetOperator(
-  condition: Condition,
-  op: string,
-  any: (ids: string[]) => Condition,
-  setType: Condition,
-): Child {
-  const carried = carriedNodeIds(condition);
-  const neg = (next: Condition): Child => ({ type: "not", child: next });
-  switch (op) {
-    case "is":
-      return any(carried);
-    case "is-not":
-      return neg(any(carried));
-    case "set":
-      return setType;
-    case "not-set":
-      return neg(setType);
-    default:
-      return condition;
-  }
-}
-
-/**
- * The node-container morph (v1's Page / Parent path / Root blocks). Page and
- * Root are single-target: is / is not bind the
- * picked id into a 0/1-element wire list (the set bits where they mean
- * something — Page is set = lives inside a page; Root's set bit is vacuous —
- * never offered). The parent path is genuinely set-valued and keeps its own
- * pair (includes / does not include). The static shapes only — the dynamic/
- * self rows ride applyDynamicOperator (the mode survives the operator).
- */
-function applyContainerNodeOperator(
-  condition: Condition,
-  op: string,
-  kind: "page" | "path" | "root",
-): Child {
-  const carried: string[] =
-    condition.type === "pageOf" || condition.type === "ancestorIn" || condition.type === "rootIn"
-      ? condition.nodeIds
-      : [];
-  const single =
-    kind === "page"
-      ? (nodeIds: string[]): Condition => ({ type: "pageOf", nodeIds })
-      : kind === "path"
-        ? (nodeIds: string[]): Condition => ({ type: "ancestorIn", nodeIds })
-        : (nodeIds: string[]): Condition => ({ type: "rootIn", nodeIds });
-  // The parent-path "is set" IS "has a parent" (parentSet); the page's is
-  // "lives inside a page" (pageSet).
-  const setType: Condition =
-    kind === "page" ? { type: "pageSet" } : kind === "path" ? { type: "parentSet" } : condition;
-  const neg = (next: Condition): Child => ({ type: "not", child: next });
-  switch (op) {
-    case "is":
-    case "is-any-of":
-    case "includes":
-      return single(carried);
-    case "is-not":
-    case "is-not-any-of":
-    case "not-includes":
-      return neg(single(carried));
-    case "set":
-      return setType;
-    case "not-set":
-      return neg(setType);
-    default:
-      return condition;
-  }
-}
-
-/**
- * The generic node-target morph for the v1 pick-set families (Parent direct /
- * Child / Child path / Reference path): a positive/negative operator pair
- * over the picked-id set, plus an optional set bit. The picked ids carry
- * across the morphs. The static shapes only — the dynamic/self rows ride
- * applyDynamicOperator (the mode survives the operator).
- */
-function applyPickSetOperator(
-  condition: Condition,
-  op: string,
-  positiveOp: string,
-  negativeOp: string,
-  single: (nodeIds: string[]) => Condition,
-  setType: Condition | null,
-): Child {
-  const carried = carriedNodeIds(condition);
-  const neg = (next: Condition): Child => ({ type: "not", child: next });
-  if (op === positiveOp) return single(carried);
-  if (op === negativeOp) return neg(single(carried));
-  if (setType !== null && op === "set") return setType;
-  if (setType !== null && op === "not-set") return neg(setType);
   return condition;
 }
 
-/**
- * The dynamic/self morph: a Query- or Self-mode row keeps its mode across an
- * operator choice — the register's negative wraps the *Query/*Self condition
- * in NOT (the compiler negates the whole probe with the subquery / self
- * marker intact), the positive keeps it, and the set bit swaps the target for
- * the family's emptiness shape (the value column reads empty then, as in
- * Manual mode). The morph never rewrites the row into a static shape.
- */
-function applyDynamicOperator(
-  condition: Condition,
-  op: string,
-  negativeOps: readonly string[],
-  setType: Condition | null,
-): Child {
+/** The content/name morph: the text operator set + the emptiness bit. */
+function applyTextOperator(condition: Extract<Condition, { type: "content" | "name" }>, op: string): Child {
+  const carried = condition.value ?? "";
   const neg = (next: Condition): Child => ({ type: "not", child: next });
-  if (negativeOps.includes(op)) return neg(condition);
-  if (setType !== null && op === "set") return setType;
-  if (setType !== null && op === "not-set") return neg(setType);
-  return condition;
-}
-
-/** The content morph: the text operator set + the emptiness bit. */
-function applyContentOperator(condition: Condition, op: string): Child {
-  const carried = condition.type === "content" ? condition.value : "";
-  const neg = (next: Condition): Child => ({ type: "not", child: next });
-  const text = (contentOp: "eq" | "contains" | "starts" | "ends" | "fts", value: string): Condition => ({
-    type: "content",
-    op: contentOp,
-    value,
-  });
+  const text = (
+    textOp: "eq" | "contains" | "starts" | "ends" | "fts",
+    value: string,
+  ): Condition => {
+    if (condition.type === "content") return { type: "content", op: textOp, value };
+    // The title register carries only eq/neq/contains/exists — the edge/fts
+    // arms are guarded into "contains" here (unreachable for name rows).
+    return { type: "name", op: textOp === "eq" ? "eq" : "contains", value };
+  };
   switch (op) {
     case "is":
       return text("eq", carried);
@@ -698,39 +462,35 @@ function applyContentOperator(condition: Condition, op: string): Child {
     case "not-contains":
       return neg(text("contains", carried));
     case "starts":
-      return text("starts", carried);
+      return condition.type === "content" ? text("starts", carried) : condition;
     case "ends":
-      return text("ends", carried);
+      return condition.type === "content" ? text("ends", carried) : condition;
     case "fts":
-      return text("fts", carried);
+      return condition.type === "content" ? text("fts", carried) : condition;
     case "set":
-      return { type: "contentSet" };
+      return { type: condition.type, op: "exists" };
     case "not-set":
-      return neg({ type: "contentSet" });
+      return neg({ type: condition.type, op: "exists" });
     default:
       return condition;
   }
 }
 
-/** The date morph (created / edited): comparisons carry the timestamp, the range carries it into `from`. */
-function applyDateOperator(condition: Condition, op: string, edited: boolean): Child {
-  const carried =
-    condition.type === "createdCmp" || condition.type === "updatedCmp"
-      ? condition.timestamp
-      : (condition.type === "createdAfter" || condition.type === "updatedAfter" || condition.type === "createdBefore" || condition.type === "updatedBefore" || condition.type === "createdBetween" || condition.type === "updatedBetween")
-        ? (condition as { timestamp?: string; from?: string }).timestamp ??
-          (condition as { from?: string }).from ??
-          ""
-        : "";
-  const cmp = (dateOp: "eq" | "neq" | "gt" | "gte" | "lt" | "lte", timestamp: string): Condition =>
-    edited
-      ? { type: "updatedCmp", op: dateOp, timestamp }
-      : { type: "createdCmp", op: dateOp, timestamp };
-  const between = (from: string, to: string): Condition =>
-    edited ? { type: "updatedBetween", from, to } : { type: "createdBetween", from, to };
-  const within = (period: "today" | "this_week" | "this_month" | "this_year"): Condition =>
-    edited ? { type: "updatedWithin", period } : { type: "createdWithin", period };
+/**
+ * The date morph (created / edited): the field rides the condition (the
+ * family only names WHICH date column); comparisons carry the timestamp, the
+ * range carries it into `from`. The set bits are vacuous — created_at/
+ * updated_at are written at create time — and keep the condition.
+ */
+function applyDateOperator(condition: Extract<Condition, { type: "date" }>, op: string): Child {
+  const carried = condition.timestamp ?? condition.from ?? "";
   const neg = (next: Condition): Child => ({ type: "not", child: next });
+  const cmp = (dateOp: "eq" | "neq" | "gt" | "gte" | "lt" | "lte", timestamp: string): Condition => ({
+    type: "date",
+    field: condition.field,
+    op: dateOp,
+    timestamp,
+  });
   switch (op) {
     case "is":
       return cmp("eq", carried);
@@ -742,17 +502,24 @@ function applyDateOperator(condition: Condition, op: string, edited: boolean): C
     case "lte":
       return cmp(op, carried);
     case "after":
-      return edited
-        ? { type: "updatedAfter", timestamp: carried }
-        : { type: "createdAfter", timestamp: carried };
+      return { type: "date", field: condition.field, op: "after", timestamp: carried };
     case "before":
-      return edited
-        ? { type: "updatedBefore", timestamp: carried }
-        : { type: "createdBefore", timestamp: carried };
+      return { type: "date", field: condition.field, op: "before", timestamp: carried };
     case "between":
-      return between(carried, carried);
+      return {
+        type: "date",
+        field: condition.field,
+        op: "between",
+        from: carried,
+        to: condition.to ?? carried,
+      };
     case "within":
-      return within("today");
+      return {
+        type: "date",
+        field: condition.field,
+        op: "within",
+        period: condition.period ?? "today",
+      };
     case "set":
     case "not-set":
       // The date set bits are vacuous: created_at/updated_at are written at
@@ -764,14 +531,14 @@ function applyDateOperator(condition: Condition, op: string, edited: boolean): C
 }
 
 /** The property morph: the op carries the value across; between/within keep the schema. */
-function applyPropertyOperator(condition: Condition, op: string): Child {
-  const schemaId =
-    condition.type === "property" || condition.type === "propertyBetween" || condition.type === "propertyWithin"
-      ? condition.schemaId
-      : "";
-  const carried = condition.type === "property" ? condition.value : undefined;
+function applyPropertyOperator(condition: Extract<Condition, { type: "property" }>, op: string): Child {
+  const schemaId = condition.schemaId;
+  const carried = condition.value;
   const neg = (next: Condition): Child => ({ type: "not", child: next });
-  const value = (propertyOp: "eq" | "neq" | "contains" | "gt" | "gte" | "lt" | "lte", v: unknown): Condition => ({
+  const value = (
+    propertyOp: "eq" | "neq" | "contains" | "gt" | "gte" | "lt" | "lte",
+    v: unknown,
+  ): Condition => ({
     type: "property",
     schemaId,
     op: propertyOp,
@@ -796,9 +563,9 @@ function applyPropertyOperator(condition: Condition, op: string): Child {
     case "is-false":
       return value("eq", false);
     case "between":
-      return { type: "propertyBetween", schemaId, from: carried, to: undefined };
+      return { type: "property", schemaId, op: "between", from: carried, to: condition.to };
     case "within":
-      return { type: "propertyWithin", schemaId, period: "today" };
+      return { type: "property", schemaId, op: "within", period: condition.period ?? "today" };
     case "set":
       return { type: "property", schemaId, op: "exists" };
     case "not-set":
@@ -810,154 +577,29 @@ function applyPropertyOperator(condition: Condition, op: string): Child {
 
 /**
  * Apply an operator choice to a block's condition, returning the new child
- * (not-wrapped where the operator is negative). The picked ids / values /
- * timestamps carry across the operator morphs; the boolean families flip
- * their bit instead of wrapping; the dynamic (*Query) and self (*Self) rows
- * keep their mode — the negative wraps, the positive unwraps, never a
- * rewrite into a static shape.
+ * (not-wrapped where the register sugars the negative that way — the
+ * content/property/date families and the wire fields). The member families
+ * flip the wire op instead (in ⇄ not-in with the target verbatim; the set
+ * bits re-materialize exists/not-exists); the boolean node fields flip their
+ * value. The picked ids / values / timestamps carry across the morphs.
  */
 export function applyOperator(condition: Condition, op: string): Child {
   switch (condition.type) {
-    case "class":
-    case "classExact":
-    case "classAny":
-    case "classSet":
-      return applyClassOperator(condition, op);
+    case "member":
+      return applyMemberOperator(condition, op);
     case "content":
-    case "contentSet":
-      return applyContentOperator(condition, op);
-    case "tag":
-    case "tagAny":
-    case "tagSet":
-      return applyNodeTargetOperator(
-        condition,
-        op,
-        (tagIds) => ({ type: "tagAny", tagIds }),
-        { type: "tagSet" },
-      );
-    case "tagAnyQuery":
-    case "tagSelf":
-      // The dynamic/self row: the operator only flips the polarity — the
-      // subquery / self marker survives it.
-      return applyDynamicOperator(condition, op, ["is-not"], { type: "tagSet" });
-    case "linkedTo":
-    case "linkedToAny":
-    case "linkSet":
-      return applyNodeTargetOperator(
-        condition,
-        op,
-        (nodeIds) => ({ type: "linkedToAny", nodeIds }),
-        { type: "linkSet" },
-      );
-    case "linkedToQuery":
-    case "linkedToSelf":
-      return applyDynamicOperator(condition, op, ["is-not"], { type: "linkSet" });
-    case "parentOf":
-      // The single-value register: is / is not
-      // bind the picked id (the wire list carries 0/1 elements).
-      return applyPickSetOperator(
-        condition,
-        op,
-        "is",
-        "is-not",
-        (nodeIds) => ({ type: "parentOf", nodeIds }),
-        { type: "parentSet" },
-      );
-    case "parentOfQuery":
-    case "parentOfSelf":
-      return applyDynamicOperator(condition, op, ["is-not"], { type: "parentSet" });
-    case "childOf":
-    case "childSet":
-      return applyPickSetOperator(
-        condition,
-        op,
-        "contains-any-of",
-        "not-contains-any-of",
-        (nodeIds) => ({ type: "childOf", nodeIds }),
-        { type: "childSet" },
-      );
-    case "childOfQuery":
-    case "childOfSelf":
-      return applyDynamicOperator(condition, op, ["not-contains-any-of"], { type: "childSet" });
-    case "descendantOf":
-    case "descendantOfAny":
-    case "descendantSet":
-      return applyPickSetOperator(
-        condition,
-        op,
-        "contains",
-        "not-contains",
-        (nodeIds) => ({ type: "descendantOfAny", nodeIds }),
-        { type: "descendantSet" },
-      );
-    case "descendantOfQuery":
-    case "descendantOfSelf":
-      return applyDynamicOperator(condition, op, ["not-contains"], { type: "descendantSet" });
-    case "referencePathOf":
-      return applyPickSetOperator(
-        condition,
-        op,
-        "is-any-of",
-        "is-not-any-of",
-        (nodeIds) => ({ type: "referencePathOf", nodeIds }),
-        null,
-      );
-    case "referencePathOfQuery":
-    case "referencePathOfSelf":
-      return applyDynamicOperator(condition, op, ["is-not-any-of"], null);
-    case "parentSet":
-      // The Parent family's set bit — every operator choice on it keeps it
-      // (its operator list is only set / not-set, its own states).
-      return condition;
-    case "pageOf":
-    case "pageSet":
-      return applyContainerNodeOperator(condition, op, "page");
-    case "pageOfQuery":
-    case "pageOfSelf":
-      return applyDynamicOperator(condition, op, ["is-not"], { type: "pageSet" });
-    case "ancestorIn":
-      return applyContainerNodeOperator(condition, op, "path");
-    case "ancestorInQuery":
-    case "ancestorInSelf":
-      return applyDynamicOperator(condition, op, ["not-includes"], { type: "parentSet" });
-    case "rootIn":
-      return applyContainerNodeOperator(condition, op, "root");
-    case "rootInQuery":
-    case "rootInSelf":
-      // No set bit — every node's root exists (a parentless row is its own).
-      return applyDynamicOperator(condition, op, ["is-not"], null);
-    case "createdAfter":
-    case "createdBefore":
-    case "createdCmp":
-    case "createdBetween":
-    case "createdWithin":
-      return applyDateOperator(condition, op, false);
-    case "updatedAfter":
-    case "updatedBefore":
-    case "updatedCmp":
-    case "updatedBetween":
-    case "updatedWithin":
-      return applyDateOperator(condition, op, true);
+    case "name":
+      return applyTextOperator(condition, op);
+    case "date":
+      return applyDateOperator(condition, op);
     case "property":
-    case "propertyBetween":
-    case "propertyWithin":
       return applyPropertyOperator(condition, op);
-    case "isClass":
-      return { ...condition, isClass: op !== "is-not" };
-    case "isEmbedded":
-      return { ...condition, isEmbedded: op !== "is-not" };
-    case "classAnyQuery":
-    case "classSelf":
-      // The dynamic/self class row: both negative register choices (is not /
-      // does not contain) wrap in NOT, the positives keep the condition — the
-      // nested group / the self marker is the value and survives the choice.
-      return applyDynamicOperator(condition, op, ["is-not", "not-contains"], { type: "classSet" });
-    case "coverAsset":
-    case "bannerAsset":
-    case "aliasedNode":
+    case "nodeField":
+      if (condition.field === "isClass" || condition.field === "isEmbedded") {
+        // The boolean families flip their value instead of wrapping.
+        return { ...condition, value: op === "is-not" ? "false" : "true" };
+      }
       return op === "not-exists" ? { type: "not", child: condition } : condition;
-    default:
-      return condition;
   }
 }
 

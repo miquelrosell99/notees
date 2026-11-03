@@ -102,7 +102,7 @@ export interface UseSectionDataOptions<T> {
    */
   filter?: (T extends readonly (infer Row)[] ? SectionRowFilter<Row> : never) | undefined;
   /**
-   * The hosting page for the structured filter's `*Self` conditions — the
+   * The hosting page for the structured filter's `self` target mode — the
    * page the section renders on. Absent only when no Self condition can be
    * authored (a host-less surface); a Self leaf evaluated without it fails
    * loud at the compiler.
@@ -218,7 +218,7 @@ export function useSectionData<T>({
     if (filter === undefined) return null;
     try {
       return planSectionView({
-        version: 1,
+        version: 2,
         scope: { type: "entire_workspace" },
         root: filter.group,
       });

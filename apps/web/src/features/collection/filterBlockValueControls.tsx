@@ -11,7 +11,7 @@
 
 import { useRef, useState } from "react";
 
-import type { Condition, DatePeriod, PropertyOp } from "@notees/query";
+import type { Condition, DatePeriod, PropertyOp, TargetRef } from "@notees/query";
 
 import type { AnyClient } from "./index.js";
 import { Icon } from "../../ui/Icon.js";
@@ -118,6 +118,26 @@ function ClassPillsPick({
   );
 }
 
+/**
+ * Narrows the member union to its target-carrying view — the op switch
+ * form (TS discriminates the multi-literal member ops reliably only through
+ * a switch, not if/else chains).
+ */
+function memberTargetOf(condition: Extract<Condition, { type: "member" }>):
+  | { kind: "set" }
+  | { kind: "exact"; ids: [string] }
+  | { kind: "membership"; target: TargetRef } {
+  switch (condition.op) {
+    case "exists":
+    case "not-exists":
+      return { kind: "set" };
+    case "exact":
+      return { kind: "exact", ids: condition.target.ids };
+    default:
+      return { kind: "membership", target: condition.target };
+  }
+}
+
 /** The value column — typed per family, reusing the property-table inputs'
  * shapes (numeric keyboard for number/integer, the placeholder datalist for
  * dates, the anchored node picker for node targets). */
@@ -135,303 +155,194 @@ export function BlockValue({
   datalistId: string;
 }) {
   switch (condition.type) {
-    case "class":
-    case "classExact":
-      // The legacy single shapes bind the pill cluster to a 0/1-element
-      // list — the single-slot "is" register (the AddPill hides while the
-      // slot is filled).
-      return (
-        <ClassPillsPick
-          ariaLabel="Class"
-          classIds={condition.classId === "" ? [] : [condition.classId]}
-          single
-          client={client}
-          facts={facts}
-          onChange={(classIds) => onChange({ ...condition, classId: classIds[0] ?? "" })}
-        />
-      );
-    case "classAny":
-      // "Contains": ANY-of closure membership — the multi class pills.
-      return (
-        <ClassPillsPick
-          ariaLabel="Classes"
-          classIds={condition.classIds}
-          client={client}
-          facts={facts}
-          onChange={(classIds) => onChange({ ...condition, classIds })}
-        />
-      );
-    case "classAnyQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "classSet":
-    case "pageSet":
-    case "childSet":
-    case "descendantSet":
-    case "tagSet":
-    case "linkSet":
-    case "parentSet":
-    case "contentSet":
-      // The set operators carry no value — the operator column IS the condition.
-      return null;
-    case "pageOf":
-      // v1's Page block (static, single-value):
-      // the containing page is ONE node; the AddPill hides while the slot
-      // is filled (clear via the pill's × first, no silent replace).
-      return (
-        <NodePillsPick
-          ariaLabel="Pages"
-          nodeIds={condition.nodeIds}
-          addLabel="Add page"
-          single
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "pageOfQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "ancestorIn":
-      // v1's Parent path block (static): some strict ancestor is one of the
-      // picked nodes.
-      return (
-        <NodePillsPick
-          ariaLabel="Ancestors"
-          nodeIds={condition.nodeIds}
-          addLabel="Add ancestor"
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "ancestorInQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "rootIn":
-      // The root walk (static, single-value): the
-      // workspace-root ancestor is ONE node.
-      return (
-        <NodePillsPick
-          ariaLabel="Roots"
-          nodeIds={condition.nodeIds}
-          addLabel="Add root"
-          single
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "rootInQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "isClass":
-      return (
-        <Dropdown
-          size="sm"
-          ariaLabel="Type"
-          options={[
-            { value: "true", label: "A class" },
-            { value: "false", label: "Not a class" },
-          ]}
-          value={String(condition.isClass)}
-          onChange={(value) => {
-            if (value !== null) onChange({ ...condition, isClass: value === "true" });
-          }}
-        />
-      );
-    case "isEmbedded":
-      return (
-        <Dropdown
-          size="sm"
-          ariaLabel="Structural role"
-          options={[
-            { value: "true", label: "Block (embedded in body)" },
-            { value: "false", label: "Page (standalone)" },
-          ]}
-          value={String(condition.isEmbedded)}
-          onChange={(value) => {
-            if (value !== null) onChange({ ...condition, isEmbedded: value === "true" });
-          }}
-        />
-      );
+    case "member": {
+      // The member value column IS the target-mode UI: the anchored node
+      // picker / pill cluster for the ids pick, the "matching" word for the
+      // nested query (the subgroup itself renders beneath the row), the
+      // "this page" badge for the self target. The set bits carry no value.
+      const view = memberTargetOf(condition);
+      if (view.kind === "set") return null;
+      if (view.kind === "exact") {
+        // Legacy-wire-only (exact set equality): binds the single-pill
+        // cluster to the one carried class id.
+        return (
+          <ClassPillsPick
+            ariaLabel="Class"
+            classIds={view.ids}
+            single
+            client={client}
+            facts={facts}
+            onChange={(classIds) =>
+              onChange({
+                ...condition,
+                target: { mode: "ids", ids: classIds.slice(0, 1) as [string] },
+              } as Condition)
+            }
+          />
+        );
+      }
+      const target = view.target;
+      if (target.mode === "query") {
+        return <span className="nt-fb-block__word">matching</span>;
+      }
+      if (target.mode === "self") {
+        return <span className="nt-fb-block__word">this page</span>;
+      }
+      const setIds = (ids: string[]): void =>
+        onChange({ ...condition, target: { mode: "ids", ids } } as Condition);
+      switch (condition.family) {
+        case "class":
+          // The closure membership pick — the multi class pills.
+          return (
+            <ClassPillsPick
+              ariaLabel="Classes"
+              classIds={target.ids}
+              client={client}
+              facts={facts}
+              onChange={setIds}
+            />
+          );
+        case "tags":
+          return (
+            <NodePillsPick
+              ariaLabel="Tags"
+              nodeIds={target.ids}
+              addLabel="Add tag"
+              client={client}
+              onChange={setIds}
+            />
+          );
+        case "parent":
+        case "page":
+        case "root":
+          // The single-slot register: the containing page / direct parent /
+          // root ancestor is ONE node — the AddPill hides while the slot is
+          // filled (clear via the pill's × first, no silent replace).
+          return (
+            <NodePillsPick
+              ariaLabel={condition.family === "parent" ? "Parents" : condition.family === "page" ? "Pages" : "Roots"}
+              nodeIds={target.ids}
+              addLabel={condition.family === "parent" ? "Add parent" : condition.family === "page" ? "Add page" : "Add root"}
+              single
+              client={client}
+              onChange={setIds}
+            />
+          );
+        default: {
+          // links / child / childPath / referencePath / parentPath — the
+          // multi node pick, per-family accessible labels.
+          const labels: Record<string, { aria: string; add: string }> = {
+            links: { aria: "Nodes", add: "Add node" },
+            child: { aria: "Children", add: "Add child" },
+            childPath: { aria: "Targets", add: "Add node" },
+            referencePath: { aria: "Targets", add: "Add target" },
+            parentPath: { aria: "Ancestors", add: "Add ancestor" },
+          };
+          const label = labels[condition.family] ?? { aria: "Nodes", add: "Add node" };
+          return (
+            <NodePillsPick
+              ariaLabel={label.aria}
+              nodeIds={target.ids}
+              addLabel={label.add}
+              client={client}
+              onChange={setIds}
+            />
+          );
+        }
+      }
+    }
     case "content":
+    case "name":
       return (
         <Input
           size="sm"
-          aria-label="Content"
-          value={condition.value}
+          aria-label={condition.type === "name" ? "Title" : "Content"}
+          value={condition.value ?? ""}
           onChange={(event) => onChange({ ...condition, value: event.target.value })}
         />
       );
     case "property":
       return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
-    case "propertyBetween":
-      return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
-    case "propertyWithin":
-      return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
-    case "parentOf":
-      // v1's PARENT block (static, single-value):
-      // the DIRECT parent is ONE node.
-      return (
-        <NodePillsPick
-          ariaLabel="Parents"
-          nodeIds={condition.nodeIds}
-          addLabel="Add parent"
-          single
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "parentOfQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "childOf":
-      // v1's CHILD block (static): a direct child is any of the picked nodes.
-      return (
-        <NodePillsPick
-          ariaLabel="Children"
-          nodeIds={condition.nodeIds}
-          addLabel="Add child"
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "childOfQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "descendantOfAny":
-      // v1's CHILD PATH block (static): the subtree contains any of the picks.
-      return (
-        <NodePillsPick
-          ariaLabel="Targets"
-          nodeIds={condition.nodeIds}
-          addLabel="Add node"
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "descendantOfQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "referencePathOf":
-      // v1's REFERENCE PATH block (static): the self-or-ancestor link rollup.
-      return (
-        <NodePillsPick
-          ariaLabel="Targets"
-          nodeIds={condition.nodeIds}
-          addLabel="Add target"
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "referencePathOfQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "tag":
-      return (
-        <NodePickBody
-          nodeId={condition.tagId}
-          placeholder="Pick a tag…"
-          client={client}
-          onPick={(tagId) => onChange({ ...condition, tagId })}
-        />
-      );
-    case "tagAny":
-      return (
-        <NodePillsPick
-          ariaLabel="Tags"
-          nodeIds={condition.tagIds}
-          addLabel="Add tag"
-          client={client}
-          onChange={(tagIds) => onChange({ ...condition, tagIds })}
-        />
-      );
-    case "tagAnyQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "linkedTo":
-      return (
-        <NodePickBody
-          nodeId={condition.nodeId}
-          placeholder="Pick a node…"
-          client={client}
-          onPick={(nodeId) => onChange({ ...condition, nodeId })}
-        />
-      );
-    case "linkedToAny":
-      return (
-        <NodePillsPick
-          ariaLabel="Nodes"
-          nodeIds={condition.nodeIds}
-          addLabel="Add node"
-          client={client}
-          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
-        />
-      );
-    case "descendantOf":
-      return (
-        <NodePickBody
-          nodeId={condition.nodeId}
-          placeholder="Pick a parent…"
-          client={client}
-          onPick={(nodeId) => onChange({ ...condition, nodeId })}
-        />
-      );
-    case "linkedToQuery":
-      return <span className="nt-fb-block__word">matching</span>;
-    case "createdAfter":
-    case "createdBefore":
-    case "updatedAfter":
-    case "updatedBefore":
-    case "createdCmp":
-    case "updatedCmp":
+    case "date": {
+      const edited = condition.field === "updated";
+      if (condition.op === "between") {
+        return (
+          <>
+            <Input
+              size="sm"
+              aria-label="From"
+              list={datalistId}
+              placeholder="from {today}"
+              value={condition.from ?? ""}
+              onChange={(event) => onChange({ ...condition, from: event.target.value })}
+            />
+            <Input
+              size="sm"
+              aria-label="To"
+              list={datalistId}
+              placeholder="to {today}"
+              value={condition.to ?? ""}
+              onChange={(event) => onChange({ ...condition, to: event.target.value })}
+            />
+          </>
+        );
+      }
+      if (condition.op === "within") {
+        return (
+          <PeriodPick
+            ariaLabel="Period"
+            value={condition.period ?? "today"}
+            onChange={(period) => onChange({ ...condition, period })}
+          />
+        );
+      }
       return (
         <Input
           size="sm"
-          aria-label={condition.type.startsWith("updated") ? "Edited" : "Created"}
+          aria-label={edited ? "Edited" : "Created"}
           list={datalistId}
           placeholder="{today} or 2026-10-04"
-          value={condition.timestamp}
+          value={condition.timestamp ?? ""}
           onChange={(event) => onChange({ ...condition, timestamp: event.target.value })}
         />
       );
-    case "createdBetween":
-    case "updatedBetween":
-      return (
-        <>
-          <Input
+    }
+    case "nodeField": {
+      if (condition.field === "isClass") {
+        return (
+          <Dropdown
             size="sm"
-            aria-label="From"
-            list={datalistId}
-            placeholder="from {today}"
-            value={condition.from}
-            onChange={(event) => onChange({ ...condition, from: event.target.value })}
+            ariaLabel="Type"
+            options={[
+              { value: "true", label: "A class" },
+              { value: "false", label: "Not a class" },
+            ]}
+            value={condition.value ?? "true"}
+            onChange={(value) => {
+              if (value !== null) onChange({ ...condition, value });
+            }}
           />
-          <Input
+        );
+      }
+      if (condition.field === "isEmbedded") {
+        return (
+          <Dropdown
             size="sm"
-            aria-label="To"
-            list={datalistId}
-            placeholder="to {today}"
-            value={condition.to}
-            onChange={(event) => onChange({ ...condition, to: event.target.value })}
+            ariaLabel="Structural role"
+            options={[
+              { value: "true", label: "Block (embedded in body)" },
+              { value: "false", label: "Page (standalone)" },
+            ]}
+            value={condition.value ?? "false"}
+            onChange={(value) => {
+              if (value !== null) onChange({ ...condition, value });
+            }}
           />
-        </>
-      );
-    case "createdWithin":
-    case "updatedWithin":
-      return (
-        <PeriodPick
-          ariaLabel="Period"
-          value={condition.period}
-          onChange={(period) => onChange({ ...condition, period })}
-        />
-      );
-    case "linkedToSelf":
-    case "referencePathOfSelf":
-    case "parentOfSelf":
-    case "childOfSelf":
-    case "descendantOfSelf":
-    case "pageOfSelf":
-    case "ancestorInSelf":
-    case "rootInSelf":
-    case "classSelf":
-    case "tagSelf":
-      // The SELF target names itself in the value column — the row reads
-      // "Links is this page" (the hosting page resolves at run time).
-      return <span className="nt-fb-block__word">this page</span>;
-    case "coverAsset":
-    case "bannerAsset":
-    case "aliasedNode":
+        );
+      }
+      // coverAsset / bannerAsset / aliasedNode — the operator IS the condition.
       return null;
+    }
   }
 }
 
@@ -481,10 +392,7 @@ export function PropertySchemaPick({
   facts: BuilderFacts;
   onChange: (condition: Condition) => void;
 }) {
-  const schemaId =
-    condition.type === "property" || condition.type === "propertyBetween" || condition.type === "propertyWithin"
-      ? condition.schemaId
-      : "";
+  const schemaId = condition.type === "property" ? condition.schemaId : "";
   return (
     <Dropdown
       size="sm"
@@ -517,7 +425,7 @@ function PropertyValue({
   client,
   datalistId,
 }: {
-  condition: Extract<Condition, { type: "property" | "propertyBetween" | "propertyWithin" }>;
+  condition: Extract<Condition, { type: "property" }>;
   onChange: (condition: Condition) => void;
   facts: BuilderFacts;
   client: AnyClient;
@@ -570,7 +478,7 @@ function PropertyValue({
           onPick={(nodeId) => patch({ value: { nodeId } })}
         />
       )}
-      {condition.type === "propertyBetween" && (
+      {condition.op === "between" && (
         <>
           <Input
             size="sm"
@@ -592,8 +500,8 @@ function PropertyValue({
           />
         </>
       )}
-      {condition.type === "propertyWithin" && (
-        <PeriodPick ariaLabel="Period" value={condition.period} onChange={(period) => patch({ period })} />
+      {condition.op === "within" && (
+        <PeriodPick ariaLabel="Period" value={condition.period ?? "today"} onChange={(period) => patch({ period })} />
       )}
       {condition.type === "property" &&
         condition.op !== "exists" &&

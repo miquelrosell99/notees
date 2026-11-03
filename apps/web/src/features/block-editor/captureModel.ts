@@ -48,7 +48,7 @@ export function truncatePickerHint(text: string): string {
  * clean Apply cycle.
  */
 export const STARTER_QUERY_AST: Record<string, unknown> = {
-  version: 1,
+  version: 2,
   scope: { type: "entire_workspace" },
   root: { type: "group", logic: "and", children: [] },
 };

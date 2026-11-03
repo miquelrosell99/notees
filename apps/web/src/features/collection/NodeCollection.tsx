@@ -162,7 +162,7 @@ export function NodeCollection({
     props.groups,
     props.ungroupedItems,
     selectedView,
-    // The hosted views' host page — the *Self conditions' anchor: a hosted
+    // The hosted views' host page — the `self` target mode's anchor: a hosted
     // tab's query resolves "this page" against the node hosting the views.
     hosted !== null ? containingPageIdOf(props.client, hosted.nodeId) : undefined,
   );

@@ -254,7 +254,7 @@ export function CollectionHub({
   const filterRun = useQueryRun(
     client,
     filterGroup !== null
-      ? { version: 1, scope: { type: "entire_workspace" as const }, root: filterGroup }
+      ? { version: 2, scope: { type: "entire_workspace" as const }, root: filterGroup }
       : null,
     { enabled: filterGroup !== null },
   );

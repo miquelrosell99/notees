@@ -16,26 +16,27 @@
  * Push-down (where each predicate evaluates):
  *
  *  - Base-column conditions evaluate directly on the materialized row (the
- *    ClientNode carries the node's own columns): `isClass`, `isEmbedded`,
- *    the created window (`createdAfter`/`createdBefore`, `{today}`-style
- *    placeholders resolved against the run clock), `class` membership (the
- *    row's direct class_ids against the class + its transitive extending
- *    classes), `content` contains (LIKE semantics — an ASCII case-insensitive
- *    substring over the flattened title text, the same plaintext the derived
- *    search index holds), and the three wire-field predicates
- *    (`coverAsset`/`bannerAsset`/`aliasedNode`).
+ *    ClientNode carries the node's own columns): the member families' ids-
+ *    mode predicates and set bits (class closure membership, tags, the
+ *    parent/child/childPath/page/parentPath/root walks), the nodeField wire
+ *    predicates (`isClass`/`isEmbedded`/`coverAsset`/`bannerAsset`/
+ *    `aliasedNode`), the date family's created/updated windows (`{today}`-
+ *    style placeholders resolved against the run clock), and `content`
+ *    contains (LIKE semantics — an ASCII case-insensitive substring over the
+ *    flattened title text, the same plaintext the derived search index holds).
  *  - `property` conditions (the effective-values read model) evaluate
  *    synchronously on the row too (the one-evaluation
  *    ruling): the client's `getEffectiveProperties` is the same read model
  *    the compiler's property arm reads, so the hosted custom tabs stop
- *    probing for them. Only `content` fts (the FTS index) and `linkedTo`
- *    (the edge roll-up) remain probe-path leaves — one membership probe per
- *    leaf through the established `runQueryAst` channel over the workspace,
- *    intersected with the base set. The derived store owns those read
- *    models; re-deriving them here would duplicate the query package. The
- *    The transient structured-filters draft never produces these (its
- *    guard names them unsupported), so the common custom tab evaluates
- *    wholly on the materialized rows.
+ *    probing for them. Only `content` fts (the FTS index), the
+ *    links/referencePath member families (the edge roll-up), and any member
+ *    with a query/self target remain probe-path leaves — one membership
+ *    probe per leaf through the established `runQueryAst` channel over the
+ *    workspace, intersected with the base set. The derived store owns those
+ *    read models; re-deriving them here would duplicate the query package.
+ *    The transient structured-filters draft never produces these (its guard
+ *    names them unsupported), so the common custom tab evaluates wholly on
+ *    the materialized rows.
  *
  * Sort applies client-side with the compiler's semantics: `name` orders by
  * the flattened title text (empty falls last), `createdAt` lexicographic,
@@ -51,7 +52,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { plainTextExcerpt, parseDateNodeId } from "@notees/domain";
-import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, type CompileOptions, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
+import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, type CompileOptions, type Condition, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
 
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
 
@@ -109,35 +110,17 @@ function treeNeedsProbe(children: QueryAst["root"]["children"]): boolean {
 }
 
 function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolean {
-  if (condition.type === "linkedTo") return true;
-  if (condition.type === "linkedToAny") return true;
-  if (condition.type === "linkSet") return true;
-  // Dynamic target sets resolve through the query channel (edges + the
-  // nested group's own leaves) — never locally.
-  if (condition.type === "linkedToQuery") return true;
-  if (condition.type === "descendantOfQuery") return true;
-  if (condition.type === "pageOfQuery") return true;
-  if (condition.type === "ancestorInQuery") return true;
-  if (condition.type === "rootInQuery") return true;
-  if (condition.type === "parentOfQuery") return true;
-  if (condition.type === "childOfQuery") return true;
-  if (condition.type === "referencePathOf") return true;
-  if (condition.type === "referencePathOfQuery") return true;
-  if (condition.type === "classAnyQuery") return true;
-  if (condition.type === "tagAnyQuery") return true;
-  // The *Self markers resolve against the run context's hosting page —
-  // the store's compiler owns that read (one evaluation implementation).
-  if (condition.type === "linkedToSelf") return true;
-  if (condition.type === "referencePathOfSelf") return true;
-  if (condition.type === "parentOfSelf") return true;
-  if (condition.type === "childOfSelf") return true;
-  if (condition.type === "descendantOfSelf") return true;
-  if (condition.type === "pageOfSelf") return true;
-  if (condition.type === "ancestorInSelf") return true;
-  if (condition.type === "rootInSelf") return true;
-  if (condition.type === "classSelf") return true;
-  if (condition.type === "tagSelf") return true;
   if (condition.type === "content" && condition.op === "fts") return true;
+  if (condition.type !== "member") return false;
+  // The links/referencePath families read the edge table (joined metadata
+  // the materialized row does not carry) — every op, every target mode.
+  if (condition.family === "links" || condition.family === "referencePath") return true;
+  // The query/self target modes resolve through the query channel (the
+  // nested group's own leaves, the run-context host) — never locally. Only
+  // the ids mode (and the set bits) evaluate on the materialized rows.
+  if (condition.op === "in" || condition.op === "not-in") {
+    return condition.target.mode !== "ids";
+  }
   return false;
 }
 
@@ -187,7 +170,8 @@ function classedWith(ctx: EvalContext, node: ClientNode, classId: string): boole
 }
 
 /**
- * The Odoo date comparison (createdCmp/updatedCmp) — the evaluator mirror of
+ * The Odoo date comparison (the date condition's eq/neq/gt/gte/lt/lte ops)
+ * — the evaluator mirror of
  * the compiler's dateCmpSql: eq/neq are DAY-granular (the whole resolved
  * local day matches), gt/gte/lt/lte compare against the resolved instant.
  * A NULL column (never-edited for updated_at) matches nothing but neq/set.
@@ -410,9 +394,11 @@ function propertyMatches(
   }
   if (condition.op === "exists") return rows.length > 0;
   // Value ops require a non-null bound (the compile law); without one the
-  // condition can match nothing.
+  // condition can match nothing. (between/within intercept in
+  // conditionMatches before this read.)
   if (condition.value === undefined || condition.value === null) return false;
-  return rows.some((row) => valueMatches(row.value, condition.op, condition.value));
+  const op = condition.op as PropertyOp;
+  return rows.some((row) => valueMatches(row.value, op, condition.value));
 }
 
 interface EvalContext {
@@ -423,194 +409,174 @@ interface EvalContext {
   bounds: Map<string, string>;
 }
 
+/**
+ * The ids-mode target list of a member condition (empty for the set bits;
+ * the exact op's single id). A query/self target here is a planner bug —
+ * the fail-loud guard throws (leafNeedsProbe flagged it for the probe).
+ */
+function memberIdsOf(condition: Extract<Condition, { type: "member" }>): string[] {
+  switch (condition.op) {
+    case "exists":
+    case "not-exists":
+      return [];
+    case "exact":
+      return condition.target.ids;
+    default:
+      return condition.target.mode === "ids" ? condition.target.ids : probeOnly(condition);
+  }
+}
+
+/** Fail-loud guard: the sync arm never sees a query/self target (the plan flags it for the probe). */
+function probeOnly(condition: { op: string; target?: { mode: string } }): never {
+  throw new Error(
+    `query resolve: a '${condition.target?.mode ?? "?"}' target requires the membership probe`,
+  );
+}
+
+/** The strict-ancestor walk (self excluded), cycle-guarded — the parentPath/childPath ids predicate. */
+function strictAncestorMatches(
+  ctx: EvalContext,
+  node: ClientNode,
+  hit: (id: string) => boolean,
+): boolean {
+  const seen = new Set<string>([node.id]);
+  let current = node.parentId;
+  while (current !== null && !seen.has(current)) {
+    if (hit(current)) return true;
+    seen.add(current);
+    const parent = ctx.client.getNode(current);
+    current = parent?.parentId ?? null;
+  }
+  return false;
+}
+
+/** At least one descendant at any depth below (cycle-guarded DFS over the direct-children read). */
+function hasDescendant(ctx: EvalContext, node: ClientNode): boolean {
+  const seen = new Set<string>([node.id]);
+  const stack = ctx.client.getChildren(node.id).map((child) => child.id);
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (seen.has(current)) continue;
+    seen.add(current);
+    const child = ctx.client.getNode(current);
+    if (child === undefined) continue;
+    if (child.isActive) return true;
+    for (const grandchild of ctx.client.getChildren(child.id)) {
+      if (!seen.has(grandchild.id)) stack.push(grandchild.id);
+    }
+  }
+  return false;
+}
+
+/**
+ * The v2 condition evaluation over the materialized row — the sync arm of
+ * the one-evaluation ruling. The member families evaluate their ids-mode
+ * predicate (and the set bits) directly; the links/referencePath families
+ * and the query/self target modes never arrive here (leafNeedsProbe flags
+ * them for the probe path — the default arm fails loud if one does). The
+ * `not-in` / `not-exists` ops negate the family's positive predicate, the
+ * compiler's NOT(...) semantics.
+ */
 function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["children"][number], item: NodeCollectionItem): boolean {
   const node = item.node;
   switch (condition.type) {
-    case "class": {
-      let closure = ctx.closures.get(condition.classId);
-      if (closure === undefined) {
-        closure = classClosureOf(ctx.client, condition.classId);
-        ctx.closures.set(condition.classId, closure);
-      }
-      return node.classIds.some((id) => closure!.has(id));
-    }
-    case "classExact":
-      // EXACT set equality (the Odoo "=" register): exactly one class rides
-      // the row and it is the picked one — no closure ("exactly Day, nothing else").
-      return node.classIds.length === 1 && node.classIds[0] === condition.classId;
-    case "classAny": {
-      // ANY-of membership (Odoo "one of") — closure-aware per picked id.
-      return condition.classIds.some((classId) => {
-        let closure = ctx.closures.get(classId);
-        if (closure === undefined) {
-          closure = classClosureOf(ctx.client, classId);
-          ctx.closures.set(classId, closure);
+    case "member": {
+      // The sync-evaluable member arms: the ids-mode membership predicate
+      // and the set bits, per family. A query/self target (or a
+      // links/referencePath family) reaching here is a planner bug — loud.
+      const negated = condition.op === "not-in" || condition.op === "not-exists";
+      // The op classification via true branches (the multi-literal member
+      // ops discriminate reliably only in the switch inside memberIdsOf) —
+      // `ids` is the ids-mode target list (empty for the set bits).
+      const ids = memberIdsOf(condition);
+      const isSet = condition.op === "exists" || condition.op === "not-exists";
+      const isExact = condition.op === "exact";
+      let matched: boolean;
+      switch (condition.family) {
+        case "class": {
+          if (isExact) {
+            // EXACT set equality: exactly one class rides the row and it is
+            // the picked one — no closure.
+            matched = node.classIds.length === 1 && node.classIds[0] === ids[0];
+            break;
+          }
+          if (isSet) {
+            matched = node.classIds.length > 0;
+            break;
+          }
+          matched = ids.some((classId) => classedWith(ctx, node, classId));
+          break;
         }
-        return node.classIds.some((id) => closure!.has(id));
-      });
-    }
-    case "classSet":
-      // The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set".
-      return node.classIds.length > 0;
-    case "pageOf": {
-      // v1's Page block (static): the CONTAINING PAGE is one of the picked
-      // nodes. A row that is its own page matches only when picked itself.
-      const page = containingPageOf(ctx, node);
-      return page !== undefined && condition.nodeIds.includes(page.id);
-    }
-    case "pageSet":
-      // The Page "is set": the row lives inside a page (the containing page
-      // differs from the row itself — a page's own page is itself).
-      {
-        const page = containingPageOf(ctx, node);
-        return page !== undefined && page.id !== node.id;
-      }
-    case "ancestorIn": {
-      // v1's Parent path block (static): some STRICT ancestor (self excluded)
-      // is one of the picked nodes. Cycle-guarded like descendantOf.
-      const targets = new Set(condition.nodeIds);
-      const seen = new Set<string>([node.id]);
-      let current = node.parentId;
-      while (current !== null && !seen.has(current)) {
-        if (targets.has(current)) return true;
-        seen.add(current);
-        const parent = ctx.client.getNode(current);
-        current = parent?.parentId ?? null;
-      }
-      return false;
-    }
-    case "rootIn": {
-      // The root walk (static): the workspace-root ancestor is one of the
-      // picked nodes (a parentless row is its own root).
-      const targets = new Set(condition.nodeIds);
-      const seen = new Set<string>([node.id]);
-      let current: ClientNode | undefined = node;
-      while (current.parentId !== null && !seen.has(current.parentId)) {
-        const parent = ctx.client.getNode(current.parentId);
-        if (parent === undefined) return false;
-        seen.add(parent.id);
-        current = parent;
-      }
-      return targets.has(current.id);
-    }
-    case "parentOf":
-      // v1's PARENT block (static): the DIRECT parent is one of the picked
-      // nodes (a parentless row's NULL parent matches nothing).
-      return node.parentId !== null && condition.nodeIds.includes(node.parentId);
-    case "childOf":
-      // v1's CHILD block (static): a DIRECT child is one of the picked nodes.
-      return ctx.client
-        .getChildren(node.id)
-        .some((child) => condition.nodeIds.includes(child.id));
-    case "childSet":
-      // The CHILD "is set": at least one direct child.
-      return ctx.client.getChildren(node.id).length > 0;
-    case "descendantSet": {
-      // The CHILD PATH "is set": at least one descendant at any depth below.
-      // Depth-first over the direct-children read; cycle-guarded.
-      const seen = new Set<string>([node.id]);
-      const stack = ctx.client.getChildren(node.id).map((child) => child.id);
-      while (stack.length > 0) {
-        const current = stack.pop()!;
-        if (seen.has(current)) continue;
-        seen.add(current);
-        const child = ctx.client.getNode(current);
-        if (child === undefined) continue;
-        if (child.isActive) return true;
-        for (const grandchild of ctx.client.getChildren(child.id)) {
-          if (!seen.has(grandchild.id)) stack.push(grandchild.id);
+        case "tags":
+          matched = isSet
+            ? node.tagIds.length > 0
+            : ids.some((tagId) => node.tagIds.includes(tagId));
+          break;
+        case "parent":
+          matched = isSet
+            ? node.parentId !== null
+            : node.parentId !== null && ids.includes(node.parentId);
+          break;
+        case "parentPath":
+          // The parentPath set bit reads "has a parent" (the parent's).
+          matched = isSet
+            ? node.parentId !== null
+            : strictAncestorMatches(ctx, node, (id) => ids.includes(id));
+          break;
+        case "child":
+          matched = isSet
+            ? ctx.client.getChildren(node.id).length > 0
+            : ctx.client.getChildren(node.id).some((child) => ids.includes(child.id));
+          break;
+        case "childPath":
+          // The set bit: at least one descendant at any depth below
+          // (cycle-guarded DFS); the membership: a strict ancestor is picked.
+          matched = isSet
+            ? hasDescendant(ctx, node)
+            : strictAncestorMatches(ctx, node, (id) => ids.includes(id));
+          break;
+        case "page":
+          if (isSet) {
+            const page = containingPageOf(ctx, node);
+            matched = page !== undefined && page.id !== node.id;
+          } else {
+            const page = containingPageOf(ctx, node);
+            matched = page !== undefined && ids.includes(page.id);
+          }
+          break;
+        case "root": {
+          // The root walk: the workspace-root ancestor (a parentless row is
+          // its own root) is one of the picked nodes.
+          const seen = new Set<string>([node.id]);
+          let current: ClientNode | undefined = node;
+          while (current.parentId !== null && !seen.has(current.parentId)) {
+            const parent = ctx.client.getNode(current.parentId);
+            if (parent === undefined) break;
+            seen.add(parent.id);
+            current = parent;
+          }
+          matched = ids.includes(current.id);
+          break;
         }
-      }
-      return false;
-    }
-    case "contentSet":
-      // The title/content plaintext is non-empty (the content "is set").
-      return titleTextOf(node) !== "";
-    case "tag":
-      return node.tagIds.includes(condition.tagId);
-    case "tagAny":
-      return condition.tagIds.some((tagId) => node.tagIds.includes(tagId));
-    case "tagSet":
-      return node.tagIds.length > 0;
-    case "descendantOfAny": {
-      // Subtree membership of ANY picked node: the parent chain hits one of
-      // the ids (the ancestor-walk inverse of the compiler's subtree CTE).
-      const targets = new Set(condition.nodeIds);
-      const seen = new Set<string>([node.id]);
-      let current = node.parentId;
-      while (current !== null && !seen.has(current)) {
-        if (targets.has(current)) return true;
-        seen.add(current);
-        const parent = ctx.client.getNode(current);
-        current = parent?.parentId ?? null;
-      }
-      return false;
-    }
-    case "parentSet":
-      return node.parentId !== null;
-    case "createdCmp":
-      return dateCmpMatches(node.createdAt, condition.op, condition.timestamp);
-    case "updatedCmp":
-      return dateCmpMatches(node.updatedAt, condition.op, condition.timestamp);
-    case "createdBetween":
-      return node.createdAt !== null &&
-        node.createdAt >= resolveTimestampPlaceholder(condition.from, "after") &&
-        node.createdAt <= resolveTimestampPlaceholder(condition.to, "before");
-    case "updatedBetween":
-      return node.updatedAt !== null &&
-        node.updatedAt >= resolveTimestampPlaceholder(condition.from, "after") &&
-        node.updatedAt <= resolveTimestampPlaceholder(condition.to, "before");
-    case "createdWithin": {
-      if (node.createdAt === null) return false;
-      const bounds = resolvePeriodBounds(condition.period);
-      return node.createdAt >= bounds.from && node.createdAt <= bounds.to;
-    }
-    case "updatedWithin": {
-      if (node.updatedAt === null) return false;
-      const bounds = resolvePeriodBounds(condition.period);
-      return node.updatedAt >= bounds.from && node.updatedAt <= bounds.to;
-    }
-    case "propertyBetween": {
-      if (condition.from === undefined || condition.to === undefined) return false;
-      const rows = ctx.client
-        .getEffectiveProperties(node.id)
-        .filter((row) => row.propertySchemaId === condition.schemaId);
-      return rows.some(
-        (row) =>
-          valueMatches(row.value, "gte", condition.from) &&
-          valueMatches(row.value, "lte", condition.to),
-      );
-    }
-    case "propertyWithin": {
-      const rows = ctx.client
-        .getEffectiveProperties(node.id)
-        .filter((row) => row.propertySchemaId === condition.schemaId);
-      const token = `{${condition.period}}`;
-      const fromIso = placeholderStartDate(token);
-      const toIso = placeholderEndDate(token);
-      if (fromIso === null || toIso === null) return false;
-      return rows.some((row) => {
-        const refId = refNodeIdOf(row.value);
-        if (refId !== null) {
-          return (
-            dateRefOrder(refId, "gte", fromIso) &&
-            dateRefOrder(refId, "lte", toIso)
+        case "links":
+        case "referencePath":
+          // The edge-table families ride the probe path by plan — never here.
+          throw new Error(
+            `query resolve: the '${condition.family}' family requires the membership probe`,
           );
-        }
-        return (
-          typeof row.value === "string" && row.value >= fromIso && row.value <= toIso
-        );
-      });
+      }
+      return negated ? !matched : matched;
     }
-    case "isClass":
-      return node.isClass === condition.isClass;
-    case "isEmbedded":
-      return node.isEmbedded === condition.isEmbedded;
-    case "content": {
-      // The text operator set over the flattened title/content (fts rides
-      // the probe path — treeNeedsProbe flags it before this arm runs).
+    case "content":
+    case "name": {
+      if (condition.op === "exists") {
+        // The title/content plaintext is non-empty (the content "is set").
+        return titleTextOf(node) !== "";
+      }
+      // The text operator set over the flattened title/content (content fts
+      // rides the probe path — leafNeedsProbe flags it before this arm runs).
       const text = asciiLower(titleTextOf(node));
-      const bound = asciiLower(condition.value);
+      const bound = asciiLower(condition.value ?? "");
       switch (condition.op) {
         case "eq":
           return text === bound;
@@ -624,52 +590,92 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
           return text.includes(bound);
       }
     }
-    case "property":
-      // The one-evaluation ruling: property conditions
-      // evaluate synchronously over the effective-values read model — the
-      // same read the compiler's property arm makes in the derived store.
-      return propertyMatches(ctx, node.id, condition);
-    case "createdAfter":
-    case "createdBefore":
-    case "updatedAfter":
-    case "updatedBefore": {
-      const key = `${condition.type}:${condition.timestamp}`;
-      let bound = ctx.bounds.get(key);
-      if (bound === undefined) {
-        bound = resolveTimestampPlaceholder(
-          condition.timestamp,
-          condition.type === "createdAfter" ? "after" : "before",
-        );
-        ctx.bounds.set(key, bound);
+    case "date": {
+      const column = condition.field === "created" ? node.createdAt : node.updatedAt;
+      switch (condition.op) {
+        case "eq":
+        case "neq":
+        case "gt":
+        case "gte":
+        case "lt":
+        case "lte":
+          return condition.timestamp !== undefined &&
+            dateCmpMatches(column, condition.op, condition.timestamp);
+        case "after":
+        case "before": {
+          if (condition.timestamp === undefined) return false;
+          const key = `${condition.field}:${condition.op}:${condition.timestamp}`;
+          let bound = ctx.bounds.get(key);
+          if (bound === undefined) {
+            bound = resolveTimestampPlaceholder(condition.timestamp, condition.op);
+            ctx.bounds.set(key, bound);
+          }
+          if (column === null) return false;
+          return condition.op === "after" ? column >= bound : column <= bound;
+        }
+        case "between":
+          return condition.from !== undefined &&
+            condition.to !== undefined &&
+            column !== null &&
+            column >= resolveTimestampPlaceholder(condition.from, "after") &&
+            column <= resolveTimestampPlaceholder(condition.to, "before");
+        case "within": {
+          if (column === null || condition.period === undefined) return false;
+          const bounds = resolvePeriodBounds(condition.period);
+          return column >= bounds.from && column <= bounds.to;
+        }
+        default:
+          return false;
       }
-      const column = condition.type.startsWith("updated") ? node.updatedAt : node.createdAt;
-      if (column === null) return false;
-      const after = condition.type === "createdAfter" || condition.type === "updatedAfter";
-      return after ? column >= bound : column <= bound;
     }
-    case "coverAsset":
-    case "bannerAsset":
-    case "aliasedNode":
-      return wireFieldMatches(node, condition.type, condition.op, condition.value);
-    case "descendantOf": {
-      // Ancestor-chain walk (the "parent is X anywhere up the tree"
-      // condition): the node itself is excluded — start at the parent.
-      // Cycle-guarded: impossible states are write-time impossible, but a
-      // corrupt row must fail loud-quiet (no infinite loop), not hang.
-      const seen = new Set<string>([node.id]);
-      let current = node.parentId;
-      while (current !== null && !seen.has(current)) {
-        if (current === condition.nodeId) return true;
-        seen.add(current);
-        const parent = ctx.client.getNode(current);
-        current = parent?.parentId ?? null;
+    case "property": {
+      // The one-evaluation ruling: property conditions evaluate
+      // synchronously over the effective-values read model — the same read
+      // the compiler's property arm makes in the derived store. The between/
+      // within ops fold the v1 range/period shapes into the parameterized op.
+      if (condition.op === "between") {
+        if (condition.from === undefined || condition.to === undefined) return false;
+        const rows = ctx.client
+          .getEffectiveProperties(node.id)
+          .filter((row) => row.propertySchemaId === condition.schemaId);
+        return rows.some(
+          (row) =>
+            valueMatches(row.value, "gte", condition.from) &&
+            valueMatches(row.value, "lte", condition.to),
+        );
       }
-      return false;
+      if (condition.op === "within") {
+        const rows = ctx.client
+          .getEffectiveProperties(node.id)
+          .filter((row) => row.propertySchemaId === condition.schemaId);
+        const token = `{${condition.period}}`;
+        const fromIso = placeholderStartDate(token);
+        const toIso = placeholderEndDate(token);
+        if (fromIso === null || toIso === null) return false;
+        return rows.some((row) => {
+          const refId = refNodeIdOf(row.value);
+          if (refId !== null) {
+            return (
+              dateRefOrder(refId, "gte", fromIso) &&
+              dateRefOrder(refId, "lte", toIso)
+            );
+          }
+          return (
+            typeof row.value === "string" && row.value >= fromIso && row.value <= toIso
+          );
+        });
+      }
+      return propertyMatches(ctx, node.id, condition);
+    }
+    case "nodeField": {
+      if (condition.field === "isClass") return node.isClass === (condition.value !== "false");
+      if (condition.field === "isEmbedded") return node.isEmbedded === (condition.value !== "false");
+      return wireFieldMatches(node, condition.field, condition.op, condition.value);
     }
     default:
       // Joined-metadata leaves — the probe path evaluates these; the sync
       // path never reaches here (planSectionView flagged needsProbe).
-      throw new Error(`query resolve: condition '${condition.type}' requires the membership probe`);
+      throw new Error(`query resolve: condition '${(condition as { type: string }).type}' requires the membership probe`);
   }
 }
 
@@ -813,7 +819,7 @@ export function applySectionView(
  * The probe path (joined-metadata leaves): one membership query per probe
  * leaf through the established runQueryAst channel, intersected with the
  * base set. Returns the resolved rows. `selfNodeId` is the hosting page the
- * `*Self` leaves resolve against (absent only when the plan has no Self
+ * `self` target modes resolve against (absent only when the plan has no Self
  * leaves — the compiler fails loud otherwise).
  */
 export async function resolveSectionViewProbed(
@@ -833,7 +839,7 @@ export async function resolveSectionViewProbed(
     if (existing !== undefined) return existing;
     const result = await Promise.resolve(
       client.runQueryAst({
-        version: 1,
+        version: 2,
         scope: { type: "entire_workspace" },
         root: { type: "group", logic: "and", children: [condition] },
       }, { selfNodeId }),

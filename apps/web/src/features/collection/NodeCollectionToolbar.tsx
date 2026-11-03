@@ -182,7 +182,7 @@ export function NodeCollectionToolbar({ client, value, onChange, config, matchCo
     if (viewSaver === undefined || composedGroup === null) return;
     const view = await createSectionView(viewSaver.client, viewSaver.nodeId, viewSaver.sectionKey, {
       name: autoViewName(views),
-      queryAst: { version: 1, scope: { type: "entire_workspace" }, root: composedGroup },
+      queryAst: { version: 2, scope: { type: "entire_workspace" }, root: composedGroup },
     });
     if (view === null) return; // the write failed — the views chrome surfaces it
     viewSaver.onSaved(view.id);
@@ -195,7 +195,7 @@ export function NodeCollectionToolbar({ client, value, onChange, config, matchCo
   const applyToTab = async (): Promise<void> => {
     if (applyTarget === undefined || composedGroup === null) return;
     const ok = await applyTarget.onApply({
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: composedGroup,
     });

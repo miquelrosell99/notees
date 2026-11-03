@@ -67,7 +67,7 @@ function queryToken(queryAst: unknown): ContentAst {
 }
 
 function makeAst(scope: Scope, children: Child[] = []): QueryAst {
-  return { version: 1, scope, root: { type: "group", logic: "and", children } };
+  return { version: 2, scope, root: { type: "group", logic: "and", children } };
 }
 
 /** The query node's section below the content row. */
@@ -150,7 +150,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -175,7 +175,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     render(<PageView client={client} pageId={host} />);
@@ -203,7 +203,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -288,7 +288,7 @@ describe("query node (nodecollection surface below the content row)", () => {
         contentAst: queryToken(
           makeAst(WORKSPACE(), [
             { type: "content", op: "contains", value: "capital" },
-            { type: "isEmbedded", isEmbedded: false },
+            { type: "nodeField", field: "isEmbedded", op: "eq", value: "false" },
           ]),
         ),
       });
@@ -305,7 +305,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const block = await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -381,7 +381,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const block = await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -450,7 +450,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -479,7 +479,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const block = await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -501,7 +501,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const token = client.getNode(block)!.contentAst[0] as unknown as { type: string; view?: unknown; queryAst: unknown };
     expect(token.type).toBe("query");
     expect(token.view).toBeUndefined();
-    expect(token.queryAst).toEqual(makeAst(WORKSPACE(), [{ type: "class", classId: city }]));
+    expect(token.queryAst).toEqual(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }]));
 
     // Switching back to the list restores the rows.
     fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
@@ -521,7 +521,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -549,7 +549,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     render(<PageView client={client} pageId={host} />);
@@ -573,7 +573,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -599,10 +599,12 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
+      // A genuinely malformed AST (unknown condition type) — the loose
+      // content token carries it, the strict v2 parse rejects it at run.
       contentAst: queryToken({
         version: 2,
         scope: { type: "entire_workspace" },
-        root: { type: "group", logic: "and", children: [] },
+        root: { type: "group", logic: "and", children: [{ type: "weather" }] },
       }),
     });
 
@@ -622,7 +624,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
     const total = QUERY_RESULT_CAP + 5;
     for (let i = 0; i < total; i += 1) {
@@ -667,7 +669,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     // Rewrite the token to a page-level query: a page result opens directly.
     await act(async () => {
       await client.updateObject(queryBlock, {
-        contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+        contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
       });
     });
     const parisRow = await screen.findByText("Paris");
@@ -710,7 +712,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     await client.createObject({
       parentId: host,
       classIds: [QUERY_CLASS_ID],
-      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
     });
 
     let blob: Blob | null = null;
@@ -758,7 +760,7 @@ describe("query node (nodecollection surface below the content row)", () => {
     const { city } = await seedWorld(client);
 
     const result = client.runAggregateAst({
-      ...makeAst(WORKSPACE(), [{ type: "class", classId: city }]),
+      ...makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }]),
       aggregation: countByRenderState,
     });
     expect(result.columns).toEqual(["isClass", "count"]);
@@ -800,7 +802,7 @@ describe("query node (nodecollection surface below the content row)", () => {
       ]);
 
       const result = (await core.invoke("runQueryAst", [
-        makeAst(WORKSPACE(), [{ type: "class", classId: city }]),
+        makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }]),
       ])) as {
         ids: string[];
         rows: Array<{
@@ -821,13 +823,13 @@ describe("query node (nodecollection surface below the content row)", () => {
       // hosting page rides the second arg (descendantOfSelf — the two
       // blocks sit strictly inside Paris).
       const selfResult = (await core.invoke("runQueryAst", [
-        makeAst(WORKSPACE(), [{ type: "descendantOfSelf" }]),
+        makeAst(WORKSPACE(), [{ type: "member", family: "childPath", op: "in", target: { mode: "self" } }]),
         { selfNodeId: paris },
       ])) as { ids: string[] };
       expect(selfResult.ids).toHaveLength(2);
       // Without the host the same AST fails loud (there is no honest "self").
       await expect(
-        core.invoke("runQueryAst", [makeAst(WORKSPACE(), [{ type: "descendantOfSelf" }])]),
+        core.invoke("runQueryAst", [makeAst(WORKSPACE(), [{ type: "member", family: "childPath", op: "in", target: { mode: "self" } }])]),
       ).rejects.toThrow(/selfNodeId/);
       const parisNode = (await core.invoke("getPage", [paris])) as { contentAst: unknown };
       expect(parisNode.contentAst).toEqual(text("Paris"));
@@ -838,7 +840,7 @@ describe("query node (nodecollection surface below the content row)", () => {
       // The aggregation bridge crosses the wire too (grouped grid).
       const aggregate = (await core.invoke("runAggregateAst", [
         {
-          ...makeAst(WORKSPACE(), [{ type: "class", classId: city }]),
+          ...makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }]),
           aggregation: countByRenderState,
         },
       ])) as { columns: string[]; rows: unknown[][] };

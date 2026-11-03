@@ -1,6 +1,6 @@
 /**
- * FilterBlockBuilder — the NodeCollectionToolbar's structured panel: the v1
- * query-builder block UI ported over the v2 query AST.
+ * FilterBlockBuilder — the NodeCollectionToolbar's structured panel: the
+ * query-builder block UI over the v2 query AST.
  * One feature file pair with FilterBlockBuilder.css (the NodeCollectionTabs
  * precedent), composed from kit primitives only. The condition model
  * (families, operator options, the operator-application morphs) lives in
@@ -41,13 +41,14 @@
  * field pairing with SelectTrigger: the raw native
  * <select>s rendered the browser's chrome, unaligned with the token
  * interface); the node-target families
- * (Links, Parent, Class, Tags) carry the v1 MODE SWITCH in its three-mode
- * form: Manual (picked nodes), Query (a nested query-block list defining the
- * target set — "links to a person node with age > 50"), or Self (the page
- * hosting the query — the `*Self` marker conditions resolving
- * CompileOptions.selfNodeId at run time); the nested group renders
- * inside a card beneath the row (the v1 DynamicQuerySection; the nesting is
- * infinite — a query-mode row inside a query subgroup can go query again).
+ * (Links, Parent, Class, Tags) carry the v2 target-mode switch in its
+ * three-mode form: Manual (picked nodes), Query (a nested query-block list
+ * defining the target set — "links to a person node with age > 50"), or
+ * Self (the page hosting the query — the member condition's `self` target,
+ * resolving CompileOptions.selfNodeId at run time); the nested group
+ * renders inside a card beneath the row (the v1 DynamicQuerySection
+ * idiom; the nesting is infinite — a query-mode row inside a query
+ * subgroup can go query again).
  * Groups nest as hairline-indented columns
  * with the Match ALL/ANY header toggle; the root level is not a group.
  * Every control bubbles an immutable update to the root group via onChange —
@@ -129,7 +130,7 @@ export interface FilterBlockBuilderProps {
   /**
    * The hosting page's node id — the SELF target mode's anchor ("the page
    * this query sits on"). Absent at host-less surfaces (the hub filters):
-   * the Self mode is not offered there (a *Self condition would have no
+   * the Self mode is not offered there (a self target would have no
    * honest reading — the compiler fails loud without one).
    */
   selfNodeId?: string | undefined;
@@ -661,34 +662,31 @@ function BlockRow({
   const canMoveDown = onMoveDown !== undefined && index < totalSiblings - 1;
   const showReorder = onMoveUp !== undefined || onMoveDown !== undefined;
   /**
-   * The node-target families' target mode — the three-way switch:
-   * Manual (picked node(s)), Query (a nested query defining the target set),
-   * Self (the page hosting the query, resolving at run time). Query and Self
-   * ride the per-family `*Query`/`*Self` condition types.
+   * The node-target families' target mode — the three-way switch: Manual
+   * (picked node(s)), Query (a nested query defining the target set), Self
+   * (the page hosting the query, resolving at run time). v2 carries the mode
+   * on the member condition's `target`; the set bits (exists / not-exists)
+   * have no target and read as Manual until the switch re-materializes an
+   * `in`.
    */
-  const self =
-    condition.type === "linkedToSelf" ||
-    condition.type === "referencePathOfSelf" ||
-    condition.type === "parentOfSelf" ||
-    condition.type === "childOfSelf" ||
-    condition.type === "descendantOfSelf" ||
-    condition.type === "pageOfSelf" ||
-    condition.type === "ancestorInSelf" ||
-    condition.type === "rootInSelf" ||
-    condition.type === "classSelf" ||
-    condition.type === "tagSelf";
-  const dynamic =
-    condition.type === "linkedToQuery" ||
-    condition.type === "descendantOfQuery" ||
-    condition.type === "pageOfQuery" ||
-    condition.type === "ancestorInQuery" ||
-    condition.type === "rootInQuery" ||
-    condition.type === "parentOfQuery" ||
-    condition.type === "childOfQuery" ||
-    condition.type === "referencePathOfQuery" ||
-    condition.type === "classAnyQuery" ||
-    condition.type === "tagAnyQuery";
-  const mode: "manual" | "query" | "self" = self ? "self" : dynamic ? "query" : "manual";
+  const memberFamily =
+    condition.type === "member" && family !== "type" && family !== "placement"
+      ? condition.family
+      : null;
+  let queryRoot: Group | null = null;
+  let mode: "manual" | "query" | "self" = "manual";
+  if (condition.type === "member") {
+    if (condition.op === "in" || condition.op === "not-in" || condition.op === "exact") {
+      if (condition.target.mode === "query") {
+        mode = "query";
+        queryRoot = condition.target.root;
+      } else if (condition.target.mode === "self") {
+        mode = "self";
+      }
+    }
+  }
+  /** True when the row's target mode is Query (the nested card renders). */
+  const dynamic = mode === "query";
   return (
     <div className="nt-fb-block">
       <div className="nt-fb-block__row">
@@ -726,16 +724,7 @@ function BlockRow({
             datalistId={datalistId}
           />
         </div>
-        {(family === "links" ||
-          family === "class" ||
-          family === "tags" ||
-          family === "referencePath" ||
-          family === "parent" ||
-          family === "child" ||
-          family === "childPath" ||
-          family === "page" ||
-          family === "parentPath" ||
-          family === "root") && (
+        {memberFamily !== null && (
           <SelectionButton
             size="sm"
             aria-label="Target mode"
@@ -751,85 +740,26 @@ function BlockRow({
             ]}
             value={mode}
             onChange={(nextMode) => {
+              if (condition.type !== "member") return;
               const empty = { type: "group", logic: "and", children: [] } as Group;
-              const dynamicFor = (type: string): Condition => ({ type, root: empty } as Condition);
-              const staticFor = (type: string): Condition => {
-                if (type === "linkedTo" || type === "descendantOf") {
-                  return { type, nodeId: "" } as Condition;
-                }
-                if (type === "classAny") return { type, classIds: [] } as Condition;
-                if (type === "tagAny") return { type, tagIds: [] } as Condition;
-                return { type, nodeIds: [] } as Condition;
-              };
-              const selfFor = (familyKind: ConditionKind): Condition => {
-                const type =
-                  familyKind === "class"
-                    ? "classSelf"
-                    : familyKind === "tags"
-                      ? "tagSelf"
-                      : familyKind === "links"
-                        ? "linkedToSelf"
-                        : familyKind === "referencePath"
-                          ? "referencePathOfSelf"
-                          : familyKind === "parent"
-                            ? "parentOfSelf"
-                            : familyKind === "child"
-                              ? "childOfSelf"
-                              : familyKind === "childPath"
-                                ? "descendantOfSelf"
-                                : familyKind === "page"
-                                  ? "pageOfSelf"
-                                  : familyKind === "parentPath"
-                                    ? "ancestorInSelf"
-                                    : "rootInSelf";
-                return { type } as Condition;
-              };
-              const dynamicType =
-                family === "class"
-                  ? "classAnyQuery"
-                  : family === "tags"
-                    ? "tagAnyQuery"
-                    : family === "links"
-                      ? "linkedToQuery"
-                      : family === "referencePath"
-                        ? "referencePathOfQuery"
-                        : family === "parent"
-                          ? "parentOfQuery"
-                          : family === "child"
-                            ? "childOfQuery"
-                            : family === "childPath"
-                              ? "descendantOfQuery"
-                              : family === "page"
-                                ? "pageOfQuery"
-                                : family === "parentPath"
-                                  ? "ancestorInQuery"
-                                  : "rootInQuery";
-              const staticType =
-                family === "class"
-                  ? "classAny"
-                  : family === "tags"
-                    ? "tagAny"
-                    : family === "links"
-                      ? "linkedTo"
-                      : family === "referencePath"
-                        ? "referencePathOf"
-                        : family === "parent"
-                          ? "parentOf"
-                          : family === "child"
-                            ? "childOf"
-                            : family === "childPath"
-                              ? "descendantOfAny"
-                              : family === "page"
-                                ? "pageOf"
-                                : family === "parentPath"
-                                  ? "ancestorIn"
-                                  : "rootIn";
-              const next =
+              // The mode switch rebuilds ONLY the target — the operator (in /
+              // not-in) survives the mode change verbatim. A set row (no
+              // target) first re-materializes a membership op, preserving
+              // its polarity (not-exists → not-in); the current ids carry
+              // into Manual where the row had them.
+              const carriedIds =
+                (condition.op === "in" || condition.op === "not-in") &&
+                condition.target.mode === "ids"
+                  ? condition.target.ids
+                  : [];
+              const inOp =
+                condition.op === "not-in" || condition.op === "not-exists" ? "not-in" : "in";
+              const next: Condition =
                 nextMode === "query"
-                  ? dynamicFor(dynamicType)
+                  ? { type: "member", family: condition.family, op: inOp, target: { mode: "query", root: empty } }
                   : nextMode === "self"
-                    ? selfFor(family)
-                    : staticFor(staticType);
+                    ? { type: "member", family: condition.family, op: inOp, target: { mode: "self" } }
+                    : { type: "member", family: condition.family, op: inOp, target: { mode: "ids", ids: carriedIds } };
               onChange(negated ? { type: "not", child: next } : next);
             }}
           />
@@ -872,21 +802,22 @@ function BlockRow({
       {/* Query mode: the nested query rides beneath the row inside a kit
           Card (the one contained-subgroup surface); the nesting is infinite (a
           query row inside a query subgroup can go query again). */}
-      {dynamic && (
+      {dynamic && queryRoot !== null && condition.type === "member" && (
         <div className="nt-fb-block__nested">
           {/* The `default` variant (surface fill + the outline-variant
               hairline): the `filled` variant is border-less and the subgroup
               blended into the panel — the boundary must read. */}
           <Card padding paddingSize="sm" variant="default" className="nt-fb-card">
             <GroupBlock
-              group={condition.root}
-              onChange={(root) =>
+              group={queryRoot}
+              onChange={(root) => {
+                const target = { mode: "query" as const, root };
                 onChange(
-                  negated
-                    ? { type: "not", child: { ...condition, root } }
-                    : { ...condition, root },
-                )
-              }
+                  (negated
+                    ? { type: "not", child: { ...condition, target } }
+                    : { ...condition, target }) as Child,
+                );
+              }}
               depth={depth + 1}
               client={client}
               facts={facts}

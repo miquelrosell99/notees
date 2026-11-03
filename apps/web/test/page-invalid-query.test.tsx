@@ -43,7 +43,13 @@ describe("page with invalid query block", () => {
         contentAst: [
           {
             type: "query",
-            queryAst: { version: 2, scope: { type: "entire_workspace" }, root: { type: "group", logic: "and", children: [] } },
+            queryAst: {
+              version: 2,
+              scope: { type: "entire_workspace" },
+              // A genuinely malformed AST (unknown condition type) — the
+              // strict v2 parse rejects it at run, the placeholder renders.
+              root: { type: "group", logic: "and", children: [{ type: "weather" }] },
+            },
           },
         ],
       });

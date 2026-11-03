@@ -535,7 +535,14 @@ describe("GraphView component", () => {
         expect(migrated.color).toBe("sky");
         expect(migrated.label).toBe("books"); // the class's display name
         expect(migrated.ast).not.toBeNull();
-        expect(migrated.ast!.children).toEqual([{ type: "class", classId }]);
+        expect(migrated.ast!.children).toEqual([
+          {
+            type: "member",
+            family: "class",
+            op: "in",
+            target: { mode: "ids", ids: [classId] },
+          },
+        ]);
       });
     } finally {
       window.localStorage.clear();

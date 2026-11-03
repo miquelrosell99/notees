@@ -8,7 +8,7 @@
  * five endpoints under /api/nodes/:nodeId/sections/:sectionKey/views, the
  * empty section key traveling as the "-" sentinel); the sectionViews module
  * (features/collection/sectionViews.ts) owns syncing, the device-local
- * cache, and the React hook. queryAst is the verbatim QueryAST v1 the
+ * cache, and the React hook. queryAst is the verbatim QueryAST v2 the
  * the structured-filters panel produced — parsed again at resolution time. There is
  * deliberately no viewMode: view modes are transient surface state, not
  * stored. This module holds the wire types and the response normalizers.
