@@ -4,9 +4,9 @@
  * A filterable section renders a NodeCollectionToolbar whose state is a FilterQuery: the
  * quick-search text plus a DRAFT query-AST root group the structured panel's
  * block builder edits (`Group` from @notees/query, the one normative
- * grammar — the builder is the v1 query-builder block UI ported over the
- * v2 AST). The draft is allowed to carry half-typed rows (a class condition
- * with no class picked yet, a content condition with a blank value);
+ * v2 grammar — the builder is the query-builder block UI over the v2 AST).
+ * The draft is allowed to carry half-typed rows (a class condition with no
+ * class picked yet, a content condition with a blank value);
  * `filterQueryToGroup` prunes those into the schema-valid composed root the
  * structured evaluation consumes, returning null when nothing survives. The
  * quick-search text does NOT ride that root — it narrows the rows through
@@ -15,15 +15,17 @@
  * `client.search`, the same ranked ordering the global search uses, which
  * an AST condition cannot express).
  *
- * The offered subset is the full wire grammar: class, isClass,
- * isEmbedded, content (contains AND full-text), property, linkedTo
- * ("links to"), descendantOf ("parent is — anywhere up the parents tree",
- *), createdAfter/createdBefore, and the three wire-field
- * exists predicates (coverAsset/bannerAsset/aliasedNode). The sync-
- * evaluable kinds ride `createSectionViewMatcher`; the two probe-path
- * leaves (linkedTo, content fts) ride one membership probe per leaf through
- * the runQueryAst channel inside useSectionData — the same machinery the
- * hosted custom views use (the one-evaluation ruling).
+ * The offered subset is the full v2 wire grammar: the member families
+ * (class/tags/links/referencePath/parent/child/childPath/page/parentPath/
+ * root with their in/not-in/exists ops and ids/query/self target modes),
+ * content (contains AND full-text), property, the nodeField wire predicates
+ * (isClass/isEmbedded/coverAsset/bannerAsset/aliasedNode), and the date
+ * family's created/edited windows. The sync-evaluable kinds ride
+ * `createSectionViewMatcher`; the probe-path leaves (the links/referencePath
+ * families, any member with a query/self target, content fts) ride one
+ * membership probe per leaf through the runQueryAst channel inside
+ * useSectionData — the same machinery the hosted custom views use (the
+ * one-evaluation ruling).
  *
  * Application (components/useSectionData.ts): the quick text narrows the
  * section's resolved rows through the ranked search FIRST (membership AND
@@ -36,7 +38,7 @@
  * nothing persisted.
  */
 
-import type { Child, Condition, Group, QueryAst } from "@notees/query";
+import type { Child, Condition, Group, MemberCondition, QueryAst, TargetRef } from "@notees/query";
 
 /** The bar's state: quick-search text plus the builder's draft root group. */
 export interface FilterQuery {
@@ -57,7 +59,7 @@ export const EMPTY_FILTER_QUERY: FilterQuery = {
 
 /** The factory AST a new hosted tab starts from when the bar's draft is empty. */
 export const FACTORY_QUERY_AST: QueryAst = {
-  version: 1,
+  version: 2,
   scope: { type: "entire_workspace" },
   root: { type: "group", logic: "and", children: [] },
 };
@@ -70,7 +72,7 @@ export function draftOrFactoryAst(value: FilterQuery): QueryAst {
   const group = filterQueryToGroup(value);
   return group === null
     ? FACTORY_QUERY_AST
-    : { version: 1, scope: { type: "entire_workspace" }, root: group };
+    : { version: 2, scope: { type: "entire_workspace" }, root: group };
 }
 
 /** True when the text is blank AND the draft group has no children. */
@@ -96,14 +98,42 @@ export interface NodeCollectionToolbarConfig {
 // --- the draft → composed group prune ---------------------------------------
 
 /**
+ * The member condition's prune: the set bits (exists / not-exists) are
+ * always fully specified and survive; an ids target with an empty pick
+ * drops (the half-typed row); a query target drops when its nested group
+ * pruned to empty; the self target survives (the host resolves at run time).
+ */
+function pruneMember(child: MemberCondition): MemberCondition | null {
+  // The op switch narrows the member union (TS discriminates the
+  // multi-literal member ops reliably only through the switch form).
+  switch (child.op) {
+    case "exists":
+    case "not-exists":
+      // The set bits are always fully specified and survive.
+      return child;
+    case "exact":
+      return child.target.ids[0] === "" ? null : child;
+    default:
+      if (child.target.mode === "ids") return child.target.ids.length === 0 ? null : child;
+      if (child.target.mode === "self") return child;
+      {
+        const nested = pruneChild(child.target.root);
+        return nested === null || (nested.type === "group" && nested.children.length === 0)
+          ? null
+          : { ...child, target: { ...child.target, root: nested as Group } };
+      }
+  }
+}
+
+/**
  * Prune one draft child into its composed form: half-typed conditions drop
- * (content with a blank value, class with an empty classId, property with
- * an empty schemaId, created/updated with a blank timestamp, static
- * link/parent with no node picked), nested groups recurse (emptied ones
- * drop), a not drops when its child pruned away, and the DYNAMIC
- * link/parent/class/tags sets drop when their nested group pruned to empty. Anything
- * fully specified — isClass, isEmbedded, the wire-field predicates —
- * survives verbatim.
+ * (content with a blank value, a member with an empty ids pick, property
+ * with an empty schemaId or a range missing a bound, date comparisons with
+ * a blank timestamp), nested groups recurse (emptied ones drop), a not drops
+ * when its child pruned away, and a member with a query target drops when
+ * its nested group pruned to empty. Anything fully specified — the set
+ * bits, the self target, the node-field predicates, date within — survives
+ * verbatim.
  */
 function pruneChild(child: Child): Child | null {
   if (child.type === "group") {
@@ -118,63 +148,24 @@ function pruneChild(child: Child): Child | null {
   }
   switch (child.type) {
     case "content":
-      return child.value.trim() === "" ? null : child;
-    case "class":
-    case "classExact":
-      return child.classId === "" ? null : child;
-    case "classAny":
-      return child.classIds.length === 0 ? null : child;
-    case "tag":
-      return child.tagId === "" ? null : child;
-    case "tagAny":
-      return child.tagIds.length === 0 ? null : child;
-    case "linkedToAny":
-    case "descendantOfAny":
-    case "pageOf":
-    case "ancestorIn":
-    case "rootIn":
-    case "parentOf":
-    case "childOf":
-    case "referencePathOf":
-      return child.nodeIds.length === 0 ? null : child;
-    case "createdCmp":
-    case "updatedCmp":
-      return child.timestamp.trim() === "" ? null : child;
-    case "createdBetween":
-    case "updatedBetween":
-      return child.from.trim() === "" || child.to.trim() === "" ? null : child;
+    case "name":
+      return child.op !== "exists" && (child.value ?? "").trim() === "" ? null : child;
+    case "member":
+      return pruneMember(child);
     case "property":
-      return child.schemaId === "" ? null : child;
-    case "propertyBetween":
-      return child.schemaId === "" || child.from === undefined || child.to === undefined
-        ? null
-        : child;
-    case "propertyWithin":
-      return child.schemaId === "" ? null : child;
-    case "createdAfter":
-    case "createdBefore":
-    case "updatedAfter":
-    case "updatedBefore":
-      return child.timestamp.trim() === "" ? null : child;
-    case "linkedTo":
-    case "descendantOf":
-      return child.nodeId === "" ? null : child;
-    case "linkedToQuery":
-    case "descendantOfQuery":
-    case "pageOfQuery":
-    case "ancestorInQuery":
-    case "rootInQuery":
-    case "parentOfQuery":
-    case "childOfQuery":
-    case "referencePathOfQuery":
-    case "classAnyQuery":
-    case "tagAnyQuery": {
-      const nested = pruneChild(child.root);
-      return nested === null || (nested.type === "group" && nested.children.length === 0)
-        ? null
-        : { ...child, root: nested as Group };
-    }
+      if (child.schemaId === "") return null;
+      if (child.op === "between") {
+        return child.from === undefined || child.to === undefined ? null : child;
+      }
+      return child;
+    case "date":
+      if (child.op === "between") {
+        return (child.from ?? "").trim() === "" || (child.to ?? "").trim() === "" ? null : child;
+      }
+      if (child.op === "within") return child;
+      return (child.timestamp ?? "").trim() === "" ? null : child;
     default:
+      // nodeField — always fully specified.
       return child;
   }
 }
@@ -206,15 +197,15 @@ export function filterQueryToGroup(query: FilterQuery): Group | null {
 // --- the add-menu registry ---------------------------------------------------
 
 /**
- * The block FAMILIES (the v1 FILTER_TYPE_OPTIONS as single-word types — the
- * operator column carries the is/is-not/contains/etc variation). "Links"
- * and "Parent" are the node-target families: Manual (picked nodes), Query
- * (a nested query defining the target set), or Self (the page hosting the
- * query) — the mode switch picks between them. "Page" / "Parent path" /
- * "Root" (* the Odoo operator-set slice) are the classed-CONTAINER families: they test
- * the class of the row's containing page / some strict ancestor / the
- * workspace-root ancestor — e.g. "blocks whose page is not classed as Day"
- * drops the journal-day groups from a backlinks section.
+ * The block FAMILIES (the v2 add-menu register as single-word types — the
+ * operator column carries the is/is-not/contains/etc variation). The
+ * node-target families (Links, Parent, Class, Tags, …) bind a TARGET with
+ * three modes: Manual (picked nodes), Query (a nested query defining the
+ * target set), or Self (the page hosting the query) — the mode switch picks
+ * between them. "Page" / "Parent path" / "Root" are the classed-CONTAINER
+ * families: they test the class of the row's containing page / some strict
+ * ancestor / the workspace-root ancestor — e.g. "blocks whose page is not
+ * classed as Day" drops the journal-day groups from a backlinks section.
  */
 export type ConditionKind =
   | "class"
@@ -248,9 +239,9 @@ export interface FilterKindOption {
 }
 
 /**
- * The add-menu register (the v1 FILTER_TYPE_OPTIONS, 1:1 over the v2 AST —
- * single-word types, operators live in the block's
- * operator column). Group constructors come last, v1 order.
+ * The add-menu register (the v2 FILTER_KIND_OPTIONS, 1:1 over the v2 AST —
+ * single-word types, operators live in the block's operator column). Group
+ * constructors come last, the established order.
  */
 export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "class", label: "Class", icon: "mdi mdi-tag-outline", description: "Filter by node class" },
@@ -294,50 +285,43 @@ export function filterKindOptionsForConfig(config?: NodeCollectionToolbarConfig)
 export function createCondition(kind: ConditionKind): Condition {
   switch (kind) {
     case "class":
-      // The default CLASS row rides the MULTI-VALUE membership register
-      //: "Class contains Day, Week" — closure-aware
-      // ANY-of over the picked list — is the intent nearly always; the exact
-      // single-pill reading ("is") is the deliberate narrow operator.
-      return { type: "classAny", classIds: [] };
+      // The default CLASS row rides the MULTI-VALUE membership register:
+      // "Class contains Day, Week" — closure-aware ANY-of over the picked
+      // list — is the intent nearly always; the exact single-pill reading
+      // ("is") is the deliberate narrow operator. Both bind the v2 wire op
+      // "in" over an ids target.
+      return { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [] } };
     case "type":
-      return { type: "isClass", isClass: true };
+      return { type: "nodeField", field: "isClass", op: "eq", value: "true" };
     case "placement":
-      return { type: "isEmbedded", isEmbedded: false };
+      return { type: "nodeField", field: "isEmbedded", op: "eq", value: "false" };
     case "content":
       return { type: "content", op: "contains", value: "" };
     case "property":
       return { type: "property", schemaId: "", op: "eq", value: "" };
     case "tags":
-      // The default TAGS row binds the LIST:
-      // "Tags is Urgent, Later" — ANY-of over the picked tags.
-      return { type: "tagAny", tagIds: [] };
     case "links":
-      // The default LINKS row binds the LIST:
-      // "Links is Alpha, Beta" — ANY-of over the picked nodes.
-      return { type: "linkedToAny", nodeIds: [] };
     case "referencePath":
-      return { type: "referencePathOf", nodeIds: [] };
     case "parent":
-      return { type: "parentOf", nodeIds: [] };
     case "child":
-      return { type: "childOf", nodeIds: [] };
     case "childPath":
-      return { type: "descendantOfAny", nodeIds: [] };
     case "page":
-      return { type: "pageOf", nodeIds: [] };
     case "parentPath":
-      return { type: "ancestorIn", nodeIds: [] };
     case "root":
-      return { type: "rootIn", nodeIds: [] };
+      // The node-target families bind the LIST by default: "Tags is
+      // Urgent, Later", "Links is Alpha, Beta" — ANY-of membership over the
+      // picked ids (the Manual target mode; the mode switch re-targets to a
+      // nested query or the hosting page).
+      return { type: "member", family: kind, op: "in", target: { mode: "ids", ids: [] } };
     case "cover":
-      return { type: "coverAsset", op: "exists" };
+      return { type: "nodeField", field: "coverAsset", op: "exists" };
     case "banner":
-      return { type: "bannerAsset", op: "exists" };
+      return { type: "nodeField", field: "bannerAsset", op: "exists" };
     case "alias":
-      return { type: "aliasedNode", op: "exists" };
+      return { type: "nodeField", field: "aliasedNode", op: "exists" };
     case "created":
-      return { type: "createdAfter", timestamp: "" };
+      return { type: "date", field: "created", op: "after", timestamp: "" };
     case "edited":
-      return { type: "updatedAfter", timestamp: "" };
+      return { type: "date", field: "updated", op: "after", timestamp: "" };
   }
 }

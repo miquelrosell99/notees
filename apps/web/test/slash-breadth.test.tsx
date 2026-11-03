@@ -130,7 +130,7 @@ describe("slash /query", () => {
       expect(ast[0]).toMatchObject({
         type: "query",
         queryAst: {
-          version: 1,
+          version: 2,
           scope: { type: "entire_workspace" },
           root: { type: "group", logic: "and", children: [] },
         },

@@ -30,6 +30,7 @@
 import { useEffect, useState } from "react";
 
 import type { SectionView } from "@/core/workspace-client/index.js";
+import { isQueryAstV1 } from "../../../../../scripts/lib/map-query-ast-v1-v2.js";
 
 /** The views seam both client classes satisfy (structural — tests can fake it). */
 export interface SectionViewsClient {
@@ -103,6 +104,20 @@ function notify(): void {
 
 // --- device-local cache (the honest offline read) -----------------------------
 
+/**
+ * True when a cached view row still carries a v1 query AST — the one-time
+ * query-AST-v2 migration rewrites server rows (Task 4's slice), so a v1
+ * device row is stale by definition: dropped here, it re-hydrates from the
+ * server on the next load.
+ */
+function isV1ViewRow(view: unknown): boolean {
+  return (
+    typeof view === "object" &&
+    view !== null &&
+    isQueryAstV1((view as { queryAst?: unknown }).queryAst)
+  );
+}
+
 function readDeviceCache(): Record<string, SectionView[]> {
   if (typeof localStorage === "undefined") return {};
   try {
@@ -110,7 +125,30 @@ function readDeviceCache(): Record<string, SectionView[]> {
     if (raw === null) return {};
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
-    return parsed as Record<string, SectionView[]>;
+    const entries = parsed as Record<string, unknown[]>;
+    let sawV1 = false;
+    const filtered: Record<string, SectionView[]> = {};
+    for (const [key, views] of Object.entries(entries)) {
+      if (!Array.isArray(views)) continue;
+      const kept = views.filter((view) => {
+        if (isV1ViewRow(view)) {
+          sawV1 = true;
+          return false;
+        }
+        return true;
+      });
+      if (kept.length > 0) filtered[key] = kept as SectionView[];
+    }
+    if (sawV1) {
+      // The mirror held pre-migration rows: invalidate it wholesale — the
+      // server copy (post-migration) re-hydrates it on the next load.
+      try {
+        localStorage.removeItem(SECTION_VIEWS_LOCAL_KEY);
+      } catch {
+        // Storage unavailable: the in-memory filtered map still stands.
+      }
+    }
+    return filtered;
   } catch {
     return {};
   }

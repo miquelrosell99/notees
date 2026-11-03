@@ -270,12 +270,12 @@ const byId = (rows: SourceRow[]): Map<string, SourceRow> => new Map(rows.map((r)
 describe("buildSourcesAst", () => {
   it("scopes the whole source family with no filters", () => {
     expect(buildSourcesAst({})).toEqual({
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: {
         type: "group",
         logic: "and",
-        children: [{ type: "class", classId: SYSTEM_CLASS_UUIDS.source }],
+        children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.source] } }],
       },
     } satisfies QueryAst);
   });
@@ -285,7 +285,7 @@ describe("buildSourcesAst", () => {
     expect(ast.root).toEqual({
       type: "group",
       logic: "and",
-      children: [{ type: "class", classId: SYSTEM_CLASS_UUIDS.journal_article }],
+      children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } }],
     });
   });
 
@@ -295,7 +295,7 @@ describe("buildSourcesAst", () => {
       type: "group",
       logic: "and",
       children: [
-        { type: "class", classId: SYSTEM_CLASS_UUIDS.source },
+        { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.source] } },
         { type: "content", op: "contains", value: "smith" },
       ],
     });
@@ -306,7 +306,7 @@ describe("buildSourcesAst", () => {
     expect(ast.root).toEqual({
       type: "group",
       logic: "and",
-      children: [{ type: "class", classId: SYSTEM_CLASS_UUIDS.source }],
+      children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.source] } }],
     });
   });
 });

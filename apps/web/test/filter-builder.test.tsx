@@ -470,13 +470,19 @@ describe("the block query builder", () => {
     await waitFor(() => expect(tableRowCount()).toBe(1));
     // The probe ran with the DYNAMIC condition carrying the nested group verbatim
     // (it fires per edit — the last call carries the complete nested query).
-    const ast = probe.mock.calls.at(-1)![0] as { root: { children: Array<{ type: string; root?: unknown }> } };
-    const dynamic = ast.root.children.find((child) => child.type === "linkedToQuery");
+    const ast = probe.mock.calls.at(-1)![0] as {
+      root: { children: Array<{ type: string; family?: string; target?: { mode: string; root?: { children: Array<{ type: string }> } } }> };
+    };
+    const dynamic = ast.root.children.find(
+      (child) =>
+        child.type === "member" && child.family === "links" && child.target?.mode === "query",
+    );
     expect(dynamic).toBeDefined();
-    const nestedGroup = (dynamic as { root: { children: Array<{ type: string }> } }).root;
-    // The nested Class row rides the multi-value default (classAny — the
-    // membership register).
-    expect(nestedGroup.children.map((child) => child.type)).toEqual(["classAny", "property"]);
+    const nestedGroup = (dynamic as { target: { root: { children: Array<{ type: string }> } } })
+      .target.root;
+    // The nested Class row rides the multi-value membership register (the
+    // v2 member condition).
+    expect(nestedGroup.children.map((child) => child.type)).toEqual(["member", "property"]);
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Linker")).not.toBeNull();
     expect(within(table).queryByText("Plain")).toBeNull();
@@ -506,8 +512,18 @@ describe("the block query builder", () => {
     addNodeViaPicker(nested, "Add class", "client");
     await act(async () => {});
     expect(probe).toHaveBeenCalled();
-    const ast = probe.mock.calls.at(-1)![0] as { root: { children: Array<{ type: string }> } };
-    expect(ast.root.children.map((child) => child.type)).toContain("classAnyQuery");
+    const ast = probe.mock.calls.at(-1)![0] as {
+      root: { children: Array<{ type: string; family?: string; target?: { mode: string } }> };
+    };
+    // The wire carries the class member with its query target verbatim.
+    expect(
+      ast.root.children.some(
+        (child) =>
+          child.type === "member" &&
+          child.family === "class" &&
+          child.target?.mode === "query",
+      ),
+    ).toBe(true);
   });
 
   it("Links flips to Self — the wire carries linkedToSelf and the probe names the hosting page", async () => {
@@ -529,9 +545,53 @@ describe("the block query builder", () => {
     expect(probe).toHaveBeenCalled();
     const [ast, options] = probe.mock.calls.at(-1)! as [unknown, { selfNodeId?: string } | undefined];
     expect(
-      (ast as { root: { children: Array<{ type: string }> } }).root.children.map((child) => child.type),
-    ).toContain("linkedToSelf");
+      (
+        ast as {
+          root: {
+            children: Array<{ type: string; family?: string; target?: { mode: string } }>;
+          };
+        }
+      ).root.children.some(
+        (child) =>
+          child.type === "member" && child.family === "links" && child.target?.mode === "self",
+      ),
+    ).toBe(true);
     expect(options?.selfNodeId).toBe(classId);
+  });
+
+  it("the mode switch preserves the operator — a not-in row flips to Query mode staying not-in", async () => {
+    const client = await seedClient();
+    const classId = await seedMembers(client);
+    const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [], rows: [] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    const panel = openPanel(section);
+    addCondition(panel, /^Links /);
+    // The negative register choice rides the WIRE op (not-in), not a NOT wrap.
+    pickOption(panel, "Operator", "does not contain");
+    // Flipping the target mode rebuilds ONLY the target — the operator survives.
+    fireEvent.click(within(panel).getByRole("radio", { name: "Query — a nested query" }));
+    const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
+    expect(nested).not.toBeNull();
+    addCondition(nested, /^Class /);
+    addNodeViaPicker(nested, "Add class", "project");
+    await act(async () => {});
+    expect(probe).toHaveBeenCalled();
+    const ast = probe.mock.calls.at(-1)![0] as {
+      root: {
+        children: Array<{
+          type: string;
+          family?: string;
+          op?: string;
+          target?: { mode: string };
+        }>;
+      };
+    };
+    const member = ast.root.children.find((child) => child.type === "member");
+    expect(member?.family).toBe("links");
+    expect(member?.op).toBe("not-in");
+    expect(member?.target?.mode).toBe("query");
   });
 
   it("a query-mode row inside a query subgroup nests again (infinite query nesting)", async () => {
@@ -651,9 +711,10 @@ describe("the block query builder", () => {
       pickOption(panel, "Operator", "is");
       expect(tableRowCount()).toBe(3);
       expect(within(section).getByText("Dual")).not.toBeNull();
-      // The single-slot register: the "+ Add class" pill hides while the
-      // slot is filled (clear via the pill's × first).
-      expect(within(panel).queryByRole("button", { name: "Add class" })).toBeNull();
+      // v2: "is" and "contains" bind the SAME wire shape (member class in
+      // ids) — the pill cluster stays multi-slot for both (the single/list
+      // split was a v1 wire artifact; the operator column is register sugar).
+      expect(within(panel).getByRole("button", { name: "Add class" })).not.toBeNull();
     });
 
     it("contains matches ANY picked class (the multi pill pick); does not contain negates", async () => {
@@ -988,7 +1049,7 @@ describe("the block query builder", () => {
       // textarea (the pruned group — half-typed rows drop by design).
       fireEvent.click(within(panel).getByRole("radio", { name: "Raw AST" }));
       const raw = within(panel).getByLabelText("Query AST (JSON)") as HTMLTextAreaElement;
-      expect(raw.value).toContain('"type": "classAny"');
+      expect(raw.value).toContain('"type": "member"');
 
       // Paste an edited query — a second condition joins — and apply.
       fireEvent.change(raw, {
@@ -997,7 +1058,12 @@ describe("the block query builder", () => {
             type: "group",
             logic: "and",
             children: [
-              { type: "classAny", classIds: [classId] },
+              {
+                type: "member",
+                family: "class",
+                op: "in",
+                target: { mode: "ids", ids: [classId] },
+              },
               { type: "content", op: "contains", value: "Alpha" },
             ],
           }),
@@ -1027,7 +1093,9 @@ describe("the block query builder", () => {
           value: JSON.stringify({
             type: "group",
             logic: "and",
-            children: [{ type: "classAny", classIds: [] }],
+            children: [
+              { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [] } },
+            ],
           }),
         },
       });
@@ -1089,13 +1157,18 @@ describe("the block query builder", () => {
       expect(create!.body).toEqual({
         name: "View 1",
         queryAst: {
-          version: 1,
+          version: 2,
           scope: { type: "entire_workspace" },
           root: {
             type: "group",
             logic: "and",
             children: [
-              { type: "classAny", classIds: [classId] },
+              {
+                type: "member",
+                family: "class",
+                op: "in",
+                target: { mode: "ids", ids: [classId] },
+              },
               { type: "content", op: "contains", value: "Alpha" },
             ],
           },

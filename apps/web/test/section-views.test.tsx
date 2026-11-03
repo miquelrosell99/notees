@@ -98,7 +98,7 @@ function item(nodeValue: ClientNode, meta?: Record<string, unknown>): NodeCollec
 
 function astOf(...children: unknown[]): unknown {
   return {
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: { type: "group", logic: "and", children },
   };
@@ -134,7 +134,7 @@ describe("section view resolution (sync path)", () => {
       item(node({ isClass: true, isEmbedded: true })),
       item(node({ isClass: false, isEmbedded: true })),
     ];
-    const plan = planSectionView(astOf({ type: "isClass", isClass: false }));
+    const plan = planSectionView(astOf({ type: "nodeField", field: "isClass", op: "eq", value: "false" }));
     const result = applySectionView(resolveClient(), { items: rows, groups: undefined }, plan);
     expect(result.items).toHaveLength(2);
     expect(result.items.every((entry) => !entry.node.isClass)).toBe(true);
@@ -147,7 +147,7 @@ describe("section view resolution (sync path)", () => {
     const client = resolveClient({
       getClassChildren: (id) => (id === CLASS_A ? [node({ id: CLASS_B, isClass: true })] : []),
     });
-    const plan = planSectionView(astOf({ type: "class", classId: CLASS_A }));
+    const plan = planSectionView(astOf({ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [CLASS_A] } }));
     const result = applySectionView(client, { items: [item(memberOfB), item(memberOfA), item(unclassed)], groups: undefined }, plan);
     // B extends A, so B's member matches A's view too.
     expect(result.items.map((entry) => entry.node.id)).toEqual([memberOfB.id, memberOfA.id]);
@@ -191,7 +191,7 @@ describe("section view resolution (sync path)", () => {
     const oldRow = node({ createdAt: "2026-09-01T00:00:00.000Z" });
     const newRow = node({ createdAt: "2026-10-05T12:00:00.000Z" });
     const plan = planSectionView(
-      astOf({ type: "createdAfter", timestamp: "2026-10-01T00:00:00.000Z" }),
+      astOf({ type: "date", field: "created", op: "after", timestamp: "2026-10-01T00:00:00.000Z" }),
     );
     const result = applySectionView(resolveClient(), { items: [item(oldRow), item(newRow)], groups: undefined }, plan);
     expect(result.items.map((entry) => entry.node.id)).toEqual([newRow.id]);
@@ -200,12 +200,12 @@ describe("section view resolution (sync path)", () => {
   it("wire-field predicates read the node's own columns with SQL NULL semantics", () => {
     const covered = node({ coverAssetId: "0192e000-0000-7000-8000-0000000000c1" });
     const bare = node({ coverAssetId: null });
-    const exists = planSectionView(astOf({ type: "coverAsset", op: "exists" }));
+    const exists = planSectionView(astOf({ type: "nodeField", field: "coverAsset", op: "exists" }));
     const result = applySectionView(resolveClient(), { items: [item(covered), item(bare)], groups: undefined }, exists);
     expect(result.items.map((entry) => entry.node.id)).toEqual([covered.id]);
     // neq never matches an unset field (neq requires a value comparison).
     const neq = planSectionView(
-      astOf({ type: "coverAsset", op: "neq", value: "0192e000-0000-7000-8000-0000000000c1" }),
+      astOf({ type: "nodeField", field: "coverAsset", op: "neq", value: "0192e000-0000-7000-8000-0000000000c1" }),
     );
     const neqResult = applySectionView(resolveClient(), { items: [item(covered), item(bare)], groups: undefined }, neq);
     expect(neqResult.items).toEqual([]);
@@ -216,14 +216,14 @@ describe("section view resolution (sync path)", () => {
     const plainMain = node({ isEmbedded: false });
     const plainInline = node({ isEmbedded: true });
     const orAst = {
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: {
         type: "group",
         logic: "or",
         children: [
-          { type: "class", classId: CLASS_A },
-          { type: "isEmbedded", isEmbedded: false },
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [CLASS_A] } },
+          { type: "nodeField", field: "isEmbedded", op: "eq", value: "false" },
         ],
       },
     };
@@ -238,9 +238,9 @@ describe("section view resolution (sync path)", () => {
 
   it("the stored scope is ignored — the base set IS the scope", () => {
     const scoped = {
-      version: 1,
+      version: 2,
       scope: { type: "subtree", pageId: "0192f000-0000-7000-8000-0000000000e1" },
-      root: { type: "group", logic: "and", children: [{ type: "isClass", isClass: false }] },
+      root: { type: "group", logic: "and", children: [{ type: "nodeField", field: "isClass", op: "eq", value: "false" }] },
     };
     const outsideSubtree = node({});
     const plan = planSectionView(scoped);
@@ -250,7 +250,7 @@ describe("section view resolution (sync path)", () => {
 
   it("a stored aggregation is not a row refinement — rows still refine, nothing is dropped", () => {
     const withAggregation = {
-      ...(astOf({ type: "isClass", isClass: false }) as Record<string, unknown>),
+      ...(astOf({ type: "nodeField", field: "isClass", op: "eq", value: "false" }) as Record<string, unknown>),
       aggregation: { dimensions: [], measures: [{ function: "count", kind: "node" }] },
     };
     const rows = [item(node({})), item(node({ isClass: true }))];
@@ -264,7 +264,7 @@ describe("section view resolution (sync path)", () => {
     const a = node({ contentAst: [{ type: "text", text: "Alpha" }] });
     const empty = node({ contentAst: [] });
     const sorted = {
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: { type: "group", logic: "and", children: [] },
       sort: [{ field: "name", dir: "asc" }],
@@ -285,7 +285,7 @@ describe("section view resolution (sync path)", () => {
       { id: "g1", label: "Kept", items: [item(match), item(miss)] },
       { id: "g2", label: "Dropped", items: [item(miss)] },
     ];
-    const plan = planSectionView(astOf({ type: "isEmbedded", isEmbedded: false }));
+    const plan = planSectionView(astOf({ type: "nodeField", field: "isEmbedded", op: "eq", value: "false" }));
     const result = applySectionView(resolveClient(), { items: [item(match), item(miss)], groups }, plan);
     expect(result.groups?.map((group) => group.id)).toEqual(["g1"]);
     expect(result.groups?.[0]?.items.map((entry) => entry.node.id)).toEqual([match.id]);
@@ -310,7 +310,7 @@ describe("section view resolution (probe fallback)", () => {
       },
     });
     const plan = planSectionView(
-      astOf({ type: "linkedTo", nodeId: CLASS_B }),
+      astOf({ type: "member", family: "links", op: "in", target: { mode: "ids", ids: [CLASS_B] } }),
     );
     expect(plan.needsProbe).toBe(true);
     const result = await resolveSectionViewProbed(
@@ -334,14 +334,14 @@ describe("section view resolution (probe fallback)", () => {
       runQueryAst: async () => ({ ids: [classedHit.id] }),
     });
     const ast = {
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
       root: {
         type: "group",
         logic: "and",
         children: [
-          { type: "class", classId: CLASS_A },
-          { type: "linkedTo", nodeId: CLASS_B },
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [CLASS_A] } },
+          { type: "member", family: "links", op: "in", target: { mode: "ids", ids: [CLASS_B] } },
         ],
       },
     };
@@ -448,7 +448,7 @@ describe("the sectionViews store", () => {
     await act(async () => {
       created = await result.current.createView(client, NODE, "linked-references", {
         name: "Mine",
-        queryAst: astOf({ type: "isClass", isClass: false }),
+        queryAst: astOf({ type: "nodeField", field: "isClass", op: "eq", value: "false" }),
       });
     });
     expect(created).not.toBeNull();
@@ -638,9 +638,9 @@ describe("the hosted-views chrome", () => {
     const { cityId, members } = await seedClassWorld(client);
     const ghostId = await client.createClass("Ghost"); // no members — the refinement empties the tab
     const ghostAst: QueryAst = {
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
-      root: { type: "group", logic: "and", children: [{ type: "class", classId: ghostId }] },
+      root: { type: "group", logic: "and", children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [ghostId] } }] },
     };
     render(
       <NodeCollection
@@ -680,9 +680,9 @@ describe("the hosted-views chrome", () => {
           nodeId: cityId,
           sectionKey: "classed-nodes",
           createAst: () => ({
-            version: 1,
+            version: 2,
             scope: { type: "entire_workspace" },
-            root: { type: "group", logic: "and", children: [{ type: "class", classId: cityId }] },
+            root: { type: "group", logic: "and", children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [cityId] } }] },
           }),
         }}
       />,
@@ -698,9 +698,9 @@ describe("the hosted-views chrome", () => {
     expect(post).not.toBeUndefined();
     expect((post!.body as { name: string }).name).toBe("View 1");
     expect((post!.body as { queryAst: unknown }).queryAst).toEqual({
-      version: 1,
+      version: 2,
       scope: { type: "entire_workspace" },
-      root: { type: "group", logic: "and", children: [{ type: "class", classId: cityId }] },
+      root: { type: "group", logic: "and", children: [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [cityId] } }] },
     });
 
     // The custom tab appears; selecting it refines the base set to the class members.
@@ -831,7 +831,7 @@ describe("useSectionViewResolution hook", () => {
         return () => {};
       },
     });
-    const view = { id: "v", queryAst: astOf({ type: "linkedTo", nodeId: CLASS_B }) };
+    const view = { id: "v", queryAst: astOf({ type: "member", family: "links", op: "in", target: { mode: "ids", ids: [CLASS_B] } }) };
     const { result } = renderHook(() =>
       useSectionViewResolution(client, [item(hit), item(miss)], undefined, undefined, view),
     );
