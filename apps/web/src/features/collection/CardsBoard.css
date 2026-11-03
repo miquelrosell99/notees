@@ -9,7 +9,7 @@
 }
 
 .board-column {
-  flex: 0 0 clamp(16rem, 22vw, 20rem);
+  flex: 0 0 clamp(16rem, 22vw, 20rem); /* token-gate: constant board column width clamp ruling (16rem/20rem column min/max), not a scale step */
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
@@ -106,7 +106,7 @@
   color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-sm);
   box-shadow: var(--shadow-md);
-  max-width: clamp(16rem, 22vw, 20rem);
+  max-width: clamp(16rem, 22vw, 20rem); /* token-gate: constant board column width clamp ruling (16rem/20rem column min/max), not a scale step */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -7,11 +7,11 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
-  min-height: 420px;
+  min-height: 420px; /* token-gate: constant graph stage min-height ruling — one-off chrome height, not a scale step */
   background: var(--graph-bg);
   /* The rail width — one source for the rail itself and the toolbar's
      rail-open right inset (the toolbar never runs beneath the rail). */
-  --graph-rail-w: clamp(16rem, 26%, 22rem);
+  --graph-rail-w: clamp(16rem, 26%, 22rem); /* token-gate: constant graph rail width clamp ruling (16rem/22rem rail min/max), not a scale step */
 }
 
 .nt-graph--loading,
@@ -28,7 +28,7 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 3;
+  z-index: var(--z-3);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -60,7 +60,7 @@
   bottom: var(--spacing-3, var(--spacing-2));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 3;
+  z-index: var(--z-3);
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -72,7 +72,7 @@
   position: absolute;
   left: var(--spacing-sm);
   bottom: var(--spacing-sm);
-  z-index: 3;
+  z-index: var(--z-3);
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -82,10 +82,10 @@
    bar — play/pause, the scrubber, the Edges switch, close. */
 .nt-graph__timelapse {
   position: absolute;
-  bottom: calc(var(--spacing-3, var(--spacing-2)) + 2.5rem);
+  bottom: calc(var(--spacing-3, var(--spacing-2)) + var(--spacing-10));
   left: 50%;
   transform: translateX(-50%);
-  z-index: 3;
+  z-index: var(--z-3);
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
@@ -97,7 +97,7 @@
 }
 
 .nt-graph__timelapse-slider {
-  width: 220px;
+  width: 220px; /* token-gate: constant time-lapse scrubber width ruling — one-off slider width, not a scale step */
 }
 
 /* The stage is the keyboard surface (+/- zoom, arrows pan, F/R). Pointer
@@ -139,7 +139,7 @@
 .nt-graph__stage-loading {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: var(--z-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -166,7 +166,7 @@
 }
 
 .nt-graph__depth .slider {
-  width: 96px;
+  width: 96px; /* token-gate: constant local-mode depth slider width ruling — one-off slider width, not a scale step */
 }
 
 .nt-graph__depth-value {
@@ -198,8 +198,8 @@
 
 .nt-graph__tooltip {
   position: absolute;
-  z-index: 10;
-  max-width: 280px;
+  z-index: var(--z-10);
+  max-width: 280px; /* token-gate: constant graph tooltip max-width ruling — one-off tooltip width, not a scale step */
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   background: var(--md-sys-color-surface-container-high);
@@ -216,7 +216,7 @@
 }
 
 .nt-graph__tooltip-hint {
-  margin-top: 2px;
+  margin-top: var(--spacing-micro);
   font-size: var(--font-size-xs);
   color: var(--md-sys-color-on-surface-variant);
   overflow-wrap: anywhere;
@@ -240,8 +240,8 @@
   position: absolute;
   right: var(--spacing-sm);
   bottom: var(--spacing-sm);
-  width: 200px;
-  height: 140px;
+  width: 200px; /* token-gate: constant minimap canvas box — must match the GraphView.tsx canvas backing-store attributes (200×140) that the GraphMinimap renderer draws into */
+  height: 140px; /* token-gate: constant minimap canvas box — must match the GraphView.tsx canvas backing-store attributes (200×140) that the GraphMinimap renderer draws into */
   border-radius: var(--radius-md);
   border: 1px solid var(--md-sys-color-outline);
   background: var(--graph-btn-bg);
@@ -362,7 +362,7 @@
 /* ── The selected list (the rail's Selection section) ───────────────────── */
 
 .nt-graph__selected-item {
-  min-height: 28px;
+  min-height: var(--height-sm);
 }
 
 .nt-graph__selected-name {

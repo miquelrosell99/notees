@@ -92,7 +92,7 @@
   gap: var(--spacing-2);
   flex: 1 1 auto;
   min-width: 0;
-  padding: 3px var(--spacing-1);
+  padding: var(--spacing-tiny) var(--spacing-1);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;

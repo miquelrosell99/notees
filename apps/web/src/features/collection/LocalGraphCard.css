@@ -3,8 +3,8 @@
 .nt-localgraph-card {
   display: flex;
   flex-direction: column;
-  min-height: 260px;
-  max-height: 380px;
+  min-height: 260px; /* token-gate: constant local-graph card height floor ruling — one-off card chrome height, not a scale step */
+  max-height: 380px; /* token-gate: constant local-graph card height cap ruling — one-off card chrome height, not a scale step */
   border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--radius-md);
   background: var(--md-sys-color-surface);
@@ -17,7 +17,7 @@
 }
 
 .nt-localgraph-card .nt-graph__toolbar {
-  padding: 2px var(--spacing-1);
+  padding: var(--spacing-micro) var(--spacing-1);
 }
 
 .nt-localgraph-card .nt-graph__counts {

@@ -107,7 +107,7 @@
   /* lazy rendering: off-screen cards skip layout/paint entirely;
      the intrinsic size keeps the scrollbar stable while skipped. */
   content-visibility: auto;
-  contain-intrinsic-size: auto 180px;
+  contain-intrinsic-size: auto 180px; /* token-gate: constant lazy-render intrinsic-size estimate for windowed cards — scrollbar stability placeholder, not a scale step */
 }
 
 /* Hover raises the border from the blended hairline to full outline — the
@@ -150,7 +150,7 @@
       var(--md-sys-color-surface-container-highest),
       var(--md-sys-color-surface-container)
     );
-  animation: node-card-cover-pulse 1.6s ease-in-out infinite;
+  animation: node-card-cover-pulse var(--motion-duration-cover-pulse) ease-in-out infinite;
 }
 
 @keyframes node-card-cover-pulse {

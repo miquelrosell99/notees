@@ -382,7 +382,7 @@ td.nt-table-name .nt-page-title {
   border-radius: var(--radius-sm);
   padding: var(--spacing-micro) var(--spacing-1);
   width: 100%;
-  min-width: 80px;
+  min-width: var(--width-col-min);
 }
 
 .nt-table-input:hover {
@@ -615,8 +615,8 @@ td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn:focus-visible {
    AnnotationsSection rides a fixed min-width card so the add-annotation
    form keeps its shape outside the metadata panel. */
 .nt-table-annot-popup {
-  min-width: 22rem;
-  max-width: min(32rem, calc(100vw - var(--spacing-4)));
+  min-width: 22rem; /* token-gate: constant asset-annotations popup min-width ruling — one-off popup width, not a scale step */
+  max-width: min(32rem, calc(100vw - var(--spacing-4))); /* token-gate: constant asset-annotations popup max-width ruling — one-off popup width, not a scale step */
   max-height: 70vh;
   overflow-y: auto;
   background: var(--md-sys-color-surface-container);

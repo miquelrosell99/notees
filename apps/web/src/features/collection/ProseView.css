@@ -61,7 +61,7 @@
 }
 
 .nt-prose .nt-block-row {
-  padding: 8px 0;
+  padding: var(--spacing-2) 0;
 }
 
 /* The focused block view's parent header: the focused
@@ -109,8 +109,8 @@
   margin-left: 1px;
   /* The visible 22px floor (the grip column already makes the row 22px
      tall, so the line box holds). */
-  min-width: 22px;
-  min-height: 22px;
+  min-width: var(--spacing-5-5);
+  min-height: var(--spacing-5-5);
   padding: 0 var(--spacing-1);
   border: none;
   background: transparent;
@@ -211,11 +211,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: var(--spacing-micro);
   /* The visible 22px floor (the row-chrome idiom — layout rides the row's
      line box). */
-  min-width: 22px;
-  min-height: 22px;
+  min-width: var(--spacing-5-5);
+  min-height: var(--spacing-5-5);
   padding: 0 var(--spacing-1);
   border: none;
   background: transparent;

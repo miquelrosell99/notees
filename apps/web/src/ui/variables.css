@@ -441,6 +441,8 @@
   --motion-duration-reduced-motion: 0.01ms;
   /* Sync-badge corner pulse (Sidebar.css nt-sync-pulse) */
   --motion-duration-sync-pulse: 1.2s;
+  /* Cover pending-placeholder pulse (CardsView.css node-card-cover-pulse) */
+  --motion-duration-cover-pulse: 1.6s;
   --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-emphasized: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-decelerate: cubic-bezier(0, 0, 0, 1);
@@ -694,6 +696,12 @@
   --layout-size-12xl: 720px;
   --layout-size-13xl: 800px;
   --layout-size-14xl: 900px;
+
+  /* ==================== Collection density ==================== */
+  /* Role-named collection-view metric: the table column minimum (the inline
+     cell editor's min-width sets the effective column floor). Named by role,
+     not pixel. */
+  --width-col-min: 80px;
 
   /* ==================== Responsive Breakpoints ==================== */
 
