@@ -61,6 +61,24 @@ test('color-mix over tokens is clean; px inside media condition is clean', () =>
   assert.deepEqual(scanCss(css), []);
 });
 
+test('multiline + supports/container conditions: condition px clean, body scanned', () => {
+  const css = [
+    '@media (hover: hover) and',
+    '       (width <= 768px) {',              // condition spans lines — px legal
+    '  .a { padding: 12px; }',                // 3 body px — MUST flag
+    '}',
+    '@supports (width: 48px) {',              // supports condition — px legal
+    '  .b { margin: 8px; }',                  // 6 body px — MUST flag
+    '}',
+    '@container sidebar (min-width: 320px) {',// container condition — px legal
+    '  .c { inset: 4px; }',                   // 9 body px — MUST flag
+    '}',
+  ].join('\n');
+  const v = scanCss(css);
+  assert.ok(has(v, 'PX', 3) && has(v, 'PX', 6) && has(v, 'PX', 9));
+  assert.equal(v.filter((x) => x.kind === 'PX').length, 3);
+});
+
 test('units are case-insensitive: uppercase PX/REM/RGBA/MS flag', () => {
   const css = [
     '.a { width: 10PX; }',                    // 1 PX

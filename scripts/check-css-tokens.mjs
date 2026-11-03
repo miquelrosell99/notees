@@ -20,8 +20,8 @@
  *   - 48px inside a min-width/min-height/min-block-size/min-inline-size
  *     declaration (the 48px touch-floor ruling; declaration-scoped, not
  *     line-scoped)
- *   - px inside an @media condition (custom properties are not allowed
- *     there by CSS)
+ *   - px inside an @media / @supports / @container condition (custom
+ *     properties are not allowed there by CSS; conditions may span lines)
  *   - a line carrying /* token-gate: constant <reason> *\/ — reserved for
  *     JS-contract dimensions; the reason is mandatory (enforced)
  *
@@ -33,7 +33,10 @@ import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const OPT_OUT_RE = /\/\*\s*token-gate:\s*constant\s+\w+/;
-const MEDIA_RE = /@media[^{]*\{/g;
+// Condition rules that cannot take var() — their condition text is blanked
+// (px allowed there), their bodies stay scannable. The `s` flag lets a
+// condition span lines without its px leaking into the scan.
+const CONDITION_RE = /@(?:media|supports|container)[^{]*\{/gs;
 const TOKEN_SOURCE = join('apps', 'web', 'src', 'ui', 'variables.css');
 const MIN_PROPS = ['min-width', 'min-height', 'min-block-size', 'min-inline-size'];
 
@@ -54,9 +57,11 @@ const minDeclAt = (line, idx) => MIN_PROPS.includes(declPropAt(line, idx));
 export function scanCss(rawContent) {
   const rawLines = rawContent.split('\n');
   const optOut = new Set(rawLines.map((l, i) => (OPT_OUT_RE.test(l) ? i + 1 : 0)).filter(Boolean));
-  // Blank media-query CONDITIONS (keep their bodies scannable).
+  // Blank condition rules (media/supports/container conditions cannot take
+  // var(); keep their bodies scannable). Newlines inside a multiline
+  // condition are preserved so line numbers after it stay correct.
   let content = stripComments(rawContent);
-  content = content.replace(MEDIA_RE, (m) => ' '.repeat(m.length - 1) + '{');
+  content = content.replace(CONDITION_RE, (m) => m.slice(0, -1).replace(/[^\n]/g, ' ') + '{');
   const lines = content.split('\n');
   const violations = [];
 
