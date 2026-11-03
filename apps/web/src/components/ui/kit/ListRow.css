@@ -1,9 +1,9 @@
-/* ListRow — the fleet list item: 44px-min row, 32px leading slot,
-   primary/secondary lines, trailing affordance, full-row state layers,
-   accent marker on the active row. Token-only; extracted 2026-10-26 from
-   seven feature stylesheets (the fleet audit's TEMPLATE-GAP finding).
-   Register: the skill's ListRow template with the app's §7 primary recipe
-   (14px/600 — --font-size-base/--font-weight-semibold). */
+/* ListRow — the fleet list item: 44px-min row, 32px leading slot, */
+/* primary/secondary lines, trailing affordance, full-row state layers, */
+/* accent marker on the active row. Token-only; extracted 2026-10-26 from */
+/* seven feature stylesheets (the fleet audit's TEMPLATE-GAP finding). */
+/* Register: the skill's ListRow template with the app's §7 primary recipe */
+/* (14px/600 — --font-size-base/--font-weight-semibold). */
 
 .list-row {
   position: relative;
@@ -11,7 +11,7 @@
   align-items: center;
   gap: var(--spacing-3);
   width: 100%;
-  min-height: 44px;
+  min-height: 44px; /* token-gate: constant fleet list-row 44px-min row ruling (the kit ListRow metric), not a scale step */
   padding: var(--spacing-1) var(--spacing-3);
   border: 0;
   border-radius: var(--radius-item);
@@ -49,8 +49,8 @@ button.list-row:active:not(:disabled) {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
-  height: 16px;
+  width: var(--spacing-tiny);
+  height: var(--spacing-4);
   border-radius: var(--radius-full);
   background: var(--md-sys-color-primary);
 }

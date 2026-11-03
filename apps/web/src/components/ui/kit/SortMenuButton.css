@@ -1,15 +1,12 @@
-/**
- * SortMenuButton Styles
- *
- * The sort-mode picker's panel: a titled column of option rows, the active
- * mode check-marked (the ContextMenu register, adapted).
- */
+/* SortMenuButton Styles */
+/* The sort-mode picker's panel: a titled column of option rows, the active */
+/* mode check-marked (the ContextMenu register, adapted). */
 
 .sort-menu {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-micro);
-  min-width: 13rem;
+  min-width: 13rem; /* token-gate: constant sort-menu panel min-width ruling, not a scale step */
   padding: var(--spacing-1);
 }
 
@@ -19,7 +16,7 @@
   font-weight: 600;
   color: var(--md-sys-color-on-surface-variant);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--letter-spacing-badge);
 }
 
 .sort-menu__option {

@@ -96,7 +96,7 @@
 .pill--hover-reveal-right:hover .pill__right-button,
 .pill--hover-reveal-right:focus-within .pill__right-button,
 .pill--hover-reveal-right .pill__right-button:focus-visible {
-  max-width: 1.5rem;
+  max-width: var(--spacing-6);
   opacity: var(--opacity-70);
   margin-inline-start: var(--spacing-1);
 }
@@ -240,7 +240,7 @@
    the click surfaces the honest refusal toast instead of removing. */
 .pill__right-button--locked,
 .pill--hover-reveal-right .pill__right-button--locked {
-  max-width: 1.5rem;
+  max-width: var(--spacing-6);
   opacity: var(--opacity-70);
   margin-inline-start: var(--spacing-1);
   cursor: help;

@@ -6,7 +6,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  min-block-size: 24px;
+  min-block-size: var(--height-xs);
   padding: 0 var(--spacing-sm);
   border-radius: var(--shape-extra-large);
   border: 1px solid var(--md-sys-color-outline);
