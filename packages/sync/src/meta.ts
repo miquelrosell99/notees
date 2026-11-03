@@ -16,6 +16,13 @@ export interface PersistedSyncState {
   cursorSeq: number;
   receivedHlc: Hlc;
   restoreEpoch: number;
+  /**
+   * The lowest server seq skipped while locked (a realtime `$e` frame with no
+   * crypto provider). Non-null ⇒ the durable cursor was advanced past sealed
+   * frames this session could not read; installing a key rewinds the cursor
+   * to re-fetch them. Null/absent = nothing skipped.
+   */
+  firstSkippedSeq?: number | null;
 }
 
 export class SyncMeta {

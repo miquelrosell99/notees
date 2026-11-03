@@ -41,6 +41,20 @@ import type {
   Transport,
 } from "./types.js";
 
+const SQLITE_MAGIC = new Uint8Array([
+  0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33,
+  0x00,
+]);
+
+/** True when the bytes carry the SQLite header magic (a plaintext image). */
+function hasSqliteMagic(bytes: Uint8Array): boolean {
+  if (bytes.byteLength < SQLITE_MAGIC.length) return false;
+  for (let i = 0; i < SQLITE_MAGIC.length; i++) {
+    if (bytes[i] !== SQLITE_MAGIC[i]) return false;
+  }
+  return true;
+}
+
 /** Backoff schedule: 5s, 15s, 1m, 5m, 30m; exhausted → quarantined. */
 const RETRY_DELAYS_MS = [5_000, 15_000, 60_000, 300_000, 1_800_000] as const;
 const DEFAULT_BATCH_SIZE = 100;
@@ -159,6 +173,13 @@ export class SyncEngine {
    * on the store's $e rejection.
    */
   private lockedSkipTotal = 0;
+  /**
+   * The lowest seq skipped while locked over the realtime path (see
+   * skipEncryptedWithoutKey). Installing a provider rewinds the durable
+   * cursor before it so the next pull re-fetches the sealed frames.
+   * Persisted (app_meta) so the rewind survives reloads.
+   */
+  private firstSkippedSeq: number | null = null;
   private unsubscribeRealtime: (() => void) | null = null;
 
   constructor(store: Store, transport: Transport, clock: Clock, options: SyncEngineOptions = {}) {
@@ -177,6 +198,7 @@ export class SyncEngine {
     this.cursorSeq = persisted?.cursorSeq ?? 0;
     this.receivedHlc = persisted?.receivedHlc ?? ZERO_HLC;
     this.restoreEpoch = persisted?.restoreEpoch ?? 0;
+    this.firstSkippedSeq = persisted?.firstSkippedSeq ?? null;
   }
 
   // --- status & subscriptions ---------------------------------------------------
@@ -209,9 +231,20 @@ export class SyncEngine {
     this.callbacks = callbacks;
   }
 
-  /** Install or rotate the E2EE boundary (null disables: plaintext wire). */
+  /**
+   * Install or rotate the E2EE boundary (null disables: plaintext wire).
+   * Installing a key after locked realtime skips rewinds the durable cursor
+   * to just before the first skipped seq — the next pull re-fetches and
+   * applies the sealed frames (self-heal on unlock; while locked the cursor
+   * stays advanced so nothing re-fetches uselessly).
+   */
   setCrypto(provider: EnvelopeCrypto | null): void {
     this.crypto = provider;
+    if (provider !== null && this.firstSkippedSeq !== null) {
+      this.cursorSeq = Math.min(this.cursorSeq, this.firstSkippedSeq - 1);
+      this.firstSkippedSeq = null;
+      this.persistState();
+    }
   }
 
   subscribeStatus(callback: (status: SyncStatus, error: Error | null) => void): () => void {
@@ -258,6 +291,7 @@ export class SyncEngine {
       cursorSeq: this.cursorSeq,
       receivedHlc: this.receivedHlc,
       restoreEpoch: this.restoreEpoch,
+      firstSkippedSeq: this.firstSkippedSeq,
     });
   }
 
@@ -366,14 +400,31 @@ export class SyncEngine {
       compareHlc(meta.hlc, this.receivedHlc) > 0;
     if (snapshotIsNewer) {
       const data = await this.transport.getSnapshotData();
-      const bytes = this.crypto ? await this.decryptSnapshotOrThrow(data) : data;
-      // Awaits staged (OPFS-VFS) restores; synchronous backends fall back
-      // inside restoreAsync.
-      await this.store.restoreAsync(bytes);
-      // The metadata HLC is the authoritative server-side watermark.
-      this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
-      this.cursorSeq = meta.upToSeq ?? 0;
-      this.persistState();
+      if (!this.crypto && !hasSqliteMagic(data)) {
+        // Locked + sealed snapshot: without a provider the blob is opaque
+        // bytes (and a garbage restore would throw). Skip the restore with a
+        // counted warning and leave the watermarks untouched — the seq
+        // catch-up below covers the content from the durable cursor.
+        this.lockedSkipTotal += 1;
+        console.warn(
+          `[notees-sync] workspace key unavailable: skipped a sealed snapshot ` +
+            `(${data.byteLength} bytes) — seq catch-up covers the content; ` +
+            "restore it later by unlocking the workspace.",
+        );
+        // The HLC watermark marks this snapshot as seen (no re-download next
+        // cycle); the cursor stays put so catch-up replays the log.
+        this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
+        this.persistState();
+      } else {
+        const bytes = this.crypto ? await this.decryptSnapshotOrThrow(data) : data;
+        // Awaits staged (OPFS-VFS) restores; synchronous backends fall back
+        // inside restoreAsync.
+        await this.store.restoreAsync(bytes);
+        // The metadata HLC is the authoritative server-side watermark.
+        this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
+        this.cursorSeq = meta.upToSeq ?? 0;
+        this.persistState();
+      }
     }
 
     // Page by seq cursor; each page applied in one store transaction before
@@ -593,7 +644,7 @@ export class SyncEngine {
     // Locked (no provider): skip encrypted envelopes with a counted warning
     // instead of letting the store's $e rejection kill the batch — plaintext
     // applies, the cursor still advances over the skipped seqs.
-    const plain = this.skipEncryptedWithoutKey(envelopes);
+    const plain = this.skipEncryptedWithoutKey(envelopes, seqs);
     return this.applyRemotePlain(plain, seqs, envelopes);
   }
 
@@ -603,9 +654,27 @@ export class SyncEngine {
    * with a counted log warning — never applied, never thrown. Plaintext
    * envelopes in the same batch apply normally.
    */
-  private skipEncryptedWithoutKey(envelopes: Envelope[]): Envelope[] {
-    const plain = envelopes.filter((envelope) => !isEncryptedPayload(envelope.payload));
-    const skipped = envelopes.length - plain.length;
+  private skipEncryptedWithoutKey(
+    envelopes: Envelope[],
+    seqs: Record<string, number> | null = null,
+  ): Envelope[] {
+    const plain: Envelope[] = [];
+    let skipped = 0;
+    for (const envelope of envelopes) {
+      if (isEncryptedPayload(envelope.payload)) {
+        skipped += 1;
+        if (seqs !== null) {
+          // Realtime skip: remember the lowest skipped seq so a later
+          // setCrypto rewind can re-fetch the sealed frames.
+          const seq = seqs[envelope.id];
+          if (seq !== undefined && (this.firstSkippedSeq === null || seq < this.firstSkippedSeq)) {
+            this.firstSkippedSeq = seq;
+          }
+        }
+      } else {
+        plain.push(envelope);
+      }
+    }
     if (skipped > 0) {
       this.lockedSkipTotal += skipped;
       console.warn(
@@ -613,6 +682,7 @@ export class SyncEngine {
           `(${this.lockedSkipTotal} this session); local writes stay plaintext until unlocked. ` +
           "Plaintext envelopes in the batch applied normally.",
       );
+      this.persistState();
     }
     return plain;
   }
@@ -759,7 +829,7 @@ export class SyncEngine {
             const { applied, info } = await this.applyRemote(frame.envelopes, frame.seqs);
             if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
           } else {
-            const opened = this.skipEncryptedWithoutKey(frame.envelopes);
+            const opened = this.skipEncryptedWithoutKey(frame.envelopes, frame.seqs);
             const { applied, info } = this.applyRemotePlain(opened, frame.seqs, frame.envelopes);
             if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
           }
