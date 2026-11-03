@@ -61,8 +61,9 @@ Notees is local-first: the op log is the only authority, every store is a derive
 
 ### 2. Encryption boundary
 
-- Every locally-authored envelope payload becomes `$e` **before** entering the durable op log (`local_op_log`) or the wire; decryption happens after receive/replay, before apply. Derived stores see plaintext only.
-- Net effect: relay DB, wire, and durable client logs hold ciphertext; only client memory and the (documented, plaintext) derived store ever hold content.
+- **Wire, relay, and snapshots are ciphertext.** Envelope payloads are encrypted at the push boundary (the outbox is memory-only and session-scoped) and decrypted after receive/replay, before apply. Client-uploaded/downloaded snapshot blobs are encrypted/decrypted at the same boundary (the streaming-upload path is bypassed under crypto — buffered + sealed instead).
+- **The device is the honesty boundary.** The durable local op log (`local_op_log`) and the derived store stay plaintext on-device: an attacker with device access reads the derived DB anyway, so log ciphertext would buy nothing while forcing the entire local-write seam (undo journal, revision stamps, guard-error propagation) async. Documented in the threat model.
+- Net effect: relay DB, wire, and snapshot blobs hold ciphertext; content exists in plaintext only inside a client's memory and its on-device stores.
 
 ### 3. Server changes (slimming)
 
