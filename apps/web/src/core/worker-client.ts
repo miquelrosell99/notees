@@ -62,6 +62,8 @@ import {
   type UserPrefs,
   type UserPrefsSource,
 } from "./workspace-client/index.js";
+import { openAssetIfSealed, sealAssetIfKeyed } from "./workspace-client/asset-crypto.js";
+import { blobBytes } from "./workspace-client/asset-transport.js";
 import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
 import { isReadUnchanged } from "./workspace-client/read-revisions.js";
 import type {
@@ -1080,7 +1082,35 @@ export class WorkerClient {
 
   /** Upload file bytes to the server's CAS asset store (POST /api/assets). */
   async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
-    return postAssetUpload(this.serverUrl, this.apiKey, this.workspaceId, file, filename);
+    // Seal at the CAS boundary when keyed (plan 05); keyless stays plaintext.
+    // The REST channel never enters the worker — this runs on the main
+    // thread, same as the in-process client.
+    const sealed = await sealAssetIfKeyed(
+      this.serverUrl,
+      this.apiKey,
+      this.workspaceId,
+      await blobBytes(file),
+      file.type || "application/octet-stream",
+    );
+    return postAssetUpload(
+      this.serverUrl,
+      this.apiKey,
+      this.workspaceId,
+      new Blob([sealed.bytes as BlobPart]),
+      filename,
+      sealed.fields ?? undefined,
+    );
+  }
+
+  /** Download + open a sealed asset (plaintext passes through). */
+  private async openAssetBlob(assetId: string): Promise<Blob> {
+    const { blob, iv } = await fetchAssetBlob(this.serverUrl, this.apiKey, assetId, this.workspaceId);
+    const opened = await openAssetIfSealed(
+      this.workspaceId,
+      iv,
+      await blobBytes(blob),
+    );
+    return new Blob([opened as BlobPart], { type: blob.type });
   }
 
   /** Record an uploaded asset on a node (asset.attach op, enqueued in the worker). */
@@ -1107,12 +1137,12 @@ export class WorkerClient {
 
   /** Download an asset's bytes (workspace key); the export engine's include-assets read. */
   async fetchAssetBytes(assetId: string): Promise<Blob> {
-    return fetchAssetBlob(this.serverUrl, this.apiKey, assetId, this.workspaceId);
+    return this.openAssetBlob(assetId);
   }
 
   /** Download an asset's bytes (workspace key) and open them in a new tab. */
   async downloadAsset(assetId: string): Promise<void> {
-    const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, assetId, this.workspaceId);
+    const blob = await this.openAssetBlob(assetId);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
   }
@@ -1128,9 +1158,16 @@ export class WorkerClient {
     const info = (await this.call("getAssetInfo", [assetNodeId])) as AssetInfo | undefined;
     if (info === undefined || !info.mimeType.startsWith("image/")) return null;
     try {
-      const blob = await fetchAssetBlob(this.serverUrl, this.apiKey, info.assetId, this.workspaceId);
-      return await readBlobAsDataUrl(blob);
+      const fetched = await fetchAssetBlob(this.serverUrl, this.apiKey, info.assetId, this.workspaceId);
+      const opened = await openAssetIfSealed(
+        this.workspaceId,
+        fetched.iv,
+        await blobBytes(fetched.blob),
+      );
+      return await readBlobAsDataUrl(new Blob([opened as BlobPart], { type: fetched.blob.type }));
     } catch {
+      // Sealed-without-key and decrypt failures both land here: the card
+      // renders the honest no-image fallback (never corrupted bytes).
       return null;
     }
   }

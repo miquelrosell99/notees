@@ -97,8 +97,12 @@ export function AssetView({
       anchor.click();
       document.body.removeChild(anchor);
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    } catch {
-      notificationStore.error("Couldn't download asset", info.originalName);
+    } catch (error) {
+      // Sealed-without-key and decrypt failures name themselves (plan 05):
+      // the chip stays as the honest fallback, never a corrupted render.
+      const note =
+        error instanceof Error && error.message !== "" ? ` — ${error.message}` : "";
+      notificationStore.error(`Couldn't download asset${note}`, info.originalName);
     } finally {
       setDownloading(false);
     }
