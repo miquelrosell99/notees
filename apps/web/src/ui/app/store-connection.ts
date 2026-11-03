@@ -13,6 +13,11 @@ import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import sqliteWasmUrl from "@sqlite.org/sqlite-wasm/sqlite3.wasm?url";
 
 import { WorkspaceClient } from "@/core/workspace-client/index.js";
+import {
+  currentMasterKey,
+  ensureWorkspaceKey,
+} from "@/core/crypto-custody.js";
+import { fetchWorkspaceKey } from "@/core/auth-api.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import { markLocalWorkspaceCopy } from "@/core/workspace-registry.js";
 import { settingsSectionFromPath } from "../../features/settings/SettingsPage.js";
@@ -53,13 +58,54 @@ export async function openStoreConnection(
 ): Promise<ConnectOutcome> {
   writeStored(STORAGE_KEYS.serverUrl, url);
   writeStored(STORAGE_KEYS.workspaceId, workspaceId);
+  // E2EE custody: hand the workspace key to the client when this session can
+  // unwrap one. Offline workspaces are keyless by design (Global Constraint:
+  // no server → no keys → plaintext). With a session but NO master key in
+  // memory (a reload restores the session without it — custody is
+  // memory-only), a keyed workspace opens KEYLESS (plaintext passthrough,
+  // which the mixed log makes legal) with a visible warning; the unlock
+  // re-prompt is a documented fast-follow.
+  let workspaceKey: Uint8Array | undefined;
+  if (!options.isOffline) {
+    const master = currentMasterKey();
+    if (master !== null) {
+      try {
+        workspaceKey = await ensureWorkspaceKey(url, credential, workspaceId, master);
+      } catch (error) {
+        console.warn(
+          `[notees-web] workspace key unavailable for ${workspaceId}; opening keyless (plaintext passthrough):`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    } else if (options.credentialType === "session") {
+      // Distinguish "keyed but locked" from "keyless" for the warning: the
+      // wrapped-key row needs only membership, not the master key.
+      const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(
+        () => undefined,
+      );
+      if (wrapped !== undefined) {
+        console.warn(
+          `[notees-web] workspace ${workspaceId} is encrypted but this session has no master key ` +
+            "(a reload restores the session without it). Opening keyless — writes are plaintext " +
+            "until you sign in again with your password. (Unlock re-prompt is a fast-follow.)",
+        );
+      }
+    }
+  }
   const mode = detectStoreMode();
   let nextClient: AnyClient;
   if (mode === "worker") {
     nextClient = await WorkerClient.create(
       options.isOffline
         ? { serverUrl: "", apiKey: "", workspaceId, sqlWasmUrl, sqliteWasmUrl, offline: true }
-        : { serverUrl: url, apiKey: credential, workspaceId, sqlWasmUrl, sqliteWasmUrl },
+        : {
+            serverUrl: url,
+            apiKey: credential,
+            workspaceId,
+            sqlWasmUrl,
+            sqliteWasmUrl,
+            ...(workspaceKey !== undefined ? { workspaceKey } : {}),
+          },
     );
   } else {
     nextClient = options.isOffline
@@ -69,6 +115,7 @@ export async function openStoreConnection(
           apiKey: credential,
           workspaceId,
           sqlJsConfig: { locateFile: () => sqlWasmUrl },
+          ...(workspaceKey !== undefined ? { workspaceKey } : {}),
         });
     // The worker path bootstraps during init; the in-process path syncs
     // here. Local-first on both: an unreachable relay must not block boot

@@ -7,8 +7,10 @@
  * inheritance.
  */
 
-import { type Envelope } from "@notees/protocol";
-import { SyncEngine, summarizeEnvelopes } from "@notees/sync";
+import { importWorkspaceKey, newEnvelope, type Envelope } from "@notees/protocol";
+import { keyCryptoProvider } from "@notees/sync";
+import { SyncEngine, summarizeEnvelopes, type EnvelopeCrypto } from "@notees/sync";
+import { buildSystemSeedEnvelopes } from "@notees/domain";
 
 import {
   CONFLICT_LOG_CAP,
@@ -33,8 +35,18 @@ export class WorkspaceClientSync {
     // envelopes already had their session — re-journaling replays would mint
     // phantom undo entries).
     this.ctx.undoJournal.clear();
+    // E2EE: with a workspace key the engine seals the wire (encrypt at push,
+    // decrypt before apply) and seals/opens snapshots; keyless → plaintext
+    // passthrough (offline/keyless workspaces, and the keyed-but-locked
+    // session after a reload — the custody module only hands out a key when
+    // the master key is in memory).
+    const crypto =
+      this.ctx.workspaceKey !== null
+        ? keyCryptoProvider(await importWorkspaceKey(this.ctx.workspaceKey))
+        : undefined;
     this.ctx.engine = new SyncEngine(this.ctx.store, this.ctx.transport, this.ctx.clock, {
       workspaceId,
+      ...(crypto !== undefined ? { crypto } : {}),
       callbacks: {
         onConflict: (conflicts) => {
           // Record before forwarding: the modal reads the log over RPC, and
@@ -79,10 +91,42 @@ export class WorkspaceClientSync {
       }
     }
     await this.ctx.engine.sync();
+    // Client-side seeding of an EMPTY KEYED workspace: the server shim
+    // deliberately skips keyed workspaces (they are client-seeded), so the
+    // first keyed device stamps the system seeds itself — local-first via
+    // enqueue, pushed sealed on the next cycle. Seed node ids are fixed
+    // UUIDs: two devices seeding concurrently converge (create-on-existing
+    // is a no-op; applied_envelope dedupes by envelope id). A keyless store
+    // is the server shim's job; a non-empty store is never reseeded.
+    if (crypto !== undefined && this.storeIsEmpty()) {
+      const stamp = (opType: string, payload: Record<string, unknown>, affected?: string[]): Envelope =>
+        newEnvelope({
+          workspaceId,
+          actorId: this.ctx.actorId,
+          deviceId: this.ctx.deviceId,
+          client: "seed",
+          hlc: this.ctx.clock.now(),
+          affectedNodeIds: affected ?? [],
+          opType,
+          payload,
+          timestamp: new Date().toISOString(),
+        });
+      for (const envelope of buildSystemSeedEnvelopes(stamp)) {
+        this.ctx.engine.enqueue(envelope);
+      }
+    }
     // Bootstrap notifies unconditionally (the engine callbacks above also
     // fired): sync failures reject before the onPull callback runs, and the
     // initial UI seed must refresh either way.
     this.ctx.notify();
+  }
+
+  /** True when the derived store holds no node rows (the client-seed gate). */
+  private storeIsEmpty(): boolean {
+    const row = this.ctx.store.database.prepare("SELECT COUNT(*) AS n FROM node").get() as {
+      n: number;
+    };
+    return row.n === 0;
   }
 
   /**

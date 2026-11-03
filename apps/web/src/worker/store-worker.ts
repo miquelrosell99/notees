@@ -41,7 +41,7 @@ const workerScope = self as unknown as Worker;
 
 const ctx: WorkerContext = {
   core: null,
-  init: async ({ sqlWasmUrl, sqliteWasmUrl, workspaceId, serverUrl, apiKey, offline }) => {
+  init: async ({ sqlWasmUrl, sqliteWasmUrl, workspaceId, serverUrl, apiKey, offline, workspaceKey }) => {
     const transport = offline
       ? new OfflineTransport()
       : new HttpTransport({ baseUrl: serverUrl, apiKey, workspaceId });
@@ -55,6 +55,7 @@ const ctx: WorkerContext = {
       fileName,
       workspaceId,
       transport,
+      ...(workspaceKey !== undefined ? { workspaceKey } : {}),
       // The per-user prefs calls (getPrefs/patchPrefs) are plain REST
       // — the worker owns the REST config, so forward it into the client.
       serverUrl,

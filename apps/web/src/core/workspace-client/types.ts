@@ -814,6 +814,12 @@ export interface WorkspaceClientOptions {
   transport: Transport;
   /** Defaults to a fixed local actor; pass a real user id when known. */
   actorId?: string;
+  /**
+   * Raw 32-byte workspace key (E2EE). Present → the SyncEngine seals the
+   * wire and opens sealed snapshots; absent → plaintext passthrough
+   * (keyless/offline workspaces). Memory-only: the client never persists it.
+   */
+  workspaceKey?: Uint8Array;
   deviceId?: string;
   client?: string;
   /**

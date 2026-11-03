@@ -199,6 +199,8 @@ export interface WorkerClientOptions {
   sqliteWasmUrl?: string;
   /** Offline-first mode: no server, edits stay on the device. */
   offline?: boolean;
+  /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+  workspaceKey?: Uint8Array;
   /** Test seam: supply a fake worker instead of spawning the real one. */
   spawn?: () => Worker;
 }
@@ -264,6 +266,7 @@ export class WorkerClient {
       serverUrl: options.serverUrl,
       apiKey: options.apiKey,
       offline: options.offline === true,
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
     };
     await client.call("init", [init]);
     return client;
