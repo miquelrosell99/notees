@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
-  min-height: 12rem;
+  min-height: 12rem; /* token-gate: constant import-modal body min-height ruling (12rem/192px), not a scale step */
 }
 
 .import-modal__hint {
@@ -66,7 +66,7 @@
   border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   text-align: left;
   white-space: nowrap;
-  max-width: 16rem;
+  max-width: 16rem; /* token-gate: constant import preview cell max-width ruling (16rem/256px), not a scale step */
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -85,7 +85,7 @@
 .import-modal__failure-list {
   margin: 0;
   padding-left: var(--spacing-5);
-  max-height: 12rem;
+  max-height: var(--import-list-max-height);
   overflow-y: auto;
   font-size: var(--font-size-xs);
   line-height: 1.5;

@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
-  min-height: 10rem;
+  min-height: 10rem; /* token-gate: constant import-modal body min-height ruling (10rem/160px), not a scale step */
 }
 
 .import-unified__file-input {
@@ -38,7 +38,7 @@
 .import-unified__radio-text {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-micro, 2px);
+  gap: var(--spacing-micro);
 }
 
 .import-unified__radio-title {
@@ -81,7 +81,7 @@
 .import-unified__footer-name {
   flex: 1;
   min-width: 0;
-  max-width: 16rem;
+  max-width: 16rem; /* token-gate: constant import footer-name max-width ruling (16rem/256px), not a scale step */
 }
 
 .import-unified__footer-actions {
@@ -96,7 +96,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-3);
-  min-height: 10rem;
+  min-height: 10rem; /* token-gate: constant import-modal body min-height ruling (10rem/160px), not a scale step */
 }
 
 .import-unified__progress-label {
@@ -107,7 +107,7 @@
 
 .import-unified__progress-bar {
   width: 100%;
-  max-width: 20rem;
+  max-width: 20rem; /* token-gate: constant import progress-bar max-width ruling (20rem/320px), not a scale step */
 }
 
 .import-unified__badges {
@@ -132,7 +132,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  max-height: 12rem;
+  max-height: var(--import-list-max-height);
   overflow-y: auto;
 }
 
@@ -194,7 +194,7 @@
 
 .import-unified__details {
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--radius-md, 8px);
+  border-radius: var(--radius-md);
   padding: var(--spacing-2) var(--spacing-3);
 }
 
@@ -207,7 +207,7 @@
 .import-unified__details-list {
   margin: var(--spacing-2) 0 0;
   padding-left: var(--spacing-5);
-  max-height: 12rem;
+  max-height: var(--import-list-max-height);
   overflow-y: auto;
   font-size: var(--font-size-xs);
   line-height: 1.5;

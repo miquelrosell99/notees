@@ -4,9 +4,9 @@
 
 /*  Main container  */
 .ep {
-  --emoji-picker-width: 21.25rem;
-  --emoji-picker-max-height: 460px;
-  --letter-spacing-section: 0.6px;
+  --emoji-picker-width: 21.25rem; /* token-gate: constant emoji-picker panel width ruling (21.25rem/340px) — single site, below the ≥3-site role-token threshold */
+  --emoji-picker-max-height: 460px; /* token-gate: constant emoji-picker panel height cap ruling (460px), not a scale step */
+  --letter-spacing-section: 0.6px; /* token-gate: constant sub-pixel optical letter-spacing ruling (0.6px), not a scale step */
 
   background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
@@ -170,7 +170,7 @@
 
 /*  Scrollbar  */
 .ep-content::-webkit-scrollbar {
-  width: 5px;
+  width: var(--spacing-xxs);
 }
 
 .ep-content::-webkit-scrollbar-track {

@@ -17,7 +17,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-1);
-  padding: 6px var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-2);
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
@@ -46,14 +46,14 @@
   /* The trigger is only as wide as the sidebar chrome allows; the panel
      must fit the search input, the badge + per-row gear, and the footer
      on one line, so it grows past the trigger when needed. */
-  min-width: 16rem;
-  z-index: 60;
+  min-width: 16rem; /* token-gate: constant workspace-switcher popup min-width ruling (16rem/256px) — single site, below the ≥3-site role-token threshold */
+  z-index: var(--z-60);
   background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
   overflow: hidden;
-  max-height: 18.75rem;
+  max-height: 18.75rem; /* token-gate: constant workspace-switcher popup height cap ruling (18.75rem/300px), not a scale step */
   display: flex;
   flex-direction: column;
 }
@@ -84,8 +84,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--height-sm);
+  height: var(--height-sm);
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
@@ -134,7 +134,7 @@
   align-items: center;
   justify-content: center;
   width: 0;
-  height: 28px;
+  height: var(--height-sm);
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
@@ -148,7 +148,7 @@
 
 .workspace-switcher__row-item:hover .workspace-switcher__settings-btn,
 .workspace-switcher__row-item:focus-within .workspace-switcher__settings-btn {
-  width: 28px;
+  width: var(--height-sm);
   opacity: 1;
 }
 
@@ -162,7 +162,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: 7px var(--spacing-2);
+  padding: var(--spacing-1-75) var(--spacing-2);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -201,7 +201,7 @@
 .workspace-switcher__item-badge {
   flex-shrink: 0;
   font-size: var(--font-size-xs);
-  padding: 1px 8px;
+  padding: 1px var(--spacing-2);
   border-radius: var(--shape-full);
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);

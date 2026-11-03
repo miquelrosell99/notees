@@ -9,13 +9,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
-  min-height: 26.25rem;
+  min-height: 26.25rem; /* token-gate: constant export-modal body min-height ruling (26.25rem/420px), not a scale step */
 }
 
 /* ── Format cards ── */
 .export-modal__formats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); /* token-gate: constant export format-card column min ruling (9.5rem/152px), not a scale step */
   gap: var(--spacing-2);
 }
 
@@ -61,7 +61,7 @@
 /* Rendered PDF preview (P1) */
 .export-modal__pdf-preview {
   width: 100%;
-  min-height: 22.5rem;
+  min-height: 22.5rem; /* token-gate: constant export preview min-height ruling (22.5rem/360px), not a scale step */
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--md-sys-color-surface-container);
@@ -137,7 +137,7 @@
 /* Text preview (Markdown) */
 .export-modal__preview {
   width: 100%;
-  min-height: 22.5rem;
+  min-height: 22.5rem; /* token-gate: constant export preview min-height ruling (22.5rem/360px), not a scale step */
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   line-height: 1.5;
