@@ -78,10 +78,7 @@ content.
   state, which is exactly what the store's own tests assert
   (`packages/store/test/store.test.ts`).
 
-**Designed, not shipped:** the E2EE slot. The envelope schema already reserves
-`payload = {"$e": {iv, ct}}`; the relay passes it through unvalidated and server-side
-derived stores skip it (`isEncryptedPayload` checks in `workspace-store.ts`). Encryption
-itself is not shipped.
+**Shipped (2026-11-03):** the E2EE slot and client crypto primitives (`@notees/protocol` `crypto.ts`: scrypt KDF record, key wrap, envelope/snapshot sealing) plus the optional `EnvelopeCrypto` boundary in `@notees/sync`. **Designed, not shipped:** key custody in clients (unwrapping at login, workspace-key storage), which is what turns the boundary on for real workspaces; encryption is opt-in until then.
 
 ## 3. The derived store — wipe, replay, identical
 

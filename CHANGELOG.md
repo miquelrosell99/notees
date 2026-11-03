@@ -9,6 +9,12 @@ predating this file.
 
 ## 2026-11-03
 
+### E2EE crypto core (TS reference)
+
+- `@notees/protocol` crypto module: scrypt master-key record (server-format parity), master/workspace key wrap-unwrap (WebCrypto AES-GCM, `wrapKey`), envelope payload encryption into the reserved `{"$e": {iv, ct}}` slot with `id.workspaceId` AAD binding, and snapshot-byte sealing. New canonical fixture `envelope-encrypted.json` extends the lockstep corpus — the gate asserts the slot shape and that the fixture key opens a payload validating against the op schema.
+- `@notees/sync`: optional `EnvelopeCrypto` boundary (`keyCryptoProvider(workspaceKey)`) — encrypts at the push boundary, decrypts before remote apply (keeps conflict detection and change-info exact), seals client snapshot uploads (streaming path bypassed under crypto) and opens snapshot downloads. Opt-in via `SyncEngineOptions.crypto`; no behavior change without it.
+- Store test harnesses open encrypted fixtures before replay. Verification: +11 protocol crypto tests (+ the fixture's two decrypt-and-validate gate assertions, fixture count 48 → 49), +6 sync crypto tests, store corpus replays the encrypted fixture decrypted (no new store cases — harness change); protocol/store/sync suites green (757 / 1100 / 40). GTK/Flutter convergence on `envelope-encrypted.json` is tracked lockstep debt due before any workspace enables encryption (key custody is a later phase).
+
 - **feat(web): the focused block view's root row Enter nests — never
   sibling-splits.** In the zoom view the focused block IS the parent of
   everything below it, so Enter on its own row (edit mode, outline grammar)
