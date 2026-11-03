@@ -19,7 +19,8 @@ import { fileURLToPath } from "node:url";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
-import { newEnvelope, type Envelope } from "@notees/protocol";
+import { envelopeSchema, newEnvelope, type Envelope } from "@notees/protocol";
+import { b64uDecode, decryptEnvelope, importWorkspaceKey } from "@notees/protocol";
 import { dayNodeId } from "@notees/domain";
 
 import { Store, type StoreBackend } from "../src/index.js";
@@ -778,11 +779,24 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
 describe("fixture convergence (property-wire batch)", () => {
   const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "protocol", "fixtures");
-  function loadFixture(name: string): Record<string, unknown>[] {
+  /** Like the store suite's loader: fixtures carrying a `crypto` block have
+   * $e payloads that are opened with the published test workspace key before
+   * replay (the decrypt-then-apply lockstep contract). */
+  async function loadFixture(name: string): Promise<Record<string, unknown>[]> {
     const raw = JSON.parse(readFileSync(join(fixturesDir, name), "utf8")) as {
       envelopes?: Record<string, unknown>[];
+      crypto?: { workspaceKey: string };
     };
-    return Array.isArray(raw.envelopes) ? raw.envelopes : [raw as Record<string, unknown>];
+    const envelopes = Array.isArray(raw.envelopes)
+      ? raw.envelopes
+      : [raw as Record<string, unknown>];
+    if (raw.crypto?.workspaceKey === undefined) return envelopes;
+    const key = await importWorkspaceKey(b64uDecode(raw.crypto.workspaceKey));
+    const opened: Record<string, unknown>[] = [];
+    for (const env of envelopes) {
+      opened.push(await decryptEnvelope(key, envelopeSchema.parse(env)));
+    }
+    return opened;
   }
 
   function backendFor(name: string): StoreBackend {
@@ -804,8 +818,8 @@ describe("fixture convergence (property-wire batch)", () => {
     "property-date-qualifier.json",
   ];
 
-  it.each(FORWARD_ONLY)("%s converges byte-identical on all adapters (causal forward replay)", (name) => {
-    const fixture = loadFixture(name);
+  it.each(FORWARD_ONLY)("%s converges byte-identical on all adapters (causal forward replay)", async (name) => {
+    const fixture = await loadFixture(name);
     const dumps: Record<string, unknown>[] = [];
     for (const backend of ["sqljs", "sqlitewasm", "better-sqlite3"]) {
       const store = Store.open(backendFor(backend));
@@ -819,8 +833,8 @@ describe("fixture convergence (property-wire batch)", () => {
     expect(dumps[1]).toEqual(dumps[0]);
   });
 
-  it("the whole corpus replays into all adapters with the batch fixtures included", () => {
-    const all = readdirSync(fixturesDir)
+  it("the whole corpus replays into all adapters with the batch fixtures included", async () => {
+    const files = readdirSync(fixturesDir)
       .filter(
         (f) =>
           f.endsWith(".json") &&
@@ -832,8 +846,11 @@ describe("fixture convergence (property-wire batch)", () => {
           f !== "object-delete-date-chain.json" &&
           f !== "property-validation-rules.json",
       )
-      .sort()
-      .flatMap(loadFixture);
+      .sort();
+    const all: Record<string, unknown>[] = [];
+    for (const f of files) {
+      all.push(...(await loadFixture(f)));
+    }
     const dumps: Record<string, unknown>[] = [];
     for (const backend of ["sqljs", "sqlitewasm", "better-sqlite3"]) {
       const store = Store.open(backendFor(backend));
