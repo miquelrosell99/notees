@@ -106,7 +106,10 @@ CREATE TABLE IF NOT EXISTS asset (
     mime_type TEXT NOT NULL,
     size INTEGER NOT NULL,
     original_name TEXT NOT NULL,
-    uploaded_at TEXT NOT NULL
+    uploaded_at TEXT NOT NULL,
+    -- E2EE (plan 05): b64u of the per-asset random 12-byte GCM nonce for
+    -- sealed blobs (tag ‖ ct). NULL = plaintext asset — behaves as today.
+    iv TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_asset_hash ON asset (hash);
 
@@ -199,6 +202,14 @@ export class RelayStorage {
     this.db.pragma("synchronous = NORMAL");
     this.db.pragma("busy_timeout = 5000");
     this.db.exec(DDL);
+    // Additive column migrations: relay.db may predate a column (CREATE TABLE
+    // IF NOT EXISTS never alters an existing table).
+    const assetColumns = new Set(
+      (this.db.pragma('table_info("asset")') as { name: string }[]).map((c) => c.name),
+    );
+    if (!assetColumns.has("iv")) {
+      this.db.exec("ALTER TABLE asset ADD COLUMN iv TEXT");
+    }
     this.snapshotDir = snapshotDir;
   }
 
@@ -490,12 +501,14 @@ export class RelayStorage {
     size: number;
     originalName: string;
     uploadedAt: string;
+    /** b64u 12-byte GCM nonce for sealed blobs; null = plaintext. */
+    iv?: string | null;
   }): void {
     const run = this.db.transaction(() => {
       this.db
         .prepare(
-          `INSERT INTO asset (asset_id, workspace_id, hash, mime_type, size, original_name, uploaded_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO asset (asset_id, workspace_id, hash, mime_type, size, original_name, uploaded_at, iv)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           asset.assetId,
@@ -505,6 +518,7 @@ export class RelayStorage {
           asset.size,
           asset.originalName,
           asset.uploadedAt,
+          asset.iv ?? null,
         );
       this.db
         .prepare(
@@ -517,7 +531,15 @@ export class RelayStorage {
   }
 
   assetById(assetId: string):
-    | { assetId: string; workspaceId: string; hash: string; mimeType: string; size: number; originalName: string }
+    | {
+        assetId: string;
+        workspaceId: string;
+        hash: string;
+        mimeType: string;
+        size: number;
+        originalName: string;
+        iv: string | null;
+      }
     | null {
     const row = this.db
       .prepare("SELECT * FROM asset WHERE asset_id = ?")
@@ -529,6 +551,7 @@ export class RelayStorage {
       hash: row.hash as string,
       mimeType: row.mime_type as string,
       size: row.size as number,
+      iv: (row.iv as string | null | undefined) ?? null,
       originalName: row.original_name as string,
     };
   }

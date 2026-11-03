@@ -357,3 +357,58 @@ describe("assets API", () => {
     expect(huge.statusCode).toBe(422);
   });
 });
+
+describe("encrypted asset uploads (plan 05)", () => {
+  it("a declared-encrypted upload skips sniffing, stores the declared mime + iv, and round-trips both", async () => {
+    server = await makeTestServer();
+    // Sealed bytes: no magic signature (would 422 the plaintext path).
+    const sealed = Buffer.concat([Buffer.alloc(16, 0), Buffer.from("sealed-ciphertext-payload")]);
+    const up = await upload(sealed, "cover.bin", {
+      encrypted: "1",
+      mimeType: "image/jpeg",
+      iv: "AQIDBAUGBwgJCgsM", // b64u of 12 bytes (01..0c)
+    });
+    expect(up.statusCode).toBe(201);
+    const info = up.json();
+    expect(info.mimeType).toBe("image/jpeg"); // declared, not sniffed
+    expect(info.iv).toBe("AQIDBAUGBwgJCgsM");
+
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/assets/${info.assetId}/info`,
+      headers: server.authHeaders,
+    });
+    expect(meta.statusCode).toBe(200);
+    expect(meta.json()).toMatchObject({ iv: "AQIDBAUGBwgJCgsM", mimeType: "image/jpeg" });
+
+    const down = await server.app.inject({
+      method: "GET",
+      url: `/api/assets/${info.assetId}`,
+      headers: server.authHeaders,
+    });
+    expect(down.statusCode).toBe(200);
+    expect(down.rawPayload.equals(sealed)).toBe(true);
+  });
+
+  it("plaintext uploads still sniff and store iv null", async () => {
+    server = await makeTestServer();
+    const up = await upload(PNG, "photo.png");
+    expect(up.statusCode).toBe(201);
+    expect(up.json().mimeType).toBe("image/png");
+    expect(up.json().iv ?? null).toBeNull();
+
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/assets/${up.json().assetId}/info`,
+      headers: server.authHeaders,
+    });
+    expect(meta.json().iv ?? null).toBeNull();
+  });
+
+  it("rejects a declared-encrypted upload with a malformed iv", async () => {
+    server = await makeTestServer();
+    const sealed = Buffer.concat([Buffer.alloc(16, 0), Buffer.from("x")]);
+    const up = await upload(sealed, "cover.bin", { encrypted: "1", mimeType: "image/jpeg", iv: "!!not-b64u!!" });
+    expect(up.statusCode).toBe(422);
+  });
+});

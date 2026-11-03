@@ -94,6 +94,21 @@ export function resolveAssetType(bytes: Buffer, filename: string | undefined): S
   return null;
 }
 
+/** b64u decoding an exact 12-byte nonce (the per-asset GCM IV). */
+function isB64uNonce(text: string): boolean {
+  if (!/^[A-Za-z0-9_-]+$/.test(text)) return false;
+  try {
+    return Buffer.from(text, "base64url").length === 12;
+  } catch {
+    return false;
+  }
+}
+
+/** Cap category for a declared (or sniffed) mime: documents vs media. */
+function categoryForDeclared(mimeType: string): "media" | "document" {
+  return mimeType === "application/pdf" || mimeType === "application/epub+zip" ? "document" : "media";
+}
+
 function workspaceFor(ctx: ServerContext, request: FastifyRequest): string {
   const header = request.headers["x-workspace-id"];
   if (typeof header === "string" && z.string().uuid().safeParse(header).success) {
@@ -148,14 +163,44 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
     } catch {
       throw new AppError(422, "validation_failed", "upload exceeded the multipart size limit");
     }
-    const sniffed = resolveAssetType(bytes, file.filename);
-    if (sniffed === null) {
-      throw new AppError(
-        422,
-        "validation_failed",
-        "unsupported file type (sniffed: not jpeg/png/webp/pdf/epub/audio; extension fallback: none of aac/m4a/ogg/flac)",
-      );
+    // E2EE uploads (plan 05): the client DECLARES encryption via multipart
+    // fields (encrypted / mimeType / iv) — sniffing is impossible over
+    // ciphertext, so the declared type is trusted ONLY on this arm; a
+    // plaintext client cannot smuggle a declared type past sniffing.
+    const fields = file.fields as Record<string, unknown>;
+    const textField = (name: string): string | null => {
+      const field = fields[name];
+      return typeof field === "object" && field !== null && "value" in field
+        ? String((field as { value: unknown }).value)
+        : null;
+    };
+    const declaredEncrypted = textField("encrypted") !== null;
+    let mimeType: string;
+    let iv: string | null;
+    if (declaredEncrypted) {
+      const declaredMime = textField("mimeType");
+      if (declaredMime === null || declaredMime === "" || declaredMime.length > 200) {
+        throw new AppError(422, "validation_failed", "encrypted uploads must declare a mimeType");
+      }
+      const declaredIv = textField("iv");
+      if (declaredIv === null || !isB64uNonce(declaredIv)) {
+        throw new AppError(422, "validation_failed", "encrypted uploads must carry a b64u 12-byte iv");
+      }
+      mimeType = declaredMime;
+      iv = declaredIv;
+    } else {
+      const sniffed = resolveAssetType(bytes, file.filename);
+      if (sniffed === null) {
+        throw new AppError(
+          422,
+          "validation_failed",
+          "unsupported file type (sniffed: not jpeg/png/webp/pdf/epub/audio; extension fallback: none of aac/m4a/ogg/flac)",
+        );
+      }
+      mimeType = sniffed.mimeType;
+      iv = null;
     }
+    const sniffed = { mimeType, category: categoryForDeclared(mimeType) };
     const cap = sniffed.category === "document" ? ctx.config.maxDocumentBytes : ctx.config.maxMediaBytes;
     if (bytes.length > cap) {
       throw new AppError(422, "validation_failed", `file exceeds the ${sniffed.category} size cap (${cap} bytes)`);
@@ -177,15 +222,11 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
       size: bytes.length,
       originalName: file.filename ?? assetId,
       uploadedAt,
+      iv,
     });
 
     // Optional attach to an object: multipart text field "objectId".
-    const fields = file.fields as Record<string, unknown>;
-    const objectIdField = fields["objectId"];
-    const objectId =
-      typeof objectIdField === "object" && objectIdField !== null && "value" in objectIdField
-        ? String((objectIdField as { value: unknown }).value)
-        : null;
+    const objectId = textField("objectId");
     let attachedTo: string | null = null;
     if (objectId !== null) {
       if (!z.string().uuid().safeParse(objectId).success) {
@@ -227,6 +268,7 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
       size: bytes.length,
       originalName: file.filename ?? assetId,
       refs: ctx.relay.assetRefs(hash),
+      ...(iv !== null ? { iv } : {}),
       ...(attachedTo !== null ? { objectId: attachedTo } : {}),
     };
   });
@@ -307,6 +349,7 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
       size: asset.size,
       originalName: asset.originalName,
       refs: ctx.relay.assetRefs(asset.hash),
+      ...(asset.iv !== null ? { iv: asset.iv } : {}),
     };
   });
 }
