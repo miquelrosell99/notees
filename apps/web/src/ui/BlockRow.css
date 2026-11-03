@@ -246,6 +246,11 @@
   align-self: center;
   overflow: hidden;
   max-inline-size: 0;
+  /* Cancels the row flex gap the zero-width wrapper would otherwise still
+     earn between itself and the content: at rest the collapsed row's text
+     then aligns exactly with an uncollapsed sibling's; on hover the reveal
+     pushes the text right by exactly the pill's grown width. */
+  margin-inline-end: -8px;
   opacity: 0;
   transform: translateX(-4px) translateY(-2px);
   transition:
