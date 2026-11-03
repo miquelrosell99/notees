@@ -9,8 +9,8 @@
    primary border on the base surface). */
 
 .cal-timegrid {
-  --cal-hour-height: 3.5rem;
-  --cal-gutter: 3.5rem;
+  --cal-hour-height: 3.5rem; /* token-gate: constant time-grid layout contract — one hour row's rhythm, the drag/create hit math and event percentage placement in TimeGrid.tsx derive from this rendered height */
+  --cal-gutter: 3.5rem; /* token-gate: constant time-grid layout contract — the gutter width must equal the hour-row rhythm so the label gutter and hour cells stay in lockstep with the TimeGrid.tsx placement math */
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
@@ -114,7 +114,7 @@
   grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
   min-height: var(--spacing-6);
   border-radius: var(--shape-extra-small);
 }
@@ -257,7 +257,7 @@
   position: absolute;
   left: var(--spacing-0-5);
   right: var(--spacing-0-5);
-  z-index: 1;
+  z-index: var(--z-1);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-0-5);

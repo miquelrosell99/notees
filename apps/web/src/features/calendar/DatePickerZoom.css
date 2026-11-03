@@ -12,20 +12,20 @@
 }
 
 .nt-datepicker {
-  margin: 4px 0 8px 148px;
-  width: 280px;
+  margin: var(--spacing-1) 0 var(--spacing-2) 148px; /* token-gate: constant datepicker indent — aligns to the page content column ruling (the same 148px annotations indent as PageView), not a scale step */
+  width: var(--modal-width-xs);
   background: var(--md-sys-color-surface);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   box-shadow: var(--shadow-elevation-2);
-  padding: 8px;
+  padding: var(--spacing-2);
 }
 
 .nt-datepicker-header {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-1-5);
 }
 
 .nt-datepicker-nav,
@@ -36,7 +36,7 @@
   background: none;
   border: none;
   border-radius: var(--shape-medium);
-  padding: 2px 8px;
+  padding: var(--spacing-micro) var(--spacing-2);
   cursor: pointer;
 }
 
@@ -67,7 +67,7 @@
 .nt-datepicker-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .nt-datepicker-grid-days {
@@ -78,7 +78,7 @@
   text-align: center;
   font-size: var(--font-size-xs);
   color: var(--md-sys-color-on-surface-variant);
-  padding: 2px 0;
+  padding: var(--spacing-micro) 0;
 }
 
 .nt-datepicker-cellbox {
@@ -99,7 +99,7 @@
   background: none;
   border: none;
   border-radius: var(--shape-medium);
-  padding: 5px 0 5px 4px;
+  padding: var(--spacing-xxs) 0 var(--spacing-xxs) var(--spacing-1);
   cursor: pointer;
   text-align: center;
 }
@@ -129,7 +129,7 @@
   background: none;
   border: none;
   border-radius: var(--shape-medium);
-  padding: 0 3px;
+  padding: 0 var(--spacing-tiny);
   cursor: pointer;
 }
 
