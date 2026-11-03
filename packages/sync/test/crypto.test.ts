@@ -305,3 +305,82 @@ describe("locked skip (no crypto provider)", () => {
     expect(lockedEngine.getCursorSeq()).toBe(envelopes.length); // cursor covers the skipped seq
   });
 });
+
+describe("locked snapshot skip + cursor rewind", () => {
+  it("a keyless engine skips a sealed snapshot (counted warning) and catch-up keeps sync green", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    // A keyed device uploads a SEALED snapshot (its syncOnce seals the blob).
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    for (const envelope of baseEnvelopes(DEVICE_A)) keyed.engine.enqueue(envelope);
+    await keyed.engine.syncOnce();
+    expect(relay.snapshotBlob()).toBeDefined();
+
+    // A plaintext device adds catch-up-visible content.
+    const plainStore = new Store();
+    const plainEngine = new SyncEngine(plainStore, new MemoryTransport(relay), new Clock("device-plain"), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    const openId = "0192a000-0000-7000-8000-000000000030";
+    plainEngine.enqueue(
+      makeEnvelope("device-plain", T0 + 40, "object.create", {
+        objectId: openId,
+        contentAst: [{ type: "text", text: "Catch-up page" }],
+      }),
+    );
+    await plainEngine.push();
+
+    const locked = new Store();
+    const lockedEngine = new SyncEngine(locked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    const warnings: string[] = [];
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation((message?: unknown) => {
+      warnings.push(String(message));
+    });
+    await expect(lockedEngine.pull()).resolves.toBeUndefined();
+    warnSpy.mockRestore();
+
+    // Sealed snapshot skipped with a counted warning; catch-up covered the
+    // plaintext content; sync is green (before this fix the garbage restore
+    // threw and the pull error-looped).
+    expect(warnings.some((w) => w.includes("sealed snapshot"))).toBe(true);
+    expect(titleOf(locked, openId)).toBe("Catch-up page");
+    await expect(lockedEngine.pull()).resolves.toBeUndefined();
+  });
+
+  it("installing a key after locked realtime skips rewinds the cursor so the next pull applies the sealed frames", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    for (const envelope of baseEnvelopes(DEVICE_A)) keyed.engine.enqueue(envelope);
+    await keyed.engine.push();
+
+    const locked = new Store();
+    const lockedEngine = new SyncEngine(locked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    const page = await new MemoryTransport(relay).catchUp(0);
+    const envelopes = page.envelopes as Envelope[];
+    const seqs: Record<string, number> = {};
+    for (const [index, envelope] of envelopes.entries()) seqs[envelope.id] = index + 1;
+
+    lockedEngine.onRemoteBatch(envelopes, seqs);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(lockedEngine.getCursorSeq()).toBe(envelopes.length);
+    expect(titleOf(locked, PARENT)).toBe(""); // sealed frames skipped while locked
+
+    // Unlock: the cursor rewinds before the first skipped seq…
+    const key = await importWorkspaceKey(KEY_BYTES);
+    lockedEngine.setCrypto(keyCryptoProvider(key));
+    expect(lockedEngine.getCursorSeq()).toBe(0);
+
+    // …and the next pull re-fetches + applies the sealed frames.
+    await lockedEngine.pull();
+    expect(titleOf(locked, PARENT)).toBe("Parent");
+    expect(titleOf(locked, NODE)).toBe("Node");
+  });
+});
