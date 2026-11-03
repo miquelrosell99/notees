@@ -25,7 +25,13 @@ import { default as initSqliteWasm } from "@sqlite.org/sqlite-wasm";
 import type { SqliteWasmModule } from "../src/adapters/sqlitewasm.js";
 import type { StoreBackend } from "../src/db.js";
 
-import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
+import {
+  envelopeSchema,
+  newEnvelope,
+  type ContentAst,
+  type Envelope,
+} from "@notees/protocol";
+import { b64uDecode, decryptEnvelope, importWorkspaceKey } from "@notees/protocol";
 
 import {
   CycleError,
@@ -51,11 +57,25 @@ const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "p
 /** Fixture envelopes, in a fixed order (alphabetical by file name). */
 const FIXTURE_FILES = readdirSync(fixturesDir).filter((f) => f.endsWith(".json")).sort();
 
-function loadFixture(name: string): Record<string, unknown>[] {
+/** Load a fixture's envelopes, opening encrypted ones: a fixture carrying a
+ * `crypto` block (E2EE corpus) has `{"$e": {iv, ct}}` payloads that must be
+ * decrypted with its published test workspace key before replay — the same
+ * decrypt-then-apply contract the GTK/Flutter ports implement. */
+async function loadFixture(name: string): Promise<Record<string, unknown>[]> {
   const raw = JSON.parse(readFileSync(join(fixturesDir, name), "utf8")) as {
     envelopes?: Record<string, unknown>[];
+    crypto?: { workspaceKey: string };
   };
-  return Array.isArray(raw.envelopes) ? raw.envelopes : [raw as Record<string, unknown>];
+  const envelopes = Array.isArray(raw.envelopes)
+    ? raw.envelopes
+    : [raw as Record<string, unknown>];
+  if (raw.crypto?.workspaceKey === undefined) return envelopes;
+  const key = await importWorkspaceKey(b64uDecode(raw.crypto.workspaceKey));
+  const opened: Record<string, unknown>[] = [];
+  for (const env of envelopes) {
+    opened.push(await decryptEnvelope(key, envelopeSchema.parse(env)));
+  }
+  return opened;
 }
 
 /** Fixtures whose application must THROW — never part of the all-fixtures
@@ -86,8 +106,11 @@ const REPLAY_EXCLUDED_FIXTURES = new Set([
   "property-validation-rules.json",
 ]);
 
-function allFixtureEnvelopes(): Record<string, unknown>[] {
-  return FIXTURE_FILES.filter((f) => !REPLAY_EXCLUDED_FIXTURES.has(f)).flatMap(loadFixture);
+async function allFixtureEnvelopes(): Promise<Record<string, unknown>[]> {
+  const lists = await Promise.all(
+    FIXTURE_FILES.filter((f) => !REPLAY_EXCLUDED_FIXTURES.has(f)).map(loadFixture),
+  );
+  return lists.flat();
 }
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -310,9 +333,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   });
 
   describe("fixture replay (canonical protocol fixtures)", () => {
-    it("lands object.create fixtures as document-chrome nodes", () => {
+    it("lands object.create fixtures as document-chrome nodes", async () => {
       const store = makeStore();
-      store.applyMany(allFixtureEnvelopes());
+      store.applyMany(await allFixtureEnvelopes());
       const page = store.getNode(NODE_PAGE);
       const book = store.getNode(NODE_BOOK);
       expect(page).toMatchObject({ is_class: 0, is_embedded: 0 });
@@ -324,9 +347,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(JSON.parse(book?.class_ids ?? "[]")).toEqual([BOOK_CLASS]);
     });
 
-    it("object-restore.json trashes then restores: page + child active, trash row consumed", () => {
+    it("object-restore.json trashes then restores: page + child active, trash row consumed", async () => {
       const store = makeStore();
-      store.applyMany(allFixtureEnvelopes());
+      store.applyMany(await allFixtureEnvelopes());
       const pageId = "0192a000-0000-7000-8000-0000000000e2";
       const childId = "0192a000-0000-7000-8000-0000000000e3";
       expect(store.getNode(pageId)).toMatchObject({ is_active: 1, is_embedded: 0 });
@@ -337,9 +360,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBeUndefined();
     });
 
-    it("trash-empty.json permanently deletes every trashed root, spares the restored-before-empty page", () => {
+    it("trash-empty.json permanently deletes every trashed root, spares the restored-before-empty page", async () => {
       const store = makeStore();
-      store.applyMany(allFixtureEnvelopes());
+      store.applyMany(await allFixtureEnvelopes());
       const a = "0192a000-0000-7000-8000-0000000000f3";
       const aChild = "0192a000-0000-7000-8000-0000000000f4";
       const b = "0192a000-0000-7000-8000-0000000000f5";
@@ -369,9 +392,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(0);
     });
 
-    it("converges the property LWW fixture to the higher-HLC phone value", () => {
+    it("converges the property LWW fixture to the higher-HLC phone value", async () => {
       const store = makeStore();
-      store.applyMany(allFixtureEnvelopes());
+      store.applyMany(await allFixtureEnvelopes());
       const row = store.database
         .prepare(
           "SELECT value, metadata, actor_id FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = 0",
@@ -384,9 +407,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(row.actor_id).toBe("0192a000-0000-7000-8000-000000000003");
     });
 
-    it("derives a typed_link edge with locator + candidateSpans from the mark fixture", () => {
+    it("derives a typed_link edge with locator + candidateSpans from the mark fixture", async () => {
       const store = baseStoreWithBlock();
-      store.applyMany(loadFixture("typed-link-mark.json"));
+      store.applyMany(await loadFixture("typed-link-mark.json"));
       const edge = store.database
         .prepare("SELECT * FROM edge WHERE source_id = ? AND type = 'typed_link'")
         .get(NODE_BLOCK) as Record<string, unknown>;
@@ -457,10 +480,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(edgeOf()!.is_embedded).toBe(0);
     });
 
-    it("drops the typed_link edge when the marked word is deleted", () => {
+    it("drops the typed_link edge when the marked word is deleted", async () => {
       const store = baseStoreWithBlock();
-      store.applyMany(loadFixture("typed-link-mark.json"));
-      store.applyMany(loadFixture("typed-link-mark-deleted.json"));
+      store.applyMany(await loadFixture("typed-link-mark.json"));
+      store.applyMany(await loadFixture("typed-link-mark-deleted.json"));
       const typedLinks = store.database
         .prepare("SELECT COUNT(*) AS n FROM edge WHERE source_id = ? AND type = 'typed_link'")
         .get(NODE_BLOCK) as { n: number };
@@ -475,10 +498,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   });
 
   describe("color grammar (token | #hex | null-clear)", () => {
-    it("object.update applies preset token, custom hex, then null as a clear", () => {
+    it("object.update applies preset token, custom hex, then null as a clear", async () => {
       const store = baseStore();
       const page = "0192a000-0000-7000-8000-000000000510";
-      const [create, ...updates] = loadFixture("object-color.json");
+      const [create, ...updates] = await loadFixture("object-color.json");
       store.apply(create!);
       store.apply(updates[0]!);
       expect(store.getNode(page)?.color).toBe("sky");
@@ -488,10 +511,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getNode(page)?.color).toBeNull();
     });
 
-    it("class.create carries a token color and class.update null clears both rows", () => {
+    it("class.create carries a token color and class.update null clears both rows", async () => {
       const store = baseStore();
       const classId = "0192a000-0000-7000-8000-000000000511";
-      const [create, ...updates] = loadFixture("object-color.json");
+      const [create, ...updates] = await loadFixture("object-color.json");
       store.apply(create!);
       const [, , , classCreate, classUpdate] = updates;
       store.apply(classCreate!);
@@ -508,8 +531,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   });
 
   describe("convergence", () => {
-    it("property-set-lww converges regardless of application order", () => {
-      const [laptop, phone] = loadFixture("property-set-lww.json");
+    it("property-set-lww converges regardless of application order", async () => {
+      const [laptop, phone] = await loadFixture("property-set-lww.json");
       const forward = baseStore();
       forward.applyMany([laptop, phone]);
       const backward = baseStore();
@@ -530,9 +553,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(winnerOf(backward)).toEqual(expected);
     });
 
-    it("content updates converge regardless of envelope order (row LWW)", () => {
-      const mark = loadFixture("typed-link-mark.json")[0]!;
-      const deleted = loadFixture("typed-link-mark-deleted.json")[0]!;
+    it("content updates converge regardless of envelope order (row LWW)", async () => {
+      const mark = (await loadFixture("typed-link-mark.json"))[0]!;
+      const deleted = (await loadFixture("typed-link-mark-deleted.json"))[0]!;
       const base = [
         createPage(NODE_PAGE, 1727200000000),
         createPage(NODE_BOOK, 1727200001000),
@@ -558,9 +581,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getNode(NODE_BOOK)?.name).toBeNull();
     });
 
-    it("property.unset tombstone wins over a later-arriving lower-HLC set", () => {
+    it("property.unset tombstone wins over a later-arriving lower-HLC set", async () => {
       const store = baseStore();
-      store.applyMany(loadFixture("property-set-lww.json"));
+      store.applyMany(await loadFixture("property-set-lww.json"));
       store.apply(env("property.unset", { objectId: NODE_BOOK, propertySchemaId: PROP_SCHEMA }, 1727200006000));
       expect(
         (
@@ -634,9 +657,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toThrow(CycleError);
     });
 
-    it("class-extends-m2m fixture: multiple parents land the child under BOTH ancestors", () => {
+    it("class-extends-m2m fixture: multiple parents land the child under BOTH ancestors", async () => {
       const store = makeStore();
-      store.applyMany(loadFixture("class-extends-m2m.json"));
+      store.applyMany(await loadFixture("class-extends-m2m.json"));
       const a = "0192a000-0000-7000-8000-0000000000c5";
       const b = "0192a000-0000-7000-8000-0000000000c6";
       const c = "0192a000-0000-7000-8000-0000000000c7";
@@ -664,8 +687,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       }
     });
 
-    it("class-extends-cycle fixture throws the cycle error on apply", () => {
-      const [root, leaf, leafExtendsRoot, rootExtendsLeaf, rootExtendsRootSelf] = loadFixture(
+    it("class-extends-cycle fixture throws the cycle error on apply", async () => {
+      const [root, leaf, leafExtendsRoot, rootExtendsLeaf, rootExtendsRootSelf] = await loadFixture(
         "class-extends-cycle.json",
       );
       const rootId = "0192a000-0000-7000-8000-0000000000d1";
@@ -699,7 +722,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(1);
     });
 
-    it("class-extends-system-lock fixture throws the lock error on apply", () => {
+    it("class-extends-system-lock fixture throws the lock error on apply", async () => {
       const [
         createEvent,
         createMeeting,
@@ -709,7 +732,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         meetingDetach,
         meetingExtraParent,
         eventGainsParent,
-      ] = loadFixture("class-extends-system-lock.json");
+      ] = await loadFixture("class-extends-system-lock.json");
       const eventId = "00000000-0000-0000-0001-000000000040";
       const meetingId = "00000000-0000-0000-0001-000000000039";
       const userClassId = "0192a000-0000-7000-8000-0000000000e1";
@@ -754,8 +777,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(2);
     });
 
-    it("is-embedded-parent-page fixture throws the parent-page guard on apply", () => {
-      const [pageP, blockB, violatingX] = loadFixture("is-embedded-parent-page.json");
+    it("is-embedded-parent-page fixture throws the parent-page guard on apply", async () => {
+      const [pageP, blockB, violatingX] = await loadFixture("is-embedded-parent-page.json");
       const p = "0192a000-0000-7000-8000-0000000000f1";
       const b = "0192a000-0000-7000-8000-0000000000f2";
       const x = "0192a000-0000-7000-8000-0000000000f3";
@@ -770,8 +793,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getNode(x)).toBeUndefined();
     });
 
-    it("is-embedded-date-chain fixture throws the date-chain embedding lock on apply", () => {
-      const [yearE, monthE, dayE, demoteDay, promoteMonth] = loadFixture(
+    it("is-embedded-date-chain fixture throws the date-chain embedding lock on apply", async () => {
+      const [yearE, monthE, dayE, demoteDay, promoteMonth] = await loadFixture(
         "is-embedded-date-chain.json",
       );
       const year = "00000000-0000-0000-00bb-202400000000";
@@ -794,8 +817,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getNode(month)?.is_embedded).toBe(0);
     });
 
-    it("object-delete-date-chain fixture throws the date-chain delete lock on apply", () => {
-      const [yearE, monthE, dayE, deleteDay, deleteYear] = loadFixture(
+    it("object-delete-date-chain fixture throws the date-chain delete lock on apply", async () => {
+      const [yearE, monthE, dayE, deleteDay, deleteYear] = await loadFixture(
         "object-delete-date-chain.json",
       );
       const year = "00000000-0000-0000-00bb-202400000000";
@@ -818,8 +841,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getNode(year)).toMatchObject({ is_active: 1 });
     });
 
-    it("object-is-embedded fixture: defaults, explicit claims, and the promotion/demotion toggle", () => {
-      const [pageP, blockB, standaloneS, promoteB, demoteS, demoteB] = loadFixture(
+    it("object-is-embedded fixture: defaults, explicit claims, and the promotion/demotion toggle", async () => {
+      const [pageP, blockB, standaloneS, promoteB, demoteS, demoteB] = await loadFixture(
         "object-is-embedded.json",
       );
       const p = "0192a000-0000-7000-8000-000000000af1";
@@ -1077,9 +1100,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       });
     });
 
-    it("class.setExtends replace semantics: a second array removes stale closure rows", () => {
+    it("class.setExtends replace semantics: a second array removes stale closure rows", async () => {
       const store = makeStore();
-      store.applyMany(loadFixture("class-extends-m2m.json"));
+      store.applyMany(await loadFixture("class-extends-m2m.json"));
       const a = "0192a000-0000-7000-8000-0000000000c5";
       const b = "0192a000-0000-7000-8000-0000000000c6";
       const c = "0192a000-0000-7000-8000-0000000000c7";
@@ -1111,16 +1134,16 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(0);
     });
 
-    it("re-applying the whole fixture set is idempotent (applied_envelope)", () => {
+    it("re-applying the whole fixture set is idempotent (applied_envelope)", async () => {
       const store = makeStore();
-      store.applyMany(allFixtureEnvelopes());
+      store.applyMany(await allFixtureEnvelopes());
       const before = dumpDb(store);
-      const second = store.applyMany(allFixtureEnvelopes());
+      const second = store.applyMany(await allFixtureEnvelopes());
       expect(second.every((s) => s.ignored)).toBe(true);
       expect(dumpDb(store)).toEqual(before);
       expect(
         (store.database.prepare("SELECT COUNT(*) AS n FROM applied_envelope").get() as { n: number }).n,
-      ).toBe(allFixtureEnvelopes().length);
+      ).toBe((await allFixtureEnvelopes()).length);
     });
   });
 
@@ -1162,9 +1185,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("propertySchema.update", { propertySchemaId: schemaId, defaultValue }, physical + 1));
     }
 
-    it("class.property.set upserts the binding row; a patch keeps omitted fields and a stale set is dropped", () => {
+    it("class.property.set upserts the binding row; a patch keeps omitted fields and a stale set is dropped", async () => {
       const store = makeStore();
-      store.applyMany(loadFixture("class-property-defaults.json").slice(0, 5));
+      store.applyMany((await loadFixture("class-property-defaults.json")).slice(0, 5));
       const row = () =>
         store.database
           .prepare("SELECT * FROM class_property WHERE class_id = ? AND property_schema_id = ?")
@@ -1205,9 +1228,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(row()).toMatchObject({ active: 1, hlc_physical: 1727200012050 });
     });
 
-    it("class.property.unset deletes the binding row", () => {
+    it("class.property.unset deletes the binding row", async () => {
       const store = makeStore();
-      store.applyMany(loadFixture("class-property-defaults.json").slice(0, 6));
+      store.applyMany((await loadFixture("class-property-defaults.json")).slice(0, 6));
       expect(
         store.database
           .prepare("SELECT 1 FROM class_property WHERE class_id = ? AND property_schema_id = ?")
@@ -1221,9 +1244,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBeUndefined();
     });
 
-    it("fixture: the schema default applies; it survives binding churn; no binding — no default", () => {
+    it("fixture: the schema default applies; it survives binding churn; no binding — no default", async () => {
       const store = makeStore();
-      const fixture = loadFixture("class-property-defaults.json");
+      const fixture = await loadFixture("class-property-defaults.json");
       const priorityOf = () => store.getEffectiveProperties(ITEM);
 
       store.applyMany(fixture.slice(0, 5)); // schema (default 'medium'), classes, node (Task), Task binding
@@ -1452,9 +1475,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ]);
     });
 
-    it("class.unassign fixture: unassign drops the derived default, the authored value survives unbound, re-assign restores", () => {
+    it("class.unassign fixture: unassign drops the derived default, the authored value survives unbound, re-assign restores", async () => {
       const store = makeStore();
-      const fixture = loadFixture("class-unassign.json");
+      const fixture = await loadFixture("class-unassign.json");
       const EFFORT = "0192a000-0000-7000-8000-000000000410";
       const IMPACT = "0192a000-0000-7000-8000-000000000411";
       const TASK = "0192a000-0000-7000-8000-000000000412";
@@ -1486,9 +1509,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ]);
     });
 
-    it("tag-membership fixture: seed, assign carrier accumulates, unassign tombstones, newer add resurrects", () => {
+    it("tag-membership fixture: seed, assign carrier accumulates, unassign tombstones, newer add resurrects", async () => {
       const store = makeStore();
-      const fixture = loadFixture("tag-membership.json");
+      const fixture = await loadFixture("tag-membership.json");
       const TAG_A = "0192a000-0000-7000-8000-000000000701";
       const TAG_B = "0192a000-0000-7000-8000-000000000702";
       const ITEM = "0192a000-0000-7000-8000-000000000703";
@@ -1585,9 +1608,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   });
 
   describe("determinism", () => {
-    it("reset() empties the store", () => {
+    it("reset() empties the store", async () => {
       const store = makeStore();
-      store.applyMany(allFixtureEnvelopes());
+      store.applyMany(await allFixtureEnvelopes());
       expect(store.getNode(NODE_PAGE)).toBeDefined();
       store.reset();
       expect(store.getNode(NODE_PAGE)).toBeUndefined();
@@ -1595,12 +1618,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         (store.database.prepare("SELECT COUNT(*) AS n FROM node").get() as { n: number }).n,
       ).toBe(0);
       // The store is usable again after a reset.
-      store.applyMany(loadFixture("envelope-minimal.json"));
+      store.applyMany(await loadFixture("envelope-minimal.json"));
       expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, is_embedded: 0 });
     });
 
-    it("wipe + replay from stored envelopes reproduces an identical database", () => {
-      const envelopes = allFixtureEnvelopes().map((e) => JSON.parse(JSON.stringify(e)));
+    it("wipe + replay from stored envelopes reproduces an identical database", async () => {
+      const envelopes = (await allFixtureEnvelopes()).map((e) => JSON.parse(JSON.stringify(e)));
       const store1 = makeStore();
       store1.applyMany(envelopes);
 
@@ -1624,9 +1647,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     const B = "0192a000-0000-7000-8000-000000000022";
     const C = "0192a000-0000-7000-8000-000000000023";
 
-    it("fixture replay lands C under A with P = [A, B] and A = [C]", () => {
+    it("fixture replay lands C under A with P = [A, B] and A = [C]", async () => {
       const store = makeStore();
-      store.applyMany(loadFixture("object-move.json"));
+      store.applyMany(await loadFixture("object-move.json"));
       expect(store.getNode(C)?.parent_id).toBe(A);
       expect(store.children(P).map((n) => n.id)).toEqual([A, B]);
       expect(store.children(A).map((n) => n.id)).toEqual([C]);
@@ -1647,14 +1670,14 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(1);
     });
 
-    it("beforeId places the node before the anchor, including before the first child", () => {
+    it("beforeId places the node before the anchor, including before the first child", async () => {
       const PB = "0192a000-0000-7000-8000-000000000140";
       const BA = "0192a000-0000-7000-8000-000000000141";
       const BB = "0192a000-0000-7000-8000-000000000142";
       const BC = "0192a000-0000-7000-8000-000000000143";
       const BD = "0192a000-0000-7000-8000-000000000144";
       const store = makeStore();
-      store.applyMany(loadFixture("object-move-before.json"));
+      store.applyMany(await loadFixture("object-move-before.json"));
       expect(store.children(PB).map((n) => n.id)).toEqual([BB, BC, BD, BA]);
       // Exactly one child_order row per node — no dual-parent residue.
       for (const child of [BA, BB, BC, BD]) {
@@ -1779,9 +1802,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toThrow(MoveGuardError);
     });
 
-    it("re-parenting keeps ancestor stats correct on both sides", () => {
+    it("re-parenting keeps ancestor stats correct on both sides", async () => {
       const store = makeStore();
-      store.applyMany(loadFixture("object-move.json"));
+      store.applyMany(await loadFixture("object-move.json"));
       // P lost C as a direct child but keeps it as a descendant through A
       // (P: 2 children, 3 descendants; A: 1 child, 1 descendant).
       const statsOf = (id: string) =>
@@ -2318,15 +2341,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   });
 
   describe("search (FTS)", () => {
-    it("finds the block containing 'Kuhn'", () => {
+    it("finds the block containing 'Kuhn'", async () => {
       const store = baseStoreWithBlock();
-      store.applyMany(loadFixture("typed-link-mark.json"));
+      store.applyMany(await loadFixture("typed-link-mark.json"));
       expect(store.search("Kuhn")).toEqual([{ nodeId: NODE_BLOCK }]);
     });
 
-    it("multi-term queries rank whole-query matches first and partial matches last", () => {
+    it("multi-term queries rank whole-query matches first and partial matches last", async () => {
       const store = baseStoreWithBlock();
-      store.applyMany(loadFixture("typed-link-mark.json"));
+      store.applyMany(await loadFixture("typed-link-mark.json"));
       // "Kuhn Scient" — the block carrying both terms still wins…
       expect(store.search("Kuhn Scient")).toEqual([{ nodeId: NODE_BLOCK }]);
       // …but "Kuhn absentterm" no longer returns nothing: the partial match
@@ -2357,9 +2380,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.search("Paradigms rules")).toEqual([{ nodeId: NODE_BOOK }]);
     });
 
-    it("excludes soft-deleted nodes from search results", () => {
+    it("excludes soft-deleted nodes from search results", async () => {
       const store = baseStoreWithBlock();
-      store.applyMany(loadFixture("typed-link-mark.json"));
+      store.applyMany(await loadFixture("typed-link-mark.json"));
       store.apply(env("object.delete", { objectId: NODE_BLOCK }, 1727200010000));
       expect(store.search("Kuhn")).toEqual([]);
     });
@@ -2994,9 +3017,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 // --- sql.js-specific coverage ----------------------------------------------------
 
 describe("sql.js snapshot round-trip", () => {
-  it("snapshot() bytes restore into a fresh in-memory sql.js database", () => {
+  it("snapshot() bytes restore into a fresh in-memory sql.js database", async () => {
     const source = Store.open(sqljsBackend(sqlModule));
-    source.applyMany(allFixtureEnvelopes());
+    source.applyMany(await allFixtureEnvelopes());
 
     const bytes = source.snapshot();
     expect(bytes.length).toBeGreaterThan(0);
@@ -3289,9 +3312,9 @@ for (const adapter of adapters) {
     const SHELF = "0192a000-0000-7000-8000-000000000a25";
     const MOOD = "0192a000-0000-7000-8000-000000000a27";
 
-    it("the canonical fixture exercises all four arms; membership survives each", () => {
+    it("the canonical fixture exercises all four arms; membership survives each", async () => {
       const store = Store.open(adapter.makeBackend());
-      const fixture = loadFixture("object-delete-class-routing.json");
+      const fixture = await loadFixture("object-delete-class-routing.json");
       const lockedDelete = fixture[5]!; // the year delete — arm 1 fails loud
       store.applyMany([...fixture.slice(0, 5), ...fixture.slice(6)]);
       // Arm 2 — family base (task): routed to the toggle, NOT trashed; the
@@ -3614,8 +3637,8 @@ for (const adapter of adapters) {
       store.close();
     });
 
-    it("workspace-feature-set fixture converges regardless of application order", () => {
-      const fixture = loadFixture("workspace-feature-set.json");
+    it("workspace-feature-set fixture converges regardless of application order", async () => {
+      const fixture = await loadFixture("workspace-feature-set.json");
       const forward = makeAdapterStore();
       forward.applyMany(fixture);
       const backward = makeAdapterStore();
@@ -3702,9 +3725,9 @@ for (const adapter of adapters) {
       store.close();
     });
 
-    it("code-block fixture: the token survives promotion; hr flattens away", () => {
+    it("code-block fixture: the token survives promotion; hr flattens away", async () => {
       const store = makeAdapterStore();
-      store.applyMany(loadFixture("code-block.json"));
+      store.applyMany(await loadFixture("code-block.json"));
       const block = "0192a000-0000-7000-8000-000000000621";
       const promoted = JSON.parse(store.getNode(block)!.content) as Array<{ type: string }>;
       expect(promoted).toEqual([
@@ -3718,9 +3741,9 @@ for (const adapter of adapters) {
       store.close();
     });
 
-    it("hr fixture: inline blocks keep the token; promotion stringifies it out", () => {
+    it("hr fixture: inline blocks keep the token; promotion stringifies it out", async () => {
       const store = makeAdapterStore();
-      store.applyMany(loadFixture("hr.json"));
+      store.applyMany(await loadFixture("hr.json"));
       const block = "0192a000-0000-7000-8000-000000000631";
       expect(JSON.parse(store.getNode(block)!.content)).toEqual([
         { type: "text", text: "above below" },
@@ -3732,9 +3755,9 @@ for (const adapter of adapters) {
       store.close();
     });
 
-    it("embed-ref-view fixture: the view field applies verbatim (default absent)", () => {
+    it("embed-ref-view fixture: the view field applies verbatim (default absent)", async () => {
       const store = makeAdapterStore();
-      store.applyMany(loadFixture("embed-ref-view.json"));
+      store.applyMany(await loadFixture("embed-ref-view.json"));
       const block = "0192a000-0000-7000-8000-000000000642";
       expect(JSON.parse(store.getNode(block)!.content)).toEqual([
         { type: "embed_ref", nodeId: "0192a000-0000-7000-8000-000000000640" },
@@ -3969,9 +3992,9 @@ describe.each(adapters)("$name: v16 — wire node fields", ({ makeBackend }) => 
     return Store.open(makeBackend());
   }
 
-  it("the wire-fields fixture lands set + clear through object.update", () => {
+  it("the wire-fields fixture lands set + clear through object.update", async () => {
     const store = makeStore();
-    const [createPage_, createAsset, createMain, ...updates] = loadFixture("object-wire-fields.json");
+    const [createPage_, createAsset, createMain, ...updates] = await loadFixture("object-wire-fields.json");
     store.apply(createPage_!);
     store.apply(createAsset!);
     store.apply(createMain!);
@@ -4522,9 +4545,9 @@ describe.each(adapters)("$name: v23 — listStyle wire node field", ({ makeBacke
     return Store.open(makeBackend());
   }
 
-  it("the fixture lands create-with-style, set, and null-clear", () => {
+  it("the fixture lands create-with-style, set, and null-clear", async () => {
     const store = makeStore();
-    const [createPage_, createBlock, setAlpha, clear, setRoman] = loadFixture("object-list-style.json");
+    const [createPage_, createBlock, setAlpha, clear, setRoman] = await loadFixture("object-list-style.json");
     store.apply(createPage_!);
     store.apply(createBlock!);
     expect(store.getNode(BLOCK)?.list_style).toBe("numbered");
@@ -4688,9 +4711,9 @@ describe.each(adapters)("$name: class.create conversion (M47)", ({ makeBackend }
     return Store.open(makeBackend());
   }
 
-  it("declares an existing parentless page a class: identity flips, the title rides along", () => {
+  it("declares an existing parentless page a class: identity flips, the title rides along", async () => {
     const store = makeStore();
-    const [pageCreate, , shelfCreate, convertPage] = loadFixture("class-convert.json");
+    const [pageCreate, , shelfCreate, convertPage] = await loadFixture("class-convert.json");
     store.apply(pageCreate!);
     store.apply(convertPage!);
     const row = store.getNode(PAGE);
@@ -4725,9 +4748,9 @@ describe.each(adapters)("$name: class.create conversion (M47)", ({ makeBackend }
     store.close();
   });
 
-  it("converting a PARENTED node cuts it to a root: the parent edge and its child-order row go", () => {
+  it("converting a PARENTED node cuts it to a root: the parent edge and its child-order row go", async () => {
     const store = makeStore();
-    const [, rackCreate, shelfCreate, , convertShelf] = loadFixture("class-convert.json");
+    const [, rackCreate, shelfCreate, , convertShelf] = await loadFixture("class-convert.json");
     store.apply(rackCreate!);
     store.apply(shelfCreate!);
     expect(store.children(RACK).map((n) => n.id)).toEqual([SHELF]);
@@ -4742,9 +4765,9 @@ describe.each(adapters)("$name: class.create conversion (M47)", ({ makeBackend }
     store.close();
   });
 
-  it("re-declaration is a replace no-op and fresh declaration keeps working", () => {
+  it("re-declaration is a replace no-op and fresh declaration keeps working", async () => {
     const store = makeStore();
-    const [pageCreate, , , convertPage, , redeclare, freshCreate] = loadFixture("class-convert.json");
+    const [pageCreate, , , convertPage, , redeclare, freshCreate] = await loadFixture("class-convert.json");
     store.apply(pageCreate!);
     store.apply(convertPage!);
     const contentBefore = store.getNode(PAGE)?.content;
@@ -4784,9 +4807,9 @@ describe.each(adapters)("$name: class parentlessRole (store v32)", ({ makeBacken
       }
     ).parentless_role;
 
-  it("class.create maps the flag to BOTH the class node row and the registry (icon/color precedent); absent = NULL", () => {
+  it("class.create maps the flag to BOTH the class node row and the registry (icon/color precedent); absent = NULL", async () => {
     const store = makeStore();
-    const [taskCreate, eventCreate, taskNodeCreate] = loadFixture("class-parentless-role.json");
+    const [taskCreate, eventCreate, taskNodeCreate] = await loadFixture("class-parentless-role.json");
     store.apply(taskCreate!);
     store.apply(eventCreate!);
     const FIXTURE_TASK = "0192a000-0000-7000-8000-0000000000d1";
@@ -4831,9 +4854,9 @@ describe.each(adapters)("$name: class parentlessRole (store v32)", ({ makeBacken
     store.close();
   });
 
-  it("the full fixture replays to the derived state the effective-role read consumes", () => {
+  it("the full fixture replays to the derived state the effective-role read consumes", async () => {
     const store = makeStore();
-    for (const raw of loadFixture("class-parentless-role.json")) store.apply(raw as Envelope);
+    for (const raw of await loadFixture("class-parentless-role.json")) store.apply(raw as Envelope);
     // Fixture ids: Task …0d1 flagged; Event …0d2 cleared back to the default;
     // Errand …0d4 carries no flag of its own but extends the flagged Task
     // (effective block derives at read time via class_hierarchy, not from a
@@ -4989,9 +5012,9 @@ describe.each(adapters)("$name: class displayTemplate (store v36)", ({ makeBacke
     store.close();
   });
 
-  it("the full fixture replays stepwise to the derived state and re-applies idempotently", () => {
+  it("the full fixture replays stepwise to the derived state and re-applies idempotently", async () => {
     const store = makeStore();
-    const envelopes = loadFixture("class-display-template.json");
+    const envelopes = await loadFixture("class-display-template.json");
     const [
       sourceCreate,
       memberCreate,
@@ -5201,9 +5224,9 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
     return store;
   }
 
-  it("the fixture lands asset-typed schemas and the update coexists", () => {
+  it("the fixture lands asset-typed schemas and the update coexists", async () => {
     const store = makeStore();
-    store.applyMany(loadFixture("property-asset-type.json"));
+    store.applyMany(await loadFixture("property-asset-type.json"));
     const rows = store.database
       .prepare("SELECT id, type, multi, scope_class_ids, name FROM property_schema ORDER BY id")
       .all() as Array<{ id: string; type: string; multi: number; scope_class_ids: string | null; name: string }>;
@@ -5361,9 +5384,9 @@ describe.each(adapters)("$name: propertySchema.delete (soft delete)", ({ makeBac
   const CLASS = "0192a000-0000-7000-8000-00000000e112";
   const NODE = "0192a000-0000-7000-8000-00000000e113";
 
-  it("the fixture pins the soft delete: active flips, the row + values survive, the unknown-id delete is a no-op", () => {
+  it("the fixture pins the soft delete: active flips, the row + values survive, the unknown-id delete is a no-op", async () => {
     const store = Store.open(makeBackend());
-    store.applyMany(loadFixture("property-schema-delete.json"));
+    store.applyMany(await loadFixture("property-schema-delete.json"));
 
     // The schema row survives at active = 0 — a tombstone, not a remove.
     const schema = store.database
@@ -5429,9 +5452,9 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     ]);
   }
 
-  it("the fixture pins extends-aware eligibility and survival under narrowing", () => {
+  it("the fixture pins extends-aware eligibility and survival under narrowing", async () => {
     const store = Store.open(makeBackend());
-    store.applyMany(loadFixture("property-schema-scope.json"));
+    store.applyMany(await loadFixture("property-schema-scope.json"));
     const A = "0192a000-0000-7000-8000-000000000901";
     const SCHEMA_ID = "0192a000-0000-7000-8000-000000000910";
     const NA = "0192a000-0000-7000-8000-000000000921";
@@ -5574,9 +5597,9 @@ describe.each(adapters)("$name: property-schema scope + update fields", ({ makeB
     store.close();
   });
 
-  it("update keep/clear for icon/scopeClassIds/targetClassFilter/multi/validationRules", () => {
+  it("update keep/clear for icon/scopeClassIds/targetClassFilter/multi/validationRules", async () => {
     const store = Store.open(makeBackend());
-    store.applyMany(loadFixture("property-schema-update-fields.json"));
+    store.applyMany(await loadFixture("property-schema-update-fields.json"));
     const row = () =>
       store.database
         .prepare(
