@@ -9,11 +9,11 @@
 
 .nt-embed {
   display: block;
-  margin: 4px 0;
+  margin: var(--spacing-1) 0;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-left: 3px solid var(--md-sys-color-primary);
+  border-left: var(--spacing-tiny) solid var(--md-sys-color-primary);
   border-radius: var(--shape-medium);
-  padding: 6px 10px;
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   background: var(--md-sys-color-surface-container-high);
 }
 
@@ -24,7 +24,7 @@
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--md-sys-color-on-surface-variant);
-  margin-bottom: 2px;
+  margin-bottom: var(--spacing-micro);
 }
 
 .nt-embed-header-name {
@@ -89,8 +89,8 @@
 }
 
 .nt-embed-block-children {
-  margin-left: 16px;
-  padding-left: 8px;
+  margin-left: var(--spacing-4);
+  padding-left: var(--spacing-2);
   border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 

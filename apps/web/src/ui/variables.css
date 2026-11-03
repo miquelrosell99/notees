@@ -430,6 +430,9 @@
   --motion-duration-caret-resize: 120ms;
   --motion-duration-caret-breathe: 850ms;
   --motion-duration-caret-breathe-slow: 1400ms;
+  /* The universal reduced-motion kill (app.css blanket): near-zero but
+     non-zero so animation/transition events still fire. */
+  --motion-duration-reduced-motion: 0.01ms;
   --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-emphasized: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-decelerate: cubic-bezier(0, 0, 0, 1);
@@ -499,10 +502,12 @@
   --z-tooltip: 10003;
   --z-skip-link: 99999;
   --z-0: 0;
+  --z-neg-1: -1;  /* underlay tier — selection cards behind their rows inside an isolated surface */
   --z-1: 1;
   --z-2: 2;
   --z-3: 3;
   --z-5: 5;
+  --z-6: 6;
   --z-10: 10;
   --z-15: 15;
   --z-20: 20;

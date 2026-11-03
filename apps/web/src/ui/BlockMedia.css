@@ -63,7 +63,7 @@
 .nt-hr {
   border: none;
   border-top: 1px solid var(--md-sys-color-outline-variant);
-  margin: 6px 0;
+  margin: var(--spacing-1-5) 0;
   width: 100%;
 }
 
@@ -85,10 +85,10 @@
 .nt-embed-card {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--spacing-1-5);
   max-width: 100%;
-  margin: 2px 0;
-  padding: 4px 10px;
+  margin: var(--spacing-micro) 0;
+  padding: var(--spacing-1) var(--spacing-2-5);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   background: var(--md-sys-color-surface-container);
@@ -101,7 +101,7 @@
 .nt-embed-card--wide_card {
   display: flex;
   flex-wrap: wrap;
-  row-gap: 2px;
+  row-gap: var(--spacing-micro);
   width: 100%;
   box-sizing: border-box;
 }

@@ -18,14 +18,15 @@
 .nt-annotations {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 4px 0 8px 148px;
+  gap: var(--spacing-1-5);
+  margin: var(--spacing-1) 0 var(--spacing-2);
+  margin-left: 148px; /* token-gate: constant annotations section indent — aligns to the page content column ruling, not a scale step */
 }
 
 .nt-annotation-item {
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .nt-annotation-quote {
@@ -41,29 +42,29 @@
 .nt-annotation-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding-left: 20px;
+  gap: var(--spacing-1-5);
+  padding-left: var(--spacing-5);
 }
 
 .nt-annotation-form input {
   font: inherit;
   font-size: var(--font-size-button);
-  padding: 3px 8px;
+  padding: var(--spacing-tiny) var(--spacing-2);
   border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
   background: var(--md-sys-color-surface);
 }
 
 .nt-annotation-quote-input {
-  flex: 1 1 220px;
+  flex: 1 1 220px; /* token-gate: constant annotation quote input flex-basis ruling, not a scale step */
 }
 
 .nt-annotation-page-input {
-  width: 110px;
+  width: 110px; /* token-gate: constant annotation page-ref input width ruling, not a scale step */
 }
 
 .nt-annotation-note-input {
-  flex: 1 1 160px;
+  flex: 1 1 160px; /* token-gate: constant annotation note input flex-basis ruling, not a scale step */
 }
 
 .nt-annotation-add {
@@ -73,7 +74,7 @@
   background: none;
   border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
-  padding: 3px 10px;
+  padding: var(--spacing-tiny) var(--spacing-2-5);
 }
 
 .nt-annotation-add:hover {
@@ -82,7 +83,7 @@
 
 .nt-annotation-error {
   margin: 0;
-  padding-left: 20px;
+  padding-left: var(--spacing-5);
   color: var(--md-sys-color-error-hover);
   font-size: var(--font-size-button);
 }

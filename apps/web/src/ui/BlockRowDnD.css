@@ -62,7 +62,7 @@
    column (same 26px offset as tags/properties). The card inside is the
    container — it owns the surface, border, radius, and padding. */
 .nt-block-backlink-refs {
-  margin-left: 26px;
+  margin-left: calc(2 * var(--nt-grip-half) + var(--spacing-2));
   padding: var(--spacing-1) 0 var(--spacing-2);
 }
 
@@ -96,7 +96,7 @@
    the content column (past the 18px bullet grip + the row gap). */
 .nt-block-tags,
 .nt-block > .node-metadata-section {
-  margin-left: 26px;
+  margin-left: calc(2 * var(--nt-grip-half) + var(--spacing-2));
 }
 
 /* Drop indicator (the fallback layer): the line rides the BLOCK ELEMENT's
@@ -115,7 +115,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 2px;
+  height: var(--spacing-micro);
   background: var(--md-sys-color-primary);
   pointer-events: none;
 }
@@ -131,7 +131,7 @@
 
 /* The child line starts at the child-offset indentation. */
 .nt-block.nt-drop-child::after {
-  left: 48px;
+  left: 48px; /* token-gate: constant CHILD_DROP_OFFSET_PX — the JS block-dnd child-drop indent contract (block-dnd.ts), changing it breaks the drop geometry */
 }
 
 /* The portaled drop indicator: the same line repainted ABOVE the floating
@@ -145,7 +145,7 @@
    as the no-host / no-candidate fallback. */
 .nt-drop-indicator {
   position: fixed;
-  height: 2px;
+  height: var(--spacing-micro);
   background: var(--md-sys-color-primary);
   pointer-events: none;
   z-index: var(--z-node-overlay);
@@ -172,7 +172,7 @@
      between targets on a short transition ("snaps"). */
 .nt-drag-ghost,
 .nt-drop-preview {
-  max-width: 480px;
+  max-width: var(--layout-size-10xl);
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--md-sys-color-surface);
   border: 1px solid var(--md-sys-color-outline-variant);
@@ -215,7 +215,7 @@
   transform: translateX(-50%);
   z-index: var(--z-fixed);
   margin: 0;
-  padding: 6px 10px;
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   border: 1px solid var(--md-sys-color-error);
   border-radius: var(--shape-medium);
   background: var(--md-sys-color-error-container);

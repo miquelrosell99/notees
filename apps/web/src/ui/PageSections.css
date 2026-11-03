@@ -21,13 +21,13 @@
 .nt-section-item {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--spacing-2);
   width: 100%;
   text-align: left;
   border: none;
   background: transparent;
   border-radius: var(--shape-medium);
-  padding: 4px 8px 4px 20px;
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-1) var(--spacing-5);
   color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-base);
 }
@@ -51,7 +51,7 @@
 .nt-class-member-remove {
   border: none;
   background: transparent;
-  padding: 4px 10px;
+  padding: var(--spacing-1) var(--spacing-2-5);
   font-size: var(--font-size-base);
   color: var(--md-sys-color-on-surface-variant);
   border-radius: var(--shape-medium);
@@ -84,6 +84,6 @@
 .nt-section-empty {
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
-  padding: 4px 8px 4px 20px;
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-1) var(--spacing-5);
 }
 
