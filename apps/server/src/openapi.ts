@@ -541,9 +541,9 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["unauthenticated", "forbidden", "not_found"],
   }],
   ["put", "/api/workspaces/:id/key", {
-    summary: "Store the workspace's wrapped E2EE key (member-scoped; upsert)",
+    summary: "Store the workspace's wrapped E2EE key (member-scoped; FIRST write wins)",
     description:
-      "Writes the opaque wrapped-key row (last write wins; the client owns custody). Non-members get 403; the operator API key gets 403; unauthenticated 401.",
+      "Writes the opaque wrapped-key row. First write wins: when a row already exists the PUT is rejected with 409 and the stored key is left untouched — a concurrent first-opener must fetch and unwrap the winner's key (a blind upsert would permanently split the workspace's keys). Non-members get 403; the operator API key gets 403; unauthenticated 401.",
     tags: ["Workspaces"],
     requestBody: {
       type: "object",
@@ -552,7 +552,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       properties: { wrappedKey: { type: "string", minLength: 1, maxLength: 4096 } },
     },
     success: { status: 204, description: "stored" },
-    errors: ["unauthenticated", "forbidden", "validation_failed"],
+    errors: ["unauthenticated", "forbidden", "validation_failed", "conflict"],
   }],
   ["get", "/api/workspaces/:id/export.zip", {
     summary: "Full-workspace Markdown zip (one file per page, manifest, optional assets/)",
