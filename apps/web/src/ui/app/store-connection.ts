@@ -51,6 +51,54 @@ export interface ConnectOutcome {
  * offline workspace later reuses the same OPFS file and its unpushed
  * backlog drains through the normal outbox push.
  */
+/**
+ * E2EE custody, behind the opt-in kill switch: hand the workspace key to the
+ * client when `window.NOTEES_CONFIG.e2ee === "on"` AND this session can unwrap
+ * one. Any other flag state (absent included) = off = today's keyless
+ * plaintext behavior — and makes NO key-route call at all (the lockstep debt:
+ * no workspace gets encrypted before the sibling clients can decrypt).
+ *
+ * When the switch is on: offline workspaces are keyless by design (no server
+ * → no keys → plaintext). With a session but NO master key in memory (a
+ * reload restores the session without it — custody is memory-only), a keyed
+ * workspace opens KEYLESS (plaintext passthrough, legal in the mixed log)
+ * with a visible warning; the unlock re-prompt is a documented fast-follow.
+ */
+export async function resolveWorkspaceKey(
+  url: string,
+  credential: string,
+  workspaceId: string,
+  options: ConnectOptions,
+): Promise<Uint8Array | undefined> {
+  if (window.NOTEES_CONFIG?.e2ee !== "on") return undefined;
+  if (options.isOffline) return undefined;
+  const master = currentMasterKey();
+  if (master !== null) {
+    try {
+      return await ensureWorkspaceKey(url, credential, workspaceId, master);
+    } catch (error) {
+      console.warn(
+        `[notees-web] workspace key unavailable for ${workspaceId}; opening keyless (plaintext passthrough):`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return undefined;
+    }
+  }
+  if (options.credentialType === "session") {
+    // Distinguish "keyed but locked" from "keyless" for the warning: the
+    // wrapped-key row needs only membership, not the master key.
+    const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
+    if (wrapped !== undefined) {
+      console.warn(
+        `[notees-web] workspace ${workspaceId} is encrypted but this session has no master key ` +
+          "(a reload restores the session without it). Opening keyless — writes are plaintext " +
+          "until you sign in again with your password. (Unlock re-prompt is a fast-follow.)",
+      );
+    }
+  }
+  return undefined;
+}
+
 export async function openStoreConnection(
   url: string,
   credential: string,
@@ -68,40 +116,7 @@ export async function openStoreConnection(
   }
   writeStored(STORAGE_KEYS.serverUrl, url);
   writeStored(STORAGE_KEYS.workspaceId, workspaceId);
-  // E2EE custody: hand the workspace key to the client when this session can
-  // unwrap one. Offline workspaces are keyless by design (Global Constraint:
-  // no server → no keys → plaintext). With a session but NO master key in
-  // memory (a reload restores the session without it — custody is
-  // memory-only), a keyed workspace opens KEYLESS (plaintext passthrough,
-  // which the mixed log makes legal) with a visible warning; the unlock
-  // re-prompt is a documented fast-follow.
-  let workspaceKey: Uint8Array | undefined;
-  if (!options.isOffline) {
-    const master = currentMasterKey();
-    if (master !== null) {
-      try {
-        workspaceKey = await ensureWorkspaceKey(url, credential, workspaceId, master);
-      } catch (error) {
-        console.warn(
-          `[notees-web] workspace key unavailable for ${workspaceId}; opening keyless (plaintext passthrough):`,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    } else if (options.credentialType === "session") {
-      // Distinguish "keyed but locked" from "keyless" for the warning: the
-      // wrapped-key row needs only membership, not the master key.
-      const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(
-        () => undefined,
-      );
-      if (wrapped !== undefined) {
-        console.warn(
-          `[notees-web] workspace ${workspaceId} is encrypted but this session has no master key ` +
-            "(a reload restores the session without it). Opening keyless — writes are plaintext " +
-            "until you sign in again with your password. (Unlock re-prompt is a fast-follow.)",
-        );
-      }
-    }
-  }
+  const workspaceKey = await resolveWorkspaceKey(url, credential, workspaceId, options);
   const mode = detectStoreMode();
   let nextClient: AnyClient;
   if (mode === "worker") {
