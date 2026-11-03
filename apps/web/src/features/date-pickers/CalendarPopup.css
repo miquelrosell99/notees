@@ -166,7 +166,7 @@
 
 .calendar-day.btn:focus-visible {
   outline: var(--border-width-thick) solid var(--md-sys-color-primary);
-  outline-offset: 2px;
+  outline-offset: var(--spacing-micro);
 }
 
 .calendar-day.btn.today {
@@ -200,7 +200,7 @@
 
 /* Accent pulse when navigating to today */
 .calendar-day.btn.today.accent-pulse {
-  animation: today-accent-pulse 1.2s var(--motion-easing-ease-out);
+  animation: today-accent-pulse var(--motion-duration-sync-pulse) var(--motion-easing-ease-out);
 }
 
 @keyframes today-accent-pulse {
@@ -317,5 +317,5 @@
 .calendar-month.btn:focus-visible,
 .calendar-year-pick.btn:focus-visible {
   outline: var(--border-width-thick) solid var(--md-sys-color-primary);
-  outline-offset: 2px;
+  outline-offset: var(--spacing-micro);
 }

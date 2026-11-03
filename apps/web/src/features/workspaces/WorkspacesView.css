@@ -26,9 +26,9 @@
   padding: var(--spacing-6);
   margin: 0 auto;
 
-  /* Clamp keeps the reading line comfortable on all viewports without
-     hardcoding a one-off pixel width. */
-  max-width: clamp(320px, 90vw, 56rem);
+  /* Clamp keeps the reading line comfortable on all viewports; the max is
+     a ruling constant, the min rides the layout scale (320px). */
+  max-width: clamp(var(--layout-size-8xl), 90vw, 56rem); /* token-gate: constant workspace reading-column clamp max (56rem/896px), not a scale step */
 }
 
 /* Header */
@@ -96,8 +96,9 @@
 .workspace-management__grid {
   display: grid;
 
-  /* 16rem is a token-friendly replacement for the previous 280px magic value. */
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  /* The card grid column min (16rem/256px) — a ruling constant, not a
+     scale step (rounded from the previous 280px magic value). */
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); /* token-gate: constant workspace card column min ruling (16rem/256px), not a scale step */
   gap: var(--spacing-4);
   width: 100%;
   margin: 0 auto;
@@ -263,7 +264,7 @@
   align-items: center;
   justify-content: center;
   background: var(--md-sys-color-scrim);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px); /* token-gate: constant scrim blur radius ruling (2px optical backdrop blur), not a scale step */
   pointer-events: all;
 }
 
@@ -327,7 +328,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: 6px var(--spacing-3);
+  padding: var(--spacing-1-5) var(--spacing-3);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-full);
   background: var(--md-sys-color-surface);
@@ -344,8 +345,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--spacing-6);
+  height: var(--spacing-6);
   border-radius: var(--shape-full);
   overflow: hidden;
   color: var(--md-sys-color-on-surface-variant);
@@ -358,7 +359,7 @@
 }
 
 .workspace-management__account-name {
-  max-width: 180px;
+  max-width: 180px; /* token-gate: constant account-name truncation width ruling (180px), not a scale step */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -367,13 +368,13 @@
 
 .workspace-management__account-menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--spacing-1));
   right: 0;
   z-index: var(--z-dropdown);
-  min-width: 180px;
+  min-width: 180px; /* token-gate: constant account-menu min-width ruling (180px) — single site, below the ≥3-site role-token threshold */
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
   padding: var(--spacing-2);
   background: var(--md-sys-color-surface-container-high);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
@@ -386,7 +387,7 @@
   align-items: center;
   gap: var(--spacing-2);
   width: 100%;
-  padding: 7px var(--spacing-2);
+  padding: var(--spacing-1-75) var(--spacing-2);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -407,7 +408,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-2);
-  min-height: 8.5rem;
+  min-height: 8.5rem; /* token-gate: constant create-card height floor ruling (8.5rem/136px), not a scale step */
   border: var(--border-width-default) dashed var(--md-sys-color-outline);
   border-radius: var(--shape-card);
   background: transparent;

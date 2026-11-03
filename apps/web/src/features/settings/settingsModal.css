@@ -274,7 +274,7 @@
 
 .settings-account-meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--layout-size-2xl), 1fr));
   gap: var(--spacing-4);
 }
 
@@ -288,7 +288,7 @@
   font: var(--font-label-small);
   color: var(--md-sys-color-on-surface-variant);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--letter-spacing-badge);
 }
 
 .settings-meta-value {
@@ -404,8 +404,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: var(--spacing-8);
+  height: var(--spacing-8);
   flex: none;
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
@@ -416,7 +416,7 @@
 .settings-feature-row__text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
   flex: 1;
   min-width: 0;
 }

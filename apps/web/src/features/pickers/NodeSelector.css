@@ -299,7 +299,7 @@
   flex-shrink: 0;
   padding: 0 var(--spacing-1-5);
   min-height: var(--height-sm);
-  border-radius: var(--radius-full, 999px);
+  border-radius: var(--radius-full);
   background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-primary);
   font: var(--font-label-small);

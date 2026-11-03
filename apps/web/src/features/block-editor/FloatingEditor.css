@@ -3,8 +3,8 @@
 
 .nt-float-win {
   position: fixed;
-  width: min(34rem, calc(100vw - var(--spacing-8)));
-  max-height: min(70vh, 42rem);
+  width: min(34rem, calc(100vw - var(--spacing-8))); /* token-gate: constant floating-window width clamp ruling (34rem/544px max), not a scale step */
+  max-height: min(70vh, 42rem); /* token-gate: constant floating-window height clamp ruling (42rem/672px max), not a scale step */
   display: flex;
   flex-direction: column;
   /* The elevated popup register: a floating window

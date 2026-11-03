@@ -71,7 +71,7 @@
 
 .nt-deck-body {
   width: 100%;
-  max-width: 62rem;
+  max-width: 62rem; /* token-gate: constant deck slide reading-column width ruling (62rem/992px), not a scale step */
   margin: 0 auto;
   overflow: auto;
   font: var(--font-body-large);

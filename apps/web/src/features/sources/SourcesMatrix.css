@@ -83,7 +83,7 @@
   position: sticky;
   top: 0;
   background: var(--md-sys-color-surface);
-  z-index: 1;
+  z-index: var(--z-1);
 }
 
 .nt-sources-matrix__title-col {
@@ -95,7 +95,7 @@
 }
 
 .nt-sources-matrix__grid thead .nt-sources-matrix__title-col {
-  z-index: 2;
+  z-index: var(--z-2);
 }
 
 .nt-sources-matrix__row-title {

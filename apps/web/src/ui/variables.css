@@ -572,6 +572,10 @@
   --btn-size-lg: 46px;
   --graph-card-height: 250px;
   --grid-size: 24px;
+  /* Import modal scrolling report/page list cap — the shared max-height of
+     the import hub's list surfaces (failure report, page list, details
+     list); 12rem = 192px at the 16px root. */
+  --import-list-max-height: 12rem;
   --minimap-height: 220px;
   --minimap-width: 300px;
   --modal-width-md: 480px;
