@@ -44,6 +44,7 @@ import type { SqlJsStatic } from "sql.js";
 
 import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
 import type { CardSrsState, SrsAlgorithm, WorkflowOpStep } from "@notees/domain";
+import type { CompileOptions } from "@notees/query";
 
 import { Store, validateEnvelope, type StoreBackend } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
@@ -882,9 +883,9 @@ export class WorkerCore {
       case "getChildren":
         return this.getChildren(args[0] as string);
       case "runQueryAst":
-        return this.client.runQueryAst(args[0]);
+        return this.client.runQueryAst(args[0], args[1] as CompileOptions | undefined);
       case "runAggregateAst":
-        return this.client.runAggregateAst(args[0]);
+        return this.client.runAggregateAst(args[0], args[1] as CompileOptions | undefined);
       case "getBacklinkCount":
         return this.getBacklinkCount(args[0] as string);
       case "getChildPageCount":
