@@ -13,10 +13,10 @@
  *  - `{this_year}`   — the current year
  *
  * Positions (see the compiler's wiring):
- *  - `createdAfter` / `createdBefore` timestamps resolve to an ISO-8601
- *    DATETIME at the period's local start (After) or local end (Before),
+ *  - `date` condition after/before timestamps resolve to an ISO-8601
+ *    DATETIME at the period's local start (after) or local end (before),
  *    expressed in UTC (created_at is UTC on the wire) — so
- *    `createdBefore: "{today}"` includes everything created on the local
+ *    `date before "{today}"` includes everything created on the local
  *    day, whatever the machine's offset;
  *  - property-condition string values resolve to the period's START as a
  *    plain `YYYY-MM-DD` date — the same shape as typing the date by hand,
@@ -165,10 +165,11 @@ export function resolvePeriodBounds(
 }
 
 /**
- * The DAY bounds behind the Odoo day-granular equality (`createdCmp`
- * eq/neq): a `{today}`-style token resolves to that period's local day; a
- * plain `YYYY-MM-DD` date to that local day; anything else (a full ISO
- * instant) to the instant itself (equality collapses to instant equality).
+ * The DAY bounds behind the Odoo day-granular equality (the date
+ * condition's eq/neq ops): a `{today}`-style token resolves to that period's
+ * local day; a plain `YYYY-MM-DD` date to that local day; anything else (a
+ * full ISO instant) to the instant itself (equality collapses to instant
+ * equality).
  * The compiler AND the sync evaluator share this — one resolution.
  */
 export function resolveDayBounds(

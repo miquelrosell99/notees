@@ -42,7 +42,7 @@ const NOW_MS = NOW.getTime();
 
 function ast(children: Child[]): QueryAst {
   return {
-    version: 1,
+    version: 2,
     scope: { type: "entire_workspace" },
     root: { type: "group", logic: "and", children },
   };
@@ -105,11 +105,11 @@ describe("placeholder date resolution", () => {
 // --- compiled params ------------------------------------------------------------
 
 describe("placeholder compilation", () => {
-  it("createdAfter/createdBefore resolve against the pinned clock", () => {
+  it("date after/before resolve against the pinned clock", () => {
     const { params } = compile(
       ast([
-        { type: "createdAfter", timestamp: "{today}" },
-        { type: "createdBefore", timestamp: "{this_week}" },
+        { type: "date", field: "created", op: "after", timestamp: "{today}" },
+        { type: "date", field: "created", op: "before", timestamp: "{this_week}" },
       ]),
       { now: NOW },
     );
@@ -151,7 +151,7 @@ describe("placeholder compilation", () => {
     expect(contains.params).toEqual([OPENED, OPENED, OPENED, "{today}"]);
     const unknown = compile(
       ast([
-        { type: "createdAfter", timestamp: "{someday}" },
+        { type: "date", field: "created", op: "after", timestamp: "{someday}" },
         { type: "property", schemaId: OPENED, op: "eq", value: "{foo}" },
       ]),
       { now: NOW },
@@ -211,14 +211,14 @@ function worldStore(): Store {
 }
 
 describe("placeholder execution", () => {
-  it("createdAfter {today} floors at today midnight; createdBefore {today} ceilings at end of day", () => {
+  it("date after {today} floors at today midnight; before {today} ceilings at end of day", () => {
     const store = worldStore();
     // Both bounds are inclusive: a node created today matches each side;
     // yesterday's node only matches the Before side.
-    const after = runQuery(store, ast([{ type: "createdAfter", timestamp: "{today}" }]), { now: NOW });
+    const after = runQuery(store, ast([{ type: "date", field: "created", op: "after", timestamp: "{today}" }]), { now: NOW });
     expect(after.ids).toContain(NODE_B);
     expect(after.ids).not.toContain(NODE_A);
-    const before = runQuery(store, ast([{ type: "createdBefore", timestamp: "{today}" }]), { now: NOW });
+    const before = runQuery(store, ast([{ type: "date", field: "created", op: "before", timestamp: "{today}" }]), { now: NOW });
     expect(before.ids).toContain(NODE_A);
     expect(before.ids).toContain(NODE_B);
   });

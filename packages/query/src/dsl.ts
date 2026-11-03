@@ -50,10 +50,11 @@
  * resolve by name, nodes by display name (for `linked:`). Unknown fields and
  * unresolvable names are hard errors, never silent text search.
  *
- * The parser emits only the supported AST — property conditions (all eight
- * ops), class, isClass, isEmbedded, content contains, title (name) eq/neq/
- * contains/exists, linkedTo and the wire node-field predicates
- * (coverAsset/bannerAsset/aliasedNode, eq/neq/exists) — no new condition
+ * The parser emits only the supported AST — v2 conditions: property
+ * (all eight ops), member (class/links families, in over an ids target),
+ * nodeField (isClass/isEmbedded as eq "true"/"false", plus the
+ * coverAsset/bannerAsset/aliasedNode wire fields eq/neq/exists), content
+ * contains, and title (name) eq/neq/contains/exists — no new condition
  * kinds.
  */
 
@@ -265,7 +266,7 @@ class Parser {
 
   parse(): QueryAst {
     if (this.peek().kind === "eof") {
-      return { version: 1, scope: this.scope(), root: { type: "group", logic: "and", children: [] } };
+      return { version: 2, scope: this.scope(), root: { type: "group", logic: "and", children: [] } };
     }
     const node = this.parseOr();
     const rest = this.peek();
@@ -274,7 +275,7 @@ class Parser {
     }
     const root: Group =
       node.type === "group" ? node : { type: "group", logic: "and", children: [node] };
-    return { version: 1, scope: this.scope(), root };
+    return { version: 2, scope: this.scope(), root };
   }
 
   private scope(): Scope {
@@ -391,15 +392,24 @@ class Parser {
     switch (lower) {
       case "class":
         return this.negatable(op, () => ({
-          type: "class",
-          classId: this.resolveClass(String(this.readValue("a class name", "token"))),
+          type: "member",
+          family: "class",
+          op: "in",
+          target: { mode: "ids", ids: [this.resolveClass(String(this.readValue("a class name", "token")))] },
         }));
       case "isclass":
-        return this.negatable(op, () => ({ type: "isClass", isClass: this.readBoolean("isClass") }));
+        return this.negatable(op, () => ({
+          type: "nodeField",
+          field: "isClass",
+          op: "eq",
+          value: this.readBoolean("isClass") ? "true" : "false",
+        }));
       case "isembedded":
         return this.negatable(op, () => ({
-          type: "isEmbedded",
-          isEmbedded: this.readBoolean("isEmbedded"),
+          type: "nodeField",
+          field: "isEmbedded",
+          op: "eq",
+          value: this.readBoolean("isEmbedded") ? "true" : "false",
         }));
       case "text":
         this.requireContainsOp(op, "text");
@@ -408,8 +418,10 @@ class Parser {
         return this.nameCondition(op);
       case "linked":
         return this.negatable(op, () => ({
-          type: "linkedTo",
-          nodeId: this.resolveNode(String(this.readValue("a node name", "token"))),
+          type: "member",
+          family: "links",
+          op: "in",
+          target: { mode: "ids", ids: [this.resolveNode(String(this.readValue("a node name", "token")))] },
         }));
       case "coverasset":
         return this.nodeFieldCondition("coverAsset", op);
@@ -448,7 +460,7 @@ class Parser {
    * eq/neq/exists).
    */
   private nodeFieldCondition(
-    type: "coverAsset" | "bannerAsset" | "aliasedNode",
+    field: "coverAsset" | "bannerAsset" | "aliasedNode",
     op: Op,
   ): Child {
     const readRef = () => this.readNodeRef();
@@ -460,12 +472,12 @@ class Parser {
         this.lookahead.kind === "or" ||
         this.lookahead.kind === "not"
       ) {
-        return { type, op: "exists" };
+        return { type: "nodeField", field, op: "exists" };
       }
-      return { type, op: "eq", value: readRef() };
+      return { type: "nodeField", field, op: "eq", value: readRef() };
     }
-    if (op === "=" || op === ":=") return { type, op: "eq", value: readRef() };
-    if (op === "!=") return { type, op: "neq", value: readRef() };
+    if (op === "=" || op === ":=") return { type: "nodeField", field, op: "eq", value: readRef() };
+    if (op === "!=") return { type: "nodeField", field, op: "neq", value: readRef() };
     throw this.error(`operator '${op}' is not supported here (use ':', '=', '!=')`);
   }
 
