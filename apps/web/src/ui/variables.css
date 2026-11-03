@@ -694,21 +694,6 @@
 
   /* === Functional tokens === */
 
-  /* ==================== Elevation tiers ==================== */
-
-  /* z-index ladder — every stacking site references a tier, never a bare
-     number. Values consolidate the pre-token raw numbers (1/2/3/6/10/30/
-     50/60/70/80); the sweep maps each site to the smallest tier >= its
-     current value, which preserves every existing stacking order.
-     (--z-sticky and --z-toast already exist above as dedicated tokens with
-     different values — 200 and var(--z-tooltip) — so they are not redeclared
-     here; adding them would override those values.) */
-  --z-base: 1;
-  --z-raised: 10;
-  --z-overlay: 50;
-  --z-popup: 60;
-  --z-max: 80;
-
   /* Functional shadows */
   --shadow-table-row-gutter: 1px 0 0 0 var(--md-sys-color-outline-variant);
   --shadow-drop-target: inset 0 -2px 0 var(--md-sys-color-primary);
