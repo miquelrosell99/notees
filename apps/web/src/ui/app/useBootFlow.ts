@@ -22,7 +22,7 @@ import {
   listWorkspaces,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
-import { clearCryptoCustody } from "@/core/crypto-custody.js";
+import { clearCryptoCustody, restoreMasterKeyFromStorage } from "@/core/crypto-custody.js";
 import { rememberedWorkspaceName, rememberWorkspaceList } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, clearStored, readStored, writeStored } from "./storage.js";
 import type { CredentialType } from "./store-connection.js";
@@ -66,6 +66,13 @@ export function useBootFlow(
       Promise.all([listWorkspaces(rememberedUrl, credential), fetchMe(rememberedUrl, credential)])
         .then(async ([{ workspaces: list }, me]) => {
           auth.setUser(me);
+          if (credentialType === "session") {
+            // Session credential: re-hydrate the E2EE master key from its
+            // IndexedDB record (persisted at derive time) so a reload within
+            // the signed-in session does not require re-unlocking. Silent on
+            // absence — the locked banner covers a keyless restore.
+            await restoreMasterKeyFromStorage();
+          }
           if (window.location.pathname === "/workspaces" || rememberedWorkspace === "") {
             // Reload/deep link on the manager (or no workspace to resume
             // yet): land there instead of auto-connecting. connect would
