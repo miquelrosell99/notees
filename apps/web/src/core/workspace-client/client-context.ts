@@ -67,6 +67,7 @@ export class ClientContext {
   readonly workspaceKey: Uint8Array | null;
   readonly userOnConflict: ((conflicts: SyncConflict[]) => void) | undefined;
   readonly userOnSyncError: ((error: Error) => void) | undefined;
+  readonly userOnSyncPhase: ((phase: string, message: string) => void) | undefined;
   readonly clock: Clock;
   readonly listeners = new Set<(change: ChangeNotification) => void>();
   /** Server REST access (asset upload/download); null without serverUrl/apiKey. */
@@ -129,6 +130,7 @@ export class ClientContext {
     this.workspaceKey = options.workspaceKey ?? null;
     this.userOnConflict = options.onConflict;
     this.userOnSyncError = options.onSyncError;
+    this.userOnSyncPhase = options.onSyncPhase;
     this.clock = new Clock(this.deviceId);
     this.restServerUrl =
       options.serverUrl !== undefined && options.serverUrl !== "" ? options.serverUrl : null;

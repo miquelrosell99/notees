@@ -284,6 +284,12 @@ export interface WorkerCoreOptions {
   onNotify?: (change: ChangeNotification) => void;
   onConflict?: (conflicts: SyncConflict[]) => void;
   onSyncError?: (error: Error) => void;
+  /**
+   * Engine sync-phase messages — NOT consumed by the core; forwarded to the
+   * wrapped WorkspaceClient (the store-worker entry postMessages them to the
+   * main thread as {type:"syncPhase"}).
+   */
+  onSyncPhase?: (phase: string, message: string) => void;
 }
 
 export interface WorkerCoreStats {
@@ -361,6 +367,7 @@ export class WorkerCore {
       ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
       ...(options.onConflict !== undefined ? { onConflict: options.onConflict } : {}),
       ...(options.onSyncError !== undefined ? { onSyncError: options.onSyncError } : {}),
+      ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
     });
     const core = new WorkerCore(
       client,

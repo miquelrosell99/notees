@@ -214,6 +214,12 @@ export interface WorkerClientOptions {
   offline?: boolean;
   /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
   workspaceKey?: Uint8Array;
+  /**
+   * Engine sync-phase messages from the worker ("Fetching latest
+   * snapshot…", "Catching up… N operations", "Synced") — the connecting
+   * screen renders them as progress. Not an RPC response.
+   */
+  onSyncPhase?: (phase: string, message: string) => void;
   /** Test seam: supply a fake worker instead of spawning the real one. */
   spawn?: () => Worker;
 }
@@ -251,14 +257,18 @@ export class WorkerClient {
     serverUrl: string,
     apiKey: string,
     offline: boolean,
+    onSyncPhase?: (phase: string, message: string) => void,
   ) {
     this.worker = worker;
     this.workspaceId = workspaceId;
     this.serverUrl = serverUrl;
     this.apiKey = apiKey;
     this.offline = offline;
+    this.onSyncPhase = onSyncPhase;
     worker.onmessage = this.handleMessage;
   }
+
+  private readonly onSyncPhase: ((phase: string, message: string) => void) | undefined;
 
   /** Spawn the worker, post init, and wait until the store is booted. */
   static async create(options: WorkerClientOptions): Promise<WorkerClient> {
@@ -271,6 +281,7 @@ export class WorkerClient {
       options.serverUrl,
       options.apiKey,
       options.offline === true,
+      options.onSyncPhase,
     );
     const init: WorkerInitMessage = {
       sqlWasmUrl: options.sqlWasmUrl,
@@ -294,9 +305,15 @@ export class WorkerClient {
   private handleMessage = (event: MessageEvent): void => {
     const message = event.data as
       | WorkerResponseMessage
-      | (ChangeNotification & { type: "changed" });
+      | (ChangeNotification & { type: "changed" })
+      | { type: "syncPhase"; phase: string; message: string };
     if ("type" in message && message.type === "changed") {
       this.handleChanged(message);
+      return;
+    }
+    if ("type" in message && message.type === "syncPhase") {
+      // Progress push — NOT an RPC response; never touches the pending map.
+      this.onSyncPhase?.(message.phase, message.message);
       return;
     }
     const response = message as WorkerResponseMessage;

@@ -60,6 +60,7 @@ export class WorkspaceClientSync {
           this.ctx.userOnConflict?.(conflicts);
         },
         onError: (error) => this.ctx.userOnSyncError?.(error),
+        onSyncPhase: (phase, message) => this.ctx.userOnSyncPhase?.(phase, message),
         // Pushing does NOT change local state — the pushed envelopes applied
         // locally before they entered the outbox. Notifying here was pure
         // redundancy: it dirtied the whole read cache after every push

@@ -45,6 +45,12 @@ export interface WorkspaceConnection {
    * dropped it): writes are plaintext until unlocked. Drives the locked banner.
    */
   encryptedLocked: boolean;
+  /**
+   * The engine's current sync-phase message during connect ("Fetching latest
+   * snapshot…", "Catching up… N operations") — the connecting screen's
+   * progress line. Null when not connecting.
+   */
+  connectProgress: string | null;
   /** True when the live credential is a session (API-key management needs one). */
   sessionSignedIn: boolean;
   setSessionSignedIn: Dispatch<SetStateAction<boolean>>;
@@ -75,6 +81,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   const [offline, setOffline] = useState(false);
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
   const [encryptedLocked, setEncryptedLocked] = useState(false);
+  const [connectProgress, setConnectProgress] = useState<string | null>(null);
   const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
@@ -100,15 +107,20 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   ): Promise<void> {
     setPhase({ name: "connecting", label: options.isOffline ? "Opening local workspace…" : "Connecting…" });
     setError(null);
+    setConnectProgress(null);
     setEncryptedLocked(false);
     const previous = clientRef.current;
     clientRef.current = null;
     previous?.close();
     setClient(null);
     try {
-      const outcome = await openStoreConnection(url, credential, workspaceId, options);
+      const outcome = await openStoreConnection(url, credential, workspaceId, {
+        ...options,
+        onSyncPhase: (_phase, message) => setConnectProgress(message),
+      });
       clientRef.current = outcome.client;
       setClient(outcome.client);
+      setConnectProgress(null);
       setEncryptedLocked(outcome.encryptedLocked === true);
       setOffline(options.isOffline);
       setStoreMode(outcome.mode);
@@ -123,6 +135,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
         // No WS available/reachable — HTTP catch-up keeps working.
       }
     } catch (err) {
+      setConnectProgress(null);
       setPhase({ name: "server" });
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -143,6 +156,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     storeMode,
     storeReason,
     encryptedLocked,
+    connectProgress,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,
