@@ -136,6 +136,7 @@ function buildFixture(): Fixture {
   writeFileSync(join(dataDir, "snapshots", "snap-stale.db"), Buffer.from("stale plaintext image"));
   mkdirSync(join(dataDir, "derived"), { recursive: true });
   writeFileSync(join(dataDir, "derived", `${WS_A}.db`), Buffer.from("derived plaintext"));
+  writeFileSync(join(dataDir, "derived", `${WS_C_NON_MEMBER}.db`), Buffer.from("derived non-member"));
   db.close();
   return { dataDir, dbPath, assetOriginal, assetHash };
 }
@@ -185,7 +186,7 @@ describe("migrate-e2ee (plan 06)", () => {
     const rowsBefore = (JSON.parse(dumpBefore) as Record<string, unknown[]>)["envelope"] as Array<Record<string, unknown>>;
     for (const [i, row] of rows.entries()) {
       const pre = rowsBefore[i]!;
-      for (const key of ["id", "workspace_id", "actor_id", "device_id", "client", "physical", "logical", "op_type", "protocol_version", "timestamp"]) {
+      for (const key of ["id", "workspace_id", "actor_id", "device_id", "client", "physical", "logical", "affected_node_ids", "op_type", "protocol_version", "timestamp"]) {
         expect(row[key]).toEqual(pre[key]);
       }
     }
@@ -214,6 +215,8 @@ describe("migrate-e2ee (plan 06)", () => {
     expect((db.prepare("SELECT COUNT(*) AS n FROM snapshot").get() as { n: number }).n).toBe(0);
     expect(existsSync(join(fixture.dataDir, "snapshots", "snap-stale.db"))).toBe(false);
     expect(existsSync(join(fixture.dataDir, "derived", `${WS_A}.db`))).toBe(false);
+    // The non-member workspace's derived store is OUT of scope and survives.
+    expect(existsSync(join(fixture.dataDir, "derived", `${WS_C_NON_MEMBER}.db`))).toBe(true);
     // A timestamped backup was written first.
     expect(existsSync(fixture.dbPath)).toBe(true);
     db.close();

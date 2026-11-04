@@ -513,9 +513,16 @@ export function pruneServerState(db: Db, dataDir: string, workspaceIds: string[]
       // Blob already gone.
     }
   }
+  // Server-side derived workspace stores for the MIGRATED workspaces only —
+  // they would skip `$e` and rebuild content-empty anyway. Other workspaces'
+  // stores (e.g. a non-member's, or one outside the --workspace filter) are
+  // untouched, mirroring the snapshot arm's in-scope filter.
   const derivedDir = join(dataDir, "derived");
   if (existsSync(derivedDir)) {
-    for (const name of readdirSync(derivedDir).filter((n) => /\.db(-wal|-shm|-journal)?$/.test(n))) {
+    const inScope = new Set(
+      workspaceIds.flatMap((id) => [`${id}.db`, `${id}.db-wal`, `${id}.db-shm`, `${id}.db-journal`]),
+    );
+    for (const name of readdirSync(derivedDir).filter((n) => inScope.has(n))) {
       try {
         if (!dryRun) unlinkSync(join(derivedDir, name));
       } catch {
@@ -634,6 +641,9 @@ async function run(options: MigrateOptions): Promise<MigrateReport> {
         throw new Error(`backup integrity check failed (${String(quickCheck)}) — aborting before any write`);
       }
       console.log(`backup written: ${backupPath} (quick_check ok)`);
+      console.log(
+        "NOTE: the relay.db backup does NOT cover asset files — rollback of sealed assets needs your own data-dir backup (the migration deletes old asset files after sealing).",
+      );
     }
 
     const workspaces: WorkspaceReport[] = [];
