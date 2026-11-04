@@ -179,7 +179,7 @@ if (lockedBanner) {
   // scale). Wait for the shell to settle before touching the search UI.
   const settleT0 = Date.now();
   await page.waitForFunction(
-    () => document.body.innerText.replace(/\n/g, " ").trim() !== "Notees Connecting…",
+    () => !/^\s*Notees\s+Connecting…\s*$/s.test(document.body.innerText),
     undefined,
     { timeout: 900_000 },
   ).then(() => console.log(`shell settled after unlock in ${((Date.now() - settleT0) / 1000).toFixed(0)}s`))
