@@ -135,20 +135,18 @@ export class ServerContext {
     const savedIds: string[] = [];
     const seqs: Record<string, number> = {};
     for (const [workspaceId, group] of groups) {
-      {
-        if (
-          !this.limiters.relayBatch.tryAcquire(
-            `relay:batch:${workspaceId}`,
-            group.length,
-            this.config.relayBatchPerMinute,
-          )
-        ) {
-          throw new AppError(
-            429,
-            "rate_limited",
-            `relay batch rate limit exceeded (${this.config.relayBatchPerMinute} envelopes/min/workspace)`,
-          );
-        }
+      if (
+        !this.limiters.relayBatch.tryAcquire(
+          `relay:batch:${workspaceId}`,
+          group.length,
+          this.config.relayBatchPerMinute,
+        )
+      ) {
+        throw new AppError(
+          429,
+          "rate_limited",
+          `relay batch rate limit exceeded (${this.config.relayBatchPerMinute} envelopes/min/workspace)`,
+        );
       }
       const outcome = await this.workspaces.apply(workspaceId, group);
       if (outcome.savedIds.length > 0) {
@@ -165,7 +163,6 @@ export class ServerContext {
         );
         savedIds.push(...outcome.savedIds);
         Object.assign(seqs, outcome.seqs);
-        void committed;
       }
     }
     return { savedIds, seqs };
