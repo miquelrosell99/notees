@@ -187,6 +187,13 @@ export class Store {
   private readonly bulkStats = new Set<string>();
   /** The connection's synchronous level before the window (restored after). */
   private bulkPrevSynchronous: number | null = null;
+  /**
+   * Cached MAX(applied_envelope.seq) for recordEnvelope — see there. Null =
+   * lazily read from the connection on the next record; invalidated on
+   * connection swap (adopt/reset) since the new connection carries a
+   * different table.
+   */
+  private appliedSeqCache: number | null = null;
 
   /**
    * Low-level opening: wrap a backend's connections. A bare path string is
@@ -371,6 +378,11 @@ export class Store {
     const envelopes = inputs.map((input) => validateEnvelope(input));
     const run = this.db.transaction(() => {
       const summaries: ChangeSummary[] = [];
+      // The per-batch cursor watermark: one sync_state upsert per workspace
+      // after the loop (it ran per envelope before — a second write per
+      // envelope for zero observable difference, since the whole batch is
+      // one transaction).
+      const cursorMax = new Map<string, number>();
       for (const env of envelopes) {
         if (this.hasApplied(env.id)) {
           summaries.push({ opType: env.opType, affectedNodeIds: [], ignored: true });
@@ -379,7 +391,7 @@ export class Store {
         try {
           const summary = applyEnvelope(this.db, env);
           const seq = this.recordEnvelope(env.id, env.timestamp);
-          this.advanceCursor(env.workspaceId, seq);
+          cursorMax.set(env.workspaceId, Math.max(cursorMax.get(env.workspaceId) ?? 0, seq));
           summaries.push(summary);
         } catch (err) {
           // Quarantine is for HISTORICAL POISON only — ops the log carries
@@ -392,7 +404,7 @@ export class Store {
           const message = err instanceof Error ? err.message : String(err);
           this.quarantineEnvelope(env, message);
           const seq = this.recordEnvelope(env.id, env.timestamp);
-          this.advanceCursor(env.workspaceId, seq);
+          cursorMax.set(env.workspaceId, Math.max(cursorMax.get(env.workspaceId) ?? 0, seq));
           summaries.push({
             opType: env.opType,
             affectedNodeIds: [],
@@ -401,6 +413,9 @@ export class Store {
             error: message,
           });
         }
+      }
+      for (const [workspaceId, seq] of cursorMax) {
+        this.advanceCursor(workspaceId, seq);
       }
       return summaries;
     });
@@ -443,16 +458,23 @@ export class Store {
   }
 
   private recordEnvelope(envelopeId: string, appliedAt: string): number {
+    // Cached MAX(seq): the INSERT's COALESCE((SELECT MAX(seq)…), 0) + 1
+    // scanned the whole growing table per envelope — O(n^2) over a replay.
+    // The store is the only writer and applies are serialized, so a
+    // lazily-read, incremented cache is exactly MAX + 1. Invalidated on
+    // connection swap (adopt/reset).
+    if (this.appliedSeqCache === null) {
+      const row = this.db
+        .prepare("SELECT COALESCE(MAX(seq), 0) AS seq FROM applied_envelope")
+        .get() as { seq: number };
+      this.appliedSeqCache = row.seq;
+    }
+    this.appliedSeqCache += 1;
+    const seq = this.appliedSeqCache;
     this.db
-      .prepare(
-        `INSERT INTO applied_envelope (id, seq, applied_at)
-         VALUES (?, COALESCE((SELECT MAX(seq) FROM applied_envelope), 0) + 1, ?)`,
-      )
-      .run(envelopeId, appliedAt);
-    const row = this.db
-      .prepare("SELECT seq FROM applied_envelope WHERE id = ?")
-      .get(envelopeId) as { seq: number };
-    return row.seq;
+      .prepare("INSERT INTO applied_envelope (id, seq, applied_at) VALUES (?, ?, ?)")
+      .run(envelopeId, seq, appliedAt);
+    return seq;
   }
 
   private advanceCursor(workspaceId: string, seq: number): void {
@@ -1178,6 +1200,7 @@ export class Store {
   /** The shared restore tail: schema ladder, FTS repair arm, connection swap. */
   private adopt(next: SqliteDB): void {
     this.abandonBulk();
+    this.appliedSeqCache = null;
     // The snapshot may carry an OLDER schema than this build (restore swaps
     // the whole database; nothing migrates it afterwards). Bump to the
     // current version — migrate() is version-gated and idempotent, and no-ops
@@ -1217,6 +1240,7 @@ export class Store {
   /** Drop all derived state (schema is recreated empty). */
   reset(): void {
     this.abandonBulk();
+    this.appliedSeqCache = null;
     this.db.close?.();
     this.db = this.backend.reset();
     migrate(this.db, this.backend.ftsModule);
