@@ -184,10 +184,18 @@ console.log("footer:", footerText.slice(0, 120));
 const footerBad = /sync error|illegal invocation/i.test(footerText);
 console.log("footer clean:", !footerBad);
 
-// UI search — via the command palette (the sidebar search icon opens it).
-await page.getByRole("button", { name: /^search$/i }).first().click();
+// UI search — via the command palette. The top-bar button is a11y-named
+// "Search" but its mount depends on shell state (it moved from the sidebar
+// mid-program); the Ctrl+K shortcut is the stable entry point.
+await page.keyboard.press("Control+k");
 const box = page.getByPlaceholder(/search/i).first();
-await box.waitFor({ timeout: 10_000 });
+try {
+  await box.waitFor({ timeout: 15_000 });
+} catch {
+  console.log("search box not found; inputs:", await page.evaluate(() =>
+    [...document.querySelectorAll("input")].map((i) => i.placeholder + "=" + (i.value || "").slice(0, 30)).join(" | ")));
+  throw new Error("command palette did not open on Ctrl+K");
+}
 await box.fill(term);
 // Poll for the hit instead of sleeping a fixed delay: the early body>500
 // boot gate passes seconds in — long before the restored/caught-up store
