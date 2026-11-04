@@ -160,25 +160,35 @@ export async function createKdfRecord(
   };
 }
 
-export async function unwrapMasterKey(password: string, record: KdfRecord): Promise<CryptoKey> {
+/**
+ * Unwrap the account master key: ONE scrypt derivation yielding BOTH the
+ * non-extractable handle (the session's working key) and the raw 32-byte
+ * material. `bytes` exists so a caller that must persist the key through a
+ * storage layer refusing CryptoKey structured-clone (Firefox + IndexedDB,
+ * 2026-11-04) can do so without a second scrypt; the caller must not retain
+ * it beyond the put. The verifier is checked before touching the wrapped
+ * key so a wrong password fails loud.
+ */
+export async function unwrapMasterKeyWithBytes(
+  password: string,
+  record: KdfRecord,
+): Promise<{ key: CryptoKey; bytes: Uint8Array }> {
   const salt = b64uDecode(record.salt);
   const wrapKeyBytes = scryptKeyBytes(password, salt);
-  // Fail fast on a wrong password: the verifier is over the derived key, so
-  // it is checkable before touching the wrapped master key (auth.ts parity).
   if (!constantTimeEqual(keyVerifierOf(wrapKeyBytes), b64uDecode(record.keyVerifier))) {
     throw new Error("master-key verifier mismatch (wrong password)");
   }
-  const wrapKey = await importAesKey(wrapKeyBytes, ["wrapKey", "unwrapKey"]);
   const { iv, sealed } = ivTagCtToSealed(b64uDecode(record.wrappedMasterKey));
-  return crypto.subtle.unwrapKey(
-    "raw",
-    sealed as BufferSource,
-    wrapKey,
-    { name: "AES-GCM", iv: iv as BufferSource },
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt", "wrapKey", "unwrapKey"],
+  const decryptKey = await importAesKey(wrapKeyBytes, ["decrypt"]);
+  const bytes = new Uint8Array(
+    await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, decryptKey, sealed as BufferSource),
   );
+  const key = await importAesKey(bytes, ["encrypt", "decrypt", "wrapKey", "unwrapKey"]);
+  return { key, bytes };
+}
+
+export function unwrapMasterKey(password: string, record: KdfRecord): Promise<CryptoKey> {
+  return unwrapMasterKeyWithBytes(password, record).then(({ key }) => key);
 }
 
 // --- workspace keys (master-key-wrapped) ---------------------------------------------
