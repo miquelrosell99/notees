@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Clock } from "@notees/protocol";
 import { Store } from "@notees/store";
@@ -92,6 +92,38 @@ async function snapshotMeta(server: TestServer) {
 }
 
 describe("snapshot self-heal after replay", () => {
+  it("replays hydration inside the store's bulk window and converges the deferred tables", async () => {
+    freshDataDir();
+    const first = await boot();
+    await seedObjects(first, 150, "seed");
+    await first.app.close();
+    servers = servers.filter((s) => s !== first);
+
+    const beginSpy = vi.spyOn(Store.prototype, "beginBulk");
+    const endSpy = vi.spyOn(Store.prototype, "endBulk");
+    try {
+      const second = await boot();
+      // Touch the workspace so hydration replays the log.
+      await seedObjects(second, 1, "post-boot");
+      expect(beginSpy).toHaveBeenCalled();
+      expect(endSpy).toHaveBeenCalled();
+    } finally {
+      beginSpy.mockRestore();
+      endSpy.mockRestore();
+    }
+
+    const store = servers[servers.length - 1]!.ctx.workspaces.storeFor(TEST_WORKSPACE);
+    const counts = store.database
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM node) AS nodes,
+                (SELECT COUNT(*) FROM node_stats) AS stats`,
+      )
+      .get() as { nodes: number; stats: number };
+    expect(counts.stats).toBe(counts.nodes);
+    // The search index was rebuilt by the window's tail, not per-op.
+    expect(store.search("seed-42").length).toBeGreaterThan(0);
+  });
+
   it("creates a snapshot from the replayed store when the log has none", async () => {
     freshDataDir();
     const first = await boot();
