@@ -398,25 +398,31 @@ client hook surface; no WS *client* ships.
   `POST /compact` (single-checkpoint snapshot+prune), `GET /stats`, WS
   `/ws/:workspaceId`. Auth: `X-API-Key` header (or `Authorization: Bearer`), socket via
   `?token=` or header; constant-time compare (`src/identity.ts`).
-- **Object/assets API** — prefix `/api` with an API-key preHandler
-  (`src/routes-objects.ts`, `src/assets.ts`): node CRUD (`GET/POST/PATCH/DELETE
-  /objects[/:id]`, plus `POST/DELETE /objects/:id/properties[...]`),
-  `GET /objects/:id/backlinks`, `GET /objects/:id/effective-properties`,
-  `GET /search`, **`POST /query` (arbitrary QueryAST execution)**,
-  `GET/POST /property-schemas`, `GET /classes[/:id]`,
-  `GET /properties/:id/values`; asset upload/download/info with magic-byte sniffing
+- **Coordination/assets API** — prefix `/api` with an API-key preHandler
+  (`src/routes-objects.ts`, `src/assets.ts`): **plan 07 retired the content
+  API** (node CRUD, `/search`, `/query`, backlinks, effective-properties,
+  merge, `export.zip`, node location — the server serves no content reads;
+  clients read their local derived stores, content changes ride the relay
+  log). What stays: property-schema CRUD + class binding
+  (`GET/POST/PATCH/DELETE /property-schemas`, `POST/DELETE
+  /classes/:id/properties[...]`), the class catalog (`GET /classes[/:id]`),
+  `GET /properties/:id/values`, and the metadata resolver (`GET /resolve`,
+  `POST /resolve/pdf`); asset upload/download/info with magic-byte sniffing
   (jpeg/png/webp/pdf/epub/audio), size caps (50MB media / 100MB documents), and Range
   requests. Auth/account routes (`src/routes-auth.ts`, same `/api` prefix): setup
   (first account only), env-gated signup (`NOTEES_SIGNUP_ENABLED`, default off —
   404 when disabled, advertised via `GET /server-info`'s `signupEnabled`),
-  login/logout/me, workspaces CRUD + `GET /workspaces/:id/export.zip` (markdown zip via
-  `@notees/export`: one file per page, manifest, optional assets) +
+  login/logout/me, workspaces CRUD (the export zip is CLIENT-side since
+  plan 07 — built from the connected workspace's local store) +
   **`POST /workspaces/:id/clone`** (owner-only snapshot-based clone: consistent
   online backup of the live derived store, `workspace_id` rewrite, installed as the
   clone's derived file + snapshot — checkpoint-based, the clone's log starts empty
   and the snapshot is load-bearing), API-key management
   (`GET/POST/DELETE /api-keys`, optional per-key scope sets),
-  `GET /nodes/:id/location`, `GET /server-info`.
+  `GET /server-info`. Per-user prefs ride ONE opaque blob (plan 07 — wrapped
+  under the account master key when one exists, unwrapped for keyless
+  self-host); workflow rules + run audit stay coordination data with
+  post-ingest probes retired (client-side evaluation is recorded debt).
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
 - **Prefs channel** (`src/routes-prefs.ts`, `src/routes-section-views.ts`,
