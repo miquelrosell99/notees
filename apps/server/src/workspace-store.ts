@@ -234,7 +234,17 @@ export class WorkspaceManager {
     // The E2EE slot ({"$e": …}) rides the log but is not applicable to
     // derived state. StoreError skips count as pending and retry on the
     // next pass (an envelope whose parent has not arrived yet).
-    this.replaySince(handle, workspaceId, afterSeq);
+    //
+    // The full replay runs inside the store's bulk window: per-op
+    // node_stats/search maintenance defers to one end-of-rebuild pass —
+    // the difference between minutes and seconds at log scale. The sweep's
+    // incremental replaySince stays online (never wraps a window).
+    handle.store.beginBulk();
+    try {
+      this.replaySince(handle, workspaceId, afterSeq);
+    } finally {
+      handle.store.endBulk();
+    }
     handle.hydrated = true;
     this.ensureSnapshotAfterReplay(workspaceId, handle);
   }

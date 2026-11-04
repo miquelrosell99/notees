@@ -6,7 +6,7 @@
  * the same approach as the store package's own tests).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { Clock, newEnvelope, type Envelope } from "@notees/protocol";
 import { Store, validateEnvelope } from "@notees/store";
@@ -327,6 +327,46 @@ describe("restoreEpoch change", () => {
     await b.engine.pull();
     expect(b.engine.getRestoreEpoch()).toBe(1);
     expect(dumpDb(b.store)).toEqual(dumpDb(aStore));
+  });
+
+  it("runs the wipe-resync inside the store's bulk window and converges the deferred tables", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const store = new Store();
+    const engine = new SyncEngine(store, new MemoryTransport(relay), new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    // No snapshot upload on the first sync: keeps the relay snapshot-less so
+    // the epoch resync replays the log IN the window (a snapshot restore
+    // mid-window abandons it by design — adopt clears the window and the
+    // tail applies online; correct, but not the shape this test asserts).
+    await engine.syncOnce({ skipSnapshotUpload: true });
+    relay.bumpRestoreEpoch();
+
+    const beginSpy = vi.spyOn(Store.prototype, "beginBulk");
+    const endSpy = vi.spyOn(Store.prototype, "endBulk");
+    try {
+      await engine.pull();
+      // The full wipe-resync replay is wrapped in exactly one window.
+      expect(beginSpy).toHaveBeenCalledTimes(1);
+      expect(endSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      beginSpy.mockRestore();
+      endSpy.mockRestore();
+    }
+
+    // The deferred maintenance landed: a stats row for every node row and a
+    // live search index (both empty until endBulk if the deferral leaked).
+    const counts = store.database
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM node) AS nodes,
+                (SELECT COUNT(*) FROM node_stats) AS stats`,
+      )
+      .get() as { nodes: number; stats: number };
+    expect(counts.stats).toBe(counts.nodes);
+    expect(store.search("Parent").length).toBeGreaterThan(0);
   });
 });
 

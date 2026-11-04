@@ -484,7 +484,18 @@ export class SyncEngine {
     this.persistState();
     this.uploadedSnapshotHlc = null;
 
-    await this.pullInternal({});
+    // The full replay runs inside the store's bulk window (the wipe-rebuild
+    // cost the server-side hydrate also pays): per-op node_stats/search
+    // maintenance defers to one end-of-rebuild pass. The window survives
+    // page-by-page applyMany calls (nesting is depth-counted); an internal
+    // snapshot restore abandons it (adopt clears the window) and the tail
+    // then applies online — correct either way.
+    this.store.beginBulk();
+    try {
+      await this.pullInternal({});
+    } finally {
+      this.store.endBulk();
+    }
     const requeued = this.outbox.requeueParked();
     if (requeued > 0) this.callbacks.onParkedChanges?.(this.outbox.parkedCount());
     if (requeued > 0 || this.outbox.counts().pending > 0) {
