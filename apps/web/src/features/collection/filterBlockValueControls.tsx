@@ -14,6 +14,7 @@ import { useRef, useState } from "react";
 import type { Condition, DatePeriod, PropertyOp, TargetRef } from "@notees/query";
 
 import type { AnyClient } from "./index.js";
+import { applyBooleanValue } from "./filterBlockModel.js";
 import { Icon } from "../../ui/Icon.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
@@ -406,7 +407,13 @@ export function PropertySchemaPick({
       ]}
       value={schemaId}
       onChange={(value) => {
-        if (value !== null) onChange({ type: "property", schemaId: value, op: "eq", value: "" });
+        if (value === null) return;
+        // A boolean schema seeds the truth value — the register ruling: the
+        // value column IS the predicate (is-true ≡ is set + true), so a
+        // freshly picked boolean property reads "is true", never a blank
+        // half-typed value.
+        const schema = facts.boundProperties.find((property) => property.id === value);
+        onChange({ type: "property", schemaId: value, op: "eq", value: schema?.type === "boolean" ? true : "" });
       }}
     />
   );
@@ -456,7 +463,10 @@ function PropertyValue({
           }}
         />
       )}
-      {condition.type === "property" && condition.op !== "exists" && schema?.type === "boolean" && (
+      {condition.type === "property" && schema?.type === "boolean" && (
+        // The boolean value selector IS the predicate — live on the eq row
+        // AND the set bits (picking true/false from an "is set" row
+        // re-materializes the eq row: is-true ≡ is set + true).
         <Dropdown
           size="sm"
           ariaLabel="Value"
@@ -466,7 +476,7 @@ function PropertyValue({
           ]}
           value={typeof condition.value === "boolean" ? String(condition.value) : ""}
           onChange={(value) => {
-            if (value !== null) patch({ value: value === "true" });
+            if (value !== null) onChange(applyBooleanValue(condition, value === "true"));
           }}
         />
       )}

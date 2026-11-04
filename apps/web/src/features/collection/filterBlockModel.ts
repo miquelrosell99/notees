@@ -223,15 +223,13 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "type":
-      return [
-        { value: "is", label: "is" },
-        { value: "is-not", label: "is not" },
-      ];
     case "placement":
-      return [
-        { value: "is", label: "is" },
-        { value: "is-not", label: "is not" },
-      ];
+      // The boolean rows ride a SINGLE value selector (the owner's register
+      // ruling): the wire booleans are non-nullable, so is/is-not is
+      // redundant with the value ("is not block" ≡ "is page"). No operator
+      // column — the builder skips the dropdown when the list is empty.
+      // Negatives stay reachable via group-level Exclude (NOT) and Raw AST.
+      return [];
     case "page":
       // The CONTAINING PAGE is one node — is/is not bind the picked list,
       // is set/is not set the lives-inside-a-page bit.
@@ -334,11 +332,11 @@ export function propertyOperatorOptions(
         ...set,
       ];
     case "boolean":
-      return [
-        { value: "is-true", label: "is true" },
-        { value: "is-false", label: "is false" },
-        ...set,
-      ];
+      // The value column is the true/false predicate; the operator column
+      // carries ONLY the set bits (is-true ≡ is set + true — the ruling's
+      // fold). The is-true/is-false morphs survive on applyOperator for
+      // Raw-AST round-trips, unoffered here.
+      return [...set];
     case "object":
       // Node-typed: the value control is the anchored node picker.
       return [
@@ -391,9 +389,10 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       if (condition.op === "exists") return negated ? "not-set" : "set";
       if (condition.op === "between") return "between";
       if (condition.op === "within") return "within";
+      // The boolean register folds the truth value into the VALUE column
+      // (is-true ≡ set + true): the operator column reads the set axis only.
       if (condition.op === "eq" && typeof condition.value === "boolean") {
-        const truth = negated ? !condition.value : condition.value;
-        return truth ? "is-true" : "is-false";
+        return negated ? "not-set" : "set";
       }
       // The scalar arms read the polarity too: a not-wrapped eq/contains
       // row renders its negative label (the content family's contract).
@@ -584,6 +583,19 @@ function applyPropertyOperator(condition: Extract<Condition, { type: "property" 
     default:
       return condition;
   }
+}
+
+/**
+ * The boolean property row's value-selector morph (the ruling's set+value
+ * fold): picking true/false re-materializes the positive eq row — from an
+ * `exists` row as much as from an eq row. The value IS the predicate; the
+ * row-level not-wrap re-applies when the row renders negated (Exclude).
+ */
+export function applyBooleanValue(
+  condition: Extract<Condition, { type: "property" }>,
+  value: boolean,
+): Extract<Condition, { type: "property" }> {
+  return { type: "property", schemaId: condition.schemaId, op: "eq", value };
 }
 
 /**

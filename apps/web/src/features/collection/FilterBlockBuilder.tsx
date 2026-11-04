@@ -704,17 +704,26 @@ function BlockRow({
             </span>
           )}
         </div>
-        <div className="nt-fb-block__operator">
-          <Dropdown
-            size="sm"
-            ariaLabel="Operator"
-            options={operatorOptions(family, condition, facts).map((option) => ({ value: option.value, label: option.label }))}
-            value={operatorOf(condition, negated)}
-            onChange={(value) => {
-              if (value !== null) onChange(applyOperator(condition, value));
-            }}
-          />
-        </div>
+        {(() => {
+          // The boolean rows (Type/Placement) ride a single value selector —
+          // an empty operator register renders NO operator column (the
+          // ruling); every other family renders the dropdown.
+          const operatorOpts = operatorOptions(family, condition, facts);
+          if (operatorOpts.length === 0) return null;
+          return (
+            <div className="nt-fb-block__operator">
+              <Dropdown
+                size="sm"
+                ariaLabel="Operator"
+                options={operatorOpts.map((option) => ({ value: option.value, label: option.label }))}
+                value={operatorOf(condition, negated)}
+                onChange={(value) => {
+                  if (value !== null) onChange(applyOperator(condition, value));
+                }}
+              />
+            </div>
+          );
+        })()}
         <div className="nt-fb-block__value">
           <BlockValue
             condition={condition}

@@ -16,7 +16,9 @@ import { describe, expect, it } from "vitest";
 import type { Child, Condition, Group, MemberCondition, MemberFamily, TargetRef } from "@notees/query";
 
 import type { BuilderFacts } from "../src/features/collection/builderFacts.js";
+import type { ConditionKind } from "../src/features/collection/filterQuery.js";
 import {
+  applyBooleanValue,
   applyOperator,
   blockView,
   familyOf,
@@ -127,18 +129,30 @@ const REPRESENTATIVE: Condition[] = [
 ];
 
 describe("operatorOf reads a member of the family register", () => {
+  // The boolean rows (Type/Placement) ride a single value selector — no
+  // operator column at all (the owner's register ruling: the non-nullable
+  // wire booleans make is/is-not redundant with the value). Their option
+  // list is empty by contract; every OTHER family renders an operator that
+  // is a member of its offered list.
+  const NO_OPERATOR_COLUMN: readonly ConditionKind[] = ["type", "placement"];
+
   for (const condition of REPRESENTATIVE) {
     for (const negated of [false, true]) {
       it(`${condition.type}/${condition.type === "member" ? `${condition.family}.${condition.op}` : "…"}${negated ? " (negated)" : ""} renders an offered operator`, () => {
         const family = familyOf(condition);
         const offered = operatorOptions(family, condition, facts).map((option) => option.value);
+        if (NO_OPERATOR_COLUMN.includes(family)) {
+          expect(offered, family).toEqual([]);
+          return;
+        }
         expect(offered).toContain(operatorOf(condition, negated));
       });
     }
   }
 
-  it("every family option list is non-empty", () => {
+  it("every family option list is non-empty (except the single-selector boolean rows)", () => {
     for (const { value } of FAMILY_OPTIONS) {
+      if (NO_OPERATOR_COLUMN.includes(value)) continue;
       expect(operatorOptions(value, undefined, facts).length).toBeGreaterThan(0);
     }
   });
@@ -447,7 +461,7 @@ describe("coupling audit — an operator choice never mutates the value payload"
     }
   });
 
-  it("property (boolean) — single-axis register: is-true/is-false SET the value; the choice never wraps", () => {
+  it("property (boolean): the is-true/is-false morphs SET the value and never wrap (Raw-AST arms — the register folded)", () => {
     const truthy: Condition = { type: "property", schemaId: "bool", op: "eq", value: true };
     expect(applyOperator(truthy, "is-true")).toEqual(truthy);
     expect(applyOperator(truthy, "is-false")).toEqual({
@@ -559,15 +573,16 @@ describe("coupling audit — a value write never mutates the operator/polarity",
     ).toBe("not-contains");
   });
 
-  it("property (boolean) — single-axis register: re-picking true/false moves the label WITH the value; polarity holds", () => {
+  it("property (boolean): re-picking true/false moves the VALUE only — the operator column stays on the set axis", () => {
     const truthy: Child = { type: "property", schemaId: "bool", op: "eq", value: true };
-    expect(rowOperatorOf(truthy)).toBe("is-true");
-    // The value IS the predicate: a value write moves the operator label…
-    expect(rowOperatorOf(rowApplyValue(truthy, { type: "property", schemaId: "bool", op: "eq", value: false }))).toBe("is-false");
-    // …while the not-wrap polarity is the explicit axis (label flips under negation).
+    expect(rowOperatorOf(truthy)).toBe("set");
+    // The value IS the predicate: a value write moves only the value; the
+    // operator column holds the set axis (is-true ≡ set + true).
+    expect(rowOperatorOf(rowApplyValue(truthy, { type: "property", schemaId: "bool", op: "eq", value: false }))).toBe("set");
+    // The not-wrap polarity is the explicit axis (the operator reads not-set).
     const negated: Child = { type: "not", child: { type: "property", schemaId: "bool", op: "eq", value: true } };
-    expect(rowOperatorOf(negated)).toBe("is-false");
-    expect(rowOperatorOf(rowApplyValue(negated, { type: "property", schemaId: "bool", op: "eq", value: false }))).toBe("is-true");
+    expect(rowOperatorOf(negated)).toBe("not-set");
+    expect(rowOperatorOf(rowApplyValue(negated, { type: "property", schemaId: "bool", op: "eq", value: false }))).toBe("not-set");
   });
 
   it("date: retyping the timestamp keeps the operator at both polarities", () => {
@@ -593,13 +608,13 @@ describe("coupling audit — a value write never mutates the operator/polarity",
   });
 });
 
-describe("structural role (isEmbedded) / type (isClass): all four combinations are reachable and stable", () => {
-  // The reported bug: the operator selector and the value selector were
-  // conflated — "is" forced the value, "is not" forced the other value, and a
-  // value choice flipped the operator. The wire has independent axes
-  // (op + not-wrap for polarity, value "true"/"false" for the role), and the
-  // four combinations must each be reachable: is/page, is-not/page,
-  // is/block, is-not/block.
+describe("structural role (isEmbedded) / type (isClass): the not-wrap arms back Exclude (NOT) and Raw AST rows", () => {
+  // The operator×value conflation fix made polarity and value independent;
+  // the owner's register ruling then collapsed the row to a SINGLE value
+  // selector (is/is-not is redundant with a non-nullable boolean). Negatives
+  // remain reachable through the group-level Exclude (NOT) wrapper and Raw
+  // AST pastes — these walks pin the applyOperator arms and the not-wrap
+  // display path that back them.
   for (const field of ["isEmbedded", "isClass"] as const) {
     it(`${field}: is/page → is-not/page → is-not/block → is/block → is/page`, () => {
       const role = (value: "true" | "false"): Condition => ({
@@ -635,4 +650,117 @@ describe("structural role (isEmbedded) / type (isClass): all four combinations a
       expect(rowOperatorOf(child)).toBe("is");
     });
   }
+});
+
+// --- the single-selector boolean register (the owner's ruling) -----------------------
+//
+// The wire booleans are non-nullable (the compiler's columns are
+// nullable:false), so "is not block" ≡ "is page" — the two-axis register was
+// semantically redundant. The builder now offers the values DIRECTLY in one
+// selector; negatives remain reachable via group-level Exclude (NOT) and the
+// Raw AST. Wire shapes unchanged.
+
+describe("the boolean rows ride a single value selector (the owner's register ruling)", () => {
+  it("structural role / type rows offer NO operator column at either value", () => {
+    for (const family of ["type", "placement"] as const) {
+      const field = family === "type" ? "isClass" : "isEmbedded";
+      for (const value of ["true", "false"] as const) {
+        const condition: Condition = { type: "nodeField", field, op: "eq", value };
+        expect(operatorOptions(family, condition, facts), `${family}/${value}`).toEqual([]);
+      }
+    }
+  });
+
+  it("structural role: the value selector alone reaches Page and Block, stable both ways", () => {
+    const role = (value: "true" | "false"): Condition => ({
+      type: "nodeField",
+      field: "isEmbedded",
+      op: "eq",
+      value,
+    });
+    // The placement default: Page ("false" = standalone).
+    let child: Child = role("false");
+    expect(rowOperatorOf(child)).toBe("is");
+    expect(child).toEqual(role("false"));
+    // → Block: the value write IS the whole predicate.
+    child = rowApplyValue(child, role("true"));
+    expect(child).toEqual(role("true"));
+    expect(rowOperatorOf(child)).toBe("is");
+    // → Page: back again, nothing else moves.
+    child = rowApplyValue(child, role("false"));
+    expect(child).toEqual(role("false"));
+    expect(rowOperatorOf(child)).toBe("is");
+  });
+
+  it("type: the value selector alone reaches a-class and not-a-class", () => {
+    const role = (value: "true" | "false"): Condition => ({
+      type: "nodeField",
+      field: "isClass",
+      op: "eq",
+      value,
+    });
+    let child: Child = role("true");
+    expect(child).toEqual(role("true"));
+    child = rowApplyValue(child, role("false"));
+    expect(child).toEqual(role("false"));
+    expect(rowOperatorOf(child)).toBe("is");
+    child = rowApplyValue(child, role("true"));
+    expect(child).toEqual(role("true"));
+  });
+
+  it("boolean property rows: the operator column offers ONLY is set / is not set", () => {
+    const truthy: Condition = { type: "property", schemaId: "bool", op: "eq", value: true };
+    expect(operatorOptions("property", truthy, facts).map((option) => option.value)).toEqual([
+      "set",
+      "not-set",
+    ]);
+    const exists: Condition = { type: "property", schemaId: "bool", op: "exists" };
+    expect(operatorOptions("property", exists, facts).map((option) => option.value)).toEqual([
+      "set",
+      "not-set",
+    ]);
+    // The operator column reads the set axis at both polarities.
+    expect(operatorOf(truthy, false)).toBe("set");
+    expect(operatorOf(exists, false)).toBe("set");
+    expect(operatorOf(exists, true)).toBe("not-set");
+  });
+
+  it("boolean property rows: is-true / is-false / is set / is not set are all reachable and stable", () => {
+    type BoolProp = Extract<Condition, { type: "property" }>;
+    const eq = (value: boolean): BoolProp => ({ type: "property", schemaId: "bool", op: "eq", value });
+    const exists: BoolProp = { type: "property", schemaId: "bool", op: "exists" };
+    const pickValue = (child: Child, value: boolean): Child =>
+      rowApplyValue(child, applyBooleanValue(child as BoolProp, value));
+
+    // is true: the default eq row.
+    let child: Child = eq(true);
+    expect(rowOperatorOf(child)).toBe("set");
+    // → is false: the value write moves only the value.
+    child = pickValue(child, false);
+    expect(child).toEqual(eq(false));
+    expect(rowOperatorOf(child)).toBe("set");
+    // → is set: the set bit re-materializes exists (the value folds away).
+    child = rowApplyOperator(child as Condition, "set");
+    expect(child).toEqual(exists);
+    expect(rowOperatorOf(child)).toBe("set");
+    // → is not set: the negative set bit wraps.
+    child = rowApplyOperator(child as Condition, "not-set");
+    expect(child).toEqual({ type: "not", child: exists });
+    expect(rowOperatorOf(child)).toBe("not-set");
+    // → is set: the positive unwraps.
+    child = rowApplyOperator(child as Condition, "set");
+    expect(child).toEqual(exists);
+    // → is true: the value selector re-materializes the eq row from exists
+    // (the set+value fold the ruling defines).
+    child = pickValue(child, true);
+    expect(child).toEqual(eq(true));
+    expect(rowOperatorOf(child)).toBe("set");
+  });
+
+  it("boolean property rows: the value selector is the whole predicate — a value write never moves the set axis", () => {
+    const truthy = { type: "property", schemaId: "bool", op: "eq", value: true } as const;
+    const falsy = rowApplyValue(truthy, applyBooleanValue(truthy, false));
+    expect(falsy).toEqual({ type: "property", schemaId: "bool", op: "eq", value: false });
+    expect(rowOperatorOf(falsy)).toBe("set");
+  });
 });
