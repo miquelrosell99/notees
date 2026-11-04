@@ -162,12 +162,13 @@ export class HttpTransport implements Transport {
     return new Uint8Array(await response.arrayBuffer());
   }
 
-  async uploadSnapshot(bytes: Uint8Array, hlc: Hlc): Promise<void> {
+  async uploadSnapshot(bytes: Uint8Array, hlc: Hlc, sealed = false): Promise<void> {
     const params = new URLSearchParams({
       workspaceId: this.workspaceId,
       physical: String(hlc.physical),
       logical: String(hlc.logical),
     });
+    if (sealed) params.set("sealed", "1");
     // Transfer-only gzip (no wire change): when CompressionStream exists
     // (browsers, Node 18+) the body crosses gzipped — the server's 512 MiB
     // body cap and the engine's SNAPSHOT_UPLOAD_BODY_LIMIT then bound the
@@ -484,6 +485,7 @@ export class MemoryRelay {
   private snapshotBytes: Buffer | null = null;
   private snapshotHlc: Hlc = { physical: 0, logical: 0 };
   private snapshotUpToSeq: number | null = null;
+  private snapshotSealed = false;
   private snapshotCounter = 0;
   private readonly subscribers = new Set<RealtimeHandlers>();
 
@@ -531,6 +533,7 @@ export class MemoryRelay {
       hasSnapshot: this.snapshotBytes !== null,
       restoreEpoch: this.epoch,
       upToSeq: this.snapshotUpToSeq,
+      sealed: this.snapshotSealed,
     };
   }
 
@@ -542,10 +545,11 @@ export class MemoryRelay {
   }
 
   /** PUT /snapshot/data: record a client-produced snapshot covering the whole log. */
-  putSnapshot(bytes: Uint8Array, hlc: Hlc): void {
+  putSnapshot(bytes: Uint8Array, hlc: Hlc, sealed = false): void {
     this.snapshotBytes = Buffer.from(bytes);
     this.snapshotHlc = hlc;
     this.snapshotUpToSeq = this.log.length;
+    this.snapshotSealed = sealed;
   }
 
   /** Simulate a server restore/backup swap: epoch bumps, optionally replacing the log. */
@@ -556,6 +560,7 @@ export class MemoryRelay {
       this.seqById.clear();
       this.snapshotBytes = null;
       this.snapshotUpToSeq = null;
+      this.snapshotSealed = false;
     }
   }
 
@@ -623,8 +628,8 @@ export class MemoryTransport implements Transport {
     return this.relay.getSnapshotData();
   }
 
-  async uploadSnapshot(bytes: Uint8Array, hlc: Hlc): Promise<void> {
-    this.relay.putSnapshot(bytes, hlc);
+  async uploadSnapshot(bytes: Uint8Array, hlc: Hlc, sealed?: boolean): Promise<void> {
+    this.relay.putSnapshot(bytes, hlc, sealed);
   }
 
   subscribe(handlers: RealtimeHandlers): () => void {

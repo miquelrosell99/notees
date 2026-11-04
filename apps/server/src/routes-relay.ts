@@ -57,6 +57,8 @@ const snapshotPutQuerySchema = z.object({
   logical: z.coerce.number().int().nonnegative(),
   /** `import` installs the body as the workspace's derived store instead of publishing it as a client checkpoint. */
   mode: z.enum(["import"]).optional(),
+  /** `1` declares the body a SEALED image (a keyed client's upload). Absent = a plaintext derived store — the default every other producer (keyless uploads, the server's self-heal snapshot, imports, clones, compactions) stores. */
+  sealed: z.enum(["1"]).optional(),
 });
 
 /** Whether an encoding header (Accept-Encoding / Content-Encoding) carries a gzip token. */
@@ -191,6 +193,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
         hasSnapshot: false,
         restoreEpoch,
         upToSeq: null,
+        sealed: false,
       };
     }
     return {
@@ -199,6 +202,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
       hasSnapshot: true,
       restoreEpoch,
       upToSeq: snapshot.up_to_seq,
+      sealed: snapshot.sealed === 1,
     };
   });
 
@@ -234,7 +238,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", "workspaceId, physical and logical query parameters required");
     }
-    const { workspaceId, physical, logical, mode } = parsed.data;
+    const { workspaceId, physical, logical, mode, sealed } = parsed.data;
     requireCredential(ctx, request, workspaceId, "write");
     const rawBody = request.body;
     if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
@@ -283,6 +287,9 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
       }
       const snapshotId = uuidv7();
       const upToSeq = ctx.relay.latestSeq(workspaceId);
+      // The import image is installed as the workspace's DERIVED store —
+      // plaintext by construction (a sealed body would fail the node gate
+      // above), so the stored checkpoint stays sealed:false.
       ctx.relay.saveSnapshot(workspaceId, snapshotId, { physical, logical }, upToSeq, body);
       reply.code(201);
       return {
@@ -313,7 +320,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     }
     const snapshotId = uuidv7();
     const upToSeq = ctx.relay.latestSeq(workspaceId);
-    ctx.relay.saveSnapshot(workspaceId, snapshotId, { physical, logical }, upToSeq, body);
+    ctx.relay.saveSnapshot(workspaceId, snapshotId, { physical, logical }, upToSeq, body, sealed === "1");
     reply.code(201);
     return {
       snapshotId,

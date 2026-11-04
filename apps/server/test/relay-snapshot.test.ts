@@ -41,6 +41,7 @@ describe("snapshots", () => {
       hasSnapshot: false,
       restoreEpoch: 0,
       upToSeq: null,
+      sealed: false,
     });
   });
 
@@ -72,6 +73,7 @@ describe("snapshots", () => {
       hasSnapshot: true,
       upToSeq: 1,
       restoreEpoch: 0,
+      sealed: false,
       hlc: { physical: 100, logical: 2 },
     });
     expect(meta.json().snapshotId).toBe(putBody.snapshotId);
@@ -84,6 +86,43 @@ describe("snapshots", () => {
     expect(data.statusCode).toBe(200);
     expect(data.headers["content-type"]).toBe("application/octet-stream");
     expect(Buffer.from(data.rawPayload).equals(SNAPSHOT_BYTES)).toBe(true);
+  });
+
+  it("sealed=1 declares a sealed blob — the flag round-trips through PUT and GET meta; the default stays 0", async () => {
+    server = await makeTestServer();
+    await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("s") })]);
+    const put = await server.app.inject({
+      method: "PUT",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server.workspaceId}&physical=100&logical=2&sealed=1`,
+      headers: { "content-type": "application/octet-stream", ...server.authHeaders },
+      payload: SNAPSHOT_BYTES,
+    });
+    expect(put.statusCode).toBe(201);
+
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(meta.json().sealed).toBe(true);
+    // The blob itself round-trips untouched.
+    const data = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(Buffer.from(data.rawPayload).equals(SNAPSHOT_BYTES)).toBe(true);
+
+    // A replacement upload WITHOUT the param reverts the flag to false
+    // (retention swaps the checkpoint wholesale).
+    const plain = await putSnapshot(200, 3);
+    expect(plain.statusCode).toBe(201);
+    const meta2 = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(meta2.json().sealed).toBe(false);
   });
 
   it("a new snapshot prunes the previous one — retention keeps only the newest per workspace", async () => {

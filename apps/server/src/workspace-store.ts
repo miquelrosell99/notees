@@ -268,6 +268,10 @@ export class WorkspaceManager {
     if (this.relay.latestSnapshot(workspaceId) !== null) return;
     if (this.relay.envelopeCount(workspaceId) < SNAPSHOT_REBUILD_MIN_ENVELOPES) return;
     try {
+      // The server's own image is a PLAINTEXT derived store by construction:
+      // sealed envelopes skip the apply, so the blob can never open under a
+      // workspace key — the row stays sealed:false (the default) and keyed
+      // clients restore it as-is (their meta.sealed branch).
       const bytes = handle.store.snapshot();
       this.relay.saveSnapshot(
         workspaceId,
