@@ -118,6 +118,7 @@ export class WorkspaceClient {
     /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
     workspaceKey?: Uint8Array;
     onSyncPhase?: (phase: string, message: string) => void;
+    onSyncProgress?: (applied: number, total: number) => void;
   }): Promise<WorkspaceClient> {
     const transport = new HttpTransport({
       baseUrl: options.serverUrl,
@@ -131,6 +132,7 @@ export class WorkspaceClient {
       sqlJsConfig: options.sqlJsConfig,
       ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
       ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
+      ...(options.onSyncProgress !== undefined ? { onSyncProgress: options.onSyncProgress } : {}),
     });
   }
 

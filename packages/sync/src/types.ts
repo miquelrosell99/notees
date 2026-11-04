@@ -95,7 +95,9 @@ export interface SyncPushProgress {
 }
 
 export interface SyncPullProgress {
+  /** Running count of applied envelopes across the pull's pages. */
   applied: number;
+  /** The projected final count (applied + still-remaining after this page); creeps upward when the log grows mid-replay. */
   total: number;
 }
 

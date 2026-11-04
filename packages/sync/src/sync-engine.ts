@@ -493,7 +493,14 @@ export class SyncEngine {
         appliedOps += pageResult.applied;
         changeInfo = mergeChangeInfo(changeInfo, pageResult.info);
       }
-      this.callbacks.onPullProgress?.({ applied: appliedOps, total: appliedOps + page.totalRemaining });
+      // totalRemaining counts THIS page too (relay-storage contract), so the
+      // honest denominator subtracts the page's own envelopes — otherwise the
+      // fraction double-counts them (a single-page pull would cap at 50%). The
+      // total still creeps upward when the log grows mid-replay; the UI clamps.
+      this.callbacks.onPullProgress?.({
+        applied: appliedOps,
+        total: appliedOps + Math.max(0, page.totalRemaining - page.envelopes.length),
+      });
 
       if (page.nextAfterSeq !== null && page.nextAfterSeq > this.cursorSeq) {
         this.cursorSeq = page.nextAfterSeq;

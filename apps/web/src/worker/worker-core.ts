@@ -290,6 +290,12 @@ export interface WorkerCoreOptions {
    * main thread as {type:"syncPhase"}).
    */
   onSyncPhase?: (phase: string, message: string) => void;
+  /**
+   * Engine catch-up progress ({applied, total} per page) — NOT consumed by
+   * the core; forwarded to the wrapped WorkspaceClient (the store-worker
+   * entry postMessages it to the main thread as {type:"syncProgress"}).
+   */
+  onSyncProgress?: (applied: number, total: number) => void;
 }
 
 export interface WorkerCoreStats {
@@ -368,6 +374,7 @@ export class WorkerCore {
       ...(options.onConflict !== undefined ? { onConflict: options.onConflict } : {}),
       ...(options.onSyncError !== undefined ? { onSyncError: options.onSyncError } : {}),
       ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
+      ...(options.onSyncProgress !== undefined ? { onSyncProgress: options.onSyncProgress } : {}),
     });
     const core = new WorkerCore(
       client,

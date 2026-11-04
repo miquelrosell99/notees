@@ -54,6 +54,10 @@ const ctx: WorkerContext = {
     // operations", "Synced") — surfaced on the connecting screen.
     const onSyncPhase = (phase: string, message: string) =>
       workerScope.postMessage({ type: "syncPhase", phase, message });
+    // Catch-up progress ({applied, total} per page) — the connecting screen's
+    // progress bar rides the same push channel as the phases.
+    const onSyncProgress = (applied: number, total: number) =>
+      workerScope.postMessage({ type: "syncProgress", applied, total });
     const common = {
       opfs,
       fileName,
@@ -66,6 +70,7 @@ const ctx: WorkerContext = {
       apiKey,
       onNotify,
       onSyncPhase,
+      onSyncProgress,
     };
 
     if (sqliteWasmUrl !== undefined) {
