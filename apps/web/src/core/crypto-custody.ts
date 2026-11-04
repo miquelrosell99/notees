@@ -12,14 +12,14 @@
 import {
   exportWorkspaceKey,
   generateWorkspaceKey,
-  unwrapMasterKey,
+  unwrapMasterKeyWithBytes,
   unwrapWorkspaceKey,
   wrapWorkspaceKey,
   type KdfRecord,
 } from "@notees/protocol";
 
 import { fetchWorkspaceKey, storeWorkspaceKey, AuthRequestError } from "./auth-api.js";
-import { deleteMasterKey, loadMasterKey, storeMasterKey } from "./master-key-storage.js";
+import { deleteMasterKey, loadMasterKey, storeMasterKey, storeMasterKeyBytes } from "./master-key-storage.js";
 
 /** Opaque handle on the account master key (one per session). */
 export interface MasterKeyHandle {
@@ -41,16 +41,21 @@ const inFlightEnsures = new Map<string, Promise<Uint8Array>>();
  * slot, replacing any previous account's key.
  */
 export async function deriveMasterKey(password: string, kdf: KdfRecord): Promise<MasterKeyHandle> {
-  const key = await unwrapMasterKey(password, kdf);
+  // One scrypt for both faces of the key: the non-extractable handle the
+  // session works with, and the raw bytes — fallback material for storage
+  // layers that refuse to structured-clone a CryptoKey (Firefox + IndexedDB).
+  // The bytes are handed to persistence and dropped; nothing retains them.
+  const { key, bytes } = await unwrapMasterKeyWithBytes(password, kdf);
   const handle: MasterKeyHandle = { key };
   masterKeySlot = handle;
   workspaceKeyCache.clear();
-  // Persist the non-extractable handle so a reload within the signed-in
-  // session doesn't require re-unlocking. Bounded-await: the fast-path write
-  // is guaranteed done before this resolves; a stall can never block
+  // Persist the handle so a reload within the signed-in session doesn't
+  // require re-unlocking: the non-extractable CryptoKey on Chromium, the
+  // raw-bytes record as the Firefox fallback. Bounded-await: the fast-path
+  // write is guaranteed done before this resolves; a stall can never block
   // login/unlock past the cap. Never throws — the memory-only fallback and
   // the locked banner cover a failed write.
-  await persistMasterKey(key);
+  await persistMasterKey(key, bytes);
   return handle;
 }
 
@@ -61,17 +66,34 @@ const MASTER_KEY_PERSIST_TIMEOUT_MS = 1000;
  * Store the derived handle with a bounded await, one warning on failure, and
  * one deferred macrotask retry (transient stalls recover silently). Fully
  * self-contained: never rejects, so deriveMasterKey's contract is unchanged.
+ * `rawBytes` is the fallback material for storage layers refusing CryptoKey
+ * structured-clone (Firefox); it exists only inside this call.
  */
-async function persistMasterKey(key: CryptoKey): Promise<void> {
+async function persistMasterKey(key: CryptoKey, rawBytes: Uint8Array): Promise<void> {
   const warn = (error: unknown) => {
     console.warn(
       "[notees-web] master key not persisted — reloads will ask for the password again:",
       error,
     );
   };
+  // Firefox refuses to structured-clone a CryptoKey into IndexedDB
+  // (DataCloneError on put). After the first refusal this run switches to
+  // the raw-bytes record, so the deferred retry skips the doomed put.
+  let mode: "key" | "bytes" = "key";
+  const attempt = async (): Promise<void> => {
+    if (mode === "key") {
+      try {
+        await storeMasterKey(key);
+        return;
+      } catch {
+        mode = "bytes";
+      }
+    }
+    await storeMasterKeyBytes(rawBytes);
+  };
   try {
     await Promise.race([
-      storeMasterKey(key),
+      attempt(),
       new Promise<never>((_, reject) =>
         setTimeout(
           () => reject(new Error(`custody store stalled past ${MASTER_KEY_PERSIST_TIMEOUT_MS}ms`)),
@@ -85,7 +107,7 @@ async function persistMasterKey(key: CryptoKey): Promise<void> {
     // a busy IDB transaction) recovers silently; a systemic failure (storage
     // disabled, quota) warns once more. The record write stays idempotent.
     setTimeout(() => {
-      void storeMasterKey(key).catch(warn);
+      void attempt().catch(warn);
     }, 0);
   }
 }
