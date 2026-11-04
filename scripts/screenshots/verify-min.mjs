@@ -173,6 +173,17 @@ if (lockedBanner) {
     { timeout: 120_000 },
   ).catch(() => console.log("WARN: banner still up after 120s"));
   console.log("unlock submitted; replay in flight");
+
+  // The shell stays "Connecting…" until the reconnect's bootstrap completes —
+  // after an epoch wipe that is the FULL decrypting replay (minutes at live
+  // scale). Wait for the shell to settle before touching the search UI.
+  const settleT0 = Date.now();
+  await page.waitForFunction(
+    () => document.body.innerText.replace(/\n/g, " ").trim() !== "Notees Connecting…",
+    undefined,
+    { timeout: 900_000 },
+  ).then(() => console.log(`shell settled after unlock in ${((Date.now() - settleT0) / 1000).toFixed(0)}s`))
+   .catch(() => console.log("WARN: shell still Connecting… after 15m"));
 }
 
 // Footer: no sync error.
