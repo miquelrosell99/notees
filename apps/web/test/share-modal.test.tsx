@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import type {
   ClientNode,
@@ -16,6 +16,8 @@ import type { CloneWriteSurface } from "../src/core/clone.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 import { SharePageModal } from "../src/features/sharing/SharePageModal.js";
 import type { ShareEntry } from "../src/features/sharing/shareApi.js";
+
+
 
 afterEach(() => {
   cleanup();
@@ -40,6 +42,25 @@ function stubFetch(routes: Record<string, () => unknown>) {
 }
 
 const SERVER = "https://notees.example.com";
+
+const SEALED_URL = `${SERVER}/s/tok_sealed_000000000000000000000#AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA`;
+let clipboardText = "";
+vi.mock("../src/features/sharing/sealShare.js", () => ({
+  publishSealedShare: vi.fn(async () => ({
+    entry: {
+      token: "tok_sealed_000000000000000000000",
+      urlPath: "/s/tok_sealed_000000000000000000000",
+      nodeId: "page-1",
+      workspaceId: "ws1",
+      createdBy: null,
+      createdAt: 1,
+      expiresAt: null,
+      revokedAt: null,
+    },
+    url: "https://notees.example.com/s/tok_sealed_000000000000000000000#AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA",
+    keyBytes: new Uint8Array(32),
+  })),
+}));
 
 const EXISTING = {
   token: "tok_existing_00000000000000000000",
@@ -272,5 +293,81 @@ describe("NodeContextMenu Share… item", () => {
       />,
     );
     expect(screen.queryByText("Share…")).toBeNull();
+  });
+});
+
+describe("SharePageModal — sealed links (plan 08)", () => {
+  const SEALED_ENTRY: ShareEntry = {
+    ...EXISTING,
+    token: "tok_sealed_000000000000000000000",
+    urlPath: "/s/tok_sealed_000000000000000000000",
+  };
+
+  function stubSealedFetch() {
+    // The sealed row always lists (the mocked publishSealedShare bypasses the
+    // real create POST, so the stub lists it directly).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/shares?nodeId=page-1")) return Response.json({ shares: [SEALED_ENTRY, EXISTING] });
+        if (url.endsWith("/artifact")) return new Response(null, { status: 204 });
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+  }
+
+  function renderSealedModal() {
+    clipboardText = "";
+    vi.stubGlobal("navigator", {
+      ...globalThis.navigator,
+      clipboard: {
+        writeText: vi.fn(async (text: string) => {
+          clipboardText = text;
+        }),
+        readText: vi.fn(async () => clipboardText),
+      },
+    });
+    return render(
+      <SharePageModal
+        isOpen
+        onClose={() => {}}
+        serverUrl={SERVER}
+        token="session-token"
+        nodeUuid="page-1"
+        nodeName="Quarterly plan"
+        client={{} as never}
+      />,
+    );
+  }
+
+  it("with a client, creating a link publishes sealed: the row shows the #key URL and Copy preserves it", async () => {
+    stubSealedFetch();
+    renderSealedModal();
+
+    await screen.findByText(`${SERVER}/s/tok_existing_00000000000000000000`);
+    fireEvent.click(screen.getByText("Create another link"));
+
+    // The row shows the #key URL…
+    await screen.findByText(SEALED_URL);
+    // …and the plain Copy button copies the FULL link (fragment preserved).
+    const sealedRow = screen.getByText(SEALED_URL).closest("li")!;
+    fireEvent.click(within(sealedRow as HTMLElement).getByRole("button", { name: "Copy" }));
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe(SEALED_URL);
+  });
+
+  it("copying a sealed link WITHOUT the key warns that it is undecryptable", async () => {
+    stubSealedFetch();
+    renderSealedModal();
+
+    await screen.findByText(`${SERVER}/s/tok_existing_00000000000000000000`);
+    fireEvent.click(screen.getByText("Create another link"));
+    await screen.findByText(SEALED_URL);
+
+    const sealedRow = screen.getByText(SEALED_URL).closest("li")!;
+    fireEvent.click(within(sealedRow as HTMLElement).getByRole("button", { name: "Link only" }));
+    expect(await screen.findByText(/WITHOUT its key/i)).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe(`${SERVER}/s/tok_sealed_000000000000000000000`);
   });
 });
