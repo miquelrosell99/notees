@@ -12,8 +12,9 @@
  * an operator choice); the set bits re-materialize the condition as
  * `op: "exists"` / "op: "not-exists"` (no target at all). NOT-wraps remain
  * only where the register sugar predates the wire ops: the content/property/
- * date negatives and the wire-field "is not set". No React — the row
- * components in FilterBlockBuilder.tsx render this model.
+ * date negatives, the isClass/isEmbedded polarity (the boolean value is the
+ * independent other axis), and the wire-field "is not set". No React — the
+ * row components in FilterBlockBuilder.tsx render this model.
  */
 
 import type {
@@ -35,10 +36,10 @@ import {
 
 /**
  * A block's view of a child: a single condition, or a NOT wrapping one (the
- * content/property/date negatives and the wire-field "is not set" are sugar
- * over a not-wrap, so the draft AST carries them verbatim and the row
- * renders them as an operator choice). NOT-around-a-GROUP stays a group
- * wrapper (the NotBlock), never a block.
+ * content/property/date negatives, the isClass/isEmbedded polarity, and the
+ * wire-field "is not set" are sugar over a not-wrap, so the draft AST
+ * carries them verbatim and the row renders them as an operator choice).
+ * NOT-around-a-GROUP stays a group wrapper (the NotBlock), never a block.
  */
 export function blockView(child: Child): { negated: boolean; condition: Condition } | null {
   if (child.type === "not") {
@@ -394,6 +395,10 @@ export function operatorOf(condition: Condition, negated: boolean): string {
         const truth = negated ? !condition.value : condition.value;
         return truth ? "is-true" : "is-false";
       }
+      // The scalar arms read the polarity too: a not-wrapped eq/contains
+      // row renders its negative label (the content family's contract).
+      if (condition.op === "eq") return negated ? "neq" : "eq";
+      if (condition.op === "contains") return negated ? "not-contains" : "contains";
       return condition.op;
     case "date":
       if (condition.op === "eq") return negated ? "is-not" : "is";
@@ -401,8 +406,10 @@ export function operatorOf(condition: Condition, negated: boolean): string {
       return condition.op;
     case "nodeField":
       if (condition.field === "isClass" || condition.field === "isEmbedded") {
-        const truth = condition.value !== "false";
-        return negated ? (truth ? "is-not" : "is") : truth ? "is" : "is-not";
+        // The boolean axis rides the VALUE; polarity rides the not-wrap —
+        // the operator column reads (and applies) ONLY the polarity, like
+        // the content/property/date negatives and the set-bit arm below.
+        return negated ? "is-not" : "is";
       }
       return negated ? "not-exists" : "exists";
   }
@@ -530,7 +537,7 @@ function applyDateOperator(condition: Extract<Condition, { type: "date" }>, op: 
   }
 }
 
-/** The property morph: the op carries the value across; between/within keep the schema. */
+/** The property morph: the op carries the value across; between keeps the bounds (an eq value carries into the range); within keeps the period. */
 function applyPropertyOperator(condition: Extract<Condition, { type: "property" }>, op: string): Child {
   const schemaId = condition.schemaId;
   const carried = condition.value;
@@ -562,8 +569,12 @@ function applyPropertyOperator(condition: Extract<Condition, { type: "property" 
       return value("eq", true);
     case "is-false":
       return value("eq", false);
-    case "between":
-      return { type: "property", schemaId, op: "between", from: carried, to: condition.to };
+    case "between": {
+      // The bounds ride the re-pick: an eq value carries into the range
+      // (the date arm's contract); a between row keeps both bounds verbatim.
+      const from = condition.value !== undefined ? condition.value : condition.from;
+      return { type: "property", schemaId, op: "between", from, to: condition.to ?? condition.value };
+    }
     case "within":
       return { type: "property", schemaId, op: "within", period: condition.period ?? "today" };
     case "set":
@@ -578,10 +589,12 @@ function applyPropertyOperator(condition: Extract<Condition, { type: "property" 
 /**
  * Apply an operator choice to a block's condition, returning the new child
  * (not-wrapped where the register sugars the negative that way — the
- * content/property/date families and the wire fields). The member families
- * flip the wire op instead (in ⇄ not-in with the target verbatim; the set
- * bits re-materialize exists/not-exists); the boolean node fields flip their
- * value. The picked ids / values / timestamps carry across the morphs.
+ * content/property/date families, the isClass/isEmbedded polarity, and the
+ * wire fields). The member families flip the wire op instead (in ⇄ not-in
+ * with the target verbatim; the set bits re-materialize exists/not-exists).
+ * The orthogonality law: an operator choice NEVER touches the family's value
+ * payload (picked ids / text / value / boolean / bounds / timestamps ride
+ * across the morphs).
  */
 export function applyOperator(condition: Condition, op: string): Child {
   switch (condition.type) {
@@ -596,8 +609,11 @@ export function applyOperator(condition: Condition, op: string): Child {
       return applyPropertyOperator(condition, op);
     case "nodeField":
       if (condition.field === "isClass" || condition.field === "isEmbedded") {
-        // The boolean families flip their value instead of wrapping.
-        return { ...condition, value: op === "is-not" ? "false" : "true" };
+        // The orthogonality law: the operator choice touches ONLY the
+        // polarity — "is-not" wraps (the group-level not sugar, like the
+        // cover/banner/alias arm below), "is" returns the positive row. The
+        // boolean VALUE is the independent other axis and never moves here.
+        return op === "is-not" ? { type: "not", child: condition } : condition;
       }
       return op === "not-exists" ? { type: "not", child: condition } : condition;
   }

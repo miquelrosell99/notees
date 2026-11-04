@@ -13,11 +13,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { Condition, Group, MemberCondition, MemberFamily, TargetRef } from "@notees/query";
+import type { Child, Condition, Group, MemberCondition, MemberFamily, TargetRef } from "@notees/query";
 
 import type { BuilderFacts } from "../src/features/collection/builderFacts.js";
 import {
   applyOperator,
+  blockView,
   familyOf,
   FAMILY_OPTIONS,
   operatorOf,
@@ -30,6 +31,7 @@ const facts = {
     { id: "text", name: "Text", type: "text", options: null, targetClassFilter: null },
     { id: "num", name: "Num", type: "number", options: null, targetClassFilter: null },
     { id: "date", name: "Date", type: "datetime", options: null, targetClassFilter: null },
+    { id: "bool", name: "Bool", type: "boolean", options: null, targetClassFilter: null },
   ],
   numericProperties: [],
   classNames: new Map<string, string>(),
@@ -335,4 +337,302 @@ describe("the reported scenario end to end at the model level", () => {
     expect(operatorOf(negated as Condition, false)).toBe("not-contains");
     expect(applyOperator(negated as Condition, "contains")).toEqual(positive);
   });
+});
+
+// --- the coupling matrix -------------------------------------------------------------
+//
+// The two selector columns of every filter row are ORTHOGONAL: an operator
+// choice touches only the polarity/op axis (the value payload rides across
+// it), and a value write touches only the value axis (the operator read and
+// the not-wrap polarity hold). Where the register is intentionally
+// single-axis (boolean properties — the value IS the predicate; the
+// cover/banner/alias set bits — no value column exists), the intended
+// behavior is pinned by a named test so the distinction stays documented.
+
+/** Mirror of the BlockRow's operator-column onChange (FilterBlockBuilder.tsx). */
+function rowApplyOperator(child: Child, op: string): Child {
+  const view = blockView(child);
+  if (view === null) throw new Error("not a single-condition block row");
+  return applyOperator(view.condition, op);
+}
+
+/** Mirror of the BlockRow's BlockValue onChange (FilterBlockBuilder.tsx). */
+function rowApplyValue(child: Child, next: Condition): Child {
+  const view = blockView(child);
+  if (view === null) throw new Error("not a single-condition block row");
+  return view.negated ? { type: "not", child: next } : next;
+}
+
+/** The operator read a row renders (blockView unwrap + operatorOf). */
+function rowOperatorOf(child: Child): string {
+  const view = blockView(child);
+  if (view === null) throw new Error("not a single-condition block row");
+  return operatorOf(view.condition, view.negated);
+}
+
+describe("coupling audit — an operator choice never mutates the value payload", () => {
+  const MEMBER_FAMILIES: MemberFamily[] = [
+    "class",
+    "tags",
+    "links",
+    "referencePath",
+    "parent",
+    "child",
+    "childPath",
+    "page",
+    "parentPath",
+    "root",
+  ];
+
+  it("member (all ten families): every offered operator keeps the picked ids verbatim or swaps to the set shape", () => {
+    for (const family of MEMBER_FAMILIES) {
+      const ids = mIn(family, ["n1", "n2"]) as Extract<MemberCondition, { target: TargetRef }>;
+      for (const { value: op } of operatorOptions(family, ids, facts)) {
+        const result = applyOperator(ids, op);
+        if (op === "set") {
+          expect(result, `${family}/${op}`).toEqual({ type: "member", family, op: "exists" });
+          continue;
+        }
+        if (op === "not-set") {
+          expect(result, `${family}/${op}`).toEqual({ type: "member", family, op: "not-exists" });
+          continue;
+        }
+        // A membership label flips only the wire op — the target rides verbatim.
+        const r = result as Extract<MemberCondition, { target: TargetRef }>;
+        expect(r.family, `${family}/${op}`).toBe(family);
+        expect(["in", "not-in"], `${family}/${op}`).toContain(r.op);
+        expect(r.target, `${family}/${op}`).toEqual(ids.target);
+      }
+    }
+  });
+
+  it("content: the text rides every text operator; the negatives wrap with the text inside", () => {
+    const text: Condition = { type: "content", op: "contains", value: "hello" };
+    expect(applyOperator(text, "is")).toEqual({ type: "content", op: "eq", value: "hello" });
+    expect(applyOperator(text, "is-not")).toEqual({
+      type: "not",
+      child: { type: "content", op: "eq", value: "hello" },
+    });
+    expect(applyOperator(text, "contains")).toEqual(text);
+    expect(applyOperator(text, "not-contains")).toEqual({ type: "not", child: text });
+    expect(applyOperator(text, "starts")).toEqual({ type: "content", op: "starts", value: "hello" });
+    expect(applyOperator(text, "ends")).toEqual({ type: "content", op: "ends", value: "hello" });
+    expect(applyOperator(text, "fts")).toEqual({ type: "content", op: "fts", value: "hello" });
+    expect(applyOperator(text, "set")).toEqual({ type: "content", op: "exists" });
+    expect(applyOperator(text, "not-set")).toEqual({
+      type: "not",
+      child: { type: "content", op: "exists" },
+    });
+  });
+
+  it("name: the title text rides the eq/contains flips; the negative wraps with the text inside", () => {
+    const title: Condition = { type: "name", op: "contains", value: "hello" };
+    expect(applyOperator(title, "is")).toEqual({ type: "name", op: "eq", value: "hello" });
+    expect(applyOperator(title, "is-not")).toEqual({
+      type: "not",
+      child: { type: "name", op: "eq", value: "hello" },
+    });
+    expect(applyOperator(title, "contains")).toEqual(title);
+    expect(applyOperator(title, "not-contains")).toEqual({ type: "not", child: title });
+  });
+
+  it("property (scalar): the value rides eq/neq/contains/the comparators; not-contains wraps with it", () => {
+    const prop: Condition = { type: "property", schemaId: "text", op: "contains", value: "abc" };
+    expect(applyOperator(prop, "eq")).toEqual({ type: "property", schemaId: "text", op: "eq", value: "abc" });
+    expect(applyOperator(prop, "neq")).toEqual({ type: "property", schemaId: "text", op: "neq", value: "abc" });
+    expect(applyOperator(prop, "contains")).toEqual(prop);
+    expect(applyOperator(prop, "not-contains")).toEqual({ type: "not", child: prop });
+    for (const op of ["gt", "gte", "lt", "lte"] as const) {
+      expect(applyOperator(prop, op)).toEqual({ type: "property", schemaId: "text", op, value: "abc" });
+    }
+  });
+
+  it("property (boolean) — single-axis register: is-true/is-false SET the value; the choice never wraps", () => {
+    const truthy: Condition = { type: "property", schemaId: "bool", op: "eq", value: true };
+    expect(applyOperator(truthy, "is-true")).toEqual(truthy);
+    expect(applyOperator(truthy, "is-false")).toEqual({
+      type: "property",
+      schemaId: "bool",
+      op: "eq",
+      value: false,
+    });
+    // The value IS the predicate: either choice yields a POSITIVE condition —
+    // polarity never rides an is-true/is-false label.
+    expect(applyOperator(truthy, "is-false").type).toBe("property");
+    expect(applyOperator({ ...truthy, value: false }, "is-true").type).toBe("property");
+  });
+
+  it("property (bounds/period): re-picking between keeps both bounds; re-picking within keeps the period", () => {
+    const between: Condition = { type: "property", schemaId: "num", op: "between", from: "1", to: "9" };
+    expect(applyOperator(between, "between")).toEqual(between);
+    const within: Condition = { type: "property", schemaId: "date", op: "within", period: "this_week" };
+    expect(applyOperator(within, "within")).toEqual(within);
+  });
+
+  it("date: the timestamp rides is/is-not/the comparisons; between carries it into the range", () => {
+    for (const field of ["created", "updated"] as const) {
+      const stamp: Condition = { type: "date", field, op: "eq", timestamp: "2026-03-01" };
+      expect(applyOperator(stamp, "is"), field).toEqual(stamp);
+      expect(applyOperator(stamp, "is-not"), field).toEqual({
+        type: "not",
+        child: { type: "date", field, op: "eq", timestamp: "2026-03-01" },
+      });
+      for (const op of ["gt", "gte", "lt", "lte"] as const) {
+        expect(applyOperator(stamp, op), `${field}/${op}`).toEqual({
+          type: "date",
+          field,
+          op,
+          timestamp: "2026-03-01",
+        });
+      }
+      expect(applyOperator(stamp, "between"), field).toEqual({
+        type: "date",
+        field,
+        op: "between",
+        from: "2026-03-01",
+        to: "2026-03-01",
+      });
+      const between: Condition = { type: "date", field, op: "between", from: "2026-01-01", to: "2026-02-01" };
+      expect(applyOperator(between, "between"), field).toEqual(between);
+      // The raw-AST ordering arms carry the timestamp too (DSL-parsed rows).
+      const after: Condition = { type: "date", field, op: "after", timestamp: "2026-03-01" };
+      expect(applyOperator(after, "before"), field).toEqual({
+        type: "date",
+        field,
+        op: "before",
+        timestamp: "2026-03-01",
+      });
+    }
+  });
+
+  it("nodeField cover/banner/alias — single-axis register: the set bits ARE the condition (no value column exists)", () => {
+    for (const field of ["coverAsset", "bannerAsset", "aliasedNode"] as const) {
+      const set: Condition = { type: "nodeField", field, op: "exists" };
+      expect(applyOperator(set, "exists"), field).toEqual(set);
+      expect(applyOperator(set, "not-exists"), field).toEqual({ type: "not", child: set });
+    }
+  });
+
+  it("nodeField isClass/isEmbedded: an operator choice NEVER touches the boolean value", () => {
+    for (const field of ["isClass", "isEmbedded"] as const) {
+      for (const value of ["true", "false"] as const) {
+        const role: Condition = { type: "nodeField", field, op: "eq", value };
+        expect(applyOperator(role, "is"), `${field}/${value}`).toEqual(role);
+        expect(applyOperator(role, "is-not"), `${field}/${value}`).toEqual({
+          type: "not",
+          child: role,
+        });
+      }
+    }
+  });
+});
+
+describe("coupling audit — a value write never mutates the operator/polarity", () => {
+  it("member: retargeting the ids pick keeps the operator label at both polarities", () => {
+    const child: Child = mIn("links", ["n1"]);
+    const retargeted = rowApplyValue(child, mIn("links", ["n9", "n8"]));
+    expect(rowOperatorOf(retargeted)).toBe(rowOperatorOf(child));
+    const negated: Child = { type: "not", child: mIn("links", ["n1"]) };
+    const negRetargeted = rowApplyValue(negated, mIn("links", ["n9"]));
+    expect(negRetargeted).toEqual({
+      type: "not",
+      child: { type: "member", family: "links", op: "in", target: { mode: "ids", ids: ["n9"] } },
+    });
+    expect(rowOperatorOf(negRetargeted)).toBe(rowOperatorOf(negated));
+  });
+
+  it("content/name: retyping the text keeps the operator at both polarities", () => {
+    const text: Child = { type: "content", op: "contains", value: "hello" };
+    expect(rowOperatorOf(rowApplyValue(text, { ...text, value: "world" }))).toBe("contains");
+    const negated: Child = { type: "not", child: { type: "content", op: "eq", value: "hello" } };
+    expect(rowOperatorOf(rowApplyValue(negated, { type: "content", op: "eq", value: "world" }))).toBe("is-not");
+    const title: Child = { type: "name", op: "eq", value: "hello" };
+    expect(rowOperatorOf(rowApplyValue(title, { type: "name", op: "eq", value: "world" }))).toBe("is");
+  });
+
+  it("property (scalar): retyping the value keeps the op at both polarities", () => {
+    const prop: Child = { type: "property", schemaId: "text", op: "gt", value: "1" };
+    expect(rowOperatorOf(rowApplyValue(prop, { type: "property", schemaId: "text", op: "gt", value: "9" }))).toBe("gt");
+    const negated: Child = { type: "not", child: { type: "property", schemaId: "text", op: "contains", value: "a" } };
+    expect(
+      rowOperatorOf(rowApplyValue(negated, { type: "property", schemaId: "text", op: "contains", value: "b" })),
+    ).toBe("not-contains");
+  });
+
+  it("property (boolean) — single-axis register: re-picking true/false moves the label WITH the value; polarity holds", () => {
+    const truthy: Child = { type: "property", schemaId: "bool", op: "eq", value: true };
+    expect(rowOperatorOf(truthy)).toBe("is-true");
+    // The value IS the predicate: a value write moves the operator label…
+    expect(rowOperatorOf(rowApplyValue(truthy, { type: "property", schemaId: "bool", op: "eq", value: false }))).toBe("is-false");
+    // …while the not-wrap polarity is the explicit axis (label flips under negation).
+    const negated: Child = { type: "not", child: { type: "property", schemaId: "bool", op: "eq", value: true } };
+    expect(rowOperatorOf(negated)).toBe("is-false");
+    expect(rowOperatorOf(rowApplyValue(negated, { type: "property", schemaId: "bool", op: "eq", value: false }))).toBe("is-true");
+  });
+
+  it("date: retyping the timestamp keeps the operator at both polarities", () => {
+    const stamp: Child = { type: "date", field: "created", op: "gt", timestamp: "2026-01-01" };
+    expect(
+      rowOperatorOf(rowApplyValue(stamp, { type: "date", field: "created", op: "gt", timestamp: "2026-06-01" })),
+    ).toBe("gt");
+    const negated: Child = { type: "not", child: { type: "date", field: "updated", op: "eq", timestamp: "2026-01-01" } };
+    expect(
+      rowOperatorOf(rowApplyValue(negated, { type: "date", field: "updated", op: "eq", timestamp: "2026-06-01" })),
+    ).toBe("is-not");
+  });
+
+  it("nodeField isClass/isEmbedded: flipping the boolean keeps the operator read at both polarities", () => {
+    for (const field of ["isClass", "isEmbedded"] as const) {
+      const page: Child = { type: "nodeField", field, op: "eq", value: "false" };
+      const block = rowApplyValue(page, { type: "nodeField", field, op: "eq", value: "true" });
+      expect(rowOperatorOf(block), `${field} positive`).toBe(rowOperatorOf(page));
+      const notPage: Child = { type: "not", child: { type: "nodeField", field, op: "eq", value: "false" } };
+      const notBlock = rowApplyValue(notPage, { type: "nodeField", field, op: "eq", value: "true" });
+      expect(rowOperatorOf(notBlock), `${field} negated`).toBe(rowOperatorOf(notPage));
+    }
+  });
+});
+
+describe("structural role (isEmbedded) / type (isClass): all four combinations are reachable and stable", () => {
+  // The reported bug: the operator selector and the value selector were
+  // conflated — "is" forced the value, "is not" forced the other value, and a
+  // value choice flipped the operator. The wire has independent axes
+  // (op + not-wrap for polarity, value "true"/"false" for the role), and the
+  // four combinations must each be reachable: is/page, is-not/page,
+  // is/block, is-not/block.
+  for (const field of ["isEmbedded", "isClass"] as const) {
+    it(`${field}: is/page → is-not/page → is-not/block → is/block → is/page`, () => {
+      const role = (value: "true" | "false"): Condition => ({
+        type: "nodeField",
+        field,
+        op: "eq",
+        value,
+      });
+
+      // is/page (the placement default; "false" = standalone).
+      let child: Child = role("false");
+      expect(rowOperatorOf(child)).toBe("is");
+      expect(child).toEqual(role("false"));
+
+      // → is-not/page: the operator choice wraps; the value HOLDS.
+      child = rowApplyOperator(child, "is-not");
+      expect(child).toEqual({ type: "not", child: role("false") });
+      expect(rowOperatorOf(child)).toBe("is-not");
+
+      // → is-not/block: the value choice flips only the boolean; the wrap HOLDS.
+      child = rowApplyValue(child, role("true"));
+      expect(child).toEqual({ type: "not", child: role("true") });
+      expect(rowOperatorOf(child)).toBe("is-not");
+
+      // → is/block: the operator choice unwraps; the value HOLDS.
+      child = rowApplyOperator(child, "is");
+      expect(child).toEqual(role("true"));
+      expect(rowOperatorOf(child)).toBe("is");
+
+      // → is/page: the value choice flips only the boolean; the polarity HOLDS.
+      child = rowApplyValue(child, role("false"));
+      expect(child).toEqual(role("false"));
+      expect(rowOperatorOf(child)).toBe("is");
+    });
+  }
 });
