@@ -442,6 +442,25 @@ describe("query node (nodecollection surface below the content row)", () => {
     expect(within(section).getByRole("menuitem", { name: "Export results" })).toHaveProperty("disabled", true);
   });
 
+  it("a query block with NO query token renders the unspecified state — not 'invalid query'", async () => {
+    const client = await seedClient();
+    await seedWorld(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    // The block carries the query class but no query token at all: the
+    // user has not yet said what they are looking for (the documented
+    // unspecified state — an ABSENT ast is not an unparseable one).
+    await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: [],
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    const section = querySection(container);
+    expect(await within(section).findByText("Set a query to see results.")).not.toBeNull();
+    expect(section.querySelectorAll(".nt-query-invalid").length).toBe(0);
+  });
+
 
   it("pivot mode groups the full result set by two transient dimensions (count cells)", async () => {
     const client = await seedClient();
