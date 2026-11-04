@@ -165,6 +165,20 @@ export function operatorOptions(
         { value: "not-set", label: "is not set" },
       ];
     case "content":
+      if (condition?.type === "name") {
+        // A name row (the title register — enters via DSL parse / Raw-AST
+        // paste): only the ops the name morph implements. starts/ends/fts
+        // are content-only arms — offering them on a title row was a dead
+        // choice (applyTextOperator silently kept the condition).
+        return [
+          { value: "is", label: "is" },
+          { value: "is-not", label: "is not" },
+          { value: "contains", label: "contains" },
+          { value: "not-contains", label: "does not contain" },
+          { value: "set", label: "is set" },
+          { value: "not-set", label: "is not set" },
+        ];
+      }
       // The text operator set: exact/equality, substring, edge-anchored,
       // full-text, and the emptiness bit.
       return [
