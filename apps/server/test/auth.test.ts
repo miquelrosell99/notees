@@ -399,6 +399,66 @@ describe("relay authorization for accounts", () => {
   });
 });
 
+describe("workspace delete", () => {
+  it("DELETE removes the workspace and its data (owner only)", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Doomed" },
+    });
+    const workspaceId = created.json().id as string;
+
+    const memberUser = server.ctx.auth.createUser({
+      email: "member@example.com",
+      passwordHash: await hashPassword("member-password-1"),
+    });
+    const member = server.ctx.auth.createSession(memberUser.id).token;
+    server.ctx.auth.addMember(workspaceId, memberUser.id, "member");
+
+    // Non-owner member: forbidden.
+    const byMember = await server.app.inject({
+      method: "DELETE",
+      url: `/api/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${member}` },
+    });
+    expect(byMember.statusCode).toBe(403);
+
+    // Owner deletes.
+    const deleted = await server.app.inject({
+      method: "DELETE",
+      url: `/api/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toEqual({ ok: true });
+
+    // Gone from the owner's list; memberships went with it.
+    const list = await server.app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(list.json().workspaces.map((w: { id: string }) => w.id)).not.toContain(workspaceId);
+
+    // A second delete no longer finds it (also for the ex-member).
+    const again = await server.app.inject({
+      method: "DELETE",
+      url: `/api/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(again.statusCode).toBe(404);
+    const byExMember = await server.app.inject({
+      method: "DELETE",
+      url: `/api/workspaces/${workspaceId}`,
+      headers: { authorization: `Bearer ${member}` },
+    });
+    expect(byExMember.statusCode).toBe(404);
+  });
+});
+
 describe("workspace rename", () => {
   it("PATCH /workspaces/:id renames for the owner and refuses non-owners", async () => {
     server = await makeTestServer();
@@ -475,525 +535,6 @@ describe("workspace rename", () => {
   });
 });
 
-describe("workspace delete and export", () => {
-  it("DELETE removes the workspace and its data (owner only)", async () => {
-    server = await makeTestServer();
-    const owner = (await setupAdmin("owner@example.com")).json().token as string;
-    const created = await server.app.inject({
-      method: "POST",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-      payload: { name: "Doomed" },
-    });
-    const workspaceId = created.json().id as string;
-
-    const memberUser = server.ctx.auth.createUser({
-      email: "member@example.com",
-      passwordHash: await hashPassword("member-password-1"),
-    });
-    const member = server.ctx.auth.createSession(memberUser.id).token;
-    server.ctx.auth.addMember(workspaceId, memberUser.id, "member");
-
-    // Non-owner member: forbidden.
-    const byMember = await server.app.inject({
-      method: "DELETE",
-      url: `/api/workspaces/${workspaceId}`,
-      headers: { authorization: `Bearer ${member}` },
-    });
-    expect(byMember.statusCode).toBe(403);
-
-    // Owner deletes.
-    const deleted = await server.app.inject({
-      method: "DELETE",
-      url: `/api/workspaces/${workspaceId}`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(deleted.statusCode).toBe(200);
-    expect(deleted.json()).toEqual({ ok: true });
-
-    // Gone from the owner's list; memberships went with it.
-    const list = await server.app.inject({
-      method: "GET",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(list.json().workspaces.map((w: { id: string }) => w.id)).not.toContain(workspaceId);
-
-    // A second delete no longer finds it (also for the ex-member).
-    const again = await server.app.inject({
-      method: "DELETE",
-      url: `/api/workspaces/${workspaceId}`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(again.statusCode).toBe(404);
-    const byExMember = await server.app.inject({
-      method: "DELETE",
-      url: `/api/workspaces/${workspaceId}`,
-      headers: { authorization: `Bearer ${member}` },
-    });
-    expect(byExMember.statusCode).toBe(404);
-  });
-
-  it("GET /workspaces/:id/export.zip downloads the workspace as a zip of page files", async () => {
-    server = await makeTestServer();
-    const owner = (await setupAdmin("owner@example.com")).json().token as string;
-    const created = await server.app.inject({
-      method: "POST",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-      payload: { name: "Export Me" },
-    });
-    const workspaceId = created.json().id as string;
-
-    // A root page (property set), a main-zone child page it mentions from
-    // an inline block, and nested inline-body blocks. Rich tokens (mentions)
-    // survive only on inline blocks — document-chrome nodes flatten to
-    // text-only content (SCHEMA.md content flatten invariant).
-    const pageId = crypto.randomUUID();
-    const childPageId = crypto.randomUUID();
-    const mentionBlockId = crypto.randomUUID();
-    const blockId = crypto.randomUUID();
-    const nestedBlockId = crypto.randomUUID();
-    const schemaId = crypto.randomUUID();
-    const batch = await ingest(server, [
-      testEnvelope({
-        workspaceId,
-        opType: "propertySchema.create",
-        payload: { propertySchemaId: schemaId, name: "Status", type: "text" },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: {
-          objectId: pageId,
-          isEmbedded: false,
-          contentAst: [{ type: "text", text: "Exported Page" }],
-        },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "property.set",
-        payload: { objectId: pageId, propertySchemaId: schemaId, value: "in progress", idx: 0 },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: {
-          objectId: childPageId,
-          parentId: pageId,
-          isEmbedded: false,
-          contentAst: [{ type: "text", text: "Child Page" }],
-        },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: {
-          objectId: mentionBlockId,
-          parentId: pageId,
-          contentAst: [
-            { type: "text", text: "see " },
-            { type: "mention", targetNodeId: childPageId, text: "Child Page", displayText: "Child Page" },
-          ],
-        },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: {
-          objectId: blockId,
-          parentId: pageId,
-          contentAst: [{ type: "text", text: "child block body" }],
-        },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: {
-          objectId: nestedBlockId,
-          parentId: blockId,
-          contentAst: [{ type: "text", text: "nested grandchild" }],
-        },
-      }),
-    ]);
-    expect(batch.statusCode).toBe(200);
-
-    const exported = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export.zip`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(exported.statusCode).toBe(200);
-    expect(exported.headers["content-type"]).toContain("application/zip");
-    expect(exported.headers["content-disposition"]).toContain("Export-Me.zip");
-
-    const files = unzipSync(new Uint8Array(exported.rawPayload));
-    const findMd = (slug: string): string => {
-      const match = Object.keys(files).filter((name) => new RegExp(`^${slug}-[0-9a-f]{8}\\.md$`).test(name));
-      expect(match).toHaveLength(1);
-      return match[0]!;
-    };
-    const rootPath = findMd("Exported-Page");
-    const childPath = findMd("Child-Page");
-    expect(Object.keys(files).sort()).toEqual(
-      [rootPath, childPath, "notees-manifest.json"].sort(),
-    );
-    const decode = (entry: Uint8Array | undefined): string =>
-      new TextDecoder().decode(entry ?? new Uint8Array());
-    const root = decode(files[rootPath]);
-    const child = decode(files[childPath]);
-
-    // Properties ride the frontmatter now (the retired single-file route
-    // dropped them); blocks render as nested bullets inside their page.
-    expect(root).toContain("properties:");
-    expect(root).toContain("Status: in progress");
-    expect(root).toContain("child block body");
-    expect(root).toContain("nested grandchild");
-    // The mention became a relative link into the child page's file.
-    expect(root).toContain(`[Child Page](${childPath})`);
-    expect(root).not.toContain("[[Child Page]]");
-    // The child page is its own document.
-    expect(child).toContain("# Child Page");
-
-    const manifest = JSON.parse(decode(files["notees-manifest.json"])) as {
-      format: string;
-      version: number;
-      nodes: Array<{ id: string; path: string; name: string; type: string }>;
-    };
-    expect(manifest.format).toBe("notees-markdown");
-    expect(manifest.version).toBe(2);
-    const byId = new Map(manifest.nodes.map((node) => [node.id, node]));
-    expect(byId.get(pageId)).toMatchObject({ path: rootPath, name: "Exported Page", type: "page" });
-    expect(byId.get(childPageId)).toMatchObject({ path: childPath, name: "Child Page", type: "page" });
-
-    // The replaced single-file route is gone, and unknown includeAssets
-    // values fail loud.
-    const gone = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(gone.statusCode).toBe(404);
-    const badQuery = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export.zip?includeAssets=2`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(badQuery.statusCode).toBe(422);
-
-    // Non-member: the workspace's existence is not revealed.
-    const strangerUser = server.ctx.auth.createUser({
-      email: "stranger@example.com",
-      passwordHash: await hashPassword("stranger-password-1"),
-    });
-    const stranger = server.ctx.auth.createSession(strangerUser.id).token;
-    const byStranger = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export.zip`,
-      headers: { authorization: `Bearer ${stranger}` },
-    });
-    expect(byStranger.statusCode).toBe(404);
-  });
-
-  it("workspace zip excludes system-seed pages and the date chain (zip-roots)", async () => {
-    server = await makeTestServer();
-    const owner = (await setupAdmin("owner@example.com")).json().token as string;
-    const created = await server.app.inject({
-      method: "POST",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-      payload: { name: "Zip Roots" },
-    });
-    const workspaceId = created.json().id as string;
-
-    // A real page, a date chain (year → month → day, deterministic ids), a
-    // day-parented user page (rides the chain's exclusion), and a system
-    // page authored like the seed does. Envelopes apply in order — the
-    // chain parents before the pages under them.
-    const pageId = crypto.randomUUID();
-    const underDayId = crypto.randomUUID();
-    const dayParentedPageId = crypto.randomUUID();
-    const chain = chainNodeIds("2026-09-27");
-    const batch = await ingest(server, [
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: { objectId: pageId, isEmbedded: false, contentAst: [{ type: "text", text: "Real Page" }] },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: { objectId: chain.year, isEmbedded: false, contentAst: [{ type: "text", text: "2026" }] },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: { objectId: chain.month, parentId: chain.year, isEmbedded: false, contentAst: [{ type: "text", text: "2026-09" }] },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: { objectId: chain.day, parentId: chain.month, isEmbedded: false, contentAst: [{ type: "text", text: "2026-09-27" }] },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: { objectId: underDayId, parentId: chain.day, isEmbedded: false, contentAst: [{ type: "text", text: "Under A Day" }] },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: { objectId: dayParentedPageId, parentId: underDayId, isEmbedded: false, contentAst: [{ type: "text", text: "Nested Under Day" }] },
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: { objectId: SYSTEM_PAGE_UUIDS.inbox, isEmbedded: false, contentAst: [{ type: "text", text: "inbox" }] },
-      }),
-    ]);
-    expect(batch.statusCode).toBe(200);
-
-    const exported = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export.zip`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(exported.statusCode).toBe(200);
-    const files = unzipSync(new Uint8Array(exported.rawPayload));
-    const names = Object.keys(files);
-    const manifest = JSON.parse(new TextDecoder().decode(files["notees-manifest.json"])) as {
-      nodes: Array<{ id: string }>;
-    };
-    const exportedIds = new Set(manifest.nodes.map((node) => node.id));
-    // Only the real page exports; the date chain, the day-parented pages,
-    // and the system inbox stay out.
-    expect(exportedIds.has(pageId)).toBe(true);
-    expect(exportedIds.has(chain.year)).toBe(false);
-    expect(exportedIds.has(chain.month)).toBe(false);
-    expect(exportedIds.has(chain.day)).toBe(false);
-    expect(exportedIds.has(underDayId)).toBe(false);
-    expect(exportedIds.has(dayParentedPageId)).toBe(false);
-    expect(exportedIds.has(SYSTEM_PAGE_UUIDS.inbox)).toBe(false);
-    expect(names.filter((name) => name.endsWith(".md"))).toHaveLength(1);
-  });
-
-  it("reassignExportPaths keeps files, manifest, and links agreeing under a filename collision", async () => {
-    // The FNV-1a id8 suffix makes real collisions unreachable through the zip
-    // route (distinct ids → distinct suffixes), so the de-dupe machinery is
-    // defensive; exercise it directly with a synthetic colliding bundle.
-    const { reassignExportPaths } = await import("../src/routes-auth.js");
-    const bundle = {
-      files: [
-        { path: "Dup-a1.md", content: "first" },
-        { path: "Dup-a1.md", content: "second" },
-      ],
-      manifest: {
-        format: "notees-markdown" as const,
-        version: 2 as const,
-        generatedAt: "2026-10-03T00:00:00.000Z",
-        nodes: [
-          { id: "id-1", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, isEmbedded: false },
-          { id: "id-2", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, isEmbedded: false },
-        ],
-      },
-    };
-    reassignExportPaths(bundle, new Map([["id-1", "Dup-a1.md"], ["id-2", "Dup-a1-2.md"]]));
-    expect(bundle.files.map((file) => file.path)).toEqual(["Dup-a1.md", "Dup-a1-2.md"]);
-    expect(bundle.manifest.nodes.map((node) => node.path)).toEqual(["Dup-a1.md", "Dup-a1-2.md"]);
-  });
-
-  it("GET /workspaces/:id/export.zip gives colliding slugs distinct id8 suffixes", async () => {
-    server = await makeTestServer();
-    const owner = (await setupAdmin("owner@example.com")).json().token as string;
-    const created = await server.app.inject({
-      method: "POST",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-      payload: { name: "Dupes" },
-    });
-    const workspaceId = created.json().id as string;
-
-    // Two pages with the SAME title: the hash id8 suffix disambiguates the
-    // slug without any counter de-dupe.
-    const firstId = "11111111-0000-4000-8000-000000000001";
-    const secondId = "11111111-0000-4000-8000-000000000002";
-    const batch = await ingest(server, [
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: pagePayload("Dup", { objectId: firstId }),
-      }),
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: pagePayload("Dup", { objectId: secondId }),
-      }),
-    ]);
-    expect(batch.statusCode).toBe(200);
-
-    const exported = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export.zip`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(exported.statusCode).toBe(200);
-    const files = unzipSync(new Uint8Array(exported.rawPayload));
-    expect(Object.keys(files).sort()).toEqual(
-      ["Dup-143f8b7a.md", "Dup-133f89e7.md", "notees-manifest.json"].sort(),
-    );
-    const manifest = JSON.parse(new TextDecoder().decode(files["notees-manifest.json"])) as {
-      nodes: Array<{ id: string; path: string }>;
-    };
-    const byId = new Map(manifest.nodes.map((node) => [node.id, node.path]));
-    expect(byId.get(firstId)).toBe("Dup-143f8b7a.md");
-    expect(byId.get(secondId)).toBe("Dup-133f89e7.md");
-  });
-
-  it("GET /workspaces/:id/export.zip?includeAssets=1 bundles referenced CAS bytes", async () => {
-    server = await makeTestServer();
-    const owner = (await setupAdmin("owner@example.com")).json().token as string;
-    const created = await server.app.inject({
-      method: "POST",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-      payload: { name: "Asset Me" },
-    });
-    const workspaceId = created.json().id as string;
-
-    // An uploaded asset: CAS bytes on disk + the relay's asset index (what
-    // the multipart upload route writes), referenced from a page.
-    const assetId = crypto.randomUUID();
-    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
-    const hash = createHash("sha256").update(bytes).digest("hex");
-    const hashDir = join(server.dataDir, "workspaces", workspaceId, "assets", hash.slice(0, 4));
-    mkdirSync(hashDir, { recursive: true });
-    writeFileSync(join(hashDir, hash), bytes);
-    server.ctx.relay.recordAsset({
-      assetId,
-      workspaceId,
-      hash,
-      mimeType: "image/png",
-      size: bytes.length,
-      originalName: "My Photo.PNG",
-      uploadedAt: new Date().toISOString(),
-    });
-    const pageId = crypto.randomUUID();
-    const assetBlockId = crypto.randomUUID();
-    const batch = await ingest(server, [
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: {
-          objectId: pageId,
-          isEmbedded: false,
-          contentAst: [{ type: "text", text: "With Asset" }],
-        },
-      }),
-      // asset_ref lives on an inline block (document-chrome content is
-      // text-only; block-scale rich tokens survive on inline blocks).
-      testEnvelope({
-        workspaceId,
-        opType: "object.create",
-        payload: {
-          objectId: assetBlockId,
-          parentId: pageId,
-          contentAst: [{ type: "asset_ref", assetId }],
-        },
-      }),
-    ]);
-    expect(batch.statusCode).toBe(200);
-
-    // Default: no asset bytes, the raw uuid reference stands.
-    const without = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export.zip`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    const pagePath = (() => {
-      const match = Object.keys(unzipSync(new Uint8Array(without.rawPayload))).filter((name) =>
-        /^With-Asset-[0-9a-f]{8}\.md$/.test(name),
-      );
-      expect(match).toHaveLength(1);
-      return match[0]!;
-    })();
-    const assetPath = `assets/My-Photo-${hash.slice(0, 8)}.png`;
-    const filesWithout = unzipSync(new Uint8Array(without.rawPayload));
-    expect(Object.keys(filesWithout).sort()).toEqual([pagePath, "notees-manifest.json"].sort());
-    expect(new TextDecoder().decode(filesWithout[pagePath])).toContain(`![asset](<${assetId}>)`);
-
-    // includeAssets=1: bytes ride under assets/ and the ref is rewritten.
-    const withAssets = await server.app.inject({
-      method: "GET",
-      url: `/api/workspaces/${workspaceId}/export.zip?includeAssets=1`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(withAssets.statusCode).toBe(200);
-    const filesWith = unzipSync(new Uint8Array(withAssets.rawPayload));
-    expect(Object.keys(filesWith).sort()).toEqual(
-      [pagePath, assetPath, "notees-manifest.json"].sort(),
-    );
-    expect(new TextDecoder().decode(filesWith[pagePath])).toContain(`![asset](${assetPath})`);
-    expect(Buffer.from(filesWith[assetPath] ?? new Uint8Array())).toEqual(bytes);
-  });
-
-  it("GET /nodes/:id/location resolves the workspace holding the node", async () => {
-    server = await makeTestServer();
-    const owner = (await setupAdmin("owner@example.com")).json().token as string;
-    const first = await server.app.inject({
-      method: "POST",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-      payload: { name: "First" },
-    });
-    const firstId = first.json().id as string;
-    const second = await server.app.inject({
-      method: "POST",
-      url: "/api/workspaces",
-      headers: { authorization: `Bearer ${owner}` },
-      payload: { name: "Second" },
-    });
-    const secondId = second.json().id as string;
-
-    // A page in the SECOND workspace.
-    const pageId = crypto.randomUUID();
-    const batch = await ingest(server, [
-      testEnvelope({
-        workspaceId: secondId,
-        opType: "object.create",
-        payload: pagePayload("Faraway Page", { objectId: pageId }),
-      }),
-    ]);
-    expect(batch.statusCode).toBe(200);
-
-    const located = await server.app.inject({
-      method: "GET",
-      url: `/api/nodes/${pageId}/location`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(located.statusCode).toBe(200);
-    expect(located.json()).toEqual({ workspaceId: secondId });
-
-    // Unknown node: 404. Stranger asking about a node they cannot reach: 404.
-    const unknown = await server.app.inject({
-      method: "GET",
-      url: `/api/nodes/${crypto.randomUUID()}/location`,
-      headers: { authorization: `Bearer ${owner}` },
-    });
-    expect(unknown.statusCode).toBe(404);
-
-    const strangerUser = server.ctx.auth.createUser({
-      email: "stranger@example.com",
-      passwordHash: await hashPassword("stranger-password-1"),
-    });
-    const stranger = server.ctx.auth.createSession(strangerUser.id).token;
-    const byStranger = await server.app.inject({
-      method: "GET",
-      url: `/api/nodes/${pageId}/location`,
-      headers: { authorization: `Bearer ${stranger}` },
-    });
-    expect(byStranger.statusCode).toBe(404);
-  });
-});
 
 describe("api keys", () => {
   it("minted keys authenticate as their owner and list workspaces", async () => {

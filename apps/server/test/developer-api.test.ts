@@ -25,7 +25,6 @@ afterEach(async () => {
   }
 });
 
-const OBJECTS = "/api/objects";
 
 describe("GET /api/meta", () => {
   it("describes the server without authentication", async () => {
@@ -99,20 +98,25 @@ describe("GET /api/operations", () => {
 });
 
 describe("Idempotency-Key", () => {
+  // Plan-07: the vehicle is POST /api/property-schemas (the objects write
+  // API is retired) — same encapsulated context, same hooks.
+  const SCHEMAS = "/api/property-schemas";
+  const schemaBody = (name: string) => ({ propertySchemaId: crypto.randomUUID(), name, type: "text", multi: false });
+
   it("replays the original response without a second write", async () => {
     server = await makeTestServer();
-    const body = { name: "idem-page" };
+    const body = schemaBody("idem-schema");
     const headers = { ...server.authHeaders, "idempotency-key": "agent-run-1" };
 
-    const first = await server.app.inject({ method: "POST", url: OBJECTS, headers, payload: body });
+    const first = await server.app.inject({ method: "POST", url: SCHEMAS, headers, payload: body });
     expect(first.statusCode).toBe(201);
-    const createdId = first.json().id as string;
+    const createdId = first.json().propertySchema.id as string;
     const envelopesAfterFirst = server.ctx.relay.envelopeCount(server.ctx.defaultWorkspace);
 
-    const replay = await server.app.inject({ method: "POST", url: OBJECTS, headers, payload: body });
+    const replay = await server.app.inject({ method: "POST", url: SCHEMAS, headers, payload: body });
     expect(replay.statusCode).toBe(201);
     expect(replay.headers[IDEMPOTENCY_REPLAY_HEADER]).toBe("true");
-    expect(replay.json().id).toBe(createdId);
+    expect(replay.json().propertySchema.id).toBe(createdId);
     // No second envelope entered the log.
     expect(server.ctx.relay.envelopeCount(server.ctx.defaultWorkspace)).toBe(envelopesAfterFirst);
   });
@@ -120,14 +124,14 @@ describe("Idempotency-Key", () => {
   it("fails loud (409 idempotency_replay) when the key is reused with a different request", async () => {
     server = await makeTestServer();
     const headers = { ...server.authHeaders, "idempotency-key": "agent-run-2" };
-    const first = await server.app.inject({ method: "POST", url: OBJECTS, headers, payload: { name: "one" } });
+    const first = await server.app.inject({ method: "POST", url: SCHEMAS, headers, payload: schemaBody("one") });
     expect(first.statusCode).toBe(201);
 
     const collision = await server.app.inject({
       method: "POST",
-      url: OBJECTS,
+      url: SCHEMAS,
       headers,
-      payload: { name: "two" },
+      payload: schemaBody("two"),
     });
     expect(collision.statusCode).toBe(409);
     expect(collision.json().error.code).toBe("idempotency_replay");
@@ -138,125 +142,23 @@ describe("Idempotency-Key", () => {
     const headers = { ...server.authHeaders, "idempotency-key": "agent-run-3" };
     const bad = await server.app.inject({
       method: "POST",
-      url: OBJECTS,
+      url: SCHEMAS,
       headers,
-      payload: { parentId: "not-a-uuid" },
+      payload: { ...schemaBody("bad"), type: "not-a-type" },
     });
     expect(bad.statusCode).toBe(422);
 
     const fixed = await server.app.inject({
       method: "POST",
-      url: OBJECTS,
+      url: SCHEMAS,
       headers,
-      payload: { name: "fixed" },
+      payload: schemaBody("fixed"),
     });
     expect(fixed.statusCode).toBe(201);
     expect(fixed.headers[IDEMPOTENCY_REPLAY_HEADER]).toBeUndefined();
   });
 });
 
-describe("baseRevision", () => {
-  it("409s a stale base and accepts the current one", async () => {
-    server = await makeTestServer();
-    const created = await server.app.inject({
-      method: "POST",
-      url: OBJECTS,
-      headers: server.authHeaders,
-      payload: { name: "rev-page" },
-    });
-    const id = created.json().id as string;
-    const fetched = await server.app.inject({ method: "GET", url: `${OBJECTS}/${id}`, headers: server.authHeaders });
-    const base = fetched.json().object.hlc as { physical: number; logical: number };
-
-    const stale = await server.app.inject({
-      method: "PATCH",
-      url: `${OBJECTS}/${id}`,
-      headers: server.authHeaders,
-      payload: { icon: "first", baseRevision: base },
-    });
-    expect(stale.statusCode).toBe(200);
-    const newHlc = stale.json().object.hlc as { physical: number; logical: number };
-    expect(newHlc).not.toEqual(base);
-
-    const conflict = await server.app.inject({
-      method: "PATCH",
-      url: `${OBJECTS}/${id}`,
-      headers: server.authHeaders,
-      payload: { icon: "second", baseRevision: base },
-    });
-    expect(conflict.statusCode).toBe(409);
-    expect(conflict.json().error.code).toBe("conflict");
-
-    const noGuard = await server.app.inject({
-      method: "PATCH",
-      url: `${OBJECTS}/${id}`,
-      headers: server.authHeaders,
-      payload: { icon: "third" },
-    });
-    expect(noGuard.statusCode).toBe(200);
-  });
-
-  it("rejects a malformed baseRevision with 422", async () => {
-    server = await makeTestServer();
-    const created = await server.app.inject({
-      method: "POST",
-      url: OBJECTS,
-      headers: server.authHeaders,
-      payload: { name: "rev-2" },
-    });
-    const id = created.json().id as string;
-    const response = await server.app.inject({
-      method: "PATCH",
-      url: `${OBJECTS}/${id}`,
-      headers: server.authHeaders,
-      payload: { icon: "x", baseRevision: { physical: -1 } },
-    });
-    expect(response.statusCode).toBe(422);
-  });
-
-  it("taken caller-supplied id fails loud with 409", async () => {
-    // The pre-submit existence check makes the
-    // "a taken id fails loud" contract real. The id-LESS path
-    // cannot conflict (server-stamped UUIDv7; retried submits ride the
-    // Idempotency-Key replay), so 409 is pinned only for caller-chosen ids.
-    server = await makeTestServer();
-    const chosenId = crypto.randomUUID();
-    const first = await server.app.inject({
-      method: "POST",
-      url: OBJECTS,
-      headers: server.authHeaders,
-      payload: { id: chosenId, name: "first-write" },
-    });
-    expect(first.statusCode).toBe(201);
-    const again = await server.app.inject({
-      method: "POST",
-      url: OBJECTS,
-      headers: server.authHeaders,
-      payload: { id: chosenId, name: "second-write" },
-    });
-    expect(again.statusCode).toBe(409);
-    expect(again.json().error.code).toBe("conflict");
-    // The first write still wins.
-    const fetched = await server.app.inject({ method: "GET", url: `${OBJECTS}/${chosenId}`, headers: server.authHeaders });
-    expect(fetched.json().object.name).toBe("first-write");
-    // Class declaration through the same route honors the same contract.
-    const classAgain = await server.app.inject({
-      method: "POST",
-      url: OBJECTS,
-      headers: server.authHeaders,
-      payload: { id: chosenId, isClass: true },
-    });
-    expect(classAgain.statusCode).toBe(409);
-    // The id-less path stays a 201 (no conflict is possible there).
-    const idLess = await server.app.inject({
-      method: "POST",
-      url: OBJECTS,
-      headers: server.authHeaders,
-      payload: { name: "server-stamped" },
-    });
-    expect(idLess.statusCode).toBe(201);
-  });
-});
 
 describe("scoped API keys", () => {
   async function setupAndKey(scopes?: unknown): Promise<{ session: string; token: string }> {
@@ -281,27 +183,33 @@ describe("scoped API keys", () => {
     const { token } = await setupAndKey(["objects.read"]);
     const headers = { "x-api-key": token };
 
-    const list = await server.app.inject({ method: "GET", url: OBJECTS, headers });
+    const list = await server.app.inject({ method: "GET", url: "/api/classes", headers });
     expect(list.statusCode).toBe(200);
 
-    const write = await server.app.inject({ method: "POST", url: OBJECTS, headers, payload: { name: "nope" } });
+    const write = await server.app.inject({
+      method: "POST",
+      url: "/api/property-schemas",
+      headers,
+      payload: { propertySchemaId: crypto.randomUUID(), name: "nope", type: "text", multi: false },
+    });
     expect(write.statusCode).toBe(403);
     expect(write.json().error.code).toBe("scope_denied");
 
-    const deleteCall = await server.app.inject({ method: "DELETE", url: `${OBJECTS}/${crypto.randomUUID()}`, headers });
+    const deleteCall = await server.app.inject({ method: "DELETE", url: `/api/property-schemas/${crypto.randomUUID()}`, headers });
     expect(deleteCall.statusCode).toBe(403);
     expect(deleteCall.json().error.code).toBe("scope_denied");
-
-    const search = await server.app.inject({ method: "GET", url: "/api/search?q=test", headers });
-    expect(search.statusCode).toBe(403);
-    expect(search.json().error.code).toBe("scope_denied");
   });
 
   it("keys minted without scopes stay unrestricted", async () => {
     server = await makeTestServer();
     const { token } = await setupAndKey();
     const headers = { "x-api-key": token };
-    const write = await server.app.inject({ method: "POST", url: OBJECTS, headers, payload: { name: "yes" } });
+    const write = await server.app.inject({
+      method: "POST",
+      url: "/api/property-schemas",
+      headers,
+      payload: { propertySchemaId: crypto.randomUUID(), name: "yes", type: "text", multi: false },
+    });
     expect(write.statusCode).toBe(201);
   });
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
+import { closeTestServer, makeTestServer, testEnvelope, TEST_WORKSPACE, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
 beforeEach(async () => {
@@ -27,9 +27,51 @@ function api(method: string, url: string, options: { payload?: unknown } = {}) {
 }
 
 async function createObject(name: string, classIds: string[] = []): Promise<string> {
-  const res = await api("POST", "/api/objects", { payload: { isEmbedded: false, name, classIds } });
-  expect(res.statusCode).toBe(201);
-  return res.json().id as string;
+  // Plan-07: seed through the relay (the object write API is retired).
+  const objectId = crypto.randomUUID();
+  const res = await api("POST", "/api/relay/v2/batch", {
+    payload: {
+      envelopes: [
+        testEnvelope({
+          workspaceId: server!.ctx.defaultWorkspace,
+          opType: "object.create",
+          payload: {
+            objectId,
+            isEmbedded: false,
+            contentAst: [{ type: "text", text: name }],
+            classIds,
+          },
+        }),
+      ],
+    },
+  });
+  expect(res.statusCode).toBe(200);
+  return objectId;
+}
+
+async function setProperty(objectId: string, propertySchemaId: string, value: unknown): Promise<void> {
+  // Plan-07: property values ride the relay (the objects write API is retired).
+  const res = await api("POST", "/api/relay/v2/batch", {
+    payload: {
+      envelopes: [
+        testEnvelope({
+          workspaceId: server!.ctx.defaultWorkspace,
+          opType: "property.set",
+          payload: { objectId, propertySchemaId, value, idx: 0 },
+        }),
+      ],
+    },
+  });
+  expect(res.statusCode).toBe(200);
+}
+
+function authoredValueRow(objectId: string, propertySchemaId: string): { value: unknown } | undefined {
+  // Read the derived store directly — the server serves no content reads.
+  const store = server!.ctx.workspaces.storeFor(server!.ctx.defaultWorkspace);
+  const row = store.database
+    .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+    .get(objectId, propertySchemaId) as { value: string } | undefined;
+  return row === undefined ? undefined : { value: JSON.parse(row.value) };
 }
 
 /** A source-classed node: the seeded bibliography schemas are scoped to the
@@ -39,123 +81,6 @@ async function createSourceObject(name: string): Promise<string> {
   return createObject(name, [SYSTEM_CLASS_UUIDS.source]);
 }
 
-describe("object property writes", () => {
-  it("POST /objects/:id/properties sets a value (idx 0 default) returned on GET", async () => {
-    const id = await createSourceObject("prop-target");
-    const res = await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "kuhn1962structure" },
-    });
-    expect(res.statusCode).toBe(200);
-    const properties = res.json().object.properties as { schemaId: string; value: unknown }[];
-    expect(properties).toContainEqual({
-      schemaId: SYSTEM_PROPERTY_UUIDS.citekey,
-      schemaName: "Citekey",
-      schemaType: "text",
-      // The authored row's stable element id (deterministic composite
-      // for positional writes) rides every property entry.
-      elementId: expect.stringContaining(`:${SYSTEM_PROPERTY_UUIDS.citekey}:0`),
-      idx: 0,
-      value: "kuhn1962structure",
-    });
-
-    const fetched = await api("GET", `/api/objects/${id}`);
-    expect(
-      (fetched.json().object.properties as { schemaId: string; value: unknown }[]).find(
-        (p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey,
-      )?.value,
-    ).toBe("kuhn1962structure");
-
-    // The write flowed through the one envelope pipeline: the relay log grew.
-    const stats = await api(
-      "GET",
-      `/api/relay/v2/stats?workspaceId=${encodeURIComponent(server!.ctx.defaultWorkspace)}`,
-    );
-    expect(stats.statusCode).toBe(200);
-    expect(stats.json().envelopeCount).toBeGreaterThan(0);
-  });
-
-  it("re-POST at the same idx overwrites (LWW); idx addresses multi-values", async () => {
-    const id = await createObject("prop-multi");
-    // Cardinality: higher slots need a multi schema — create one and
-    // address it at idx 0/1 (isbn is single-value; idx 1 there is a 422 now).
-    const multi = (await api("POST", "/api/property-schemas", {
-      payload: { propertySchemaId: crypto.randomUUID(), name: "alt-titles", type: "text", multi: true },
-    })).json().propertySchema;
-    await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: multi.id, value: "978-0-00-1", idx: 0 },
-    });
-    await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: multi.id, value: "978-0-00-2", idx: 1 },
-    });
-    // LWW overwrite of idx 0.
-    await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: multi.id, value: "978-0-00-1b", idx: 0 },
-    });
-    const fetched = await api("GET", `/api/objects/${id}`);
-    const values = (fetched.json().object.properties as { schemaId: string; idx: number; value: unknown }[])
-      .filter((p) => p.schemaId === multi.id)
-      .sort((a, b) => a.idx - b.idx);
-    expect(values).toEqual([
-      expect.objectContaining({ schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 0, value: "978-0-00-1b" }),
-      expect.objectContaining({ schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 1, value: "978-0-00-2" }),
-    ]);
-  });
-
-  it("POST carries metadata qualifiers through to the stored value", async () => {
-    const id = await createSourceObject("prop-meta");
-    const res = await api("POST", `/api/objects/${id}/properties`, {
-      payload: {
-        propertySchemaId: SYSTEM_PROPERTY_UUIDS.publisher,
-        value: "University of Chicago Press",
-        metadata: { locator: "2nd ed." },
-      },
-    });
-    const property = (res.json().object.properties as { schemaId: string; metadata?: unknown }[]).find(
-      (p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publisher,
-    );
-    expect(property?.metadata).toEqual({ locator: "2nd ed." });
-  });
-
-  it("DELETE /objects/:id/properties/:schemaId unsets (default idx 0, explicit idx)", async () => {
-    const id = await createSourceObject("prop-unset");
-    await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.isbn, value: "one", idx: 0 },
-    });
-    await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.isbn, value: "two", idx: 1 },
-    });
-    const deleted = await api("DELETE", `/api/objects/${id}/properties/${SYSTEM_PROPERTY_UUIDS.isbn}?idx=1`);
-    expect(deleted.statusCode).toBe(200);
-    let properties = deleted.json().object.properties as { schemaId: string; idx: number }[];
-    expect(properties.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)).toEqual([
-      expect.objectContaining({ idx: 0 }),
-    ]);
-
-    await api("DELETE", `/api/objects/${id}/properties/${SYSTEM_PROPERTY_UUIDS.isbn}`);
-    const fetched = await api("GET", `/api/objects/${id}`);
-    properties = fetched.json().object.properties as { schemaId: string; idx: number }[];
-    expect(properties.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)).toEqual([]);
-  });
-
-  it("validation: missing object 404, malformed body 422, unknown schema still writes", async () => {
-    const ghost = await api("POST", `/api/objects/${crypto.randomUUID()}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "x" },
-    });
-    expect(ghost.statusCode).toBe(404);
-
-    const id = await createObject("prop-validation");
-    const malformed = await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: "not-a-uuid", value: "x" },
-    });
-    expect(malformed.statusCode).toBe(422);
-
-    // property.set has no schema FK: an arbitrary (valid-UUID) schema id stores.
-    const custom = await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: crypto.randomUUID(), value: "loose" },
-    });
-    expect(custom.statusCode).toBe(200);
-  });
-});
 
 describe("property schema number formats", () => {
   it("create carries numberPad/numberDecimals/numberRounding; read reflects them", async () => {
@@ -197,55 +122,6 @@ describe("property schema number formats", () => {
   });
 });
 
-describe("objects list property filter", () => {
-  it("?property=<schemaId>:<value> matches the JSON-encoded scalar exactly", async () => {
-    const a = await createSourceObject("filter-a");
-    const b = await createSourceObject("filter-b");
-    await api("POST", `/api/objects/${a}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "kuhn1962structure" },
-    });
-    await api("POST", `/api/objects/${b}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "david1962" },
-    });
-
-    const hit = await api(
-      "GET",
-      `/api/objects?property=${SYSTEM_PROPERTY_UUIDS.citekey}:kuhn1962structure`,
-    );
-    expect(hit.statusCode).toBe(200);
-    const ids = hit.json().objects.map((o: { id: string }) => o.id);
-    expect(ids).toContain(a);
-    expect(ids).not.toContain(b);
-
-    const miss = await api("GET", `/api/objects?property=${SYSTEM_PROPERTY_UUIDS.citekey}:kuhn`);
-    expect(miss.json().objects).toEqual([]);
-
-    const badSchema = await api("GET", `/api/objects?property=not-a-uuid:x`);
-    expect(badSchema.statusCode).toBe(422);
-  });
-
-  it("combines with the class filter for source-class lookups", async () => {
-    const other = await createObject("filter-plain");
-    const book = (
-      await api("POST", "/api/objects", {
-        payload: { isEmbedded: false, name: "filter-book", classIds: [SYSTEM_CLASS_UUIDS.book] },
-      })
-    ).json().id as string;
-    await api("POST", `/api/objects/${book}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "shared-key" },
-    });
-    await api("POST", `/api/objects/${other}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "shared-key" },
-    });
-
-    const res = await api(
-      "GET",
-      `/api/objects?class=${SYSTEM_CLASS_UUIDS.book}&property=${SYSTEM_PROPERTY_UUIDS.citekey}:shared-key`,
-    );
-    const ids = res.json().objects.map((o: { id: string }) => o.id);
-    expect(ids).toEqual([book]);
-  });
-});
 
 describe("property schemas", () => {
   it("GET returns the seeded bibliographic schemas by fixed UUID", async () => {
@@ -346,9 +222,7 @@ describe("property schema update/delete routes", () => {
   it("DELETE soft-deletes: gone from reads, authored values survive, second delete 404s", async () => {
     const schemaId = await createSchema("pg7-doomed");
     const id = await createObject("pg7-carrier");
-    await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: schemaId, value: "authored-survives" },
-    });
+    await setProperty(id, schemaId, "authored-survives");
 
     const deleted = await api("DELETE", `/api/property-schemas/${schemaId}`);
     expect(deleted.statusCode).toBe(200);
@@ -362,12 +236,7 @@ describe("property schema update/delete routes", () => {
 
     // The authored value row is untouched (SCHEMA.md: the soft-delete hides
     // the schema; values stay stored).
-    const fetched = await api("GET", `/api/objects/${id}`);
-    expect(
-      (fetched.json().object.properties as Array<{ schemaId: string; value: unknown }>).find(
-        (p) => p.schemaId === schemaId,
-      )?.value,
-    ).toBe("authored-survives");
+    expect(authoredValueRow(id, schemaId)?.value).toBe("authored-survives");
 
     const again = await api("DELETE", `/api/property-schemas/${schemaId}`);
     expect(again.statusCode).toBe(404);
@@ -376,9 +245,21 @@ describe("property schema update/delete routes", () => {
 
 describe("class property binding routes", () => {
   async function createClass(name: string): Promise<string> {
-    const res = await api("POST", "/api/objects", { payload: { isClass: true, name } });
-    expect(res.statusCode).toBe(201);
-    return res.json().id as string;
+    // Plan-07: seed through the relay (the object write API is retired).
+    const classId = crypto.randomUUID();
+    const res = await api("POST", "/api/relay/v2/batch", {
+      payload: {
+        envelopes: [
+          testEnvelope({
+            workspaceId: server!.ctx.defaultWorkspace,
+            opType: "class.create",
+            payload: { classId, contentAst: [{ type: "text", text: name }] },
+          }),
+        ],
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    return classId;
   }
 
   async function createSchema(name: string, extra: Record<string, unknown> = {}): Promise<string> {
@@ -448,13 +329,9 @@ describe("class property binding routes", () => {
     expect(schemaPatched.json().propertySchema).toMatchObject({ defaultValue: "n/a" });
     expect(schemaPatched.json().propertySchema).not.toHaveProperty("readonly");
 
-    const member = (
-      await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-book", classIds: [classId] } })
-    ).json().id as string;
-    const effective = await api("GET", `/api/objects/${member}/effective-properties`);
-    const row = (effective.json().properties as Array<Record<string, unknown>>).find(
-      (p) => p.schemaId === schemaId,
-    );
+    const member = await createObject("pg7-book", [classId]);
+    const effective = server!.ctx.workspaces.storeFor(server!.ctx.defaultWorkspace).getEffectiveProperties(member);
+    const row = effective.find((p) => p.propertySchemaId === schemaId);
     expect(row).toMatchObject({
       value: "n/a",
       source: "default",
@@ -526,21 +403,17 @@ describe("class property binding routes", () => {
     await api("POST", `/api/classes/${classId}/properties`, {
       payload: { propertySchemaId: schemaId, active: true },
     });
-    const member = (
-      await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-member", classIds: [classId] } })
-    ).json().id as string;
-    await api("POST", `/api/objects/${member}/properties`, {
-      payload: { propertySchemaId: schemaId, value: "mine" },
-    });
+    const member = await createObject("pg7-member", [classId]);
+    await setProperty(member, schemaId, "mine");
 
     const unbound = await api("DELETE", `/api/classes/${classId}/properties/${schemaId}`);
     expect(unbound.statusCode).toBe(200);
     expect(unbound.json()).toMatchObject({ classId, propertySchemaId: schemaId, unbound: true });
 
-    const effective = await api("GET", `/api/objects/${member}/effective-properties`);
-    const rows = (effective.json().properties as Array<Record<string, unknown>>).filter(
-      (p) => p.schemaId === schemaId,
-    );
+    const rows = server!.ctx.workspaces
+      .storeFor(server!.ctx.defaultWorkspace)
+      .getEffectiveProperties(member)
+      .filter((p) => p.propertySchemaId === schemaId);
     // The authored value survives; no default derives anymore.
     expect(rows).toEqual([expect.objectContaining({ value: "mine", source: "authored" })]);
 
@@ -551,81 +424,3 @@ describe("class property binding routes", () => {
   });
 });
 
-describe("effective-properties endpoint", () => {
-  it("returns authored rows plus derived class-binding defaults (source/boundBy)", async () => {
-    // Create the classed node first — it triggers workspace seeding (the
-    // binding op below requires the source class node to exist).
-    const created = await api("POST", "/api/objects", {
-      payload: {
-        isEmbedded: false,
-        name: "EffPage",
-        classIds: [SYSTEM_CLASS_UUIDS.source],
-      },
-    });
-    expect(created.statusCode).toBe(201);
-    const id = created.json().id as string;
-
-    // Bind the seeded source class's citekey and give the SCHEMA its global
-    // default via the relay batch.
-    const envelopes = [
-      {
-        id: "0192a000-0000-7000-8000-000000000601",
-        protocolVersion: 3,
-        workspaceId: server!.ctx.defaultWorkspace,
-        actorId: "0192a000-0000-7000-8000-000000000002",
-        deviceId: "test-device",
-        hlc: { physical: 9999999999999, logical: 0 },
-        affectedNodeIds: [SYSTEM_CLASS_UUIDS.source],
-        opType: "propertySchema.update",
-        timestamp: "2026-09-27T10:00:00.000Z",
-        payload: {
-          propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey,
-          defaultValue: "default-key",
-        },
-      },
-      {
-        id: "0192a000-0000-7000-8000-000000000602",
-        protocolVersion: 3,
-        workspaceId: server!.ctx.defaultWorkspace,
-        actorId: "0192a000-0000-7000-8000-000000000002",
-        deviceId: "test-device",
-        hlc: { physical: 9999999999999, logical: 1 },
-        affectedNodeIds: [SYSTEM_CLASS_UUIDS.source],
-        opType: "class.property.set",
-        timestamp: "2026-09-27T10:00:00.100Z",
-        payload: {
-          classId: SYSTEM_CLASS_UUIDS.source,
-          propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey,
-        },
-      },
-    ];
-    const batch = await server!.app.inject({
-      method: "POST",
-      url: "/api/relay/v2/batch",
-      headers: { ...server!.authHeaders, "content-type": "application/json" },
-      payload: { envelopes },
-    });
-    expect(batch.statusCode).toBe(200);
-    expect(batch.json().savedCount).toBe(2);
-
-    const res = await api("GET", `/api/objects/${id}/effective-properties`);
-    expect(res.statusCode).toBe(200);
-    const properties = res.json().properties as Array<Record<string, unknown>>;
-    const citekey = properties.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey);
-    expect(citekey).toMatchObject({
-      value: "default-key",
-      source: "default",
-      boundBy: SYSTEM_CLASS_UUIDS.source,
-    });
-
-    // An authored value shadows the default.
-    await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.citekey, value: "authored-key" },
-    });
-    const after = await api("GET", `/api/objects/${id}/effective-properties`);
-    const overridden = (after.json().properties as Array<Record<string, unknown>>).find(
-      (p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey,
-    );
-    expect(overridden).toMatchObject({ value: "authored-key", source: "authored" });
-  });
-});

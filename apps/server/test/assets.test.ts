@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
+import { testEnvelope, closeTestServer, makeTestServer, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
 afterEach(async () => {
@@ -205,14 +205,22 @@ describe("assets API", () => {
 
   it("emits asset.attach when objectId is provided", async () => {
     server = await makeTestServer();
-    const object = (
-      await server.app.inject({
-        method: "POST",
-        url: "/api/objects",
-        headers: { "content-type": "application/json", ...server.authHeaders },
-        payload: { isEmbedded: false, name: "Attachment host" },
-      })
-    ).json();
+    // Plan-07: seed the attach host through the relay (object API retired).
+    const object = { id: crypto.randomUUID() };
+    await server.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: {
+        envelopes: [
+          testEnvelope({
+            workspaceId: server.ctx.defaultWorkspace,
+            opType: "object.create",
+            payload: { objectId: object.id, isEmbedded: false, contentAst: [{ type: "text", text: "Attachment host" }] },
+          }),
+        ],
+      },
+    });
     const up = await upload(PNG, "attached.png", { objectId: object.id });
     expect(up.statusCode).toBe(201);
     expect(up.json().objectId).toBe(object.id);
@@ -233,13 +241,24 @@ describe("assets API", () => {
     const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
     const targets = await Promise.all(
       Array.from({ length: 20 }, async (_, i) => {
+        // Plan-07: seed through the relay (object API retired).
+        const id = crypto.randomUUID();
         const res = await app.inject({
           method: "POST",
-          url: "/api/objects",
+          url: "/api/relay/v2/batch",
           headers: { "content-type": "application/json", ...headers },
-          payload: { isEmbedded: false, name: "parallel host" },
+          payload: {
+            envelopes: [
+              testEnvelope({
+                workspaceId: server!.ctx.defaultWorkspace,
+                opType: "object.create",
+                payload: { objectId: id, isEmbedded: false, contentAst: [{ type: "text", text: "parallel host" }] },
+              }),
+            ],
+          },
         });
-        return { i, id: (res.json() as { id: string }).id };
+        expect(res.statusCode).toBe(200);
+        return { i, id };
       }),
     );
     const results = await Promise.all(
@@ -299,14 +318,22 @@ describe("assets API", () => {
 
   it("lists workspace assets newest-first with attached object ids", async () => {
     server = await makeTestServer();
-    const object = (
-      await server.app.inject({
-        method: "POST",
-        url: "/api/objects",
-        headers: { "content-type": "application/json", ...server.authHeaders },
-        payload: { isEmbedded: false, name: "list host" },
-      })
-    ).json();
+    // Plan-07: seed through the relay (object API retired).
+    const object = { id: crypto.randomUUID() };
+    await server.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: {
+        envelopes: [
+          testEnvelope({
+            workspaceId: server.ctx.defaultWorkspace,
+            opType: "object.create",
+            payload: { objectId: object.id, isEmbedded: false, contentAst: [{ type: "text", text: "list host" }] },
+          }),
+        ],
+      },
+    });
     await upload(PNG, "first.png");
     await upload(PNG, "second.png");
     await upload(AAC, "voice.aac", { objectId: object.id });

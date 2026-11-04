@@ -512,16 +512,26 @@ describe("GET /api/resolve — metadata branch", () => {
 
   it("the name→id mode still works alongside the metadata branch", async () => {
     server = await makeTestServer();
+    // Plan-07: seed through the relay (object API retired).
+    const objectId = crypto.randomUUID();
     const created = await server.app.inject({
       method: "POST",
-      url: "/api/objects",
+      url: "/api/relay/v2/batch",
       headers: { "content-type": "application/json", ...server.authHeaders },
-      payload: { isEmbedded: false, name: "Dune", contentAst: [{ type: "text", text: "Dune" }] },
+      payload: {
+        envelopes: [
+          testEnvelope({
+            workspaceId: server.ctx.defaultWorkspace,
+            opType: "object.create",
+            payload: { objectId, isEmbedded: false, contentAst: [{ type: "text", text: "Dune" }] },
+          }),
+        ],
+      },
     });
-    expect(created.statusCode).toBe(201);
+    expect(created.statusCode).toBe(200);
 
     const resolved = await api("GET", "/api/resolve?name=Dune");
     expect(resolved.statusCode).toBe(200);
-    expect(resolved.json()).toMatchObject({ name: "Dune", id: created.json().id });
+    expect(resolved.json()).toMatchObject({ name: "Dune", id: objectId });
   });
 });

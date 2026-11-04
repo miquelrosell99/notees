@@ -1,7 +1,7 @@
 /**
  * End-to-end over a real listening socket: boot on an ephemeral port,
  * CLI-style fetch handshake (API key), batch an object.create through
- * /api/relay/v2, read it back through /api/objects/:id.
+ * /api/relay/v2, read it back through relay catch-up (the content API is retired).
  */
 
 import type { AddressInfo } from "node:net";
@@ -45,12 +45,15 @@ describe("end-to-end (listening socket + fetch)", () => {
     expect(((await batch.json()) as { savedCount: number }).savedCount).toBe(1);
 
     const objectId = (envelope.payload as { objectId: string }).objectId;
-    const fetched = await fetch(`${base}/api/objects/${objectId}`, {
-      headers: { "x-api-key": server.apiKey },
+    // Plan-07: the content read API is retired — read the envelope back
+    // through the relay catch-up (the surviving read surface).
+    const caught = await fetch(`${base}/api/relay/v2/catch-up`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": server.apiKey },
+      body: JSON.stringify({ workspaceId: server.ctx.defaultWorkspace, afterSeq: 0 }),
     });
-    expect(fetched.status).toBe(200);
-    const body = (await fetched.json()) as { object: { id: string; contentAst: unknown; isClass: boolean; isEmbedded: boolean } };
-    expect(body.object).toMatchObject({ id: objectId, isClass: false, isEmbedded: false });
-    expect(body.object.contentAst).toEqual([{ type: "text", text: "E2E page" }]);
+    expect(caught.status).toBe(200);
+    const body = (await caught.json()) as { envelopes: Array<{ payload: { objectId?: string } }> };
+    expect(body.envelopes.some((env) => env.payload.objectId === objectId)).toBe(true);
   });
 });

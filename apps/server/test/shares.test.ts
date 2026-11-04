@@ -12,7 +12,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { hashPassword } from "../src/auth.js";
-import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
+import { closeTestServer, makeTestServer, testEnvelope, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
 afterEach(async () => {
@@ -25,13 +25,27 @@ afterEach(async () => {
 async function createNode(
   body: Record<string, unknown>,
 ): Promise<{ id: string; response: Awaited<ReturnType<TestServer["app"]["inject"]>> }> {
+  // Plan-07: seed through the relay (the object write API is retired).
+  await server!.ctx.ensureSeeded(server!.ctx.defaultWorkspace);
+  const id = crypto.randomUUID();
   const response = await server!.app.inject({
     method: "POST",
-    url: "/api/objects",
-    headers: server!.authHeaders,
-    payload: body,
+    url: "/api/relay/v2/batch",
+    headers: { "content-type": "application/json", ...server!.authHeaders },
+    payload: {
+      envelopes: [
+        testEnvelope({
+          workspaceId: server!.ctx.defaultWorkspace,
+          opType: body.isClass === true ? "class.create" : "object.create",
+          payload:
+            body.isClass === true
+              ? { classId: id, contentAst: body.contentAst }
+              : { objectId: id, ...body },
+        }),
+      ],
+    },
   });
-  return { id: response.json().id as string, response };
+  return { id, response };
 }
 
 function pageBody(title: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -306,10 +320,20 @@ describe("the public share view", () => {
     const minted = await mintShare(page.id, server.authHeaders);
     const urlPath = minted.json().share.urlPath as string;
 
+    // Trash through the relay (the object delete API is retired).
     const trashed = await server.app.inject({
-      method: "DELETE",
-      url: `/api/objects/${page.id}`,
-      headers: server.authHeaders,
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: {
+        envelopes: [
+          testEnvelope({
+            workspaceId: server.ctx.defaultWorkspace,
+            opType: "object.delete",
+            payload: { objectId: page.id },
+          }),
+        ],
+      },
     });
     expect(trashed.statusCode).toBe(200);
     const view = await server.app.inject({ method: "GET", url: urlPath });
