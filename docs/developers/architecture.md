@@ -139,19 +139,30 @@ wipe-rebuild replay (server hydration, the sync engine's epoch-change resync) wr
 replay in an explicit window. Inside it, the two derived-only maintenance families defer
 to one end-of-rebuild pass — `node_stats` (`rebuildNodeStats` only records ids;
 `rebuildAllNodeStats` rebuilds the whole table in one chunked pass) and the search index
-(`reindexNode`/`removeSearchIndexEntry` skip; `reindexAllSearch` runs once) — because
-nothing in the appliers reads either table. Per-op apply semantics (node rows, child
-order, edges, summaries) are untouched, and `synchronous` drops to `OFF` for the window
-(the derived DB is disposable — wipe-rebuildable by design; a torn window is covered by
-the existing hasApplied/cursor resume, and `endBulk` runs its maintenance tail even after
-a mid-window failure so the tables never sit deferral-stale). The online path never
-enters the window. Measured on a 100k-envelope synthetic replay: 82 → ~12,100
-envelopes/sec (see the 2026-11-04 changelog entry). The rebuilt tables are
-the fixed point over the final state; where the incremental path left stale
-rows, the tail heals them (class-node stats rows appear, `stats.updated_at`
-matches the node's own again after icon/color-only updates, search mention
-labels resolve to final names) — the residue and its reader guarantees are
-documented at `packages/store/src/stats.ts` and `search.ts`.
+(`reindexNode`/`removeSearchIndexEntry` skip; `reindexAllSearch` runs once, clearing the
+FTS table before repopulating so a restart never orphans rows) — because nothing in the
+appliers reads either table. Per-op apply semantics (node rows, child order, edges,
+summaries) are untouched, and `synchronous` drops to `OFF` for the window (the derived
+DB is disposable — wipe-rebuildable by design). **Torn-window safety is on disk**:
+`beginBulk` commits the `notees:bulk_window_open` marker to `app_meta` before any bulk
+work, so process death inside a window is discoverable — the next `Store.open` runs the
+total tail before serving a single read, and `endBulk`'s tail (same transaction as the
+rebuild, and run even after a mid-window apply failure) clears it. A clean restart with
+no marker and no new envelopes skips the tail entirely: an empty window only consumes
+the marker, so a busy server restarting over a converged store pays no full-table
+rebuild for zero new ops. `restore`/adopt clears a carried marker without healing —
+snapshot images are converged by contract. While a window is open the two tables read
+stale/empty: unobservable server-side (the window is synchronous start-to-finish), but
+the resync window spans network awaits, so a mid-resync worker read can observe the
+deferred state — accepted, since a full resync invalidates the UI wholesale. Measured
+on a 100k-envelope synthetic replay: 82 → ~12,100 envelopes/sec (see the 2026-11-04
+changelog entry). The rebuilt tables converge in every reader-observable way; the
+residue versus the incremental path — class-node stats rows, `stats.updated_at`
+freshness (the tail restores the documented "mirrors the node's own `updated_at`"
+invariant the incremental path can leave stale after icon/color-only updates), search
+docid numbering, and search mention-label freshness (the online index snapshots a
+mention's target name at the source's last reindex; a rename never fans out — the tail
+resolves final names) — is documented at `packages/store/src/stats.ts` and `search.ts`.
 
 ## 4. The axes and the bullet-proof schema
 

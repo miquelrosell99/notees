@@ -7,6 +7,7 @@
 import type { SqliteStatement, StoreDatabase } from "./types.js";
 import { extractContentPlaintext, extractSearchPlaintext } from "./content.js";
 import { isUuidLike } from "./property-values.js";
+import { SEARCH_INDEX_DDL_FTS5 } from "./schema.js";
 
 /**
  * Bulk-replay deferral seam: while deferred (Store's beginBulk window),
@@ -26,6 +27,13 @@ import { isUuidLike } from "./property-values.js";
  * mentions outlived their targets' renames, and the tail's version is the
  * fresher one. Docid numbering is path-dependent in both directions
  * (last_insert_rowid) and unobservable outside the map.
+ *
+ * VISIBILITY: like the node-stats seam — while a window is open the index
+ * reads stale/empty. Server-side windows are synchronous and unobservable;
+ * the sync engine's resync window spans network awaits, so a mid-resync
+ * worker read can observe a stale index (search still answers through the
+ * tier-6 fuzzy title rescue, degraded by design). Torn-window safety rides
+ * the BULK_WINDOW_META_KEY marker: a process death heals at Store.open.
  */
 let searchDeferred = false;
 
@@ -984,17 +992,28 @@ export function dropSearchIndex(db: StoreDatabase): void {
 
 /**
  * Reindex every active node from its stored name + content (derived plaintext
- * via reindexNode). Wraps the scan in a transaction. BOTH tables are cleared
- * first: reindexNode's old-row DELETE resolves the FTS rowid THROUGH the
- * docid map, so clearing only the map (and leaving populated FTS rows)
- * would leave every old row unreachable — each reindex would append a
- * second FTS row per node and the table would grow without bound (the
- * endBulk tail runs this pass on every restart over an already-indexed
- * store). On the pre-existing empty-table callers the DELETEs are no-ops.
+ * via reindexNode). Wraps the scan in a transaction. The index and the docid
+ * map are cleared FIRST — reindexNode's old-row DELETE resolves the FTS rowid
+ * THROUGH the map, so reindexing over a populated index without clearing
+ * would append a second row per node (unbounded orphan growth per restart).
+ * The clear is module-aware and FAST: a content FTS5 table is dropped and
+ * re-created (metadata-only — a plain DELETE pays per-row segment-merge
+ * costs, seconds at tail scale; FTS5's 'delete-all' command is reserved
+ * for contentless/external-content tables). FTS4 has no cheap equivalent
+ * and takes the plain DELETE (the sql.js/browser tail, once per resync).
+ * On the pre-existing empty-table callers (the snapshot-repair path) the
+ * whole clear is a no-op. The tail indexes ACTIVE nodes only: archived
+ * nodes' rows drop out (candidates filter liveness anyway), matching the
+ * pre-fix clear-first behavior.
  */
 export function reindexAllSearch(db: StoreDatabase): void {
   const run = db.transaction(() => {
-    db.exec("DELETE FROM search_index");
+    if (searchIndexModule(db) === "fts5") {
+      db.exec("DROP TABLE IF EXISTS search_index");
+      db.exec(SEARCH_INDEX_DDL_FTS5);
+    } else {
+      db.exec("DELETE FROM search_index");
+    }
     db.exec("DELETE FROM search_index_docid");
     const rows = db.prepare("SELECT id FROM node WHERE is_active = 1").all() as { id: string }[];
     for (const row of rows) reindexNode(db, row.id);

@@ -599,6 +599,179 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("bulk window open marker (torn-window safety)", () => {
+    const MARKER_KEY = "notees:bulk_window_open";
+    const markerOf = (store: Store): unknown =>
+      store.database.prepare("SELECT value FROM app_meta WHERE key = ?").get(MARKER_KEY);
+
+    it("a mid-window failure propagates, the tail still heals, and the marker clears", () => {
+      const store = makeStore();
+      store.beginBulk();
+      store.apply(
+        env(
+          "object.create",
+          { objectId: NODE_PAGE, contentAst: [{ type: "text", text: "Rack" }] },
+          1727200000000,
+        ),
+      );
+      // Process-death shape: the marker must be ON DISK while the window is
+      // open, committed before any bulk work.
+      expect(markerOf(store)).toEqual({ value: "1" });
+      let thrown: unknown = null;
+      try {
+        store.apply(
+          env(
+            "object.update",
+            { objectId: "0192a000-0000-7000-8000-000000000099", icon: "mdi:ghost" },
+            1727200000100,
+          ),
+        );
+      } catch (error) {
+        thrown = error;
+      } finally {
+        store.endBulk();
+      }
+      expect((thrown as Error).name).toBe("NotFoundError");
+      expect(markerOf(store)).toBeUndefined();
+      // Healed for the applied prefix: stats row per node, search live.
+      const counts = store.database
+        .prepare(
+          "SELECT (SELECT COUNT(*) FROM node) AS nodes, (SELECT COUNT(*) FROM node_stats) AS stats",
+        )
+        .get() as { nodes: number; stats: number };
+      expect(counts.stats).toBe(counts.nodes);
+      expect(store.search("Rack").length).toBeGreaterThan(0);
+    });
+
+    it("a window abandoned before endBulk is healed at open (kill simulation)", () => {
+      const dir = mkdtempSync(join(tmpdir(), "notees-bulk-marker-"));
+      tmpDirs.push(dir);
+      const path = join(dir, "store.db");
+      const wounded = new Store(betterSqlite3Backend(path));
+      wounded.beginBulk();
+      wounded.applyMany([
+        env(
+          "object.create",
+          { objectId: NODE_PAGE, contentAst: [{ type: "text", text: "Rack" }] },
+          1727200000000,
+        ),
+        env(
+          "object.create",
+          { objectId: NODE_BLOCK, parentId: NODE_PAGE, contentAst: [{ type: "text", text: "Shelf" }] },
+          1727200000100,
+        ),
+      ]);
+      expect(markerOf(wounded)).toEqual({ value: "1" });
+      // Process death: close WITHOUT endBulk. The file keeps the marker and
+      // the deferral-stale tables.
+      wounded.close();
+
+      const reopened = new Store(betterSqlite3Backend(path));
+      // The open-time heal ran the total tail and consumed the marker.
+      expect(markerOf(reopened)).toBeUndefined();
+      const counts = reopened.database
+        .prepare(
+          "SELECT (SELECT COUNT(*) FROM node) AS nodes, (SELECT COUNT(*) FROM node_stats) AS stats",
+        )
+        .get() as { nodes: number; stats: number };
+      expect(counts.stats).toBe(counts.nodes);
+      expect(reopened.search("Rack").length).toBeGreaterThan(0);
+      reopened.close();
+    });
+
+    it("a clean reopen with no new envelopes runs no tail work", () => {
+      const dir = mkdtempSync(join(tmpdir(), "notees-bulk-marker-"));
+      tmpDirs.push(dir);
+      const path = join(dir, "store.db");
+      const healthy = new Store(betterSqlite3Backend(path));
+      healthy.apply(
+        env(
+          "object.create",
+          { objectId: NODE_PAGE, contentAst: [{ type: "text", text: "Rack" }] },
+          1727200000000,
+        ),
+      );
+      healthy.apply(
+        env(
+          "object.create",
+          { objectId: NODE_BLOCK, parentId: NODE_PAGE, contentAst: [{ type: "text", text: "Shelf" }] },
+          1727200000100,
+        ),
+      );
+      // Give node A a LATER docid than B (the content update reindexes it
+      // last): a tail would renumber docids in rowid order, so the docid
+      // order captures whether any tail work ran at reopen.
+      healthy.apply(
+        env(
+          "object.update",
+          { objectId: NODE_PAGE, contentAst: [{ type: "text", text: "Rack v2" }] },
+          1727200000200,
+        ),
+      );
+      const byDocid = healthy.database
+        .prepare("SELECT node_id, docid FROM search_index_docid ORDER BY docid")
+        .all();
+      const byNode = healthy.database
+        .prepare("SELECT node_id, docid FROM search_index_docid ORDER BY node_id")
+        .all();
+      expect(JSON.stringify(byDocid)).not.toBe(JSON.stringify(byNode));
+      const mapBefore = byNode;
+      const statsBefore = healthy.database
+        .prepare(
+          "SELECT node_id, child_count, backlink_count, reference_count, descendant_count FROM node_stats ORDER BY node_id",
+        )
+        .all();
+      healthy.close();
+
+      const reopened = new Store(betterSqlite3Backend(path));
+      // No marker, no new envelopes: the derived tables ride through
+      // untouched (a tail would renumber the docids and rewrite the stats
+      // rows).
+      expect(
+        reopened.database.prepare("SELECT node_id, docid FROM search_index_docid ORDER BY node_id").all(),
+      ).toEqual(mapBefore);
+      expect(
+        reopened.database
+          .prepare(
+            "SELECT node_id, child_count, backlink_count, reference_count, descendant_count FROM node_stats ORDER BY node_id",
+          )
+          .all(),
+      ).toEqual(statsBefore);
+      reopened.close();
+    });
+
+    it("restore/adopt clears a carried marker without healing (images are converged)", () => {
+      const wounded = makeStore();
+      wounded.beginBulk();
+      wounded.apply(
+        env(
+          "object.create",
+          { objectId: NODE_PAGE, contentAst: [{ type: "text", text: "Rack" }] },
+          1727200000000,
+        ),
+      );
+      const bytes = wounded.snapshot();
+      wounded.close();
+
+      const reopened = makeStore();
+      reopened.restore(bytes);
+      // The image's marker is stale metadata — adopt drops it, and the
+      // image's tables ride through AS IMAGED (not healed): the stats table
+      // and the FTS index stay empty. (search() would still find the node
+      // via the tier-6 fuzzy title rescue — degraded by design, not a heal
+      // signal — so the pin reads the tables directly.)
+      expect(markerOf(reopened)).toBeUndefined();
+      expect(
+        (reopened.database.prepare("SELECT COUNT(*) AS n FROM node_stats").get() as { n: number }).n,
+      ).toBe(0);
+      expect(
+        (reopened.database.prepare("SELECT COUNT(*) AS n FROM search_index_docid").get() as {
+          n: number;
+        }).n,
+      ).toBe(0);
+    });
+  });
+
   describe("color grammar (token | #hex | null-clear)", () => {
     it("object.update applies preset token, custom hex, then null as a clear", async () => {
       const store = baseStore();
