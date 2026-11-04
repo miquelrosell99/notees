@@ -282,14 +282,14 @@ describe("multipart snapshot uploads (part + commit)", () => {
     expect(res.json().error.code).toBe("not_found");
   });
 
-  it("the sanity gate arms on commit: an empty image over a big log is rejected 422", async () => {
+  it("the sanity gate arms on commit: a PLAINTEXT empty image over a big log is rejected 422", async () => {
     server = await makeTestServer();
     await seedBigLog();
     const empty = Store.open(betterSqlite3Backend(":memory:"));
     const bytes = Buffer.from(empty.snapshot());
     empty.close();
     expect((await putPart(0, bytes)).statusCode).toBe(201);
-    const res = await commit(1);
+    const res = await commit(1, UPLOAD, "&physical=100&logical=2"); // no sealed — the gate applies
     expect(res.statusCode).toBe(422);
     expect(res.json().error.code).toBe("validation_failed");
     // No checkpoint was installed.
@@ -299,6 +299,22 @@ describe("multipart snapshot uploads (part + commit)", () => {
       headers: server.authHeaders,
     });
     expect(meta.json().hasSnapshot).toBe(false);
+  });
+
+  it("a SEALED commit skips the sanity gate — the server cannot inspect ciphertext (a corrupt sealed blob fails at client restore, and only a keyed client can mint one)", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    // Not a derived store in any sense — pure garbage, as an opaque sealed blob would be.
+    expect((await putPart(0, Buffer.from("not-a-store-at-all"), "0192a000-0000-7000-8000-0000000000bb")).statusCode).toBe(201);
+    const res = await commit(1, "0192a000-0000-7000-8000-0000000000bb");
+    expect(res.statusCode).toBe(201);
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(meta.json().sealed).toBe(true);
+    expect(meta.json().snapshotId).toBe(res.json().snapshotId);
   });
 });
 
@@ -336,6 +352,24 @@ describe("PUT /snapshot/data — the sanity gate", () => {
       headers: server!.authHeaders,
     });
     expect(meta.json().snapshotId).toBe(good.json().snapshotId);
+  });
+
+  it("a SEALED upload skips the sanity gate (ciphertext is opaque to the server; only a keyed client can mint one, and a corrupt blob fails at client restore)", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    const res = await server!.app.inject({
+      method: "PUT",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server!.workspaceId}&physical=100&logical=2&sealed=1`,
+      headers: { "content-type": "application/octet-stream", ...server!.authHeaders },
+      payload: Buffer.from("opaque-sealed-garbage"),
+    });
+    expect(res.statusCode).toBe(201);
+    const meta = await server!.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server!.workspaceId}`,
+      headers: server!.authHeaders,
+    });
+    expect(meta.json().sealed).toBe(true);
   });
 
   it("rejects non-store bytes on a big log (the magic-header fast path)", async () => {
