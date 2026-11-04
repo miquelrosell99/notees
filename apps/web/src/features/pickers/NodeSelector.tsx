@@ -10,13 +10,15 @@
  *   anchored below the given element — for embedding the picker under a
  *   custom trigger.
  *
- * The empty-query picker opens to the workspace's RECENTLY USED nodes
- * (MRU order, "Recently used" caption) — the store's recency reads merged:
- * recently linked targets (mention/tag edges) and recently created chrome
- * pages, each ranked by the node's LATEST use. Merely OPENED pages do not
- * count (opening feeds the sidebar's device-local Recents, not this list);
- * the first keystroke replaces the list with search hits. Class-scoped
- * pickers keep their member listing; the classes picker is unaffected.
+ * The empty-query picker opens to the workspace's RECENTLY USED nodes,
+ * in the command palette home's section order (the shared
+ * `recentUseSections` composition): recently CREATED chrome pages first
+ * (createdAt, "Recently created" caption), then recently LINKED targets
+ * the created arm didn't claim (mention/tag edge recency, "Recently
+ * linked" caption), MRU within each. Merely OPENED pages do not count
+ * (opening feeds the sidebar's device-local Recents, not this list); the
+ * first keystroke replaces the list with search hits. Class-scoped pickers
+ * keep their member listing; the classes picker is unaffected.
  *
  * All modes render the shared NodeResultItem rows; keyboard navigation,
  * date suggestions, and create-from-query are built in (`noCreate` turns
@@ -63,7 +65,7 @@
  * never inserts.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -106,6 +108,7 @@ import {
   listClassOptions,
   listFilterOptions,
 } from "../search-filters/filterModel.js";
+import { recentUseSections } from "../search-filters/recentUse.js";
 import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
 import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { useDelayedVisible } from "../../components/ui/kit/useDelayedVisible.js";
@@ -442,7 +445,11 @@ export function NodeSelector({
   }, [anchorRect]);
   const anchorRef = useRef<HTMLElement | { getBoundingClientRect(): DOMRect } | null>(null);
   /** The parentlessRole "block" demote resolver for the role predicates. */
-  const parentlessBlock = parentlessBlockResolverOf(client);
+  // Memoized on the client: the resolver is a fresh closure per call, and an
+  // unstable identity would invalidate every memo listing it (the recents
+  // listing re-sorted per render — and re-searched per render, one extra
+  // ranked-index call per keystroke settle).
+  const parentlessBlock = useMemo(() => parentlessBlockResolverOf(client), [client]);
   // Latest-value ref assignment during render so the layout-phase position
   // hook measures the current anchor on the same commit that opens the picker.
   anchorRef.current = anchorEl ?? virtualAnchor;
@@ -1006,6 +1013,38 @@ export function NodeSelector({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the closure is a pure function of the filter set and the class graph (dataVersion rides the landing notify like the search memo).
   }, [client, effectiveClassIds, dataVersion]);
 
+  /**
+   * The empty-query "recently used" listing — the shared recency
+   * composition (`recentUseSections`, the palette home's section recipe):
+   * recently CREATED chrome pages first (createdAt, newest first), then
+   * recently LINKED targets the created arm didn't claim (mention/tag edge
+   * recency). Merely OPENED pages do not count anywhere — opening feeds the
+   * sidebar's device-local Recents, a different list (that mismatch was the
+   * bug: the picker showed recently opened pages at the top). Kept OUT of
+   * the search memo below: its deps are data-only (no query inputs), so
+   * keystrokes don't re-sort the pool. Each arm is filtered per the picker's
+   * role/scope like any other candidate set — a blocks-mode picker lists no
+   * created pages (created blocks are not enumerable from the page pool),
+   * so only LINKED blocks surface there. The search memo's final branch
+   * returns `rows` when no other empty-query listing (member pool, filter
+   * pool) claims the slot; class-scoped pickers keep their member listing,
+   * the classes picker never reaches here.
+   */
+  const recentsListing = useMemo(() => {
+    const sections = recentUseSections(client, client.listPages(), MAX_SYNCED_RECENTS);
+    const roleFilter = (node: ClientNode): boolean => {
+      if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
+        return false;
+      if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
+        return false;
+      return matchesScopeTab(node);
+    };
+    const created = sections.created.filter(roleFilter);
+    const linked = sections.linked.filter(roleFilter);
+    return { created, linked, rows: [...created, ...linked] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- roleFilter derives from searchMode/scopeTabs/scope (deps) and parentlessBlock/parentRenderFacts (client-stable); dataVersion rides the async landing notify like the search memo.
+  }, [client, searchMode, scopeTabs, scope, parentlessBlock, dataVersion]);
+
   // Search results through the client. Classes are matched by name over the
   // class list (name filtering is the better picker behavior for short
   // queries); object/block hits go through the ranked FTS index — the
@@ -1074,56 +1113,12 @@ export function NodeSelector({
         .filter(matchesScopeTab)
         .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock));
     }
-    // The empty-query default: the workspace's recently USED nodes — the
-    // store's two recency reads merged into one MRU list. The link arm is
-    // `recentLinkTargets` (distinct mention/tag edge targets by most recent
-    // incoming link); the created arm is the document-chrome pool by
-    // createdAt, newest first (the palette home's "Recently created"
-    // recipe). A node in both arms ranks by its LATEST use. Merely OPENED
-    // pages do not count — opening feeds the sidebar's device-local
-    // Recents, not this list (that mismatch was the bug: the picker showed
-    // recently opened pages at the top). The first keystroke replaces the
-    // list with search hits. Class-scoped pickers keep the member listing
-    // above; the classes picker never reaches here. The mode filter mirrors
-    // the search-hit branch, so a blocks-mode picker never lists page
-    // recents (created blocks are not enumerable from the page pool — the
-    // link arm still surfaces linked blocks).
-    const usedAt = new Map<string, string | null>();
-    const stamp = (id: string, ts: string | null): void => {
-      const prev = usedAt.get(id);
-      if (prev === undefined || (prev === null && ts !== null) ||
-          (prev !== null && ts !== null && prev.localeCompare(ts) < 0)) {
-        usedAt.set(id, ts);
-      }
-    };
-    for (const row of client.recentLinkTargets(MAX_SYNCED_RECENTS)) {
-      stamp(row.id, row.linkedAt);
-    }
-    for (const node of client
-      .listPages()
-      .slice()
-      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
-      .slice(0, MAX_SYNCED_RECENTS)) {
-      stamp(node.id, node.createdAt);
-    }
-    return [...usedAt.entries()]
-      .sort((a, b) => {
-        if (a[1] === null) return b[1] === null ? 0 : 1;
-        if (b[1] === null) return -1;
-        return b[1].localeCompare(a[1]);
-      })
-      .map(([id]) => client.getNode(id))
-      .filter((node): node is ClientNode => node !== undefined)
-      .filter((node) => {
-        if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
-          return false;
-        if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
-          return false;
-        return true;
-      })
-      .filter(matchesScopeTab);
+    // The empty-query default: the shared recency listing (see
+    // `recentsListing` above) — created section first, then linked, MRU
+    // within each. The first keystroke replaces the list with search hits.
+    return recentsListing.rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (debouncedQuery) and chipFilterState (activeFilters); matchesScopeTab derives from scope/scopeTabs/searchMode.
-  }, [client, debouncedQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion, filterMode, chipFilterState]);
+  }, [client, debouncedQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion, filterMode, chipFilterState, recentsListing]);
 
   // The classes picker's disabled-class matches:
   // the query names an ARCHIVED system class — listClasses() filters
@@ -1228,8 +1223,9 @@ export function NodeSelector({
     showCreateOption && effectiveQuery !== "" && !hasPartialExactMatch;
   /**
    * The recents listing is live: an empty effective query with no filter
-   * prefix and no class scope in a non-classes picker. Names the caption
-   * above the rows (and nothing else — selection math is unchanged).
+   * prefix and no class scope in a non-classes picker (the same condition
+   * the search memo's final branch answers). Gates the section captions
+   * only — selection math is unchanged.
    */
   const recentsActive =
     searchMode !== "classes" &&
@@ -1242,6 +1238,22 @@ export function NodeSelector({
     chipFilterState.cls === false &&
     activeFilters.length === 0 &&
     effectiveClassIds.length === 0;
+
+  /**
+   * The two section captions over the recents rows. The created caption
+   * rides above the list while any visible row came from the created arm;
+   * the linked caption is spliced before the first visible row the created
+   * arm did NOT claim (-1 = no linked rows to caption). Assigned-row hiding
+   * and the display limit can shrink a section, so both derive from the
+   * VISIBLE rows, not the section sizes.
+   */
+  const recentsCreatedIds = new Set(recentsListing.created.map((node) => node.id));
+  const recentsCreatedCaptionVisible =
+    recentsActive && visibleResults.some((node) => recentsCreatedIds.has(node.id));
+  const recentsLinkedCaptionIndex =
+    recentsActive && recentsListing.linked.length > 0
+      ? visibleResults.findIndex((node) => !recentsCreatedIds.has(node.id))
+      : -1;
 
   /** The pinned escape owns index 0 only while the query is empty. */
   const emptyQueryOptionActive =
@@ -1507,9 +1519,9 @@ export function NodeSelector({
           }
         />
       )}
-      {recentsActive && visibleResults.length > 0 && (
+      {recentsCreatedCaptionVisible && (
         <div className="node-selector__recent-caption" aria-hidden="true">
-          Recently used
+          Recently created
         </div>
       )}
       {dateSuggestion && (
@@ -1537,22 +1549,28 @@ export function NodeSelector({
       {visibleResults.map((node, index) => {
         const globalIndex = resultStart + index;
         return (
-          <NodeResultItem
-            key={node.id}
-            node={node}
-            client={client}
-            parentPath={
-              rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock)
-                ? buildParentPath(node)
-                : buildContainingPagePath(node)
-            }
-            displayClasses={getDisplayClasses(node)}
-            isHighlighted={globalIndex === selectedIndex}
-            isSelected={assignedIds.has(node.id)}
-            onClick={() => handleAdd(node)}
-            onCtrlClick={() => handleAdd(node, true)}
-            onMouseEnter={() => setSelectedIndex(globalIndex)}
-          />
+          <Fragment key={node.id}>
+            {index === recentsLinkedCaptionIndex && (
+              <div className="node-selector__recent-caption" aria-hidden="true">
+                Recently linked
+              </div>
+            )}
+            <NodeResultItem
+              node={node}
+              client={client}
+              parentPath={
+                rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock)
+                  ? buildParentPath(node)
+                  : buildContainingPagePath(node)
+              }
+              displayClasses={getDisplayClasses(node)}
+              isHighlighted={globalIndex === selectedIndex}
+              isSelected={assignedIds.has(node.id)}
+              onClick={() => handleAdd(node)}
+              onCtrlClick={() => handleAdd(node, true)}
+              onMouseEnter={() => setSelectedIndex(globalIndex)}
+            />
+          </Fragment>
         );
       })}
       {archivedMatches.map((node, index) => {

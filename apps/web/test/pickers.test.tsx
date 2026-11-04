@@ -486,7 +486,7 @@ describe("icon picker color section", () => {
 });
 
 describe("NodeSelector empty-query recents", () => {
-  /** A mention of `target` from a fresh source page — the link arm's feed. */
+  /** A mention of `target` from a fresh source page — a link into the edge index. */
   async function linkTo(client: WorkspaceClient, target: string): Promise<void> {
     const source = await client.createObject({ isEmbedded: false, name: "Source" });
     // Title-is-content: the mention rides AFTER the title text so the source
@@ -496,7 +496,7 @@ describe("NodeSelector empty-query recents", () => {
     });
   }
 
-  it("opens to the recently used nodes — linked or created, MRU by the latest use; typing replaces them with search hits", async () => {
+  it("opens to the recency sections — created first (createdAt order), a claimed link target rides the created section once; typing replaces them with search hits", async () => {
     const client = await seedClient();
     const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
     const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
@@ -509,39 +509,59 @@ describe("NodeSelector empty-query recents", () => {
       <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
     );
 
-    expect(screen.getByText("Recently used")).not.toBeNull();
+    // The created section: the chrome pool by createdAt, newest first. The
+    // linked section is EMPTY here — Beta (the mention target) is claimed
+    // by the created arm, so it appears exactly once, under "Recently
+    // created", never under "Recently linked".
+    expect(screen.getByText("Recently created")).not.toBeNull();
+    expect(screen.queryByText("Recently linked")).toBeNull();
     const dialogRows = document.querySelector(".node-selector__options")!;
     const names = [...dialogRows.querySelectorAll(".node-result-item")].map((el) => el.textContent);
-    // MRU by latest use: Delta (created last) leads; Beta rides its link
-    // (written after Source's create); Source follows its create; the
-    // opened-only Alpha trails everything.
     expect(names[0]).toContain("Delta");
-    expect(names[1]).toContain("Beta");
-    expect(names[2]).toContain("Source");
+    expect(names[1]).toContain("Source");
+    expect(names[2]).toContain("Beta");
     expect(names[3]).toContain("Alpha");
+    // Beta appears exactly once as a ROW (Source's own row legitimately
+    // mentions Beta in its flattened title — row text is not unique).
+    expect(names.filter((n) => n?.trim() === "Beta").length).toBe(1);
 
     // The first keystroke replaces the recents with search hits.
     fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "alp" } });
-    expect(screen.queryByText("Recently used")).toBeNull();
+    expect(screen.queryByText("Recently created")).toBeNull();
     expect(screen.getByText("Alpha")).not.toBeNull();
     expect(screen.queryByText("Delta")).toBeNull();
   });
 
-  it("merging takes a node's LATEST use: re-linking an older created node promotes it", async () => {
+  it("the linked section surfaces targets the created arm didn't claim — a linked inline block rides it (all + blocks modes)", async () => {
     const client = await seedClient();
-    const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
-    await client.createObject({ isEmbedded: false, name: "Gamma" });
-    // Beta is the OLDER create but the LATEST link — it must lead.
-    await linkTo(client, beta);
+    const host = await client.createObject({ isEmbedded: false, name: "Host page" });
+    const block = await client.createObject({ isEmbedded: true, name: "Inline bit", parentId: host });
+    await linkTo(client, block);
     render(
-      <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
+      <NodeSelector client={client} trigger="inline" searchMode="all" searchPlaceholder="Search all" onAdd={() => {}} />,
     );
-
+    // Both sections: the source + host pages under "Recently created"
+    // (newest first), the linked block under "Recently linked".
+    expect(screen.getByText("Recently created")).not.toBeNull();
+    expect(screen.getByText("Recently linked")).not.toBeNull();
     const dialogRows = document.querySelector(".node-selector__options")!;
     const names = [...dialogRows.querySelectorAll(".node-result-item")].map((el) => el.textContent);
-    expect(names[0]).toContain("Beta");
-    expect(names[1]).toContain("Source");
-    expect(names[2]).toContain("Gamma");
+    expect(names[0]).toContain("Source");
+    expect(names[1]).toContain("Host page");
+    expect(names[2]).toContain("Inline bit");
+
+    // Blocks mode: the created section is empty there (created blocks are
+    // not enumerable) — only the linked block remains, under its caption.
+    render(
+      <NodeSelector client={client} trigger="inline" searchMode="blocks" searchPlaceholder="Search blocks" onAdd={() => {}} />,
+    );
+    const allPickers = document.querySelectorAll(".node-selector--inline");
+    const blocksPicker = allPickers[allPickers.length - 1] as HTMLElement;
+    expect(within(blocksPicker).getByText("Recently linked")).not.toBeNull();
+    expect(within(blocksPicker).queryByText("Recently created")).toBeNull();
+    const blockRows = blocksPicker.querySelectorAll(".node-result-item");
+    expect(blockRows.length).toBe(1);
+    expect(within(blocksPicker).getByText("Inline bit")).not.toBeNull();
   });
 
   it("an empty workspace keeps the honest empty state; class-scoped pickers keep their member listing", async () => {
@@ -550,7 +570,8 @@ describe("NodeSelector empty-query recents", () => {
       <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
     );
     expect(screen.getByText("Start typing to search")).not.toBeNull();
-    expect(screen.queryByText("Recently used")).toBeNull();
+    expect(screen.queryByText("Recently created")).toBeNull();
+    expect(screen.queryByText("Recently linked")).toBeNull();
 
     // A class-scoped picker lists members on the empty query (unchanged).
     const cls = await createTitledClass(client, "Fiction");
@@ -575,29 +596,18 @@ describe("NodeSelector empty-query recents", () => {
     expect(scoped.querySelector(".node-selector__recent-caption")).toBeNull();
   });
 
-  it("blocks-mode recents list only LINKED inline blocks — opened blocks and pages stay out", async () => {
+  it("opened-only blocks and pages stay out — blocks mode is honestly empty until a block is LINKED", async () => {
     const client = await seedClient();
     const page = await client.createObject({ isEmbedded: false, name: "Host page" });
     const block = await client.createObject({ isEmbedded: true, name: "Inline bit", parentId: page });
     // Opened-only recents (the device list) must not feed blocks mode.
     localStorage.setItem("notees.recents", JSON.stringify([block, page]));
-    const { unmount } = render(
-      <NodeSelector client={client} trigger="inline" searchMode="blocks" searchPlaceholder="Search blocks" onAdd={() => {}} />,
-    );
-    expect(screen.queryByText("Recently used")).toBeNull();
-    expect(screen.getByText("Start typing to search")).not.toBeNull();
-    unmount();
-
-    await linkTo(client, block);
     render(
       <NodeSelector client={client} trigger="inline" searchMode="blocks" searchPlaceholder="Search blocks" onAdd={() => {}} />,
     );
-    // The linked embedded block qualifies (its containing page rides as the
-    // row crumb); the host page stays filtered out — one row only.
-    expect(screen.getByText("Recently used")).not.toBeNull();
-    const rows = document.querySelectorAll(".node-result-item");
-    expect(rows.length).toBe(1);
-    expect(within(rows[0] as HTMLElement).getByText("Inline bit")).not.toBeNull();
+    expect(screen.queryByText("Recently created")).toBeNull();
+    expect(screen.queryByText("Recently linked")).toBeNull();
+    expect(screen.getByText("Start typing to search")).not.toBeNull();
   });
 
   it("the classes picker is unaffected (lists classes, no recents caption)", async () => {
@@ -608,7 +618,7 @@ describe("NodeSelector empty-query recents", () => {
       <NodeSelector client={client} trigger="inline" searchMode="classes" searchPlaceholder="Search classes" onAdd={() => {}} />,
     );
     expect(screen.getByText("Fiction")).not.toBeNull();
-    expect(screen.queryByText("Recently used")).toBeNull();
+    expect(document.querySelector(".node-selector__recent-caption")).toBeNull();
   });
 });
 

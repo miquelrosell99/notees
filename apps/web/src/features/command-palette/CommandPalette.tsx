@@ -12,6 +12,9 @@
  *               client read `recentLinkTargets`, so the rows converge as
  *               the worker cache warms (the old effect-snapshot reads
  *               dropped every row on a cold cache)
+ *               Both sections' composition is the shared
+ *               `recentUseSections` helper — also the node picker's
+ *               empty-query listing (features/search-filters/recentUse.ts)
  *  - Random     five pages picked on open via Fisher–Yates over the
  *               already-loaded page list (asset-classed pages excluded); the
  *               group label carries a ghost refresh button that re-shuffles
@@ -94,6 +97,7 @@ import {
   listFilterOptions,
 } from "../search-filters/filterModel.js";
 import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
+import { recentUseSections } from "../search-filters/recentUse.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { FilterChips } from "../../components/ui/kit/FilterChips.js";
 import { FilterMenu } from "../../components/ui/kit/FilterMenu.js";
@@ -461,31 +465,24 @@ export function CommandPalette({
           });
         }
       };
-      // Recently created: the document-chrome pool by createdAt, newest
-      // first. The pooled row's createdAt rides the structure-classed
-      // listPages read — stable enough for a home ranking (a just-created
-      // page lands through the next cache-version bump).
+      // Recently created + Recently linked ride the shared recency
+      // composition (`recentUseSections`, also the node picker's empty-query
+      // listing): the chrome pool by createdAt, then distinct mention/tag
+      // edge targets by most recent incoming link — the linked arm
+      // pre-filtered to drop ids the created arm claimed. Ids resolve
+      // through the scope-classed getNode, so a cold WorkerClient cache
+      // drops the row on the first pass and materializes on the
+      // cache-version bump this memo re-runs (deps ride classesCache).
+      // Chrome-filtered + capped here; the flatten step's cross-group id
+      // dedupe is the helper's claim set.
+      const sections = recentUseSections(client, pages, HOME_SECTION_COUNT);
+      pushRows("Recently created", sections.created);
       pushRows(
-        "Recently created",
-        pages
-          .slice()
-          .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+        "Recently linked",
+        sections.linked
+          .filter((node) => rendersWithDocumentChrome(node, undefined, parentlessBlockResolverOf(client)))
           .slice(0, HOME_SECTION_COUNT),
       );
-      // Recently linked: distinct mention-edge targets by the most recent
-      // incoming link (the store's recency read). Ids resolve through the
-      // scope-classed getNode, so a cold WorkerClient cache drops the row
-      // on the first pass and materializes on the cache-version bump this
-      // memo re-runs (deps ride classesCache). Chrome-filtered to main
-      // nodes; the flatten step's cross-group id dedupe skips a node the
-      // first section already claimed.
-      const linkedPool = client
-        .recentLinkTargets(HOME_SECTION_COUNT)
-        .map((target) => client.getNode(target.id))
-        .filter((node): node is ClientNode => node !== undefined)
-        .filter((node) => rendersWithDocumentChrome(node, undefined, parentlessBlockResolverOf(client)))
-        .slice(0, HOME_SECTION_COUNT);
-      pushRows("Recently linked", linkedPool);
     }
 
     if (!chip.commands && !chip.classes && !chip.blocks && (dailyOnly || text !== "")) {
