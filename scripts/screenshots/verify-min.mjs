@@ -143,8 +143,13 @@ const probe = setInterval(async () => {
 // SNAPSHOT_REBUILD_MIN_ENVELOPES) the whole log replays — minutes at live
 // scale. 600 s covers the slow mode with headroom; raise only when a
 // wipe-era run legitimately exceeds it.
+// THIRD mode (E2EE era): a keyless open of a SEALED workspace settles short
+// of 500 chars (locked banner + chrome, sealed content hidden) — the gate
+// also passes on the locked banner itself; the unlock flow below then drives
+// the real encrypted path to full content.
 await page.waitForFunction(
-  () => document.body.innerText.length > 500,
+  () => document.body.innerText.length > 500 ||
+    document.body.innerText.includes("This workspace is encrypted"),
   undefined,
   { timeout: 600_000 },
 ).finally(() => clearInterval(probe));
@@ -160,7 +165,11 @@ const lockedBanner = await page.evaluate(() =>
   document.body.innerText.includes("This workspace is encrypted"));
 if (lockedBanner) {
   console.log("locked banner up — driving the unlock flow");
-  await page.click(".encrypted-locked-banner__unlock");
+  // The banner re-renders on every sync notify, so the button can stay
+  // "unstable" forever — force the click (it is the intended gesture), and
+  // target the a11y role/name rather than a skin class (the class drifted
+  // once already; the name is the contract).
+  await page.getByRole("button", { name: "Unlock" }).first().click({ force: true });
   const passwordInput = page.locator('input[type="password"]');
   await passwordInput.waitFor({ timeout: 10_000 });
   await passwordInput.fill(PASSWORD);
@@ -210,22 +219,22 @@ try {
   throw new Error("command palette did not open on Ctrl+K");
 }
 await box.fill(term);
-// Poll for the hit instead of sleeping a fixed delay: the early body>500
-// boot gate passes seconds in — long before the restored/caught-up store
-// holds the 2018 date pages.
-// Wait for REAL content: "2018/09" only renders from a replayed page — the
-// filled input echoes "20180900", so waiting on the term itself would pass
-// instantly on the echo with an empty store.
-await page.waitForFunction(
-  () => document.body.innerText.includes("2018/09"),
-  undefined,
-  { timeout: 600_000 },
-).catch(() => {});
+// Poll for the hit instead of sleeping a fixed delay: the early boot gate
+// passes seconds in — long before the restored/caught-up store holds the
+// fixture page. The hit is a real PALETTE ROW carrying the formatted title
+// (never the create row — an echo-adjacent affordance, not content): with
+// the fixture favorited, "2018/09" can already ride the sidebar, so a bare
+// body-text wait could pass on the favorites row alone. Pick the row, let
+// the page open, and assert on the OPENED page — only a real hit survives.
+const hitRow = page.locator(".nt-palette-item", { hasText: "2018/09" }).first();
+await hitRow.waitFor({ timeout: 600_000 }).catch(() => {});
+await hitRow.click({ force: true }).catch(() => {});
+await page.waitForTimeout(1500);
 // Oracle hygiene: the filled input itself echoes the term into body.innerText,
 // which would pass the check with an empty result set. Clear the input (and
 // close the palette) before asserting — only a REAL rendered hit survives.
-await box.fill("");
-await box.press("Escape");
+await box.fill("").catch(() => {});
+await box.press("Escape").catch(() => {});
 await page.waitForTimeout(500);
 const body = await page.evaluate(() => document.body.innerText);
 const found = body.includes("20180900") || body.includes("2018/09");
