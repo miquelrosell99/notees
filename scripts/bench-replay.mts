@@ -8,11 +8,24 @@
  * generated here from a seeded PRNG; no workspace data is read anywhere
  * (repo law — benchmarks never touch personal data).
  *
- * Synthetic log shape (a busy personal workspace): a journal (root page →
- * month pages → day pages → content blocks), scattered root pages with
- * blocks, two user classes with classed entities, tags, text/number/scoped
- * property schemas with values, mentions inside block content, moves,
- * trash + restores. Deterministic for a given --seed.
+ * Two deterministic mixes (--mix classic|wide|both, default both):
+ *  - classic: a single clock, one synthetic device, sequential HLCs —
+ *    zero out-of-order delivery, zero LWW contention (the original
+ *    headline-comparable shape);
+ *  - wide:    three synthetic devices with rate-skewed clocks (real
+ *    out-of-order HLC windows), conflicting LWW writes to the same
+ *    property/node delivered inverted vs their HLC order, tag unassign +
+ *    re-add churn, and payload-invalid POISON ops. The harness rejects
+ *    poison at the replay boundary exactly the way the real pipeline does
+ *    at ingest (validateEnvelope — a poison envelope never reaches an
+ *    applier; counted as skipped, like the server's ingest 422), so the
+ *    apply paths see only valid envelopes.
+ *
+ * Workspace shape (both mixes): a journal (root page → month pages → day
+ * pages → content blocks), scattered root pages with blocks, two user
+ * classes with classed entities, tags, text/number/scoped property schemas
+ * with values, mentions inside block content, moves, trash + restores.
+ * Deterministic for a given --seed.
  *
  * Modes (the apply path each side takes today):
  *  - server: one store.apply() per envelope — one transaction per envelope,
@@ -22,41 +35,43 @@
  *
  * Usage (from the repo root):
  *   pnpm --filter @notees/server exec tsx scripts/bench-replay.mts \
- *     --mode server --envelopes 20000
+ *     --mode server --envelopes 20000 [--mix classic|wide|both]
  *   NODE_OPTIONS=--cpu-prof …  # drop a .cpuprofile next to the CWD
  *
  * Reports wall time, envelopes/sec, statement counts, the top SQL buckets,
  * the non-statement share (transaction commit / JS / prepare), and a
  * stateHash over every derived table — the correctness handle: a faster
- * path must converge to the SAME hash for the same seed (replay
+ * path must converge to the SAME hash for the same seed and mix (replay
  * determinism law).
+ *
+ * Generator pins: scripts/bench-replay.test.mts
+ * (node --import tsx --test scripts/bench-replay.test.mts).
  */
 
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { performance } from "node:perf_hooks";
 
-import { newEnvelope, type Envelope, type OpPayload } from "../packages/protocol/src/index.ts";
+import { newEnvelope, type Envelope } from "../packages/protocol/src/index.ts";
 import {
   Store,
   StoreError,
+  validateEnvelope,
   type SqliteDB,
   type SqliteStatement,
   type StoreBackend,
 } from "../packages/store/src/index.ts";
 import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 
-// --- args ----------------------------------------------------------------------
+// --- args (read inside main; the module is importable for the tests) --------
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
   return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1]! : fallback;
 }
-const MODE = arg("mode", "server");
-const COUNT = Number(arg("envelopes", "20000"));
-const SEED = Number(arg("seed", "42"));
 const CLIENT_PAGE = 1000; // SyncEngine DEFAULT_CATCH_UP_LIMIT
 const SERVER_PAGE = 10_000; // RelayStorage.catchUp page used by replaySince
 
@@ -72,7 +87,10 @@ function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = mulberry32(SEED);
+
+// The generator state is reset per generateLog call: two runs of the same
+// (seed, mix) replay the exact same log.
+let rand = mulberry32(42);
 const pick = <T>(arr: T[]): T => arr[Math.floor(rand() * arr.length)]!;
 
 // --- ids / actors -----------------------------------------------------------------
@@ -87,29 +105,15 @@ function nextId(): string {
   return `0192b000-0000-7000-8000-${hex}`;
 }
 let envIdCounter = 0;
-/** Envelope ids: deterministic too, so two runs of the same seed replay the
- *  exact same log (uuidv7() would randomize them per run). */
+/** Envelope ids: deterministic too, so two runs of the same (seed, mix)
+ *  replay the exact same log (uuidv7() would randomize them per run). */
 function nextEnvelopeId(): string {
   envIdCounter += 1;
   const hex = envIdCounter.toString(16).padStart(12, "0");
   return `0192c000-0000-7000-8000-${hex}`;
 }
 
-// --- synthetic log ------------------------------------------------------------------
-
-interface Pools {
-  rootPages: string[];
-  /** pages that receive block children (root pages + journal day pages) */
-  containers: string[];
-  blocks: string[];
-  entities: string[];
-  tags: string[];
-  tagged: string[];
-  trashed: string[];
-  classA: string | null;
-  classB: string | null;
-  schemas: { text: string | null; number: string | null; scoped: string | null };
-}
+// --- shared generator pieces --------------------------------------------------------
 
 const WORDS =
   "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim minim veniam quis nostrud".split(
@@ -121,8 +125,24 @@ function textTokens(n: number): Array<{ type: "text"; text: string }> {
   return out;
 }
 
-function generateLog(total: number): Envelope[] {
-  const pools: Pools & { movablePages: string[]; childPages: string[] } = {
+interface Pools {
+  rootPages: string[];
+  /** pages that receive block children (root pages + journal day pages) */
+  containers: string[];
+  blocks: string[];
+  entities: string[];
+  tags: string[];
+  tagged: string[];
+  trashed: string[];
+  movablePages: string[];
+  childPages: string[];
+  classA: string | null;
+  classB: string | null;
+  schemas: { text: string | null; number: string | null; scoped: string | null };
+}
+
+function freshPools(): Pools {
+  return {
     rootPages: [],
     containers: [],
     blocks: [],
@@ -136,23 +156,18 @@ function generateLog(total: number): Envelope[] {
     classB: null,
     schemas: { text: null, number: null, scoped: null },
   };
-  const journal = { root: null as string | null, months: new Map<string, string>(), days: new Map<string, string>() };
-  let clock = 1_727_000_000_000;
-  const log: Envelope[] = [];
+}
 
-  const emit = (opType: string, payload: Record<string, unknown>): void => {
-    clock += 3 + Math.floor(rand() * 9);
-    const envelope = newEnvelope({
-      workspaceId: WS,
-      actorId: pick(ACTORS),
-      deviceId: "bench-device",
-      hlc: { physical: clock, logical: 0 },
-      opType,
-      payload,
-      timestamp: new Date(clock).toISOString(),
-    }) as Envelope;
-    envelope.id = nextEnvelopeId();
-    log.push(envelope);
+/**
+ * The shared pool-aware op closures, parameterized by the emit function so
+ * both mixes (single-device sequential, multi-device skewed) generate the
+ * same op vocabulary. `emit` stamps whatever device/clock the mix wants.
+ */
+function makeOps(emit: (opType: string, payload: Record<string, unknown>) => void, pools: Pools) {
+  const journal = {
+    root: null as string | null,
+    months: new Map<string, string>(),
+    days: new Map<string, string>(),
   };
 
   const mentionToken = (): { type: "mention"; targetNodeId: string } | null => {
@@ -289,10 +304,10 @@ function generateLog(total: number): Envelope[] {
     else if (pools.rootPages.length > 0) {
       id = pools.rootPages.splice(Math.floor(rand() * pools.rootPages.length), 1)[0];
       for (const list of [pools.movablePages, pools.childPages]) {
-        const i = list.indexOf(id!);
+        const i = list.indexOf(id);
         if (i >= 0) list.splice(i, 1);
       }
-      const ci = pools.containers.indexOf(id!);
+      const ci = pools.containers.indexOf(id);
       if (ci >= 0) pools.containers.splice(ci, 1);
     }
     if (id === undefined) return;
@@ -373,29 +388,67 @@ function generateLog(total: number): Envelope[] {
     emit("workspace.feature.set", { feature: "journal", enabled: rand() < 0.95 });
   };
 
-  type WeightedOp = [number, () => void];
-  const table: WeightedOp[] = [
-    [58, opCreate],
-    [14, opUpdate],
-    [8, opMove],
-    [4, opDelete],
-    [2, opRestore],
-    [0.8, opClassCreate],
-    [1, opClassPropertySet],
-    [0.2, opSchemaCreate],
-    [6, opPropertySet],
-    [1.5, opPropertyAssign],
-    [0.5, opTagUnassign],
-    [0.05, opFeatureSet],
+  return {
+    opCreate,
+    opUpdate,
+    opMove,
+    opDelete,
+    opRestore,
+    opClassCreate,
+    opSchemaCreate,
+    opPropertySet,
+    opPropertyAssign,
+    opClassPropertySet,
+    opTagUnassign,
+    opFeatureSet,
+  };
+}
+
+// --- the classic mix: one device, one clock, sequential HLCs -----------------------
+
+function generateClassicLog(total: number): Envelope[] {
+  const pools = freshPools();
+  let clock = 1_727_000_000_000;
+  const log: Envelope[] = [];
+
+  const emit = (opType: string, payload: Record<string, unknown>): void => {
+    clock += 3 + Math.floor(rand() * 9);
+    const envelope = newEnvelope({
+      workspaceId: WS,
+      actorId: pick(ACTORS),
+      deviceId: "bench-device",
+      hlc: { physical: clock, logical: 0 },
+      opType,
+      payload,
+      timestamp: new Date(clock).toISOString(),
+    }) as Envelope;
+    envelope.id = nextEnvelopeId();
+    log.push(envelope);
+  };
+
+  const ops = makeOps(emit, pools);
+  const table: Array<[number, () => void]> = [
+    [58, ops.opCreate],
+    [14, ops.opUpdate],
+    [8, ops.opMove],
+    [4, ops.opDelete],
+    [2, ops.opRestore],
+    [0.8, ops.opClassCreate],
+    [1, ops.opClassPropertySet],
+    [0.2, ops.opSchemaCreate],
+    [6, ops.opPropertySet],
+    [1.5, ops.opPropertyAssign],
+    [0.5, ops.opTagUnassign],
+    [0.05, ops.opFeatureSet],
   ];
   const totalWeight = table.reduce((s, [w]) => s + w, 0);
 
   // Bootstrap: classes + schemas exist before the mix references them.
-  opClassCreate();
-  opClassCreate();
-  opSchemaCreate();
-  opSchemaCreate();
-  opSchemaCreate();
+  ops.opClassCreate();
+  ops.opClassCreate();
+  ops.opSchemaCreate();
+  ops.opSchemaCreate();
+  ops.opSchemaCreate();
 
   while (log.length < total) {
     let roll = rand() * totalWeight;
@@ -408,6 +461,184 @@ function generateLog(total: number): Envelope[] {
     }
   }
   return log;
+}
+
+// --- the wide mix: three devices, out-of-order HLCs, contention, poison ------------
+
+/** Rate-skewed per-device clocks: device 1 jumps fastest, device 0 slowest —
+ *  interleaving their ops produces real out-of-order HLC windows. */
+const WIDE_DEVICES = [
+  { deviceId: "bench-dev-a", minStep: 2, maxStep: 5 },
+  { deviceId: "bench-dev-b", minStep: 9, maxStep: 17 },
+  { deviceId: "bench-dev-c", minStep: 4, maxStep: 8 },
+] as const;
+
+function generateWideLog(total: number): Envelope[] {
+  const pools = freshPools();
+  const clocks = WIDE_DEVICES.map(() => 1_727_000_000_000);
+  const log: Envelope[] = [];
+  let episode = 0;
+
+  const emitOn = (di: number, opType: string, payload: Record<string, unknown>): void => {
+    const dev = WIDE_DEVICES[di]!;
+    clocks[di] = clocks[di]! + dev.minStep + Math.floor(rand() * (dev.maxStep - dev.minStep + 1));
+    const physical = clocks[di]!;
+    const envelope = newEnvelope({
+      workspaceId: WS,
+      actorId: ACTORS[di % ACTORS.length]!,
+      deviceId: dev.deviceId,
+      hlc: { physical, logical: 0 },
+      opType,
+      payload,
+      timestamp: new Date(physical).toISOString(),
+    }) as Envelope;
+    envelope.id = nextEnvelopeId();
+    log.push(envelope);
+  };
+
+  const ops = makeOps((opType, payload) => emitOn(Math.floor(rand() * WIDE_DEVICES.length), opType, payload), pools);
+
+  /**
+   * LWW contention: two devices write the SAME (node, property-schema) pair
+   * with the higher-HLC write delivered BEFORE the lower-HLC one — replay
+   * order (log order) is inverted vs causality, so the LWW read path decides
+   * the winner. A final re-read of the winner's value by a third device makes
+   * the contention observable in the derived state.
+   */
+  const contentionEpisode = (): void => {
+    if (pools.entities.length === 0 || pools.schemas.scoped === null) return;
+    episode += 1;
+    const node = pick(pools.entities);
+    const schema = pools.schemas.scoped;
+    // Device 1 (fast clock) wins the HLC; device 0 (slow clock) loses — but
+    // the LOSING op is delivered AFTER the winning one.
+    emitOn(1, "property.set", { objectId: node, propertySchemaId: schema, value: `contention-winner-${episode}` });
+    emitOn(0, "property.set", { objectId: node, propertySchemaId: schema, value: `contention-loser-${episode}` });
+    // A node-field LWW pair as well (icon on a block).
+    if (pools.blocks.length > 0) {
+      const block = pick(pools.blocks);
+      emitOn(2, "object.update", { objectId: block, icon: "mdi:alpha" });
+      emitOn(0, "object.update", { objectId: block, icon: "mdi:beta" });
+    }
+  };
+
+  /** Tag churn: unassign then re-add the same tag via the re-issued-create
+   *  OR-Set add carrier (from a different device, out of order). */
+  const tagChurnEpisode = (): void => {
+    if (pools.tagged.length === 0) return;
+    const node = pick(pools.tagged);
+    const tag = pick(pools.tags);
+    emitOn(1, "tag.unassign", { objectId: node, tagId: tag });
+    emitOn(0, "object.create", { objectId: node, parentId: null, tagIds: [tag], contentAst: textTokens(1) });
+  };
+
+  /** A payload-invalid op the ingest boundary rejects (never applied). */
+  const poisonOp = (): void => {
+    episode += 1;
+    emitOn(Math.floor(rand() * WIDE_DEVICES.length), "object.create", {
+      objectId: `not-a-uuid-${episode}`,
+      parentId: null,
+      contentAst: [],
+    });
+  };
+
+  const table: Array<[number, () => void]> = [
+    [58, ops.opCreate],
+    [14, ops.opUpdate],
+    [8, ops.opMove],
+    [4, ops.opDelete],
+    [2, ops.opRestore],
+    [0.8, ops.opClassCreate],
+    [1, ops.opClassPropertySet],
+    [0.2, ops.opSchemaCreate],
+    [6, ops.opPropertySet],
+    [1.5, ops.opPropertyAssign],
+    [1.5, ops.opTagUnassign], // churn-heavier than classic
+    [0.05, ops.opFeatureSet],
+  ];
+  const totalWeight = table.reduce((s, [w]) => s + w, 0);
+
+  // Bootstrap on device 0: classes, schemas, tags, the journal skeleton, and
+  // a seed pool of pages/blocks the mixed phase can reference from any device.
+  ops.opClassCreate();
+  ops.opClassCreate();
+  ops.opSchemaCreate();
+  ops.opSchemaCreate();
+  ops.opSchemaCreate();
+  while (pools.tags.length < 12) {
+    const id = nextId();
+    emitOn(0, "object.create", { objectId: id, parentId: null, contentAst: textTokens(1) });
+    pools.tags.push(id);
+    pools.rootPages.push(id);
+    pools.containers.push(id);
+  }
+  for (let i = 0; i < 30; i += 1) {
+    ops.opCreate();
+    if (pools.rootPages.length >= 12 && pools.blocks.length >= 80) break;
+  }
+  while (pools.blocks.length < 80 || pools.rootPages.length < 12) ops.opCreate();
+
+  while (log.length < total) {
+    // Episode cadence: contention ~every 37 ops, tag churn ~every 53,
+    // poison ~every 97 — all counted toward the total.
+    const n = log.length;
+    if (n % 37 === 20) {
+      contentionEpisode();
+      continue;
+    }
+    if (n % 53 === 11) {
+      tagChurnEpisode();
+      continue;
+    }
+    if (n % 97 === 5) {
+      poisonOp();
+      continue;
+    }
+    let roll = rand() * totalWeight;
+    for (const [weight, fn] of table) {
+      roll -= weight;
+      if (roll <= 0) {
+        fn();
+        break;
+      }
+    }
+  }
+  return log;
+}
+
+// --- generator API (imported by the pins) -------------------------------------------
+
+export type BenchMix = "classic" | "wide";
+
+/**
+ * Generate the synthetic log. Resets the PRNG and id counters first, so two
+ * calls with the same (total, seed, mix) produce byte-identical logs.
+ */
+export function generateLog(total: number, seed: number, mix: BenchMix): Envelope[] {
+  rand = mulberry32(seed);
+  idCounter = 0;
+  envIdCounter = 0;
+  return mix === "wide" ? generateWideLog(total) : generateClassicLog(total);
+}
+
+/**
+ * The ingest boundary: envelopes the strict protocol schemas reject are
+ * dropped BEFORE any applier sees them — exactly the real pipeline's
+ * behavior (the server's ingest validates before persisting; a poison
+ * envelope is a 422, never an apply). The wide mix's poison ops land here.
+ */
+export function partitionValid(log: Envelope[]): { valid: Envelope[]; rejected: Envelope[] } {
+  const valid: Envelope[] = [];
+  const rejected: Envelope[] = [];
+  for (const envelope of log) {
+    try {
+      validateEnvelope(envelope);
+      valid.push(envelope);
+    } catch {
+      rejected.push(envelope);
+    }
+  }
+  return { valid, rejected };
 }
 
 // --- instrumented backend -----------------------------------------------------------
@@ -572,41 +803,38 @@ function tableHash(db: SqliteDB, table: string): string {
 
 // --- replay ---------------------------------------------------------------------------
 
-function replay(log: Envelope[], store: Store): { skipped: number; skipReasons: Map<string, number> } {
+function replay(
+  log: Envelope[],
+  store: Store,
+  mode: string,
+): { skipped: number; skipReasons: Map<string, number> } {
   let skipped = 0;
   const skipReasons = new Map<string, number>();
-  const noteSkip = (error: unknown): void => {
+  const noteSkip = (label: string): void => {
     skipped += 1;
-    const msg = `${error instanceof StoreError ? error.name : "Error"}: ${error instanceof Error ? error.message.slice(0, 120) : String(error)}`;
-    skipReasons.set(msg, (skipReasons.get(msg) ?? 0) + 1);
+    skipReasons.set(label, (skipReasons.get(label) ?? 0) + 1);
   };
-  if (MODE === "server") {
+  if (mode === "server") {
     for (const env of log) {
       try {
         store.apply(env);
       } catch (error) {
-        if (error instanceof StoreError) {
-          if (process.env.BENCH_DEBUG_SKIPS) {
-            console.error("SKIP", JSON.stringify(env.payload), String(error.message).slice(0, 300));
-          }
-          noteSkip(error);
-          continue;
+        if (error instanceof StoreError === false) throw error;
+        if (process.env.BENCH_DEBUG_SKIPS) {
+          console.error("SKIP", JSON.stringify(env.payload), String((error as Error).message).slice(0, 300));
         }
-        throw error;
+        noteSkip(`${(error as Error).name}: ${(error as Error).message.slice(0, 120)}`);
+        continue;
       }
     }
-  } else if (MODE === "client") {
+  } else if (mode === "client") {
     for (let i = 0; i < log.length; i += CLIENT_PAGE) {
       const page = log.slice(i, i + CLIENT_PAGE);
       const summaries = store.applyMany(page, { quarantinePoisonOps: true });
       skipped += summaries.filter((s) => s.quarantined === true).length;
     }
-  } else if (MODE === "bulk") {
-    const anyStore = store as Store & { beginBulk?: () => void; endBulk?: () => void };
-    if (typeof anyStore.beginBulk !== "function" || typeof anyStore.endBulk !== "function") {
-      throw new Error("mode=bulk requires Store.beginBulk()/endBulk() (not implemented yet)");
-    }
-    anyStore.beginBulk();
+  } else if (mode === "bulk") {
+    store.beginBulk();
     try {
       for (let i = 0; i < log.length; i += SERVER_PAGE) {
         const page = log.slice(i, i + SERVER_PAGE);
@@ -614,139 +842,155 @@ function replay(log: Envelope[], store: Store): { skipped: number; skipReasons: 
         skipped += summaries.filter((s) => s.quarantined === true).length;
       }
     } finally {
-      anyStore.endBulk();
+      store.endBulk();
     }
   } else {
-    throw new Error(`unknown mode: ${MODE}`);
+    throw new Error(`unknown mode: ${mode}`);
   }
   return { skipped, skipReasons };
 }
 
 // --- main --------------------------------------------------------------------------------
 
-const log = generateLog(COUNT);
-if (process.env.BENCH_DUMP_LOG) {
-  for (const env of log) {
-    const payload = env.payload as Record<string, unknown>;
-    if (JSON.stringify(payload).includes("000000000032")) {
-      console.log("LOG", env.opType, JSON.stringify(payload));
+function runBench(mix: BenchMix, mode: string, count: number, seed: number): void {
+  const log = generateLog(count, seed, mix);
+  const opHistogram = new Map<string, number>();
+  for (const env of log) opHistogram.set(env.opType, (opHistogram.get(env.opType) ?? 0) + 1);
+
+  const dir = mkdtempSync(join(tmpdir(), "notees-bench-replay-"));
+  const dbPath = join(dir, "derived.db");
+  const instr: Instrumentation = { buckets: new Map(), statementCalls: 0, prepareCalls: 0 };
+
+  const t0 = performance.now();
+  const store = new Store(instrumentedBackend(betterSqlite3Backend(dbPath), instr));
+  const openMs = performance.now() - t0;
+
+  // The ingest boundary: poison ops (wide mix) are rejected before any
+  // applier sees them, exactly like the real pipeline's ingest validation.
+  const { valid, rejected } = partitionValid(log);
+
+  const r0 = performance.now();
+  const { skipped, skipReasons } = replay(valid, store, mode);
+  if (rejected.length > 0) {
+    skipReasons.set("ingest-rejected (invalid envelope)", rejected.length);
+  }
+  const replayMs = performance.now() - r0;
+  const totalSkipped = skipped + rejected.length;
+
+  const hash = stateHash(store.database);
+  const semanticHash = stateHash(store.database, true);
+
+  if (process.env.BENCH_TABLE_HASHES) {
+    for (const table of TABLES) {
+      console.log(`TABLE ${table} ${tableHash(store.database, table)}`);
     }
   }
+  if (process.env.BENCH_DUMP_TABLE) {
+    const table = process.env.BENCH_DUMP_TABLE;
+    const rows =
+      table === "@searchpairs"
+        ? store.database
+            .prepare(
+              `SELECT d.node_id, s.content FROM search_index_docid d
+               LEFT JOIN search_index s ON s.rowid = d.docid ORDER BY d.node_id`,
+            )
+            .all()
+        : store.database.prepare(`SELECT * FROM ${table}`).all();
+    console.log(`DUMP ${table}`);
+    for (const row of rows) {
+      console.log(JSON.stringify(row));
+    }
+  }
+  const counts = (() => {
+    const row = store.database
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM node) AS nodes,
+                (SELECT COUNT(*) FROM edge) AS edges,
+                (SELECT COUNT(*) FROM node_stats) AS stats,
+                (SELECT COUNT(*) FROM applied_envelope) AS applied,
+                (SELECT COUNT(*) FROM property_value) AS propValues`,
+      )
+      .get() as { nodes: number; edges: number; stats: number; applied: number; propValues: number };
+    return row;
+  })();
+
+  const top = [...instr.buckets.entries()].sort((a, b) => b[1].totalMs - a[1].totalMs).slice(0, 12);
+  const sqlTotalMs = [...instr.buckets.values()].reduce((s, b) => s + b.totalMs, 0);
+  const nonSqlMs = replayMs - sqlTotalMs;
+
+  // Clean-restart measurement: a reopen with no marker and no new envelopes
+  // must not pay the maintenance tail. Runs after the hash/dump blocks;
+  // tracked here for the RESULT line.
+  let reopenMs: number | null = null;
+  let reopenStatements: number | null = null;
+  const measureReopen = (): void => {
+    store.close();
+    const instr2: Instrumentation = { buckets: new Map(), statementCalls: 0, prepareCalls: 0 };
+    const tR = performance.now();
+    const reopened = new Store(instrumentedBackend(betterSqlite3Backend(dbPath), instr2));
+    reopenMs = performance.now() - tR;
+    reopenStatements = instr2.statementCalls;
+    reopened.close();
+  };
+
+  console.log(`mix=${mix} mode=${mode} envelopes=${log.length} seed=${seed}`);
+  console.log(`op mix: ${[...opHistogram.entries()].map(([k, v]) => `${k}=${v}`).join(" ")}`);
+  console.log(`replay wall: ${replayMs.toFixed(0)} ms  (${(log.length / (replayMs / 1000)).toFixed(0)} envelopes/sec)`);
+  console.log(`open (schema): ${openMs.toFixed(0)} ms`);
+  console.log(
+    `skipped/quarantined: ${totalSkipped}${skipReasons.size > 0 ? ` (${[...skipReasons.entries()].map(([k, v]) => `${k}=${v}`).join(" ")})` : ""}`,
+  );
+  console.log(`statement calls: ${instr.statementCalls}  prepare calls: ${instr.prepareCalls}`);
+  console.log(`sql inside statements: ${sqlTotalMs.toFixed(0)} ms  non-statement (commit/JS/prepare): ${nonSqlMs.toFixed(0)} ms`);
+  console.log(`rows: nodes=${counts.nodes} edges=${counts.edges} stats=${counts.stats} applied=${counts.applied} propValues=${counts.propValues}`);
+  console.log(`stateHash: ${hash}`);
+  console.log(`semanticHash: ${semanticHash}`);
+  console.log("top SQL buckets (total ms / count):");
+  for (const [key, b] of top) {
+    console.log(`  ${b.totalMs.toFixed(0).padStart(8)} ms  ${String(b.count).padStart(8)}  ${key}`);
+  }
+
+  if (mode === "bulk") {
+    measureReopen();
+    console.log(`clean reopen: ${reopenMs!.toFixed(1)} ms, ${reopenStatements} statements (no tail work)`);
+  } else {
+    store.close();
+  }
+  rmSync(dir, { recursive: true, force: true });
+
+  // Machine-readable tail line for scripts collecting numbers.
+  console.log(
+    `RESULT ${JSON.stringify({
+      mix,
+      mode,
+      envelopes: log.length,
+      seed,
+      replayMs: Math.round(replayMs),
+      envelopesPerSec: Math.round(log.length / (replayMs / 1000)),
+      sqlMs: Math.round(sqlTotalMs),
+      nonSqlMs: Math.round(nonSqlMs),
+      statementCalls: instr.statementCalls,
+      skipped: totalSkipped,
+      ingestRejected: rejected.length,
+      nodes: counts.nodes,
+      edges: counts.edges,
+      stateHash: hash,
+      semanticHash,
+      reopenMs: reopenMs === null ? undefined : Math.round(reopenMs),
+      reopenStatements: reopenStatements ?? undefined,
+    })}`,
+  );
 }
-const opHistogram = new Map<string, number>();
-for (const env of log) opHistogram.set(env.opType, (opHistogram.get(env.opType) ?? 0) + 1);
 
-const dir = mkdtempSync(join(tmpdir(), "notees-bench-replay-"));
-const dbPath = join(dir, "derived.db");
-const instr: Instrumentation = { buckets: new Map(), statementCalls: 0, prepareCalls: 0 };
-
-const t0 = performance.now();
-const store = new Store(instrumentedBackend(betterSqlite3Backend(dbPath), instr));
-const openMs = performance.now() - t0;
-
-const genT0 = performance.now();
-// generation is already done above (log); keep the timer honest by measuring replay only.
-void genT0;
-
-const r0 = performance.now();
-const { skipped, skipReasons } = replay(log, store);
-const replayMs = performance.now() - r0;
-
-const hash = stateHash(store.database);
-const semanticHash = stateHash(store.database, true);
-
-// Finding-2 skip measurement: a clean restart (no marker, no new envelopes)
-// must not pay the maintenance tail at open. Reopen the converged file and
-// count the statements the open takes — schema probes only, no rebuild. Runs
-// after the hash/dump blocks below; tracked here for the RESULT line.
-let reopenMs: number | null = null;
-let reopenStatements: number | null = null;
-function measureReopen(): void {
-  store.close();
-  const instr2: Instrumentation = { buckets: new Map(), statementCalls: 0, prepareCalls: 0 };
-  const tR = performance.now();
-  const reopened = new Store(instrumentedBackend(betterSqlite3Backend(dbPath), instr2));
-  reopenMs = performance.now() - tR;
-  reopenStatements = instr2.statementCalls;
-  reopened.close();
-}
-if (process.env.BENCH_TABLE_HASHES) {
-  for (const table of TABLES) {
-    console.log(`TABLE ${table} ${tableHash(store.database, table)}`);
+const isMain = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  const mode = arg("mode", "server");
+  const count = Number(arg("envelopes", "20000"));
+  const seed = Number(arg("seed", "42"));
+  const mixArg = arg("mix", "both");
+  const mixes: BenchMix[] =
+    mixArg === "classic" ? ["classic"] : mixArg === "wide" ? ["wide"] : ["classic", "wide"];
+  for (const mix of mixes) {
+    runBench(mix, mode, count, seed);
   }
 }
-if (process.env.BENCH_DUMP_TABLE) {
-  const table = process.env.BENCH_DUMP_TABLE;
-  const rows =
-    table === "@searchpairs"
-      ? store.database
-          .prepare(
-            `SELECT d.node_id, s.content FROM search_index_docid d
-             LEFT JOIN search_index s ON s.rowid = d.docid ORDER BY d.node_id`,
-          )
-          .all()
-      : store.database.prepare(`SELECT * FROM ${table}`).all();
-  console.log(`DUMP ${table}`);
-  for (const row of rows) {
-    console.log(JSON.stringify(row));
-  }
-}
-const counts = (() => {
-  const row = store.database
-    .prepare(
-      `SELECT (SELECT COUNT(*) FROM node) AS nodes,
-              (SELECT COUNT(*) FROM edge) AS edges,
-              (SELECT COUNT(*) FROM node_stats) AS stats,
-              (SELECT COUNT(*) FROM applied_envelope) AS applied,
-              (SELECT COUNT(*) FROM property_value) AS propValues`,
-    )
-    .get() as { nodes: number; edges: number; stats: number; applied: number; propValues: number };
-  return row;
-})();
-
-const top = [...instr.buckets.entries()].sort((a, b) => b[1].totalMs - a[1].totalMs).slice(0, 12);
-const sqlTotalMs = [...instr.buckets.values()].reduce((s, b) => s + b.totalMs, 0);
-const nonSqlMs = replayMs - sqlTotalMs;
-
-console.log(`mode=${MODE} envelopes=${log.length} seed=${SEED}`);
-console.log(`op mix: ${[...opHistogram.entries()].map(([k, v]) => `${k}=${v}`).join(" ")}`);
-console.log(`replay wall: ${replayMs.toFixed(0)} ms  (${(log.length / (replayMs / 1000)).toFixed(0)} envelopes/sec)`);
-console.log(`open (schema): ${openMs.toFixed(0)} ms`);
-console.log(`skipped/quarantined: ${skipped}${skipReasons.size > 0 ? ` (${[...skipReasons.entries()].map(([k, v]) => `${k}=${v}`).join(" ")})` : ""}`);
-console.log(`statement calls: ${instr.statementCalls}  prepare calls: ${instr.prepareCalls}`);
-console.log(`sql inside statements: ${sqlTotalMs.toFixed(0)} ms  non-statement (commit/JS/prepare): ${nonSqlMs.toFixed(0)} ms`);
-console.log(`rows: nodes=${counts.nodes} edges=${counts.edges} stats=${counts.stats} applied=${counts.applied} propValues=${counts.propValues}`);
-console.log(`stateHash: ${hash}`);
-console.log(`semanticHash: ${semanticHash}`);
-if (reopenMs !== null) {
-  console.log(`clean reopen: ${reopenMs.toFixed(1)} ms, ${reopenStatements} statements (no tail work)`);
-}
-console.log("top SQL buckets (total ms / count):");
-for (const [key, b] of top) {
-  console.log(`  ${b.totalMs.toFixed(0).padStart(8)} ms  ${String(b.count).padStart(8)}  ${key}`);
-}
-
-if (MODE === "bulk") measureReopen();
-else store.close();
-rmSync(dir, { recursive: true, force: true });
-
-// Machine-readable tail line for scripts collecting numbers.
-console.log(
-  `RESULT ${JSON.stringify({
-    mode: MODE,
-    envelopes: log.length,
-    seed: SEED,
-    replayMs: Math.round(replayMs),
-    envelopesPerSec: Math.round(log.length / (replayMs / 1000)),
-    sqlMs: Math.round(sqlTotalMs),
-    nonSqlMs: Math.round(nonSqlMs),
-    statementCalls: instr.statementCalls,
-    skipped,
-    nodes: counts.nodes,
-    edges: counts.edges,
-    stateHash: hash,
-    semanticHash,
-    reopenMs: reopenMs === null ? undefined : Math.round(reopenMs),
-    reopenStatements: reopenStatements ?? undefined,
-  })}`,
-);
