@@ -19,6 +19,7 @@ import {
 } from "@notees/protocol";
 
 import { fetchWorkspaceKey, storeWorkspaceKey, AuthRequestError } from "./auth-api.js";
+import { deleteMasterKey, loadMasterKey, storeMasterKey } from "./master-key-storage.js";
 
 /** Opaque handle on the account master key (one per session). */
 export interface MasterKeyHandle {
@@ -44,7 +45,29 @@ export async function deriveMasterKey(password: string, kdf: KdfRecord): Promise
   const handle: MasterKeyHandle = { key };
   masterKeySlot = handle;
   workspaceKeyCache.clear();
+  // Persist the non-extractable handle so a reload within the signed-in
+  // session doesn't require re-unlocking. Best-effort: the memory-only
+  // fallback and the locked banner cover a failed write.
+  void storeMasterKey(key).catch(() => {});
   return handle;
+}
+
+/**
+ * Re-hydrate the master key slot from IndexedDB after a reload (boot session
+ * validation, session-credential path only). Fully silent: no record, a
+ * missing IndexedDB, or a corrupt read all leave the slot untouched (the
+ * locked banner covers it). Returns whether the slot was restored.
+ */
+export async function restoreMasterKeyFromStorage(): Promise<boolean> {
+  try {
+    const key = await loadMasterKey();
+    if (key === null) return false;
+    masterKeySlot = { key };
+    workspaceKeyCache.clear();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The session's master key, or null when the session is keyless (API-key sign-in). */
@@ -140,8 +163,17 @@ export function clearWorkspaceKeys(): void {
   workspaceKeyCache.clear();
 }
 
-/** Full custody reset: master key + every raw workspace key. Called on sign-out. */
-export function clearCryptoCustody(): void {
+/** Full custody reset: master key + every raw workspace key + the persisted
+ * handle. Called on sign-out (and every other session end) — the persisted
+ * record is deleted too, so the next session reverts to the password. */
+export function clearCryptoCustody(): Promise<void> {
   masterKeySlot = null;
   workspaceKeyCache.clear();
+  return deleteMasterKey();
+}
+
+/** Test seam: clear the in-memory slot only (simulates a reload with the
+ * IndexedDB record still present). */
+export function __clearMasterKeySlotForTests(): void {
+  masterKeySlot = null;
 }
