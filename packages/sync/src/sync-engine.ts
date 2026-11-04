@@ -199,6 +199,25 @@ export class SyncEngine {
     this.receivedHlc = persisted?.receivedHlc ?? ZERO_HLC;
     this.restoreEpoch = persisted?.restoreEpoch ?? 0;
     this.firstSkippedSeq = persisted?.firstSkippedSeq ?? null;
+    // The W2 unlock re-open constructs a FRESH engine with crypto in the
+    // constructor options — the persisted locked-skip marker must rewind
+    // here too (the setCrypto path alone never runs for this flow), else
+    // the re-opened engine sits at the advanced cursor with the skipped
+    // history unreachable.
+    if (this.crypto !== null) this.applyRewindIfNeeded();
+  }
+
+  /**
+   * The locked-skip rewind (shared by the constructor and setCrypto): a key
+   * arrived after locked realtime skips — move the durable cursor before the
+   * first skipped seq so the next pull re-fetches the sealed frames.
+   * Never rewinds for a null provider (locked stays locked).
+   */
+  private applyRewindIfNeeded(): void {
+    if (this.firstSkippedSeq === null) return;
+    this.cursorSeq = Math.min(this.cursorSeq, this.firstSkippedSeq - 1);
+    this.firstSkippedSeq = null;
+    this.persistState();
   }
 
   // --- status & subscriptions ---------------------------------------------------
@@ -240,11 +259,7 @@ export class SyncEngine {
    */
   setCrypto(provider: EnvelopeCrypto | null): void {
     this.crypto = provider;
-    if (provider !== null && this.firstSkippedSeq !== null) {
-      this.cursorSeq = Math.min(this.cursorSeq, this.firstSkippedSeq - 1);
-      this.firstSkippedSeq = null;
-      this.persistState();
-    }
+    if (provider !== null) this.applyRewindIfNeeded();
   }
 
   subscribeStatus(callback: (status: SyncStatus, error: Error | null) => void): () => void {
