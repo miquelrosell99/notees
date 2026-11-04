@@ -421,6 +421,103 @@ function stubViewsClient(behavior: {
   };
 }
 
+// --- sync/compiler parity: property value placeholders -------------------------------
+
+describe("property value placeholders: the sync arm resolves with the compiler", () => {
+  /** A text property carrying ISO dates (the `{today}` placeholder's home),
+   *  bound to a class; one member carries the literal "{today}" string. */
+  async function seedDueWorld(client: WorkspaceClient) {
+    const classId = await client.createClass("Project");
+    const dueId = await client.createPropertySchema({ name: "due", type: "text" });
+    await client.setClassProperty(classId, dueId, {});
+    const past = await client.createObject({ isEmbedded: false, name: "Past", classIds: [classId] });
+    await client.setProperty(past, dueId, "2000-01-01", 0);
+    const future = await client.createObject({ isEmbedded: false, name: "Future", classIds: [classId] });
+    await client.setProperty(future, dueId, "2999-01-01", 0);
+    const literal = await client.createObject({ isEmbedded: false, name: "Literal", classIds: [classId] });
+    await client.setProperty(literal, dueId, "{today}", 0);
+    const unvalued = await client.createObject({ isEmbedded: false, name: "Unvalued", classIds: [classId] });
+    return { dueId, ids: { past, future, literal, unvalued }, all: [past, future, literal, unvalued] };
+  }
+
+  function astWith(condition: QueryAst["root"]["children"][number]): QueryAst {
+    return {
+      version: 2,
+      scope: { type: "entire_workspace" },
+      root: { type: "group", logic: "and", children: [condition] },
+    };
+  }
+
+  /** The SYNC path: the stored-AST refinement over the materialized rows. */
+  async function syncIds(
+    client: WorkspaceClient,
+    all: string[],
+    condition: QueryAst["root"]["children"][number],
+  ): Promise<string[]> {
+    const plan = planSectionView(astWith(condition));
+    const result = applySectionView(client, { items: memberItemsOf(client, all), groups: undefined }, plan);
+    return result.items.map((entry) => entry.node.id).sort();
+  }
+
+  /** The COMPILER path: the same AST through the store's runQueryAst. */
+  async function compilerIds(
+    client: WorkspaceClient,
+    condition: QueryAst["root"]["children"][number],
+  ): Promise<string[]> {
+    const result = await client.runQueryAst(astWith(condition));
+    return result.ids.map(String).sort();
+  }
+
+  it("lt '{today}': sync === compiler — the past matches, the future does not", async () => {
+    const client = await seedClient();
+    const { dueId, ids, all } = await seedDueWorld(client);
+    const condition = { type: "property", schemaId: dueId, op: "lt", value: "{today}" } as QueryAst["root"]["children"][number];
+    const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
+    expect(sync).toEqual(compiler);
+    expect(sync).toEqual([ids.past]);
+  });
+
+  it("lte '{today}': a literal '{today}' value in the DATA does not match after resolution", async () => {
+    const client = await seedClient();
+    const { dueId, ids, all } = await seedDueWorld(client);
+    const condition = { type: "property", schemaId: dueId, op: "lte", value: "{today}" } as QueryAst["root"]["children"][number];
+    const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
+    expect(sync).toEqual(compiler);
+    // The literal-token row matched ONLY under the pre-fix literal compare
+    // ("{today}" <= "{today}"); the resolved bound (a "YYYY-MM-DD" date sorts
+    // before "{"), so neither path may keep it.
+    expect(sync).not.toContain(ids.literal);
+    expect(sync).toEqual([ids.past]);
+  });
+
+  it("between keeps RAW bounds on both paths — a '{today}' bound compares literally", async () => {
+    const client = await seedClient();
+    const { dueId, ids, all } = await seedDueWorld(client);
+    const condition = {
+      type: "property",
+      schemaId: dueId,
+      op: "between",
+      from: "{today}",
+      to: "{today}",
+    } as QueryAst["root"]["children"][number];
+    const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
+    expect(sync).toEqual(compiler);
+    // Literal bounds: only the literal-token row sits inside ["{today}",
+    // "{today}"] — a resolved reading would drop it (the pin against a
+    // later "fix" resolving between bounds).
+    expect(sync).toEqual([ids.literal]);
+  });
+
+  it("the op gate: contains does NOT resolve — the token stays a raw substring", async () => {
+    const client = await seedClient();
+    const { dueId, ids, all } = await seedDueWorld(client);
+    const condition = { type: "property", schemaId: dueId, op: "contains", value: "{today}" } as QueryAst["root"]["children"][number];
+    const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
+    expect(sync).toEqual(compiler);
+    expect(sync).toEqual([ids.literal]);
+  });
+});
+
 describe("the sectionViews store", () => {
   it("loads once per section and serves the server list", async () => {
     const client = stubViewsClient({ list: [viewRow({ id: "v1", sequence: 0 }), viewRow({ id: "v2", sequence: 1 })] });
