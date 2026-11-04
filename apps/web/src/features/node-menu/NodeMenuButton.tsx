@@ -120,6 +120,7 @@ export function NodeMenuButton({
           token={shareTarget.credential}
           nodeUuid={sharing.pageId}
           nodeName={sharing.name}
+          client={client}
           onClose={() => setSharing(null)}
         />
       )}

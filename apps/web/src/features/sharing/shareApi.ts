@@ -45,7 +45,9 @@ async function request<T>(
     }
     throw new Error(message);
   }
-  return (await response.json()) as T;
+  // 204 (and any empty) answers carry no JSON body.
+  const text = await response.text();
+  return (text === "" ? undefined : (JSON.parse(text) as T)) as T;
 }
 
 /** Mint a read-only public share link for a page (expiresAt omitted = never). */
@@ -87,6 +89,25 @@ export function revokeShare(
     serverUrl,
     `/shares/${encodeURIComponent(shareToken)}`,
     { method: "DELETE" },
+    token,
+  );
+}
+
+/**
+ * Attach (or replace) a share's sealed artifact — the b64u iv ‖ tag ‖ ct
+ * ciphertext (plan 08). The decryption key NEVER travels here: it lives only
+ * in the published link's #fragment.
+ */
+export function putShareArtifact(
+  serverUrl: string,
+  token: string,
+  shareToken: string,
+  ciphertext: string,
+): Promise<void> {
+  return request<void>(
+    serverUrl,
+    `/shares/${encodeURIComponent(shareToken)}/artifact`,
+    { method: "PUT", body: JSON.stringify({ ciphertext }) },
     token,
   );
 }

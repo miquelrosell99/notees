@@ -9,6 +9,13 @@
  * shown once per row with the shared copy pattern (clipboard + transient
  * "Copied" state), and revoke rides the Button primitive's built-in
  * confirm. Kit primitives only (Modal / Button / Spinner / EmptyState).
+ *
+ * Plan 08 (key-in-fragment): when a store client is present, creating a link
+ * publishes a SEALED artifact — the subtree renders client-side, seals with
+ * a fresh random key, and only the ciphertext reaches the server; the link
+ * carries the key in its #fragment. Copy preserves the fragment; copying a
+ * sealed link WITHOUT the key warns (it would be undecryptable). Legacy
+ * links (created before sealing, or without a client) keep the plain URL.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -21,6 +28,7 @@ import { EmptyState } from "../../components/ui/kit/EmptyState.js";
 import { InlineConfirmButton } from "../../components/ui/kit/InlineConfirmButton.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { createShare, listShares, revokeShare, type ShareEntry } from "./shareApi.js";
+import { publishSealedShare } from "./sealShare.js";
 import "./SharePageModal.css";
 
 export interface SharePageModalProps {
@@ -31,6 +39,11 @@ export interface SharePageModalProps {
   token: string;
   nodeUuid: string;
   nodeName?: string | undefined;
+  /**
+   * The store client — present in the app chrome, absent in bare tests.
+   * When present, new links publish SEALED (key-in-fragment) artifacts.
+   */
+  client?: import("../export/exportSubtree.js").ExportClient | undefined;
 }
 
 function shareUrl(serverUrl: string, entry: ShareEntry): string {
@@ -43,7 +56,9 @@ function statusLabel(entry: ShareEntry): string {
   return `Created ${new Date(entry.createdAt).toLocaleDateString()}`;
 }
 
-export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, nodeName }: SharePageModalProps) {
+export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, nodeName, client }: SharePageModalProps) {
+  /** Sealed links minted this session: token → the full #key URL. */
+  const [sealedUrls, setSealedUrls] = useState<Record<string, string>>({});
   const [shares, setShares] = useState<ShareEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -77,7 +92,14 @@ export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, no
     setBusy(true);
     setError(null);
     try {
-      await createShare(serverUrl, token, nodeUuid);
+      if (client !== undefined) {
+        // Plan 08: render + seal client-side; the server stores ciphertext
+        // only and the key travels in the link's #fragment.
+        const sealed = await publishSealedShare(client, serverUrl, token, nodeUuid);
+        setSealedUrls((prev) => ({ ...prev, [sealed.entry.token]: sealed.url }));
+      } else {
+        await createShare(serverUrl, token, nodeUuid);
+      }
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -96,10 +118,20 @@ export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, no
     }
   }
 
-  async function handleCopy(entry: ShareEntry) {
+  async function handleCopy(entry: ShareEntry, options: { withKey?: boolean } = {}) {
+    const sealed = sealedUrls[entry.token];
     try {
-      await copyToClipboard(shareUrl(serverUrl, entry));
+      if (sealed !== undefined && options.withKey === false) {
+        // The fragment-less link: the ciphertext share is undecryptable
+        // without the key — copy it, but say so.
+        await copyToClipboard(shareUrl(serverUrl, entry));
+        setCopiedToken(null);
+        setError("Copied the link WITHOUT its key — anyone opening it alone cannot decrypt the share. Send the full link (with #…) instead.");
+        return;
+      }
+      await copyToClipboard(sealed ?? shareUrl(serverUrl, entry));
       setCopiedToken(entry.token);
+      setError(null);
     } catch {
       setError("Clipboard access was denied — select the link text and copy manually.");
     }
@@ -144,7 +176,7 @@ export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, no
               className={entry.revokedAt !== null ? "nt-share__row nt-share__row--revoked" : "nt-share__row"}
             >
               <span className="nt-share__meta">{statusLabel(entry)}</span>
-              <code className="nt-share__url">{shareUrl(serverUrl, entry)}</code>
+              <code className="nt-share__url">{sealedUrls[entry.token] ?? shareUrl(serverUrl, entry)}</code>
               <span className="nt-share__actions">
                 <Button
                   variant="ghost"
@@ -155,6 +187,16 @@ export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, no
                 >
                   {copiedToken === entry.token ? "Copied" : "Copy"}
                 </Button>
+                {sealedUrls[entry.token] !== undefined && entry.revokedAt === null && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Copy the link without its key"
+                    onClick={() => void handleCopy(entry, { withKey: false })}
+                  >
+                    Link only
+                  </Button>
+                )}
                 {entry.revokedAt === null && (
                   <InlineConfirmButton
                     variant="danger"
