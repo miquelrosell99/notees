@@ -232,7 +232,13 @@ CREATE TABLE IF NOT EXISTS user_prefs (
     recents TEXT NOT NULL DEFAULT '[]',
     cards_algorithm TEXT NOT NULL DEFAULT 'fsrs',
     ads_api_token TEXT,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    -- Plan-07: ONE opaque prefs blob (the legacy columns above stay as the
+    -- one-time migration source but are ignored once blob is set). Wrapped
+    -- form = b64u(iv ‖ tag ‖ ct) sealed with the account master key; plain
+    -- form = the unwrapped JSON — the server stores the string verbatim and
+    -- never interprets it.
+    blob TEXT
 );
 
 -- Node-scoped hosted views (custom tabs on collection surfaces — system
@@ -456,6 +462,33 @@ export class AuthStorage {
     }
     if (!prefColumns.has("ads_api_token")) {
       this.db.exec("ALTER TABLE user_prefs ADD COLUMN ads_api_token TEXT");
+    }
+    if (!prefColumns.has("blob")) {
+      this.db.exec("ALTER TABLE user_prefs ADD COLUMN blob TEXT");
+      // One-time migration: every legacy row becomes an UNWRAPPED blob (the
+      // keyless self-host form) so the opaque shape is universal.
+      const legacy = this.db
+        .prepare("SELECT user_id, favorites, recents, cards_algorithm, ads_api_token FROM user_prefs")
+        .all() as unknown as Array<{
+        user_id: string;
+        favorites: string;
+        recents: string;
+        cards_algorithm: string;
+        ads_api_token: string | null;
+      }>;
+      const writeBlob = this.db.prepare("UPDATE user_prefs SET blob = ? WHERE user_id = ?");
+      for (const row of legacy) {
+        writeBlob.run(
+          JSON.stringify({
+            v: 1,
+            favorites: parseIdList(row.favorites),
+            recents: parseIdList(row.recents),
+            cardsAlgorithm: row.cards_algorithm === "sm2" ? "sm2" : "fsrs",
+            adsApiToken: row.ads_api_token ?? "",
+          }),
+          row.user_id,
+        );
+      }
     }
     // One-time migration from the retired per-user section_view table: copy rows into node_view dropping user_id and
     // view_mode, keeping the earliest row on a (node, section, name)
@@ -857,75 +890,36 @@ export class AuthStorage {
 
   // --- per-user UI prefs (favorites/recents — server-side UI state) ---
 
-  /** The account's prefs row, or the empty default when never written. */
-  getUserPrefs(userId: string): {
-    favorites: string[];
-    recents: string[];
-    cardsAlgorithm: "sm2" | "fsrs";
-    /** The ADS API credential (NULL when unset); owner-read, ADS-bound only. */
-    adsApiToken: string | null;
-    updatedAt: number;
-  } {
+  /** The account's prefs: ONE opaque blob (wrapped or unwrapped — plan 07). */
+  getUserPrefs(userId: string): { blob: string; updatedAt: number } {
     const row = this.db
-      .prepare("SELECT favorites, recents, cards_algorithm, ads_api_token, updated_at FROM user_prefs WHERE user_id = ?")
-      .get(userId) as
-      | { favorites: string; recents: string; cards_algorithm: string; ads_api_token: string | null; updated_at: number }
-      | undefined;
-    if (row === undefined) {
-      return { favorites: [], recents: [], cardsAlgorithm: "fsrs", adsApiToken: null, updatedAt: 0 };
+      .prepare("SELECT blob, updated_at FROM user_prefs WHERE user_id = ?")
+      .get(userId) as { blob: string | null; updated_at: number } | undefined;
+    if (row === undefined || row.blob === null) {
+      // Never written — the unwrapped empty default.
+      return {
+        blob: JSON.stringify({ v: 1, favorites: [], recents: [], cardsAlgorithm: "fsrs", adsApiToken: "" }),
+        updatedAt: 0,
+      };
     }
-    return {
-      favorites: parseIdList(row.favorites),
-      recents: parseIdList(row.recents),
-      cardsAlgorithm: row.cards_algorithm === "sm2" ? "sm2" : "fsrs",
-      adsApiToken: row.ads_api_token,
-      updatedAt: row.updated_at,
-    };
+    return { blob: row.blob, updatedAt: row.updated_at };
   }
 
-  /**
-   * Merge-patch the account's prefs: a provided list REPLACES its column
-   * wholesale (the client is the ordering authority; last write wins per
-   * list); a provided cardsAlgorithm replaces the scalar; a provided
-   * adsApiToken (or null/"" — both clear) replaces the credential column.
-   * Upserts the row; validation/caps happen in routes-prefs.ts.
-   */
-  updateUserPrefs(
-    userId: string,
-    patch: {
-      favorites?: string[] | undefined;
-      recents?: string[] | undefined;
-      cardsAlgorithm?: "sm2" | "fsrs" | undefined;
-      adsApiToken?: string | null | undefined;
-    },
-  ): {
-    favorites: string[];
-    recents: string[];
-    cardsAlgorithm: "sm2" | "fsrs";
-    adsApiToken: string | null;
-    updatedAt: number;
-  } {
-    const current = this.getUserPrefs(userId);
-    const favorites = patch.favorites ?? current.favorites;
-    const recents = patch.recents ?? current.recents;
-    const cardsAlgorithm = patch.cardsAlgorithm ?? current.cardsAlgorithm;
-    const adsApiToken =
-      patch.adsApiToken === undefined ? current.adsApiToken : patch.adsApiToken === "" ? null : patch.adsApiToken;
+  /** Upsert the opaque prefs blob verbatim (last write wins; the client owns the shape). */
+  updateUserPrefs(userId: string, blob: string): { blob: string; updatedAt: number } {
     const updatedAt = Date.now();
     this.db
       .prepare(
-        `INSERT INTO user_prefs (user_id, favorites, recents, cards_algorithm, ads_api_token, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT (user_id) DO UPDATE SET
-           favorites = excluded.favorites,
-           recents = excluded.recents,
-           cards_algorithm = excluded.cards_algorithm,
-           ads_api_token = excluded.ads_api_token,
-           updated_at = excluded.updated_at`,
+        `INSERT INTO user_prefs (user_id, favorites, recents, cards_algorithm, ads_api_token, updated_at, blob)
+         VALUES (?, '[]', '[]', 'fsrs', NULL, ?, ?)
+         ON CONFLICT (user_id) DO UPDATE SET blob = excluded.blob, updated_at = excluded.updated_at`,
       )
-      .run(userId, JSON.stringify(favorites), JSON.stringify(recents), cardsAlgorithm, adsApiToken, updatedAt);
-    return { favorites, recents, cardsAlgorithm, adsApiToken, updatedAt };
+      .run(userId, updatedAt, blob);
+    return { blob, updatedAt };
   }
+
+// --- per-user UI prefs (favorites/recents — server-side UI state) ---
+
 
   // --- node-scoped hosted views (custom tabs — the prefs channel) --------------
 

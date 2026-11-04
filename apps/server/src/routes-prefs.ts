@@ -1,67 +1,53 @@
 /**
- * Per-user UI preferences — favorites & recents.
+ * Per-user UI prefs — ONE OPAQUE BLOB (plan 07).
  *
- *  - GET /api/me/prefs   the authenticated account's prefs
- *                        ({favorites, recents, cardsAlgorithm, adsApiToken,
- *                        updatedAt});
- *  - PUT /api/me/prefs   merge-patch: each present list REPLACES its column
- *                        (the client owns ordering; last write wins per list),
- *                        a present cardsAlgorithm REPLACES the scalar, a
- *                        present adsApiToken (string, or null/"" to clear)
- *                        REPLACES the ADS credential column.
+ * favorites/recents/cardsAlgorithm/adsApiToken are per-user UI state (never
+ * op-log state), previously four server-interpreted columns. Plan 07
+ * collapses them into a single opaque string the client owns:
  *
- * Why this is not in the operation log: the design law "device state is
- * never an op" stands. Favorites/recents and the cards scheduler choice are
- * UI preferences, so they live in
- * the sync server's per-user prefs store (the user_prefs table in relay.db,
- * additive migration in auth.ts) — every client's derived DB semantics stay
- * untouched, and no op/wire change is needed (no lockstep).
+ *  - UNWRAPPED form: the JSON `{v:1, favorites, recents, cardsAlgorithm,
+ *    adsApiToken}` — the keyless self-host compat shape; the server may read
+ *    the ADS token out of it (the /resolve ADS arm, exactly as before).
+ *  - WRAPPED form: `b64u(iv ‖ tag ‖ ct)` of that JSON, sealed with the
+ *    account master key (`encryptBytes` in @notees/protocol) — opaque to the
+ *    server. The web client unwraps after unlock; when wrapped, the caller
+ *    passes the ADS credential explicitly via the `x-ads-api-token` header.
  *
- * Auth: any user principal — an account session OR a per-user API key (the
- * owner of the key); the operator API key is not a user and gets 401. The
- * body is validated fail-loud: uuid-shaped node ids only, capped lengths
- * (favorites ≤ MAX_FAVORITES, recents ≤ MAX_RECENTS, both applied AFTER
- * order-preserving dedupe), cardsAlgorithm ∈ {"sm2","fsrs"}, at least one
- * key required.
+ * The server stores/returns the blob verbatim (a 64 KiB cap bounds abuse;
+ * the client enforces the list caps). Legacy four-column rows migrate to the
+ * unwrapped blob at open (auth.ts constructor).
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { requireUser } from "./routes-auth.js";
 
-export const MAX_FAVORITE_PREFS = 500;
-export const MAX_RECENT_PREFS = 50;
-/** The ADS token column's cap — ADS tokens are ~32 chars, headroom for rotation. */
-export const MAX_ADS_TOKEN_PREFS = 256;
-
-const idListSchema = (max: number, label: string) =>
-  z
-    .array(z.string().uuid())
-    .max(max, `${label} exceeds the ${max}-entry cap`)
-    .transform((list) => [...new Set(list)]);
+const MAX_PREFS_BLOB_BYTES = 64 * 1024;
 
 const putPrefsBodySchema = z
-  .object({
-    favorites: idListSchema(MAX_FAVORITE_PREFS, "favorites").optional(),
-    recents: idListSchema(MAX_RECENT_PREFS, "recents").optional(),
-    cardsAlgorithm: z.enum(["sm2", "fsrs"]).optional(),
-    // The ADS API credential: a string sets/replaces it, null (or "") clears
-    // it. Owner-bound — the route requires a user principal and the column
-    // answers only to GET /me/prefs of the same account.
-    adsApiToken: z.string().max(MAX_ADS_TOKEN_PREFS, `adsApiToken exceeds the ${MAX_ADS_TOKEN_PREFS}-char cap`).nullable().optional(),
-  })
-  .strict()
-  .refine(
-    (body) =>
-      body.favorites !== undefined ||
-      body.recents !== undefined ||
-      body.cardsAlgorithm !== undefined ||
-      body.adsApiToken !== undefined,
-    { message: "at least one of favorites/recents/cardsAlgorithm/adsApiToken is required" },
-  );
+  .object({ blob: z.string().max(MAX_PREFS_BLOB_BYTES, `prefs blob exceeds the ${MAX_PREFS_BLOB_BYTES}-byte cap`) })
+  .strict();
+
+/** The ADS credential out of an UNWRAPPED prefs blob (null when wrapped/absent). */
+export function adsTokenOfPrefsBlob(blob: string): string | undefined {
+  try {
+    const parsed = JSON.parse(blob) as { adsApiToken?: unknown };
+    return typeof parsed.adsApiToken === "string" && parsed.adsApiToken !== "" ? parsed.adsApiToken : undefined;
+  } catch {
+    return undefined; // wrapped — opaque to the server
+  }
+}
+
+/** The ADS credential for a request: explicit header first, then the unwrapped blob. */
+export function adsTokenFor(ctx: ServerContext, request: FastifyRequest): string | undefined {
+  const header = request.headers["x-ads-api-token"];
+  if (typeof header === "string" && header !== "") return header;
+  const principal = requireUser(ctx, request);
+  return adsTokenOfPrefsBlob(ctx.auth.getUserPrefs(principal.userId).blob);
+}
 
 export function registerPrefsRoutes(app: FastifyInstance, ctx: ServerContext): void {
   app.get("/me/prefs", async (request) => {
@@ -71,7 +57,7 @@ export function registerPrefsRoutes(app: FastifyInstance, ctx: ServerContext): v
 
   app.put("/me/prefs", async (request) => {
     const principal = requireUser(ctx, request);
-    const parsed = putPrefsBodySchema.safeParse(request.body);
+    const parsed = putPrefsBodySchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       throw new AppError(
         422,
@@ -79,6 +65,6 @@ export function registerPrefsRoutes(app: FastifyInstance, ctx: ServerContext): v
         parsed.error.issues[0]?.message ?? "invalid prefs request",
       );
     }
-    return ctx.auth.updateUserPrefs(principal.userId, parsed.data);
+    return ctx.auth.updateUserPrefs(principal.userId, parsed.data.blob);
   });
 }

@@ -31,6 +31,7 @@ import { visiblePropertyValueRows, type NodeRow, type Store, planMerge, MergeGua
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
+import { adsTokenFor } from "./routes-prefs.js";
 import { resolvePdfSource, resolveSourceMetadata } from "./resolve-source.js";
 import { requireUser } from "./routes-auth.js";
 
@@ -677,11 +678,9 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (doi !== undefined || isbn !== undefined || arxiv !== undefined || pmid !== undefined || ads !== undefined) {
       const workspaceId = workspaceFor(ctx, request);
       await ctx.ensureSeeded(workspaceId);
-      let adsApiToken: string | undefined;
-      if (ads !== undefined) {
-        const principal = requireUser(ctx, request);
-        adsApiToken = ctx.auth.getUserPrefs(principal.userId).adsApiToken ?? undefined;
-      }
+      // Plan-07: the prefs blob is opaque — the ADS credential comes from
+      // the explicit header (wrapped prefs) or the unwrapped blob (keyless).
+      const adsApiToken = ads !== undefined ? adsTokenFor(ctx, request) : undefined;
       return resolveSourceMetadata(ctx, workspaceId, { doi, isbn, arxiv, pmid, ads }, { adsApiToken });
     }
     const parsed = resolveQuerySchema.safeParse(request.query);
