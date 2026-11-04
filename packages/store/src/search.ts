@@ -10,12 +10,12 @@ import { isUuidLike } from "./property-values.js";
 import { SEARCH_INDEX_DDL_FTS5 } from "./schema.js";
 
 /**
- * Bulk-replay deferral seam: while deferred (Store's beginBulk window),
- * reindexNode/removeSearchIndexEntry skip their writes — nothing in the
- * appliers reads the search index, and the window's endBulk runs
- * reindexAllSearch once over the final state. Module-level like the
- * node-stats deferral: synchronous single-connection backends cannot
- * interleave applies inside the window.
+ * Bulk-replay deferral seam: while a connection is deferred (Store's
+ * beginBulk window), reindexNode/removeSearchIndexEntry skip their writes —
+ * nothing in the appliers reads the search index, and the window's endBulk
+ * runs reindexAllSearch once over the final state. Keyed BY CONNECTION
+ * (WeakSet), not process-global: overlapping windows on two Store instances
+ * defer independently.
  *
  * The tail's index can differ from the online incremental path in the
  * mention labels folded into a node's indexed plaintext: the online path
@@ -35,18 +35,19 @@ import { SEARCH_INDEX_DDL_FTS5 } from "./schema.js";
  * tier-6 fuzzy title rescue, degraded by design). Torn-window safety rides
  * the BULK_WINDOW_META_KEY marker: a process death heals at Store.open.
  */
-let searchDeferred = false;
+const deferredSearchConnections = new WeakSet<StoreDatabase>();
 
-/** Install (or clear) the search-index deferral. Returns the previous flag
- *  so callers can nest. */
-export function setSearchIndexDeferral(deferred: boolean): boolean {
-  const previous = searchDeferred;
-  searchDeferred = deferred;
-  return previous;
+/** Install (or clear) the search-index deferral for ONE connection. */
+export function setSearchIndexDeferral(db: StoreDatabase, deferred: boolean): void {
+  if (deferred) {
+    deferredSearchConnections.add(db);
+  } else {
+    deferredSearchConnections.delete(db);
+  }
 }
 
 export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void {
-  if (searchDeferred) return;
+  if (deferredSearchConnections.has(db)) return;
   db.prepare(
     "DELETE FROM search_index WHERE rowid = (SELECT docid FROM search_index_docid WHERE node_id = ?)",
   ).run(nodeId);
@@ -54,7 +55,7 @@ export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void 
 }
 
 export function reindexNode(db: StoreDatabase, nodeId: string): void {
-  if (searchDeferred) return;
+  if (deferredSearchConnections.has(db)) return;
   const row = db.prepare("SELECT content FROM node WHERE id = ?").get(nodeId) as
     | { content: string }
     | undefined;

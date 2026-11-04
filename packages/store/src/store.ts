@@ -193,7 +193,6 @@ export class Store {
    * for the applied prefix — never stale.
    */
   private bulkDepth = 0;
-  private readonly bulkStats = new Set<string>();
   /** True once an envelope was actually applied while the window was open —
    *  an empty window (a restart with zero new envelopes) skips the total
    *  tail entirely instead of rebuilding stats+search for nothing. */
@@ -321,8 +320,8 @@ export class Store {
       // A backend without pragma support still gets the deferral win.
       this.bulkPrevSynchronous = null;
     }
-    setNodeStatsDeferral(this.bulkStats);
-    setSearchIndexDeferral(true);
+    setNodeStatsDeferral(this.db, true);
+    setSearchIndexDeferral(this.db, true);
   }
 
   /**
@@ -343,8 +342,8 @@ export class Store {
     let maintenanceError: unknown = null;
     try {
       // Clear the deferral FIRST so the maintenance writes land.
-      setNodeStatsDeferral(null);
-      setSearchIndexDeferral(false);
+      setNodeStatsDeferral(this.db, false);
+      setSearchIndexDeferral(this.db, false);
       if (this.bulkDidApply) {
         const run = this.db.transaction(() => {
           rebuildAllNodeStats(this.db);
@@ -367,7 +366,6 @@ export class Store {
         this.bulkPrevSynchronous = null;
       }
       this.bulkDidApply = false;
-      this.bulkStats.clear();
     }
     if (maintenanceError !== null) throw maintenanceError;
   }
@@ -1255,15 +1253,14 @@ export class Store {
 
   /** Drop an in-flight bulk window without maintenance (connection swaps,
    *  close). The maintenance tail cannot run against the swapped/closed
-   *  connection; the flags MUST clear so the process-global deferral cannot
-   *  leak into another Store's applies. */
+   *  connection. The deferral itself is keyed by the connection (WeakSet),
+   *  so a dying connection's entry cannot leak into another Store — nothing
+   *  to clear here but the depth and the pragma restore bookkeeping. */
   private abandonBulk(): void {
     if (this.bulkDepth === 0) return;
     this.bulkDepth = 0;
-    this.bulkStats.clear();
     this.bulkPrevSynchronous = null;
-    setNodeStatsDeferral(null);
-    setSearchIndexDeferral(false);
+    this.bulkDidApply = false;
   }
 
   /** The shared restore tail: schema ladder, FTS repair arm, connection swap. */
