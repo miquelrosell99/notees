@@ -384,3 +384,80 @@ describe("locked snapshot skip + cursor rewind", () => {
     expect(titleOf(locked, NODE)).toBe("Node");
   });
 });
+
+describe("constructor crypto rewinds a persisted locked-skip marker (W2 unlock re-open)", () => {
+  it("the live repro: locked pull skips + persists the marker; a FRESH engine with constructor crypto re-fetches and applies the skipped history", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    for (const envelope of baseEnvelopes(DEVICE_A)) keyed.engine.enqueue(envelope);
+    await keyed.engine.push();
+
+    // 1. A session that reloaded without its master key: locked realtime
+    //    frames skip every sealed envelope; the cursor advances over the
+    //    skipped seqs and the marker persists (SyncMeta, app_meta).
+    const locked = new Store();
+    const lockedEngine = new SyncEngine(locked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    const page = await new MemoryTransport(relay).catchUp(0);
+    const envelopes = page.envelopes as Envelope[];
+    const seqs: Record<string, number> = {};
+    for (const [index, envelope] of envelopes.entries()) seqs[envelope.id] = index + 1;
+    lockedEngine.onRemoteBatch(envelopes, seqs);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(lockedEngine.getCursorSeq()).toBe(envelopes.length);
+    expect(titleOf(locked, PARENT)).toBe(""); // everything skipped
+
+    // 2. The W2 unlock: the workspace RE-OPENS — a FRESH SyncEngine with
+    //    crypto in the CONSTRUCTOR options (setCrypto never runs).
+    const key = await importWorkspaceKey(KEY_BYTES);
+    const reopened = new SyncEngine(locked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+      crypto: keyCryptoProvider(key),
+    });
+
+    // The constructor rewind: the durable cursor drops before the marker and
+    // the marker clears.
+    expect(reopened.getCursorSeq()).toBe(0);
+
+    // 3. The next pull re-fetches and applies the previously skipped frames.
+    await reopened.pull();
+    expect(titleOf(locked, PARENT)).toBe("Parent");
+    expect(titleOf(locked, NODE)).toBe("Node");
+
+    // 4. And the re-open is stable: a second pull is a no-op (the marker is
+    //    gone, the cursor honest).
+    await expect(reopened.pull()).resolves.toBeUndefined();
+    expect(titleOf(locked, PARENT)).toBe("Parent");
+  });
+
+  it("constructor crypto with NO marker does not touch the cursor (setCrypto(null) semantics unchanged)", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    keyed.engine.enqueue(baseEnvelopes(DEVICE_A)[0]!);
+    await keyed.engine.push();
+
+    // Keyless engine advances the cursor with nothing skipped.
+    const plain = new Store();
+    const plainEngine = new SyncEngine(plain, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    await plainEngine.pull();
+    const advanced = plainEngine.getCursorSeq();
+    expect(advanced).toBeGreaterThan(0);
+
+    // A fresh engine WITH constructor crypto but no marker keeps the cursor.
+    const key = await importWorkspaceKey(KEY_BYTES);
+    const fresh = new SyncEngine(plain, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+      crypto: keyCryptoProvider(key),
+    });
+    expect(fresh.getCursorSeq()).toBe(advanced);
+  });
+});
