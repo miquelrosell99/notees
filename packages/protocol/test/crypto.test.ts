@@ -217,7 +217,7 @@ describe("asset-byte sealing (iv external, blob = tag ‖ ct)", () => {
     const other = await importWorkspaceKey(new Uint8Array(32).fill(0x9b));
     const sealed = await encryptAssetBytes(key, new Uint8Array([1, 2, 3]));
     const tampered = new Uint8Array(sealed.blob);
-    tampered[tampered.length - 1] ^= 0xff;
+    tampered[tampered.length - 1]! ^= 0xff;
     await expect(decryptAssetBytes(key, sealed.iv, tampered)).rejects.toThrow();
     await expect(decryptAssetBytes(other, sealed.iv, sealed.blob)).rejects.toThrow();
   });
