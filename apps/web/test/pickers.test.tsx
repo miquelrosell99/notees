@@ -486,13 +486,25 @@ describe("icon picker color section", () => {
 });
 
 describe("NodeSelector empty-query recents", () => {
-  it("opens to the recently used nodes (MRU order + caption); typing replaces them with search hits", async () => {
+  /** A mention of `target` from a fresh source page — the link arm's feed. */
+  async function linkTo(client: WorkspaceClient, target: string): Promise<void> {
+    const source = await client.createObject({ isEmbedded: false, name: "Source" });
+    // Title-is-content: the mention rides AFTER the title text so the source
+    // page keeps "Source" as its display name.
+    await client.updateObject(source, {
+      contentAst: [{ type: "text", text: "Source " }, { type: "mention", targetNodeId: target }],
+    });
+  }
+
+  it("opens to the recently used nodes — linked or created, MRU by the latest use; typing replaces them with search hits", async () => {
     const client = await seedClient();
     const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
     const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
-    const gamma = await client.createObject({ isEmbedded: false, name: "Gamma" });
-    // MRU order: Gamma most recent, then Beta (Alpha never opened).
-    localStorage.setItem("notees.recents", JSON.stringify([gamma, beta]));
+    // Alpha lands in the device recents (it was OPENED) but is never linked
+    // or re-created — opening must not promote it in the picker.
+    localStorage.setItem("notees.recents", JSON.stringify([alpha]));
+    await linkTo(client, beta);
+    await client.createObject({ isEmbedded: false, name: "Delta" });
     render(
       <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
     );
@@ -500,22 +512,40 @@ describe("NodeSelector empty-query recents", () => {
     expect(screen.getByText("Recently used")).not.toBeNull();
     const dialogRows = document.querySelector(".node-selector__options")!;
     const names = [...dialogRows.querySelectorAll(".node-result-item")].map((el) => el.textContent);
-    expect(names[0]).toContain("Gamma");
+    // MRU by latest use: Delta (created last) leads; Beta rides its link
+    // (written after Source's create); Source follows its create; the
+    // opened-only Alpha trails everything.
+    expect(names[0]).toContain("Delta");
     expect(names[1]).toContain("Beta");
-    expect(names.join(" ")).not.toContain("Alpha");
+    expect(names[2]).toContain("Source");
+    expect(names[3]).toContain("Alpha");
 
     // The first keystroke replaces the recents with search hits.
     fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "alp" } });
     expect(screen.queryByText("Recently used")).toBeNull();
     expect(screen.getByText("Alpha")).not.toBeNull();
-    expect(screen.queryByText("Gamma")).toBeNull();
+    expect(screen.queryByText("Delta")).toBeNull();
   });
 
-  it("no recents keeps the honest empty state; class-scoped pickers keep their member listing", async () => {
+  it("merging takes a node's LATEST use: re-linking an older created node promotes it", async () => {
     const client = await seedClient();
-    const cls = await createTitledClass(client, "Fiction");
-    const member = await client.createObject({ isEmbedded: false, name: "Novel" });
-    await client.assignClass(member, cls);
+    const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
+    await client.createObject({ isEmbedded: false, name: "Gamma" });
+    // Beta is the OLDER create but the LATEST link — it must lead.
+    await linkTo(client, beta);
+    render(
+      <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
+    );
+
+    const dialogRows = document.querySelector(".node-selector__options")!;
+    const names = [...dialogRows.querySelectorAll(".node-result-item")].map((el) => el.textContent);
+    expect(names[0]).toContain("Beta");
+    expect(names[1]).toContain("Source");
+    expect(names[2]).toContain("Gamma");
+  });
+
+  it("an empty workspace keeps the honest empty state; class-scoped pickers keep their member listing", async () => {
+    const client = await seedClient();
     render(
       <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
     );
@@ -523,6 +553,9 @@ describe("NodeSelector empty-query recents", () => {
     expect(screen.queryByText("Recently used")).toBeNull();
 
     // A class-scoped picker lists members on the empty query (unchanged).
+    const cls = await createTitledClass(client, "Fiction");
+    const member = await client.createObject({ isEmbedded: false, name: "Novel" });
+    await client.assignClass(member, cls);
     render(
       <NodeSelector
         client={client}
@@ -533,20 +566,34 @@ describe("NodeSelector empty-query recents", () => {
         onAdd={() => {}}
       />,
     );
-    expect(screen.getByText("Novel")).not.toBeNull();
-    expect(screen.queryByText("Recently used")).toBeNull();
+    // The unscoped picker above also lists Novel in its recents (it
+    // re-rendered on the create notify) — assert on the CLASS-SCOPED picker's
+    // own root: the member listing, no recents caption.
+    const scopedRoots = document.querySelectorAll(".node-selector--inline");
+    const scoped = scopedRoots[scopedRoots.length - 1] as HTMLElement;
+    expect(within(scoped).getByText("Novel")).not.toBeNull();
+    expect(scoped.querySelector(".node-selector__recent-caption")).toBeNull();
   });
 
-  it("blocks-mode recents only list inline blocks, never pages", async () => {
+  it("blocks-mode recents list only LINKED inline blocks — opened blocks and pages stay out", async () => {
     const client = await seedClient();
     const page = await client.createObject({ isEmbedded: false, name: "Host page" });
     const block = await client.createObject({ isEmbedded: true, name: "Inline bit", parentId: page });
-    localStorage.setItem("notees.recents", JSON.stringify([page, block]));
+    // Opened-only recents (the device list) must not feed blocks mode.
+    localStorage.setItem("notees.recents", JSON.stringify([block, page]));
+    const { unmount } = render(
+      <NodeSelector client={client} trigger="inline" searchMode="blocks" searchPlaceholder="Search blocks" onAdd={() => {}} />,
+    );
+    expect(screen.queryByText("Recently used")).toBeNull();
+    expect(screen.getByText("Start typing to search")).not.toBeNull();
+    unmount();
+
+    await linkTo(client, block);
     render(
       <NodeSelector client={client} trigger="inline" searchMode="blocks" searchPlaceholder="Search blocks" onAdd={() => {}} />,
     );
-    // The embedded block qualifies (its containing page rides as the row
-    // crumb); the page recent itself is filtered out — one row only.
+    // The linked embedded block qualifies (its containing page rides as the
+    // row crumb); the host page stays filtered out — one row only.
     expect(screen.getByText("Recently used")).not.toBeNull();
     const rows = document.querySelectorAll(".node-result-item");
     expect(rows.length).toBe(1);
@@ -556,8 +603,7 @@ describe("NodeSelector empty-query recents", () => {
   it("the classes picker is unaffected (lists classes, no recents caption)", async () => {
     const client = await seedClient();
     await createTitledClass(client, "Fiction");
-    const page = await client.createObject({ isEmbedded: false, name: "Alpha" });
-    localStorage.setItem("notees.recents", JSON.stringify([page]));
+    await client.createObject({ isEmbedded: false, name: "Alpha" });
     render(
       <NodeSelector client={client} trigger="inline" searchMode="classes" searchPlaceholder="Search classes" onAdd={() => {}} />,
     );

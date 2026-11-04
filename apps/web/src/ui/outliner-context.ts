@@ -198,6 +198,12 @@ export interface OutlinerReader {
    */
   effectiveClassIcons(): ReadonlyMap<string, string | null>;
   search(query: string): ClientNode[];
+  /**
+   * Recently linked targets (distinct mention/tag edge targets by most recent
+   * incoming link) — the recency read behind the pickers' empty-query
+   * "Recently used" listing; both client classes satisfy it.
+   */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }>;
   getClassParents(classId: string): string[];
   getClassMembers(classId: string): ClientNode[];
   getClassBindings(classId: string): ClassBinding[];
