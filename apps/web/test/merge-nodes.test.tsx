@@ -457,6 +457,7 @@ describe("MergeNodesModal (worker client — the local worker merge)", () => {
           ),
         ),
       listPages: () => [...nodes.values()].filter((node) => node.parentId === null && !node.isClass),
+      recentLinkTargets: () => [],
       listClasses: () => [],
       getClassMembers: () => [],
       effectiveClassParentlessBlock: () => false,

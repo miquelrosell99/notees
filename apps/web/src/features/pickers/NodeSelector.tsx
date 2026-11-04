@@ -10,8 +10,11 @@
  *   anchored below the given element — for embedding the picker under a
  *   custom trigger.
  *
- * The empty-query picker opens to the device's RECENTLY USED nodes (MRU
- * order, "Recently used" caption), not an empty list;
+ * The empty-query picker opens to the workspace's RECENTLY USED nodes
+ * (MRU order, "Recently used" caption) — the store's recency reads merged:
+ * recently linked targets (mention/tag edges) and recently created chrome
+ * pages, each ranked by the node's LATEST use. Merely OPENED pages do not
+ * count (opening feeds the sidebar's device-local Recents, not this list);
  * the first keystroke replaces the list with search hits. Class-scoped
  * pickers keep their member listing; the classes picker is unaffected.
  *
@@ -75,10 +78,9 @@ import {
 import type { WorkspaceFeature } from "@notees/protocol";
 import { foldSearchText } from "@notees/store";
 
-import type { ClientNode } from "@/core/workspace-client/index.js";
+import { MAX_SYNCED_RECENTS, type ClientNode } from "@/core/workspace-client/index.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { readRecentIds } from "../sidebar/recentPages.js";
 import { Icon } from "../../ui/Icon.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import { NodePill } from "../metadata/NodePill.js";
@@ -127,6 +129,13 @@ export interface NodeSelectorClient extends QuickCreateClient {
   effectiveClassParentlessBlock(classId: string): boolean;
   /** The document-chrome node pool (filter-prefix listings). */
   listPages(): ClientNode[];
+  /**
+   * Recently linked targets — distinct mention/tag edge targets by most
+   * recent incoming link, newest first (ids + the edge's op timestamp).
+   * The empty-query "Recently used" listing's link arm. Both full clients
+   * (in-process WorkspaceClient, WorkerClient proxy) carry it.
+   */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }>;
   search(query: string): ClientNode[];
   /**
    * Async clients only (the worker proxy): true while `query`'s search read
@@ -1065,15 +1074,45 @@ export function NodeSelector({
         .filter(matchesScopeTab)
         .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock));
     }
-    // The empty-query default: the device's recently
-    // used nodes, MRU order, scoped like any other candidate set — the
-    // picker opens to "Recently used" instead of an empty list, and the
-    // first keystroke replaces the list with search hits. Class-scoped
-    // pickers keep the member listing above; the classes picker never
-    // reaches here. The mode filter mirrors the search-hit branch, so a
-    // blocks-mode picker never lists page recents.
-    return readRecentIds()
-      .map((id) => client.getNode(id))
+    // The empty-query default: the workspace's recently USED nodes — the
+    // store's two recency reads merged into one MRU list. The link arm is
+    // `recentLinkTargets` (distinct mention/tag edge targets by most recent
+    // incoming link); the created arm is the document-chrome pool by
+    // createdAt, newest first (the palette home's "Recently created"
+    // recipe). A node in both arms ranks by its LATEST use. Merely OPENED
+    // pages do not count — opening feeds the sidebar's device-local
+    // Recents, not this list (that mismatch was the bug: the picker showed
+    // recently opened pages at the top). The first keystroke replaces the
+    // list with search hits. Class-scoped pickers keep the member listing
+    // above; the classes picker never reaches here. The mode filter mirrors
+    // the search-hit branch, so a blocks-mode picker never lists page
+    // recents (created blocks are not enumerable from the page pool — the
+    // link arm still surfaces linked blocks).
+    const usedAt = new Map<string, string | null>();
+    const stamp = (id: string, ts: string | null): void => {
+      const prev = usedAt.get(id);
+      if (prev === undefined || (prev === null && ts !== null) ||
+          (prev !== null && ts !== null && prev.localeCompare(ts) < 0)) {
+        usedAt.set(id, ts);
+      }
+    };
+    for (const row of client.recentLinkTargets(MAX_SYNCED_RECENTS)) {
+      stamp(row.id, row.linkedAt);
+    }
+    for (const node of client
+      .listPages()
+      .slice()
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .slice(0, MAX_SYNCED_RECENTS)) {
+      stamp(node.id, node.createdAt);
+    }
+    return [...usedAt.entries()]
+      .sort((a, b) => {
+        if (a[1] === null) return b[1] === null ? 0 : 1;
+        if (b[1] === null) return -1;
+        return b[1].localeCompare(a[1]);
+      })
+      .map(([id]) => client.getNode(id))
       .filter((node): node is ClientNode => node !== undefined)
       .filter((node) => {
         if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))

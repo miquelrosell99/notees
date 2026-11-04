@@ -7,12 +7,14 @@
  * open surface funnels through App.openPage, which calls it; the write
  * broadcasts `notees:recents` so every listener refreshes live. The nodePrefs
  * store listens and mirrors the list to the server prefs when online. The
- * node picker's empty state and the command palette read through
- * `readRecentIds` so their Recent sections match the sidebar's.
+ * list tracks OPENS (the sidebar's "Recents" semantics); the node picker's
+ * empty-query "Recently used" list does NOT read it — that list rides the
+ * store's recency reads (recently linked + recently created), where opening
+ * a page is not a use.
  *
  * Extracted from Sidebar.tsx with the Favorites/Recents
- * sections — the storage seam has callers outside the sidebar (App.openPage,
- * the pickers), so it lives in its own module next to the feature.
+ * sections — the storage seam has callers outside the sidebar (App.openPage),
+ * so it lives in its own module next to the feature.
  */
 
 import { MAX_SYNCED_RECENTS } from "@/core/workspace-client/index.js";
@@ -51,15 +53,6 @@ export function recordRecent(id: string): void {
     // Storage unavailable; the list just won't persist.
   }
   window.dispatchEvent(new Event("notees:recents"));
-}
-
-/**
- * Read the device-local Recents list (ids, most-recently-used first). The
- * node picker's empty state and the command palette both read through here
- * so the recents surfaces agree on the storage shape.
- */
-export function readRecentIds(): string[] {
-  return readStoredJson(STORAGE_KEYS.recents);
 }
 
 /**
