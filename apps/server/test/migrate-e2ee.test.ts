@@ -27,7 +27,7 @@ import {
   type KdfRecord,
 } from "@notees/protocol";
 
-import { run } from "../../../scripts/migrate-e2ee.mts";
+import { parseArgs, run } from "../../../scripts/migrate-e2ee.mts";
 
 const EMAIL = "owner@example.com";
 const PASSWORD = "migration-password-1";
@@ -36,6 +36,7 @@ const ACTOR = "0192a000-0000-7000-8000-0000000000a1";
 const WS_A = "0192a000-0000-7000-8000-000000000001";
 const WS_B = "0192a000-0000-7000-8000-000000000002";
 const WS_C_NON_MEMBER = "0192a000-0000-7000-8000-000000000099";
+const WS_D_EMPTY = "0192a000-0000-7000-8000-0000000000d0";
 const PAGE_A = "0192a000-0000-7000-8000-0000000000a2";
 
 const ORIGINAL_PAYLOADS: Record<string, Record<string, unknown>> = {
@@ -102,11 +103,12 @@ function buildFixture(): Fixture {
     `INSERT INTO "user" (id, email, password_hash, created_at, kdf_salt, kdf_n, kdf_r, kdf_p, wrapped_master_key, key_verifier)
      VALUES (?, ?, 'scrypt$x', 1, ?, ?, ?, ?, ?, ?)`,
   ).run(USER_ID, EMAIL, masterKdf.salt, masterKdf.N, masterKdf.r, masterKdf.p, masterKdf.wrappedMasterKey, masterKdf.keyVerifier);
-  for (const ws of [WS_A, WS_B, WS_C_NON_MEMBER]) {
+  for (const ws of [WS_A, WS_B, WS_C_NON_MEMBER, WS_D_EMPTY]) {
     db.prepare("INSERT INTO workspace (id, name, created_by, created_at) VALUES (?, ?, ?, 1)").run(ws, ws, USER_ID);
   }
   db.prepare("INSERT INTO workspace_member (workspace_id, user_id, role, created_at) VALUES (?, ?, 'owner', 1)").run(WS_A, USER_ID);
   db.prepare("INSERT INTO workspace_member (workspace_id, user_id, role, created_at) VALUES (?, ?, 'owner', 1)").run(WS_B, USER_ID);
+  db.prepare("INSERT INTO workspace_member (workspace_id, user_id, role, created_at) VALUES (?, ?, 'owner', 1)").run(WS_D_EMPTY, USER_ID);
 
   const insertEnv = db.prepare(
     `INSERT INTO envelope (id, workspace_id, actor_id, device_id, client, physical, logical,
@@ -127,7 +129,13 @@ function buildFixture(): Fixture {
     `INSERT INTO asset (asset_id, workspace_id, hash, mime_type, size, original_name, uploaded_at, iv)
      VALUES ('0192a000-0000-7000-8000-0000000000f1', ?, ?, 'image/jpeg', ?, 'cover.jpg', '2026-09-24T12:00:00.000Z', NULL)`,
   ).run(WS_A, assetHash, assetOriginal.length);
-  db.prepare("INSERT INTO asset_ref (hash, refs_count) VALUES (?, 1)").run(assetHash);
+  // A second row over the SAME file (server dedupes files by content hash,
+  // new row per upload) — the migration must seal once and repoint both.
+  db.prepare(
+    `INSERT INTO asset (asset_id, workspace_id, hash, mime_type, size, original_name, uploaded_at, iv)
+     VALUES ('0192a000-0000-7000-8000-0000000000f2', ?, ?, 'image/jpeg', ?, 'cover-copy.jpg', '2026-09-24T12:00:05.000Z', NULL)`,
+  ).run(WS_A, assetHash, assetOriginal.length);
+  db.prepare("INSERT INTO asset_ref (hash, refs_count) VALUES (?, 2)").run(assetHash);
 
   db.prepare(
     "INSERT INTO snapshot (id, workspace_id, hlc_physical, hlc_logical, up_to_seq, size, created_at) VALUES ('snap-stale', ?, 1, 0, 2, 10, '2026-09-24T12:00:00.000Z')",
@@ -156,6 +164,13 @@ function dump(db: Database.Database): Record<string, unknown[]> {
   return out;
 }
 
+function db2epochs(dataDir: string): Array<{ workspace_id: string; epoch: number }> {
+  const db = open(join(dataDir, "relay.db"));
+  const rows = db.prepare("SELECT workspace_id, epoch FROM restore_epoch ORDER BY workspace_id").all() as unknown as Array<{ workspace_id: string; epoch: number }>;
+  db.close();
+  return rows;
+}
+
 describe("migrate-e2ee (plan 06)", () => {
   it("dry-run plans the full scope with ZERO writes; migrate seals in place; verify is green; re-run is idempotent; clients can read the log back", async () => {
     const fixture = buildFixture();
@@ -166,10 +181,10 @@ describe("migrate-e2ee (plan 06)", () => {
 
     // 1. DRY-RUN: plans everything, writes nothing.
     const dry = await run({ dataDir: fixture.dataDir, email: EMAIL, password: PASSWORD, dryRun: true, verify: false });
-    expect(dry.workspaces.map((w) => w.workspaceId)).toEqual([WS_A, WS_B]);
+    expect(dry.workspaces.map((w) => w.workspaceId)).toEqual([WS_A, WS_B, WS_D_EMPTY]);
     const dryA = dry.workspaces[0]!;
     expect(dryA.envelopes.sealed).toBe(2);
-    expect(dryA.assets.sealed).toBe(1);
+    expect(dryA.assets.sealed).toBe(2);
     expect(dryA.workspaceKey).toBe("dry-run");
     expect(dryA.restoreEpoch).toBe("dry-run");
     const afterDry = open(fixture.dbPath);
@@ -196,9 +211,10 @@ describe("migrate-e2ee (plan 06)", () => {
     }
     const nonMember = rows.find((r) => r.workspace_id === WS_C_NON_MEMBER)!;
     expect(JSON.parse(nonMember.payload as string)).toEqual({ objectId: PAGE_A, isEmbedded: false });
-    // Workspace keys landed for members only.
+    // Workspace keys landed for members only — INCLUDING the envelope-less
+    // workspace (a keyed workspace needs its key row even with nothing to seal).
     const keys = db.prepare("SELECT workspace_id FROM workspace_key ORDER BY workspace_id").all() as unknown as Array<{ workspace_id: string }>;
-    expect(keys.map((k) => k.workspace_id)).toEqual([WS_A, WS_B]);
+    expect(keys.map((k) => k.workspace_id)).toEqual([WS_A, WS_B, WS_D_EMPTY]);
     // Asset sealed: new hash, iv set, size grew by the tag, file moved.
     const asset = db.prepare("SELECT * FROM asset WHERE asset_id = '0192a000-0000-7000-8000-0000000000f1'").get() as Record<string, unknown>;
     expect(asset.iv).toEqual(expect.stringMatching(/^[A-Za-z0-9_-]+$/) as unknown as string);
@@ -206,11 +222,20 @@ describe("migrate-e2ee (plan 06)", () => {
     expect(asset.size).toBe(fixture.assetOriginal.length + 16);
     expect(existsSync(join(fixture.dataDir, "workspaces", WS_A, "assets", (asset.hash as string).slice(0, 4), asset.hash as string))).toBe(true);
     expect(existsSync(join(fixture.dataDir, "workspaces", WS_A, "assets", fixture.assetHash.slice(0, 4), fixture.assetHash))).toBe(false);
+    // The duplicate-hash row was sealed TOGETHER with its twin: same sealed
+    // blob (one file write), same iv, same new hash; asset_ref moved the
+    // whole reference count.
+    const twin = db.prepare("SELECT * FROM asset WHERE asset_id = '0192a000-0000-7000-8000-0000000000f2'").get() as Record<string, unknown>;
+    expect(twin.hash).toBe(asset.hash);
+    expect(twin.iv).toBe(asset.iv);
+    expect((db.prepare("SELECT refs_count FROM asset_ref WHERE hash = ?").get(asset.hash as string) as { refs_count: number }).refs_count).toBe(2);
+    expect((db.prepare("SELECT COUNT(*) AS n FROM asset_ref WHERE hash = ?").get(fixture.assetHash) as { n: number }).n).toBe(0);
     // restore_epoch bumped for members, snapshots + derived pruned.
     const epochs = db.prepare("SELECT workspace_id, epoch FROM restore_epoch ORDER BY workspace_id").all() as unknown as Array<{ workspace_id: string; epoch: number }>;
     expect(epochs).toEqual([
       { workspace_id: WS_A, epoch: 1 },
       { workspace_id: WS_B, epoch: 1 },
+      { workspace_id: WS_D_EMPTY, epoch: 1 },
     ]);
     expect((db.prepare("SELECT COUNT(*) AS n FROM snapshot").get() as { n: number }).n).toBe(0);
     expect(existsSync(join(fixture.dataDir, "snapshots", "snap-stale.db"))).toBe(false);
@@ -228,13 +253,23 @@ describe("migrate-e2ee (plan 06)", () => {
 
     // 4. IDEMPOTENCE: a re-run seals nothing (all skipped).
     const rerun = await run({ dataDir: fixture.dataDir, email: EMAIL, password: PASSWORD, dryRun: false, verify: false });
+    const rerunExpectations: Record<string, { env: number; asset: number; key: string }> = {
+      [WS_A]: { env: 2, asset: 2, key: "already-present" },
+      [WS_B]: { env: 1, asset: 0, key: "already-present" },
+      [WS_D_EMPTY]: { env: 0, asset: 0, key: "already-present" },
+    };
     for (const report of rerun.workspaces) {
+      const expected = rerunExpectations[report.workspaceId]!;
       expect(report.envelopes.sealed).toBe(0);
-      expect(report.envelopes.skippedAlreadySealed).toBe(report.workspaceId === WS_A ? 2 : 1);
+      expect(report.envelopes.skippedAlreadySealed).toBe(expected.env);
       expect(report.assets.sealed).toBe(0);
-      expect(report.assets.skippedAlreadySealed).toBe(report.workspaceId === WS_A ? 1 : 0);
-      expect(report.workspaceKey).toBe("already-present");
+      expect(report.assets.skippedAlreadySealed).toBe(expected.asset);
+      expect(report.workspaceKey).toBe(expected.key);
+      // A no-op re-run bumps NOTHING — no wipe-resync is owed.
+      expect(report.restoreEpoch).toBe("skipped (nothing to seal)");
     }
+    const epochsAfterRerun = db2epochs(fixture.dataDir);
+    expect(epochsAfterRerun).toEqual(epochs);
 
     // 5. CLIENT-SHAPED READ: unwrap the workspace key and read the log back —
     //    the opened payloads equal the originals byte-for-byte.
@@ -284,5 +319,13 @@ describe("migrate-e2ee (plan 06)", () => {
     await expect(
       run({ dataDir: fixture.dataDir, email: EMAIL, password: PASSWORD, dryRun: false, verify: true }),
     ).rejects.toThrow(/no workspace_key row|still plaintext/);
+  });
+});
+
+describe("parseArgs guard", () => {
+  it("rejects --dry-run combined with --verify (mutual exclusion is live)", () => {
+    expect(() =>
+      parseArgs(["--email", EMAIL, "--dry-run", "--verify", "--data-dir", "/tmp/x"]),
+    ).toThrow(/mutually exclusive/);
   });
 });

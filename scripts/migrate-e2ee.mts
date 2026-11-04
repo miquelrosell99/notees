@@ -104,7 +104,7 @@ export interface WorkspaceReport {
   envelopes: { sealed: number; skippedAlreadySealed: number; failed: number };
   workspaceKey: "created" | "already-present" | "dry-run";
   assets: { sealed: number; skippedAlreadySealed: number; failed: number };
-  restoreEpoch: "bumped" | "dry-run";
+  restoreEpoch: "bumped" | "dry-run" | "skipped (nothing to seal)";
 }
 
 // --- arguments -------------------------------------------------------------------
@@ -126,7 +126,7 @@ export function parseArgs(argv: string[]): Omit<MigrateOptions, "password"> {
       throw new Error(`unexpected argument: ${arg}`);
     }
   }
-  if (args["dry-run"] === true && args.verify === true) {
+  if (args.dryRun === true && args.verify === true) {
     throw new Error("--dry-run and --verify are mutually exclusive");
   }
   if (typeof args.email !== "string" || args.email === "") {
@@ -354,37 +354,37 @@ export async function planAssetSeal(
 }
 
 /**
- * Apply one sealed-asset plan: write the sealed bytes to the new content-hash
- * path (the CAS layout), commit the row update + asset_ref bookkeeping, then
- * remove the old file. Crash-safe ordering: a crash before the commit leaves
- * the row pointing at the OLD hash whose file still exists (a re-run seals it
- * again with a fresh IV); a crash after the commit leaves harmless orphan
- * bytes at the old path.
+ * Apply a sealed-asset plan for EVERY row sharing the sealed hash. The
+ * plaintext was sealed ONCE per unique content hash — identical plaintext
+ * shares one sealed blob, iv, and new content hash (the server's dedupe
+ * shape: two rows over one file stay two rows over one sealed file) — so
+ * the sealed bytes land once and all rows are repointed in the SAME
+ * transaction, with `asset_ref` moving the whole reference count. The old
+ * file is removed only after the commit; a crash before the commit leaves
+ * the old-hash file in place (a re-run reseals with a fresh IV), after it
+ * leaves harmless orphan bytes.
  */
-export function applyAssetSeal(db: Db, plan: SealedAssetPlan): void {
+export function applyAssetSeal(db: Db, plan: SealedAssetPlan, rows: AssetRow[]): void {
+  if (rows.length === 0) throw new Error("applyAssetSeal requires at least one row");
   mkdirSync(dirname(plan.newPath), { recursive: true });
   if (!existsSync(plan.newPath)) {
     writeFileSync(plan.newPath, plan.blob);
   }
   const run = db.transaction(() => {
-    db.prepare("UPDATE asset SET hash = ?, size = ?, iv = ? WHERE asset_id = ?").run(
-      plan.newHash,
-      plan.newSize,
-      plan.iv,
-      plan.assetId,
-    );
+    const updateRow = db.prepare("UPDATE asset SET hash = ?, size = ?, iv = ? WHERE asset_id = ?");
+    for (const row of rows) updateRow.run(plan.newHash, plan.newSize, plan.iv, row.asset_id);
     db.prepare(
-      `INSERT INTO asset_ref (hash, refs_count) VALUES (?, 1)
-       ON CONFLICT(hash) DO UPDATE SET refs_count = refs_count + 1`,
-    ).run(plan.newHash);
+      `INSERT INTO asset_ref (hash, refs_count) VALUES (?, ?)
+       ON CONFLICT(hash) DO UPDATE SET refs_count = refs_count + excluded.refs_count`,
+    ).run(plan.newHash, rows.length);
     const remaining = (
       db.prepare("SELECT refs_count FROM asset_ref WHERE hash = ?").get(plan.oldHash) as
         | { refs_count: number }
         | undefined
     )?.refs_count;
     if (remaining !== undefined) {
-      if (remaining <= 1) db.prepare("DELETE FROM asset_ref WHERE hash = ?").run(plan.oldHash);
-      else db.prepare("UPDATE asset_ref SET refs_count = refs_count - 1 WHERE hash = ?").run(plan.oldHash);
+      if (remaining <= rows.length) db.prepare("DELETE FROM asset_ref WHERE hash = ?").run(plan.oldHash);
+      else db.prepare("UPDATE asset_ref SET refs_count = refs_count - ? WHERE hash = ?").run(rows.length, plan.oldHash);
     }
   });
   run();
@@ -447,50 +447,78 @@ async function migrateWorkspace(
     pending.push({ seq: row.seq, payload: JSON.stringify(sealedPayload) });
     envelopeStats.sealed += 1;
   }
-  if (!dryRun && pending.length > 0) {
+  // Key row + envelope rewrites in ONE transaction: the key lands FIRST
+  // (first-write-wins idempotence supports the ordering), so a crash can
+  // never orphan sealed envelopes under a discarded key — the transaction
+  // is all-or-nothing. The key row is inserted even with ZERO envelopes to
+  // seal (an envelope-less workspace is still keyed; verify requires the row).
+  if (!dryRun) {
+    if (workspaceKey === null) throw new Error("workspace key unavailable");
     const run = db.transaction(() => {
+      if (existing === undefined) {
+        db.prepare(
+          "INSERT INTO workspace_key (workspace_id, wrapped_key, updated_at) VALUES (?, ?, ?)",
+        ).run(workspaceId, wrappedKey, Date.now());
+      }
       const update = db.prepare("UPDATE envelope SET payload = ? WHERE seq = ?");
       for (const plan of pending) update.run(plan.payload, plan.seq);
     });
     run();
-    // The workspace key row lands only after its envelopes sealed cleanly.
-    if (existing === undefined) {
-      db.prepare(
-        "INSERT INTO workspace_key (workspace_id, wrapped_key, updated_at) VALUES (?, ?, ?)",
-      ).run(workspaceId, wrappedKey, Date.now());
-    }
   }
 
-  // Asset pass.
+  // Asset pass. The server dedupes FILES by content hash but writes a NEW
+  // row per upload — rows can share a hash (and one file). Group by hash
+  // and seal ONCE per unique hash: identical plaintext shares one sealed
+  // blob, iv, and new content hash (the file is written and moved once),
+  // and every row over it is repointed together. Sealing per-row instead
+  // would unlink the shared plaintext file under the second row and abort
+  // unresumably ("bytes missing" on every re-run).
   const assetStats: WorkspaceReport["assets"] = { sealed: 0, skippedAlreadySealed: 0, failed: 0 };
   const assetRows = db
     .prepare("SELECT * FROM asset WHERE workspace_id = ? ORDER BY asset_id ASC")
     .all(workspaceId) as unknown as Record<string, unknown>[];
+  const byHash = new Map<string, AssetRow[]>();
   for (const raw of assetRows) {
     const row = assetRowOf(raw);
     if (row.iv !== null) {
       assetStats.skippedAlreadySealed += 1;
       continue;
     }
+    const list = byHash.get(row.hash) ?? [];
+    list.push(row);
+    byHash.set(row.hash, list);
+  }
+  for (const rows of byHash.values()) {
     if (dryRun) {
-      assetStats.sealed += 1;
+      assetStats.sealed += rows.length;
       continue;
     }
     if (workspaceKey === null) throw new Error("workspace key unavailable");
-    const plan = await planAssetSeal(dataDir, workspaceKey, row);
-    applyAssetSeal(db, plan);
-    assetStats.sealed += 1;
+    const plan = await planAssetSeal(dataDir, workspaceKey, rows[0]!);
+    applyAssetSeal(db, plan, rows);
+    assetStats.sealed += rows.length;
   }
 
-  // restore_epoch bump (the wipe-resync signal clients already implement).
+  // restore_epoch bump (the wipe-resync signal clients already implement) —
+  // skipped on a no-op re-run (nothing sealed, key already present): no
+  // state changed, so no client wipe-resync is owed.
   if (dryRun) {
     return { workspaceId, envelopes: envelopeStats, workspaceKey: keyState, assets: assetStats, restoreEpoch: "dry-run" };
   }
-  db.prepare(
-    `INSERT INTO restore_epoch (workspace_id, epoch) VALUES (?, 1)
-     ON CONFLICT(workspace_id) DO UPDATE SET epoch = epoch + 1`,
-  ).run(workspaceId);
-  return { workspaceId, envelopes: envelopeStats, workspaceKey: keyState, assets: assetStats, restoreEpoch: "bumped" };
+  const noOp = envelopeStats.sealed === 0 && assetStats.sealed === 0 && existing !== undefined;
+  if (!noOp) {
+    db.prepare(
+      `INSERT INTO restore_epoch (workspace_id, epoch) VALUES (?, 1)
+       ON CONFLICT(workspace_id) DO UPDATE SET epoch = epoch + 1`,
+    ).run(workspaceId);
+  }
+  return {
+    workspaceId,
+    envelopes: envelopeStats,
+    workspaceKey: keyState,
+    assets: assetStats,
+    restoreEpoch: noOp ? "skipped (nothing to seal)" : "bumped",
+  };
 }
 
 /** Drop stale snapshots + prune server-side derived workspace stores. */
@@ -630,7 +658,9 @@ async function run(options: MigrateOptions): Promise<MigrateReport> {
 
     if (!options.dryRun) {
       // Backup first (WAL checkpoint so the main file is complete).
-      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
+      // Millisecond resolution: two runs in the same second must not
+      // overwrite the pre-migration backup.
+      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-");
       const backupPath = `${dbPath}.bak-${stamp}`;
       db.pragma("wal_checkpoint(TRUNCATE)");
       copyFileSync(dbPath, backupPath);
