@@ -1032,6 +1032,86 @@ describe("the block query builder", () => {
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("High impact")).not.toBeNull();
     });
+
+    it("structural role + type: ONE value selector, NO operator column (the boolean register ruling)", async () => {
+      const client = await seedClient();
+      const classId = await seedMembers(client);
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Structural role/);
+      // No operator column at all — the value selector IS the row's register.
+      expect(within(panel).queryByLabelText("Operator")).toBeNull();
+      // The placement default: Page (standalone) keeps all three members.
+      expect(tableRowCount()).toBe(3);
+      pickOption(panel, "Structural role", "Block (embedded in body)");
+      // Every member is a standalone page — the block read empties the table.
+      expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+      pickOption(panel, "Structural role", "Page (standalone)");
+      expect(tableRowCount()).toBe(3);
+
+      addCondition(panel, /^Type/);
+      // Both boolean rows render no operator column.
+      expect(within(panel).queryByLabelText("Operator")).toBeNull();
+      // The type default: A class — none of the members is a class.
+      expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+      pickOption(panel, "Type", "Not a class");
+      expect(tableRowCount()).toBe(3);
+      pickOption(panel, "Type", "A class");
+      expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+    });
+
+    it("boolean property: is set / is not set operators + a true/false value selector", async () => {
+      const client = await seedClient();
+      const classId = await seedClass(client, "task");
+      const schemaId = await client.createPropertySchema({ name: "done", type: "boolean" });
+      await client.setClassProperty(classId, schemaId, {});
+      const doneTask = await client.createObject({ isEmbedded: false, name: "Done task" });
+      await client.assignClass(doneTask, classId);
+      await client.setProperty(doneTask, schemaId, true, 0);
+      const openTask = await client.createObject({ isEmbedded: false, name: "Open task" });
+      await client.assignClass(openTask, classId);
+      await client.setProperty(openTask, schemaId, false, 0);
+      const unsetTask = await client.createObject({ isEmbedded: false, name: "Unset task" });
+      await client.assignClass(unsetTask, classId);
+
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+      expect(tableRowCount()).toBe(3);
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Property/);
+      pickOption(panel, "Property", "done");
+      // The operator column carries ONLY the set bits…
+      fireEvent.click(within(panel).getByLabelText("Operator"));
+      const menu = document.querySelector(".dropdown-menu--portal") as HTMLElement;
+      expect(within(menu).getAllByRole("option").map((option) => option.textContent)).toEqual([
+        "is set",
+        "is not set",
+      ]);
+      // …and reads "is set" for the seeded true row; the value selector
+      // shows True and moves the value only.
+      pickOption(panel, "Value", "False");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("Open task")).not.toBeNull();
+      pickOption(panel, "Value", "True");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("Done task")).not.toBeNull();
+
+      // The set bits: is not set keeps the unvalued member; is set the two
+      // valued ones.
+      pickOption(panel, "Operator", "is not set");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("Unset task")).not.toBeNull();
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(2);
+      // The value selector stays live on the set row — picking False
+      // re-materializes the eq row (the set+value fold).
+      pickOption(panel, "Value", "False");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("Open task")).not.toBeNull();
+    });
   });
 
   describe("the escapes from transience", () => {

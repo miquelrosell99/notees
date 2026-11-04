@@ -392,7 +392,16 @@ function propertyMatches(
   if (condition.includeDefaults === false) {
     rows = rows.filter((row) => row.source === "authored");
   }
-  if (condition.op === "exists") return rows.length > 0;
+  if (condition.op === "exists") {
+    // The compiler's exists arm tests the effective CTE for a row at all —
+    // its rows always carry a value (visible authored values UNION non-null
+    // derived defaults; emptied/declared-only rows create no row). The
+    // client's effective read ALSO synthesizes bound-but-empty and assigned
+    // virtual rows (value null — the property panel's declaration rows),
+    // which must NOT count: "is set" means HAS A VALUE, not HAS A
+    // DECLARATION.
+    return rows.some((row) => row.value !== null && row.value !== undefined);
+  }
   // Value ops require a non-null bound (the compile law); without one the
   // condition can match nothing. (between/within intercept in
   // conditionMatches before this read.)
