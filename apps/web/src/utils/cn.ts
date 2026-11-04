@@ -12,11 +12,21 @@
  * it would mistake `text-button` for a color and drop a real color like
  * `text-on-error` as a conflict. Registering the names as font sizes keeps
  * color and size utilities in their own conflict groups.
+ *
+ * Same failure mode one group over: the border-width scale names
+ * (medium/thick/extra-thick) read as border COLORs to the default parser,
+ * so `border-thick border-outline-variant` silently dropped the width — an
+ * invisible Spinner arc (border-width 0, the loading button "expands but
+ * shows no animation"). Registering them as widths keeps width, style, and
+ * color utilities in their own conflict groups.
  */
 import { clsx, type ClassValue } from "clsx";
 import { extendTailwindMerge } from "tailwind-merge";
 
 export type { ClassValue };
+
+/** The custom border-width scale names (tailwind.config.ts borderWidth). */
+const BORDER_WIDTH_NAMES = ["medium", "thick", "extra-thick"] as const;
 
 const twMerge = extendTailwindMerge({
   extend: {
@@ -35,6 +45,15 @@ const twMerge = extendTailwindMerge({
             "hero",
           ],
         },
+      ],
+      "border-w": [
+        { border: [...BORDER_WIDTH_NAMES] },
+        { "border-x": [...BORDER_WIDTH_NAMES] },
+        { "border-y": [...BORDER_WIDTH_NAMES] },
+        { "border-t": [...BORDER_WIDTH_NAMES] },
+        { "border-b": [...BORDER_WIDTH_NAMES] },
+        { "border-l": [...BORDER_WIDTH_NAMES] },
+        { "border-r": [...BORDER_WIDTH_NAMES] },
       ],
     },
   },
