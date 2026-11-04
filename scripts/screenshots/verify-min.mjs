@@ -51,12 +51,20 @@ const api = async (path) => {
   return r.json();
 };
 
-// Server read canary: the derived store answers through a surviving read
-// (plan-07 retired /api/search + /api/query; UI search runs client-side).
-const classesApi = await api("/api/classes");
-const hit = Array.isArray(classesApi) ? classesApi[0] : (classesApi.classes?.[0] ?? classesApi.results?.[0]);
+// Server canary: /api/workspaces proves auth + liveness (a coordination read,
+// never key-gated). The content-read layer is key-gated since the plan-07
+// follow-up: /api/classes answers 200 for keyless workspaces and 404
+// "workspace is encrypted" for keyed ones — both are PASS shapes (plan-07
+// retired /api/search + /api/query; UI search runs client-side).
+const workspacesApi = await api("/api/workspaces");
+const listed = Array.isArray(workspacesApi) ? workspacesApi : (workspacesApi.workspaces ?? []);
+if (!listed.some((w) => w.id === WS)) throw new Error(`workspace ${WS} not listed by /api/workspaces`);
+const classesRes = await fetch(API + "/api/classes", { headers: { "x-api-key": KEY, "x-workspace-id": WS } });
+const classesBody = await classesRes.text().catch(() => "");
+const classesOk = classesRes.ok || (classesRes.status === 404 && /encrypted/i.test(classesBody));
+if (!classesOk) throw new Error(`api /api/classes: ${classesRes.status}`);
 const term = "20180900";
-console.log("api classes canary:", JSON.stringify(hit).slice(0, 120));
+console.log(`api canary: workspaces listed; /api/classes ${classesRes.status} (${classesRes.ok ? "keyless read ok" : "keyed — 404 gated, expected"})`);
 
 mkdirSync(OUT_DIR, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage"] });
