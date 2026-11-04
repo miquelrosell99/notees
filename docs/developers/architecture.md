@@ -146,14 +146,12 @@ order, edges, summaries) are untouched, and `synchronous` drops to `OFF` for the
 the existing hasApplied/cursor resume, and `endBulk` runs its maintenance tail even after
 a mid-window failure so the tables never sit deferral-stale). The online path never
 enters the window. Measured on a 100k-envelope synthetic replay: 82 → ~12,100
-envelopes/sec (see the 2026-11-04 changelog entry). The rebuilt tables converge in every
-reader-observable way; the residue versus the incremental path — class-node stats rows,
-`stats.updated_at` freshness (the tail restores the documented "mirrors the node's own
-`updated_at`" invariant the incremental path can leave stale after icon/color-only
-updates), search docid numbering, and search mention-label freshness (the online index
-snapshots a mention's target name at the source's last reindex; a rename never fans out —
-the tail resolves final names) — is documented at `packages/store/src/stats.ts` and
-`search.ts`.
+envelopes/sec (see the 2026-11-04 changelog entry). The rebuilt tables are
+the fixed point over the final state; where the incremental path left stale
+rows, the tail heals them (class-node stats rows appear, `stats.updated_at`
+matches the node's own again after icon/color-only updates, search mention
+labels resolve to final names) — the residue and its reader guarantees are
+documented at `packages/store/src/stats.ts` and `search.ts`.
 
 ## 4. The axes and the bullet-proof schema
 

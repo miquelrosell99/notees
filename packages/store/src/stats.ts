@@ -20,19 +20,23 @@ import type { StoreDatabase } from "./types.js";
  * the appliers reads node_stats, so deferring is invisible inside the
  * window.
  *
- * The bulk tail's table differs from the online incremental path in two
- * UNOBSERVABLE ways (verified: the only reader, the web client's
- * getBacklinkCount, reads backlink_count with a ?? 0 fallback and never
- * touches class nodes or stats.updated_at):
+ * The bulk tail's table differs from the online incremental path in
+ * reader-visible but benign ways (verified: the only reader, the web
+ * client's getBacklinkCount, reads backlink_count with a ?? 0 fallback and
+ * never touches class nodes or stats.updated_at):
  *  - ROWS: the tail writes a row for EVERY node (classes included); the
  *    online path only writes rows for nodes a stats-touching op reached —
  *    class nodes usually have none.
- *  - updated_at: the tail stamps the node's FINAL updated_at; the online
- *    path can leave a stale one (an icon/color-only object.update changes
- *    node.updated_at without triggering a stats rebuild) — the online path
- *    is order-sensitive here, the tail restores the documented invariant
- *    ("mirrors the node row's own updated_at"). The COUNT columns — the
- *    actual data — converge identically.
+ *  - FIXED POINT: the tail is a pure read of the final node/edge/child-order
+ *    state. The online path can carry rows it never revisited: a stale
+ *    updated_at (an icon/color-only object.update changes node.updated_at
+ *    without triggering a stats rebuild) and stale counts (the
+ *    class-convert fixture's carrier converts a parented object to a class
+ *    without rebuilding the ex-parent's row). Both are order-sensitive
+ *    incremental artifacts; the tail heals them, which matches the
+ *    documented invariant ("mirrors the node row's own updated_at"). The
+ *    COUNT columns the tail writes are exactly what a direct query over the
+ *    final derived tables returns.
  *
  * Module-level (not per-connection) because every backend the store ships is
  * synchronous and single-connection-per-Store: a bulk window runs to

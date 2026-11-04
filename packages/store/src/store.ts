@@ -176,12 +176,12 @@ export class Store {
    * skip) — and endBulk rebuilds both from the final state in one pass.
    * Nothing in the appliers reads either table, so per-op apply semantics
    * (node rows, child order, edges, summaries) are untouched. The rebuilt
-   * tables converge in all reader-observable ways; the residue (class-node
-   * stats rows, stats.updated_at freshness, search docid numbering) is
-   * documented at stats.ts / search.ts. Nesting is depth-counted; endBulk
-   * always runs the maintenance tail (even after a mid-window failure) so a
-   * torn window leaves the store with converged stats/search for the applied
-   * prefix — never stale.
+   * tables are the fixed point over the final state (the tail can differ
+   * from the incremental path where that path left stale rows — documented
+   * at stats.ts / search.ts — and heals them). Nesting is depth-counted;
+   * endBulk always runs the maintenance tail (even after a mid-window
+   * failure) so a torn window leaves the store with converged stats/search
+   * for the applied prefix — never stale.
    */
   private bulkDepth = 0;
   private readonly bulkStats = new Set<string>();

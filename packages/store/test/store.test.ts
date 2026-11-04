@@ -347,6 +347,69 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(JSON.parse(book?.class_ids ?? "[]")).toEqual([BOOK_CLASS]);
     });
 
+    it("the whole corpus replays inside the bulk window and converges the deferred tables", async () => {
+      const envelopes = await allFixtureEnvelopes();
+      const bulk = makeStore();
+      bulk.beginBulk();
+      try {
+        bulk.applyMany(envelopes);
+        // Deferral is visible INSIDE the window: the stats table is empty
+        // until endBulk's tail runs (nothing reads it meanwhile — the
+        // invariant this whole mechanism rests on).
+        expect(
+          (bulk.database.prepare("SELECT COUNT(*) AS n FROM node_stats").get() as { n: number }).n,
+        ).toBe(0);
+      } finally {
+        bulk.endBulk();
+      }
+
+      // The tail landed: a stats row per node row and a live search index.
+      const counts = bulk.database
+        .prepare(
+          `SELECT (SELECT COUNT(*) FROM node) AS nodes,
+                  (SELECT COUNT(*) FROM node_stats) AS stats`,
+        )
+        .get() as { nodes: number; stats: number };
+      expect(counts.stats).toBe(counts.nodes);
+      expect(bulk.search("Scientific Revolutions").length).toBeGreaterThan(0);
+      // The count columns are a pure read of the final derived tables — the
+      // tail is the authority, so verify them DIRECTLY against child_order
+      // and edge rather than against the online replay (the online
+      // incremental path can carry stale counts it never revisited — the
+      // class-convert fixture converts a parented object to a class without
+      // rebuilding the ex-parent's row — the documented staleness class at
+      // stats.ts).
+      const bulkRows = bulk.database
+        .prepare(
+          "SELECT node_id, child_count, backlink_count, reference_count, descendant_count FROM node_stats ORDER BY node_id",
+        )
+        .all() as Array<{
+        node_id: string;
+        child_count: number;
+        backlink_count: number;
+        reference_count: number;
+        descendant_count: number;
+      }>;
+      const childOf = bulk.database.prepare("SELECT COUNT(*) AS n FROM node_child_order WHERE parent_id = ?");
+      const backlinkOf = bulk.database.prepare(
+        "SELECT COUNT(DISTINCT source_id) AS n FROM edge WHERE target_id = ?",
+      );
+      const referenceOf = bulk.database.prepare(
+        "SELECT COUNT(*) AS n FROM edge WHERE source_id = ?",
+      );
+      for (const row of bulkRows) {
+        expect(row.child_count, `child_count ${row.node_id}`).toBe(
+          (childOf.get(row.node_id) as { n: number }).n,
+        );
+        expect(row.backlink_count, `backlink_count ${row.node_id}`).toBe(
+          (backlinkOf.get(row.node_id) as { n: number }).n,
+        );
+        expect(row.reference_count, `reference_count ${row.node_id}`).toBe(
+          (referenceOf.get(row.node_id) as { n: number }).n,
+        );
+      }
+    });
+
     it("object-restore.json trashes then restores: page + child active, trash row consumed", async () => {
       const store = makeStore();
       store.applyMany(await allFixtureEnvelopes());
