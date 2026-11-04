@@ -39,6 +39,7 @@ import { FavoritesRecents, sidebarSection } from "../../features/sidebar/Favorit
 import type { AnyClient } from "../../features/sidebar/FavoritesRecents.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { Separator } from "../../components/ui/kit/Separator.js";
+import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import "./Sidebar.css";
@@ -242,7 +243,9 @@ export function Sidebar({
                 className={`nt-profile-sync nt-profile-sync--${syncState}`}
                 title={`Sync: ${syncStateLabel}`}
                 aria-hidden="true"
-              />
+              >
+                {syncState === "syncing" && <Spinner size="sm" />}
+              </span>
             )}
           </span>
           <span className="nt-profile-text">
