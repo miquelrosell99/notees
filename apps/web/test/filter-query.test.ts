@@ -67,6 +67,8 @@ function stubClient(facts: {
     getClassChildren: (classId) =>
       (facts.classChildren?.[classId] ?? []).map((id) => makeNode({ id })),
     getChildren: () => [],
+    getAssetInfo: () => undefined,
+    listPropertySchemas: () => [],
     getEffectiveProperties: (id) =>
       (facts.properties?.[id] ?? []).map(
         (row, idx) =>
