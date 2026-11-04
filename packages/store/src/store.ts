@@ -1211,6 +1211,18 @@ export class Store {
   }
 
   /**
+   * Reclaim free pages in place (VACUUM) so a serialized image carries only
+   * live content — replay- and delete-derived free pages otherwise ride into
+   * snapshot uploads (a live 500 MiB image can project past the relay's body
+   * cap mostly as free pages). Safe mid-session on every backend (VACUUM
+   * rewrites the file/image in place). Callers gate on size — compacting a
+   * small database is wasted work.
+   */
+  compact(): void {
+    this.db.exec("VACUUM");
+  }
+
+  /**
    * Streaming snapshot source — null when the backend can only export bytes
    * (sql.js / better-sqlite3), a lazy image stream for file-backed backends
    * (the sqlite-wasm OPFS VFS). Uploaders prefer this to avoid holding the

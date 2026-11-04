@@ -61,6 +61,24 @@ const snapshotPutQuerySchema = z.object({
   sealed: z.enum(["1"]).optional(),
 });
 
+const snapshotPartPutQuerySchema = z.object({
+  workspaceId: z.string().uuid(),
+  /** The multipart upload this part belongs to (client-generated uuid). */
+  upload: z.string().uuid(),
+  /** Zero-based part index; each index stages exactly once (duplicates 422). */
+  index: z.coerce.number().int().nonnegative(),
+});
+
+const snapshotCommitQuerySchema = z.object({
+  workspaceId: z.string().uuid(),
+  upload: z.string().uuid(),
+  /** The number of parts the client claims; must match the staged indexes exactly. */
+  parts: z.coerce.number().int().positive(),
+  physical: z.coerce.number().int().nonnegative(),
+  logical: z.coerce.number().int().nonnegative(),
+  sealed: z.enum(["1"]).optional(),
+});
+
 /** Whether an encoding header (Accept-Encoding / Content-Encoding) carries a gzip token. */
 function encodingHeaderHasGzip(header: unknown): boolean {
   return (
@@ -321,6 +339,89 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     const snapshotId = uuidv7();
     const upToSeq = ctx.relay.latestSeq(workspaceId);
     ctx.relay.saveSnapshot(workspaceId, snapshotId, { physical, logical }, upToSeq, body, sealed === "1");
+    reply.code(201);
+    return {
+      snapshotId,
+      workspaceId,
+      upToHlc: { physical, logical },
+      upToSeq,
+    };
+  });
+
+  app.put("/snapshot/data/part", async (request, reply) => {
+    const parsed = snapshotPartPutQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", "workspaceId (uuid), upload (uuid) and index (int) query parameters required");
+    }
+    const { workspaceId, upload, index } = parsed.data;
+    requireCredential(ctx, request, workspaceId, "write");
+    const rawBody = request.body;
+    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
+      throw new AppError(422, "validation_failed", "snapshot part must be a non-empty binary body");
+    }
+    // Transfer-only gzip, mirroring the single PUT: decompressed BEFORE the
+    // part lands in staging, so the committed bytes reassemble exactly.
+    let body = rawBody;
+    if (encodingHeaderHasGzip(request.headers["content-encoding"])) {
+      try {
+        body = gunzipSync(rawBody);
+      } catch {
+        throw new AppError(
+          400,
+          "validation_failed",
+          "request carries Content-Encoding: gzip but the body is not valid gzip data",
+        );
+      }
+    }
+    try {
+      ctx.relay.saveSnapshotPart(upload, index, body);
+    } catch {
+      throw new AppError(
+        422,
+        "validation_failed",
+        `duplicate snapshot part ${index} for upload ${upload}`,
+      );
+    }
+    reply.code(201);
+    return { upload, index };
+  });
+
+  app.post("/snapshot/data/commit", async (request, reply) => {
+    const parsed = snapshotCommitQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", "workspaceId, upload, parts, physical and logical query parameters required");
+    }
+    const { workspaceId, upload, parts, physical, logical, sealed } = parsed.data;
+    requireCredential(ctx, request, workspaceId, "write");
+    const stored = ctx.relay.listSnapshotPartIndexes(upload);
+    if (stored.length === 0) {
+      throw new AppError(404, "not_found", `no parts staged for upload ${upload}`);
+    }
+    if (stored.length !== parts || stored[parts - 1] !== parts - 1) {
+      throw new AppError(
+        422,
+        "validation_failed",
+        `parts mismatch: commit declares ${parts} part(s) but the upload holds indexes ${stored.join(", ")}`,
+      );
+    }
+    const body = Buffer.concat(ctx.relay.readSnapshotParts(upload, parts));
+    // The sanity gate, same arms as the single PUT: on a real log the
+    // checkpoint must be a parseable derived store with node rows.
+    if (ctx.relay.envelopeCount(workspaceId) > SNAPSHOT_REBUILD_MIN_ENVELOPES) {
+      const nodes = countSnapshotNodes(body);
+      if (nodes === null || nodes === 0) {
+        throw new AppError(
+          422,
+          "validation_failed",
+          "snapshot failed the sanity gate: not a derived store with node rows, " +
+            `but the workspace log carries ${ctx.relay.envelopeCount(workspaceId)} envelopes — refusing to replace the checkpoint`,
+        );
+      }
+    }
+    const snapshotId = uuidv7();
+    const upToSeq = ctx.relay.latestSeq(workspaceId);
+    ctx.relay.saveSnapshot(workspaceId, snapshotId, { physical, logical }, upToSeq, body, sealed === "1");
+    ctx.relay.deleteSnapshotParts(upload);
     reply.code(201);
     return {
       snapshotId,

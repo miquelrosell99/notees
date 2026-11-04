@@ -72,11 +72,36 @@ export interface Transport {
   /** PUT /snapshot/data (best-effort client-produced snapshot). `sealed` declares the blob is a sealed image (the engine's crypto branch is the only sealer) — the relay stores the flag on the snapshot row and serves it in GET /snapshot meta. */
   uploadSnapshot?(bytes: Uint8Array, hlc: Hlc, sealed?: boolean): Promise<void>;
   /**
+   * PUT /snapshot/data/part — one chunk of a multipart snapshot upload
+   * (index-addressed under the upload id). Parts are committed with
+   * `commitSnapshot`. Optional — engines fall back to the single PUT.
+   */
+  uploadSnapshotPart?(bytes: Uint8Array, uploadId: string, index: number): Promise<void>;
+  /**
+   * POST /snapshot/data/commit — concatenate the parts of a multipart
+   * upload, run the relay's sanity gate, and store the checkpoint. `sealed`
+   * is stored on the snapshot row like the single PUT's flag.
+   */
+  commitSnapshot?(uploadId: string, parts: number, hlc: Hlc, sealed: boolean): Promise<void>;
+  /**
    * Streaming variant: the image is read lazily (OPFS-VFS clients avoid
    * materializing it in the WASM/JS heap). Optional — engines fall back to
    * `uploadSnapshot`.
    */
   uploadSnapshotStream?(hlc: Hlc, open: () => ReadableStream<Uint8Array>): Promise<void>;
+  /**
+   * PUT /snapshot/data/part — one chunk of a multipart snapshot upload
+   * (index-addressed under the upload id). Parts are stored verbatim and
+   * committed with `commitSnapshot`. Optional — engines fall back to the
+   * single PUT.
+   */
+  uploadSnapshotPart?(bytes: Uint8Array, uploadId: string, index: number): Promise<void>;
+  /**
+   * POST /snapshot/data/commit — concatenate the parts of a multipart
+   * upload, run the relay's sanity gate, and store the checkpoint. `sealed`
+   * is stored on the snapshot row like the single PUT's flag.
+   */
+  commitSnapshot?(uploadId: string, parts: number, hlc: Hlc, sealed: boolean): Promise<void>;
   /** Optional realtime channel (WIRE.md); HttpTransport implements it over WebSocket. */
   subscribe?(handlers: RealtimeHandlers): () => void;
 }
