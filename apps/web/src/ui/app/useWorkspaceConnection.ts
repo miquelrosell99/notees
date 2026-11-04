@@ -22,7 +22,11 @@ import {
 import type { AccountUser } from "@/core/auth-api.js";
 import { inProcessReason, type StoreMode } from "./storeMode.js";
 import type { AnyClient } from "./clients.js";
-import { openStoreConnection, type ConnectOptions } from "./store-connection.js";
+import {
+  EncryptedWorkspaceLockedError,
+  openStoreConnection,
+  type ConnectOptions,
+} from "./store-connection.js";
 
 export type Phase =
   | { name: "server" }
@@ -33,6 +37,20 @@ export type Phase =
   | { name: "connecting"; label: string }
   | { name: "ready" };
 
+/**
+ * A refused open: the workspace is encrypted and this session holds no
+ * master key. The App renders the unlock re-prompt for it; on success it
+ * re-invokes connect (with the re-derived key), on cancel it returns to the
+ * workspace selector.
+ */
+export interface UnlockRequest {
+  url: string;
+  credential: string;
+  workspaceId: string;
+  name: string;
+  credentialType: "session" | "apikey";
+}
+
 export interface WorkspaceConnection {
   client: AnyClient | null;
   /** The single owner of the live client for imperative reads + teardown. */
@@ -40,11 +58,9 @@ export interface WorkspaceConnection {
   offline: boolean;
   storeMode: StoreMode;
   storeReason: string | undefined;
-  /**
-   * The open workspace is encrypted but this session has no key (the reload
-   * dropped it): writes are plaintext until unlocked. Drives the locked banner.
-   */
-  encryptedLocked: boolean;
+  /** Non-null while a refused encrypted open waits for the unlock re-prompt. */
+  unlockRequest: UnlockRequest | null;
+  setUnlockRequest: Dispatch<SetStateAction<UnlockRequest | null>>;
   /**
    * The engine's current sync-phase message during connect ("Fetching latest
    * snapshot…", "Catching up… N operations") — the connecting screen's
@@ -82,7 +98,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   const clientRef = useRef<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
-  const [encryptedLocked, setEncryptedLocked] = useState(false);
+  const [unlockRequest, setUnlockRequest] = useState<UnlockRequest | null>(null);
   const [connectProgress, setConnectProgress] = useState<string | null>(null);
   const [connectProgressFraction, setConnectProgressFraction] = useState<number | null>(null);
   const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
@@ -112,7 +128,6 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     setError(null);
     setConnectProgress(null);
     setConnectProgressFraction(null);
-    setEncryptedLocked(false);
     const previous = clientRef.current;
     clientRef.current = null;
     previous?.close();
@@ -130,11 +145,11 @@ export function useWorkspaceConnection(): WorkspaceConnection {
           setConnectProgressFraction(total > 0 ? Math.min(1, Math.max(0, applied / total)) : null);
         },
       });
+      setUnlockRequest(null);
       clientRef.current = outcome.client;
       setClient(outcome.client);
       setConnectProgress(null);
       setConnectProgressFraction(null);
-      setEncryptedLocked(outcome.encryptedLocked === true);
       setOffline(options.isOffline);
       setStoreMode(outcome.mode);
       setStoreReason(outcome.mode === "in-process" ? inProcessReason() : undefined);
@@ -150,6 +165,19 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     } catch (err) {
       setConnectProgress(null);
       setConnectProgressFraction(null);
+      if (err instanceof EncryptedWorkspaceLockedError) {
+        // Fail loud, never keyless: the open refused before any client was
+        // created. The unlock re-prompt takes over; cancel returns to the
+        // selector (the App applies the phase change — it owns the account).
+        setUnlockRequest({
+          url,
+          credential,
+          workspaceId,
+          name: options.label ?? "Workspace",
+          credentialType: options.credentialType,
+        });
+        return;
+      }
       setPhase({ name: "server" });
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -160,7 +188,6 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     clientRef.current = null;
     live?.close();
     setClient(null);
-    setEncryptedLocked(false);
   }
 
   return {
@@ -169,7 +196,8 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     offline,
     storeMode,
     storeReason,
-    encryptedLocked,
+    unlockRequest,
+    setUnlockRequest,
     connectProgress,
     connectProgressFraction,
     sessionSignedIn,

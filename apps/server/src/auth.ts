@@ -108,6 +108,8 @@ export interface WorkspaceListEntry {
   createdAt: number;
   envelopeCount: number;
   latestSeq: number;
+  /** A workspace_key row exists — the workspace is client-encrypted. */
+  encrypted: boolean;
 }
 
 /**
@@ -670,7 +672,12 @@ export class AuthStorage {
          WHERE m.user_id = ? ORDER BY w.created_at ASC`,
       )
       .all(userId) as { id: string; name: string | null; role: string; created_at: number }[];
-    return rows.map((row) => ({ ...row, createdAt: row.created_at, ...stats(row.id) }));
+    return rows.map((row) => ({
+      ...row,
+      createdAt: row.created_at,
+      encrypted: this.getWorkspaceKey(row.id) !== undefined,
+      ...stats(row.id),
+    }));
   }
 
   /**
@@ -693,6 +700,7 @@ export class AuthStorage {
       name: row.name,
       role: "operator",
       createdAt: row.created_at,
+      encrypted: this.getWorkspaceKey(row.id) !== undefined,
       ...stats(row.id),
     }));
   }

@@ -61,6 +61,12 @@ export interface WorkspaceEntry {
   createdAt: number;
   envelopeCount: number;
   latestSeq: number;
+  /**
+   * The server reports a `workspace_key` row for this workspace. Optional on
+   * the type because device-local remembered lists (offline selector) may
+   * predate the flag — absent reads as "not known encrypted".
+   */
+  encrypted?: boolean;
 }
 
 async function request<T>(

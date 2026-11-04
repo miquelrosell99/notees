@@ -12,7 +12,6 @@ import { rememberWorkspaceName, rememberedWorkspaceList } from "@/core/workspace
 import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";
 import type { StoreMode } from "./storeMode.js";
-import { EncryptedLockedBanner } from "../../components/ui/kit/EncryptedLockedBanner.js";
 import { InProcessStoreBanner } from "../../components/ui/kit/InProcessStoreBanner.js";
 import { SyncDetailsModal } from "../../features/modals/SyncDetailsModal.js";
 import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
@@ -34,10 +33,6 @@ export interface AppOverlaysProps {
   token: string;
   workspaceName: string;
   setWorkspaceName: Dispatch<SetStateAction<string>>;
-  /** The open workspace is encrypted but this session has no key. */
-  encryptedLocked: boolean;
-  /** Opens the unlock re-prompt (re-derives the master key, re-opens). */
-  onUnlock?: (() => void) | undefined;
 }
 
 export function AppOverlays(props: AppOverlaysProps) {
@@ -54,13 +49,10 @@ export function AppOverlays(props: AppOverlaysProps) {
     token,
     workspaceName,
     setWorkspaceName,
-    encryptedLocked,
-    onUnlock,
   } = props;
   return (
     <>
       {storeMode === "in-process" && <InProcessStoreBanner reason={storeReason} />}
-      {encryptedLocked && <EncryptedLockedBanner onUnlock={onUnlock} />}
       <SyncDetailsModal
         client={client}
         snapshot={syncStatus}

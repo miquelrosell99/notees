@@ -163,6 +163,12 @@
   flex-shrink: 0;
 }
 
+.workspace-management__encrypted-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
 .workspace-management__pill--active,
 .workspace-management__pill--active:hover {
   background: var(--md-sys-color-primary);

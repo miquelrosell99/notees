@@ -18,7 +18,7 @@ import {
   currentMasterKey,
   ensureWorkspaceKey,
 } from "@/core/crypto-custody.js";
-import { AuthRequestError, fetchWorkspaceKey } from "@/core/auth-api.js";
+import { AuthRequestError, fetchWorkspaceKey, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import { markLocalWorkspaceCopy } from "@/core/workspace-registry.js";
 import { settingsSectionFromPath } from "../../features/settings/SettingsPage.js";
@@ -53,34 +53,42 @@ export interface ConnectOutcome {
   /** True when the live credential is a session (API-key management needs one). */
   sessionSignedIn: boolean;
   workspaceName: string;
-  /**
-   * The workspace is encrypted but this open has no key (the session reloaded
-   * without the master key): writes are plaintext until unlocked.
-   */
-  encryptedLocked: boolean;
+}
+
+/**
+ * Fail-loud open refusal: the workspace is encrypted and this session holds
+ * no master key. Thrown BEFORE any client is created or storage is written —
+ * a keyed workspace never opens keyless. The caller surfaces the unlock
+ * re-prompt (re-login re-derives the master key, then re-opens).
+ */
+export class EncryptedWorkspaceLockedError extends Error {
+  constructor(readonly workspaceId: string) {
+    super("This workspace is encrypted — enter your password to open it.");
+    this.name = "EncryptedWorkspaceLockedError";
+  }
 }
 
 /**
  * E2EE custody, behind the opt-in kill switch: hand the workspace key to the
  * client when `window.NOTEES_CONFIG.e2ee === "on"` AND this session can unwrap
- * one. Any other flag state (absent included) = off = today's keyless
- * plaintext behavior — and makes NO key-route call at all (the lockstep debt:
- * no workspace gets encrypted before the sibling clients can decrypt).
+ * one. Any other flag state (absent included) = off = plaintext behavior —
+ * and makes NO key-route call at all (the lockstep debt: no workspace gets
+ * encrypted before the sibling clients can decrypt).
  *
  * When the switch is on: offline workspaces are keyless by design (no server
  * → no keys → plaintext). With a session but NO master key in memory (a
- * reload restores the session without it — custody is memory-only), a keyed
- * workspace opens KEYLESS (plaintext passthrough, legal in the mixed log):
- * `locked` reports that state so the UI can banner it and offer the unlock
- * re-prompt. The unlock re-prompt re-derives the master key and re-opens.
+ * reload restored the session without it — custody is memory-only), a keyed
+ * workspace reports `locked` and the OPEN FAILS LOUDLY (fail-loud ruling:
+ * never open keyless) — the UI shows the unlock re-prompt instead; a session
+ * WITH the master key whose stored key fails to unwrap under it (e.g. the
+ * account password changed on another device) fails loud the same way.
+ * API-key sessions cannot unwrap (the key route is user custody) — the
+ * workspaces listing's `encrypted` flag decides there.
  */
 export interface WorkspaceKeyResolution {
   /** The raw 32-byte workspace key, when this open is sealed. */
   key: Uint8Array | undefined;
-  /**
-   * The workspace IS encrypted but this session opened without the key —
-   * writes are plaintext until unlocked.
-   */
+  /** The workspace IS encrypted and this session cannot supply the key. */
   locked: boolean;
 }
 
@@ -98,14 +106,14 @@ export async function resolveWorkspaceKey(
       return { key: await ensureWorkspaceKey(url, credential, workspaceId, master), locked: false };
     } catch (error) {
       console.warn(
-        `[notees-web] workspace key unavailable for ${workspaceId}; opening keyless (plaintext passthrough):`,
+        `[notees-web] workspace key unavailable for ${workspaceId}; refusing the open (fail loud):`,
         error instanceof Error ? error.message : String(error),
       );
       // A wrong-master/unwrap failure proves the workspace is keyed; a
       // network failure does not — probe before reporting "locked". When
       // the original failure was NOT an HTTP error (a crypto/unwrap failure)
       // and the probe cannot settle it, default to locked so the open never
-      // degrades silently without a banner.
+      // degrades silently without the unlock re-prompt.
       const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
       if (wrapped !== undefined) return { key: undefined, locked: true };
       const locked = !(error instanceof AuthRequestError);
@@ -113,19 +121,19 @@ export async function resolveWorkspaceKey(
     }
   }
   if (options.credentialType === "session") {
-    // Distinguish "keyed but locked" from "keyless" for the banner: the
+    // Distinguish "keyed but locked" from "keyless" for the unlock modal: the
     // wrapped-key row needs only membership, not the master key.
     const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
-    if (wrapped !== undefined) {
-      console.warn(
-        `[notees-web] workspace ${workspaceId} is encrypted but this session has no master key ` +
-          "— opening locked. Click Unlock in the banner and enter your password; until then " +
-          "writes are plaintext and sealed remote changes are skipped.",
-      );
-      return { key: undefined, locked: true };
-    }
+    if (wrapped !== undefined) return { key: undefined, locked: true };
+    return { key: undefined, locked: false };
   }
-  return { key: undefined, locked: false };
+  // API-key session: no password path and the key route is user custody (the
+  // operator key gets 403) — the workspaces listing carries the encrypted
+  // flag instead. A keyed workspace refuses the open; the modal copy directs
+  // to signing in with email + password.
+  const listing = await listWorkspaces(url, credential).catch(() => ({ workspaces: [] as WorkspaceEntry[] }));
+  const encrypted = listing.workspaces.find((entry) => entry.id === workspaceId)?.encrypted === true;
+  return { key: undefined, locked: encrypted };
 }
 
 /**
@@ -141,6 +149,12 @@ export async function openStoreConnection(
   workspaceId: string,
   options: ConnectOptions,
 ): Promise<ConnectOutcome> {
+  // Key custody resolves BEFORE anything is persisted: a keyed workspace
+  // without a key fails loud here — no client, no storage writes, nothing —
+  // and the caller surfaces the unlock re-prompt.
+  const resolution = await resolveWorkspaceKey(url, credential, workspaceId, options);
+  if (resolution.locked) throw new EncryptedWorkspaceLockedError(workspaceId);
+  const workspaceKey = resolution.key;
   // Workspace switch: drop the previous workspace's raw keys from the
   // in-memory cache (the master key stays). The per-workspace cache would
   // otherwise hold keys for every workspace opened this session; on a switch
@@ -152,8 +166,6 @@ export async function openStoreConnection(
   }
   writeStored(STORAGE_KEYS.serverUrl, url);
   writeStored(STORAGE_KEYS.workspaceId, workspaceId);
-  const resolution = await resolveWorkspaceKey(url, credential, workspaceId, options);
-  const workspaceKey = resolution.key;
   const mode = detectStoreMode();
   let nextClient: AnyClient;
   if (mode === "worker") {
@@ -224,6 +236,5 @@ export async function openStoreConnection(
     mode,
     sessionSignedIn,
     workspaceName: options.label ?? "Workspace",
-    encryptedLocked: resolution.locked,
   };
 }

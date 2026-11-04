@@ -85,6 +85,48 @@ describe("workspace-key routes", () => {
     expect(get.statusCode).toBe(404);
   });
 
+  it("the workspaces list carries encrypted true/false per workspace", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const keyedId = await createWorkspace(token);
+
+    // Before any key row: every listed workspace is encrypted: false (both the
+    // membership view and the operator directory).
+    const before = await server.app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(before.statusCode).toBe(200);
+    const beforeList = before.json().workspaces as Array<{ id: string; encrypted: boolean }>;
+    expect(beforeList.find((ws) => ws.id === keyedId)?.encrypted).toBe(false);
+
+    const put = await server.app.inject({
+      method: "PUT",
+      url: `/api/workspaces/${keyedId}/key`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { wrappedKey: "b64u-opaque-wrapped-key" },
+    });
+    expect(put.statusCode).toBe(204);
+
+    const after = await server.app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const afterList = after.json().workspaces as Array<{ id: string; encrypted: boolean }>;
+    expect(afterList.find((ws) => ws.id === keyedId)?.encrypted).toBe(true);
+
+    // The operator directory carries the same flag.
+    const operatorList = await server.app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: { "x-api-key": server.apiKey },
+    });
+    const opList = operatorList.json().workspaces as Array<{ id: string; encrypted: boolean }>;
+    expect(opList.find((ws) => ws.id === keyedId)?.encrypted).toBe(true);
+  });
+
   it("non-member GET 404s and non-member PUT 403s", async () => {
     server = await makeTestServer();
     const { token } = await setupUser();

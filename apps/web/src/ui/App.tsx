@@ -182,7 +182,8 @@ export function App() {
     offline,
     storeMode,
     storeReason,
-    encryptedLocked,
+    unlockRequest,
+    setUnlockRequest,
     connectProgress,
     connectProgressFraction,
     sessionSignedIn,
@@ -200,7 +201,6 @@ export function App() {
   const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
   /** The account popup's admin entry: the active workspace's settings (plugins tab). */
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
-  const [unlockOpen, setUnlockOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -791,6 +791,44 @@ export function App() {
     setSelectedPageId(id);
   }
 
+  /**
+   * The fail-loud unlock re-prompt: a keyed workspace refused the open (no
+   * master key — a reload dropped it, or an API-key session has no password
+   * path). Rendered from every post-auth phase; the refusal sets
+   * `unlockRequest` and no client exists until the password path re-opens it.
+   */
+  const unlockModal = (
+    <UnlockWorkspaceModal
+      isOpen={unlockRequest !== null}
+      email={user?.email ?? ""}
+      apiKeySession={unlockRequest?.credentialType === "apikey"}
+      onClose={() => {
+        setUnlockRequest(null);
+        setPhase((prev) => {
+          if (prev.name !== "connecting") return prev;
+          return user !== null ? { name: "workspaces", user } : { name: "server" };
+        });
+      }}
+      onSubmit={async (password) => {
+        const request = unlockRequest;
+        if (request === null) return;
+        if (user === null) throw new Error("No account email in this session.");
+        // Re-login for a fresh kdf record, re-derive the master key into the
+        // custody slot, then re-open with the FRESH session token — the
+        // re-login is what upgrades an API-key refusal into a sealed open.
+        const response = await login(serverUrl, { email: user.email, password });
+        await deriveMasterKey(password, response.kdf);
+        setToken(response.token);
+        setUnlockRequest(null);
+        await connect(serverUrl, response.token, request.workspaceId, {
+          isOffline: false,
+          credentialType: "session",
+          label: request.name,
+        });
+      }}
+    />
+  );
+
   if (
     phase.name === "server" ||
     phase.name === "setup" ||
@@ -804,7 +842,8 @@ export function App() {
   if (phase.name === "workspaces" || managerOpen) {
     const enteringFromApp = phase.name === "ready" && client !== null;
     return (
-      <WorkspacesView
+      <>
+        <WorkspacesView
         serverUrl={serverUrl}
         credential={token}
         user={user}
@@ -847,16 +886,21 @@ export function App() {
         onSignOut={() => void handleSignOut()}
         onClose={enteringFromApp ? () => setManagerOpen(false) : undefined}
       />
+        {unlockModal}
+      </>
     );
   }
 
   if (phase.name === "connecting" || client === null) {
     return (
-      <ConnectingScreen
-        label={phase.name === "connecting" ? (connectProgress ?? phase.label) : "Starting…"}
-        progress={phase.name === "connecting" ? connectProgressFraction : null}
-        error={error}
-      />
+      <>
+        <ConnectingScreen
+          label={phase.name === "connecting" ? (connectProgress ?? phase.label) : "Starting…"}
+          progress={phase.name === "connecting" ? connectProgressFraction : null}
+          error={error}
+        />
+        {unlockModal}
+      </>
     );
   }
 
@@ -1001,32 +1045,10 @@ export function App() {
           });
         }}
       />
-      <UnlockWorkspaceModal
-        isOpen={unlockOpen}
-        email={user?.email ?? ""}
-        onClose={() => setUnlockOpen(false)}
-        onSubmit={async (password) => {
-          // The unlock re-prompt: re-login (fresh kdf record), re-derive the
-          // master key into the custody slot, then re-open the workspace —
-          // resolveWorkspaceKey now unwraps the stored key and the engine
-          // gets the provider on reconnect.
-          if (user === null) throw new Error("No account email in this session.");
-          const response = await login(serverUrl, { email: user.email, password });
-          await deriveMasterKey(password, response.kdf);
-          setUnlockOpen(false);
-          await connect(serverUrl, token, readStored(STORAGE_KEYS.workspaceId), {
-            isOffline: false,
-            credentialType: (sessionSignedIn ? "session" : "apikey") as CredentialType,
-            label: workspaceName,
-          });
-        }}
-      />
       <AppOverlays
         client={client}
         storeMode={storeMode}
         storeReason={storeReason}
-        encryptedLocked={encryptedLocked}
-        onUnlock={() => setUnlockOpen(true)}
         syncStatus={syncStatus}
         syncDetailsOpen={syncDetailsOpen}
         setSyncDetailsOpen={setSyncDetailsOpen}

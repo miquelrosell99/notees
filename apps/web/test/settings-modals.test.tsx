@@ -486,6 +486,31 @@ describe("ManageWorkspacesModal", () => {
     expect(onSwitch).toHaveBeenCalledWith("ws2", "Backyard");
   });
 
+  it("marks encrypted workspaces with a lock badge; the row still opens via onEnter", async () => {
+    stubFetch({
+      "/api/workspaces": () => ({
+        workspaces: [{ ...WS, encrypted: true }, WS2],
+      }),
+    });
+    const onEnter = vi.fn();
+    render(
+      <WorkspacesView
+        serverUrl="https://notees.example.com"
+        credential="session-token"
+        user={null}
+        activeWorkspaceId={null}
+        onEnter={onEnter}
+      />,
+    );
+    // The encrypted card carries the lock badge; the plaintext one doesn't.
+    expect(await screen.findByTitle("Encrypted — opening asks for your password")).toBeInTheDocument();
+    expect(screen.getAllByTitle("Encrypted — opening asks for your password")).toHaveLength(1);
+    // The click goes through the normal enter path — the connect flow decides
+    // whether the unlock re-prompt takes over (fail-loud ruling).
+    fireEvent.click(screen.getByRole("button", { name: "Open Garden" }));
+    expect(onEnter).toHaveBeenCalledWith("ws1", "Garden");
+  });
+
   it("renames a workspace via the card actions menu → PATCH /workspaces/:id", async () => {
     const calls = stubFetch({
       "/api/workspaces": () => ({ workspaces: [WS, WS2] }),
