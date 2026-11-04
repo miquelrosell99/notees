@@ -27,7 +27,12 @@ CREATE TABLE IF NOT EXISTS share_tokens (
     created_by TEXT,
     created_at INTEGER NOT NULL,
     expires_at INTEGER,
-    revoked_at INTEGER
+    revoked_at INTEGER,
+    -- Plan 08: a SEALED ARTIFACT (b64u iv(12) ‖ tag(16) ‖ ct — the viewer in
+    -- share-viewer.ts is the format's other half). NULL = legacy plaintext
+    -- share (server-rendered). The decryption key lives ONLY in the link
+    -- #fragment — the server never sees it.
+    artifact TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_share_tokens_node ON share_tokens (workspace_id, node_id);
 CREATE INDEX IF NOT EXISTS idx_share_tokens_created ON share_tokens (created_at);
@@ -44,6 +49,8 @@ export interface ShareRow {
   expiresAt: number | null;
   /** Epoch millis when revoked; null = live (when also unexpired). */
   revokedAt: number | null;
+  /** The sealed artifact (b64u iv ‖ tag ‖ ct), or null = legacy plaintext share. */
+  artifact: string | null;
 }
 
 interface ShareRowRaw {
@@ -54,6 +61,7 @@ interface ShareRowRaw {
   created_at: number;
   expires_at: number | null;
   revoked_at: number | null;
+  artifact: string | null;
 }
 
 function toShareRow(raw: ShareRowRaw): ShareRow {
@@ -65,6 +73,7 @@ function toShareRow(raw: ShareRowRaw): ShareRow {
     createdAt: raw.created_at,
     expiresAt: raw.expires_at,
     revokedAt: raw.revoked_at,
+    artifact: raw.artifact,
   };
 }
 
@@ -83,6 +92,14 @@ export class ShareStorage {
     this.db.pragma("synchronous = NORMAL");
     this.db.pragma("busy_timeout = 5000");
     this.db.exec(DDL);
+    // Additive column migration: relay.db may predate the artifact column
+    // (CREATE TABLE IF NOT EXISTS never alters an existing table).
+    const columns = new Set(
+      (this.db.pragma("table_info(share_tokens)") as { name: string }[]).map((c) => c.name),
+    );
+    if (!columns.has("artifact")) {
+      this.db.exec("ALTER TABLE share_tokens ADD COLUMN artifact TEXT");
+    }
   }
 
   /** Mint a share; returns the row. The caller validated the node + expiry. */
@@ -108,7 +125,16 @@ export class ShareStorage {
       createdAt,
       expiresAt: input.expiresAt,
       revokedAt: null,
+      artifact: null,
     };
+  }
+
+  /** Attach (or replace) the sealed artifact; false when no such token. */
+  putArtifact(token: string, ciphertext: string): boolean {
+    const result = this.db
+      .prepare("UPDATE share_tokens SET artifact = ? WHERE token = ?")
+      .run(ciphertext, token);
+    return result.changes > 0;
   }
 
   get(token: string): ShareRow | null {
