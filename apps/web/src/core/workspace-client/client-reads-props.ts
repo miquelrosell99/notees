@@ -18,8 +18,7 @@ import { parseQueryAst, runAggregate, runQuery, type CompileOptions, type QueryA
 import { visiblePropertyValueRows, type NodeRow } from "@notees/store";
 
 import { aliasValuesOf } from "../../features/metadata/aliasProperty.js";
-import { openAssetIfSealed } from "./asset-crypto.js";
-import { blobBytes, fetchAssetBlob, readBlobAsDataUrl } from "./asset-transport.js";
+import { fetchAssetDataUrl } from "./asset-transport.js";
 import { mapNode } from "./mappers.js";
 import {
   DEFAULT_TREE_DEPTH,
@@ -178,17 +177,7 @@ export class WorkspaceClientReadsProps {
     const info = this.getAssetInfo(assetNodeId);
     if (info === undefined || !info.mimeType.startsWith("image/")) return null;
     if (this.ctx.restServerUrl === null || this.ctx.restApiKey === null) return null;
-    try {
-      const fetched = await fetchAssetBlob(this.ctx.restServerUrl, this.ctx.restApiKey, info.assetId, this.ctx.workspaceId);
-      const opened = await openAssetIfSealed(
-        this.ctx.workspaceId,
-        fetched.iv,
-        await blobBytes(fetched.blob),
-      );
-      return await readBlobAsDataUrl(new Blob([opened as BlobPart], { type: fetched.blob.type }));
-    } catch {
-      return null;
-    }
+    return fetchAssetDataUrl(this.ctx.restServerUrl, this.ctx.restApiKey, this.ctx.workspaceId, info.assetId);
   }
 
   /**

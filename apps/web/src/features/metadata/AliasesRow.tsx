@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { titleOf } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { rendersWithDocumentChromeOf } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../components/ui/kit/AddPill.js";
 import { NodePill } from "./NodePills.js";
 import { usePeekInSidebar } from "../../ui/outliner-context.js";
@@ -74,7 +73,7 @@ export function AliasesRow({
   if (
     node === undefined ||
     (!node.isClass &&
-      !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
+      !rendersWithDocumentChromeOf(client, node))
   )
     return null;
 

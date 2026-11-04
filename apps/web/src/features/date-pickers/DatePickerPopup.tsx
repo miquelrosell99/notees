@@ -238,26 +238,13 @@ export function DatePickerPopup({
     return () => clearTimeout(t);
   }, []);
 
-  // Close on click outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        popupRef.current &&
-        !popupRef.current.contains(e.target as Node) &&
-        (!anchor.current || !anchor.current.contains(e.target as Node))
-      ) {
-        onClose();
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose, anchor]);
-
-  // Dismissal: the document-level Escape half of the convention —
-  // the text input and the popup root below still own Escape while focus is
-  // inside (a pick must not be interrupted by a stray close), this hook
-  // closes when focus never entered or left the popup.
-  usePopupDismissal({ popupRef, isOpen: true, onClose });
+  // Dismissal: the shared hook owns both halves of the convention —
+  // pointer-down outside (the trigger anchor counts as part of the surface,
+  // so pressing it doesn't dismiss) and document-level Escape. The text
+  // input and the popup root below still own Escape while focus is inside
+  // (a pick must not be interrupted by a stray close); the hook closes when
+  // focus never entered or left the popup.
+  usePopupDismissal({ popupRef, anchorRefs: [anchor], isOpen: true, onClose });
 
   // ── the commit funnel ──────────────────────────────────
 

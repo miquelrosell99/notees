@@ -18,6 +18,7 @@ import { Badge } from "../../components/ui/kit/Badge.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { EmptyState } from "../../components/ui/kit/EmptyState.js";
 import { Modal } from "../../components/ui/kit/Modal.js";
+import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 
@@ -53,14 +54,14 @@ export function SyncDetailsModal({
       });
   }, [client]);
 
+  const version = useClientVersion(client);
+
   // Load on open and live-refresh on every worker notification while open.
   useEffect(() => {
     if (!isOpen) return;
+    void version;
     refreshConflicts();
-    return client.subscribe(() => {
-      if (isOpen) refreshConflicts();
-    });
-  }, [isOpen, client, refreshConflicts]);
+  }, [isOpen, version, refreshConflicts]);
 
   const resync = () => {
     setResyncing(true);

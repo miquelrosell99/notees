@@ -101,13 +101,13 @@ import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, typ
 
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ExportPageModal } from "../features/export/ExportPageModal.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
+import { rendersWithDocumentChromeOf } from "./renderStateLabel.js";
 import { SharePageModal } from "../features/sharing/SharePageModal.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { NodeContextMenu } from "../features/node-menu/NodeContextMenu.js";
@@ -382,8 +382,7 @@ export function PageView({
   const rawNode = client.getNode(pageId);
   const page =
     rawNode !== undefined &&
-    (rendersWithDocumentChrome(rawNode, parentRenderFacts(client, rawNode), parentlessBlockResolverOf(client)) ||
-      rawNode.isClass)
+    (rendersWithDocumentChromeOf(client, rawNode) || rawNode.isClass)
       ? rawNode
       : undefined;
   /**

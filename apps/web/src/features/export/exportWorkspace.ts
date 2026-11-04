@@ -19,6 +19,7 @@ import {
   collectSubtreeAssetRefIds,
   exportSubtreeBundle,
   fetchSubtreeAssets,
+  slugifyName,
   zipExportBundle,
 } from "./exportSubtree.js";
 
@@ -55,8 +56,7 @@ export async function exportConnectedWorkspace(
     ...(assetFiles !== undefined ? { assetPath: (assetId: string) => assetFiles.get(assetId)?.path } : {}),
   });
   const blob = new Blob([zipExportBundle(bundle, assetFiles)], { type: "application/zip" });
-  const slug =
-    options.workspaceName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "workspace";
+  const slug = slugifyName(options.workspaceName) || "workspace";
   const day = new Date().toISOString().slice(0, 10);
   return { blob, filename: `${slug}-${day}.zip` };
 }

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-
-import { foldSearchText } from "@notees/store";
+import { useRef, useState } from "react";
 
 import { AddPill } from "../../components/ui/kit/AddPill.js";
+import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { PropertyCreateModal } from "./PropertyCreateModal.js";
 import { ScopeRemedyButton } from "./ScopeRemedyButton.js";
 import { eligibleSchemasForNode, realizeCandidatesOf } from "./schemaEligibility.js";
+import { foldedIncludes, foldedQueryOf, foldedTextOf } from "../search-filters/foldSearch.js";
 import type { AnyClient } from "./shared.js";
 
 /** "+ Add property": assign an existing schema to the node — the row
@@ -40,8 +40,7 @@ export function AddPropertyRow({
   // The subscription (the established metadata pattern): the remedy's
   // class.setExtends lands through the ordinary op path and the picker
   // must re-derive its eligible/ineligible split while it stays open.
-  const [, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  useClientVersion(client);
 
   const node = client.getNode(nodeId);
   const schemas = client.listPropertySchemas();
@@ -58,15 +57,14 @@ export function AddPropertyRow({
   // Realize entries lead (the node's own class context), then the rest;
   // pure alphabetical by folded name inside each group (the panels'
   // alphabetical ruling rides the picker too).
-  const folded = (name: string) => foldSearchText(name.toLowerCase());
   const ordered = [...candidates].sort((a, b) => {
     const groupDelta = (realize.has(a.id) ? 0 : 1) - (realize.has(b.id) ? 0 : 1);
     if (groupDelta !== 0) return groupDelta;
-    return folded(a.name).localeCompare(folded(b.name));
+    return foldedTextOf(a.name).localeCompare(foldedTextOf(b.name));
   });
   // Diacritics fold on both sides (the store search mirror): "ano" finds
   // the schema "año".
-  const nameQuery = foldSearchText(newName.trim().toLowerCase());
+  const nameQuery = foldedQueryOf(newName);
   // The guided scope remedy (Tier 3): an INELIGIBLE schema whose name
   // matches the search stays visible — disabled, with the "Let <class>
   // extend <scope class>?" offer beneath it. The user is looking for it;
@@ -79,7 +77,7 @@ export function AddPropertyRow({
           (schema) =>
             !eligibleIds.has(schema.id) &&
             !realizedIds.has(schema.id) &&
-            foldSearchText(schema.name.toLowerCase()).includes(nameQuery),
+            foldedIncludes(nameQuery, schema.name),
         );
 
   async function assign(schemaId: string): Promise<void> {
@@ -124,7 +122,7 @@ export function AddPropertyRow({
           />
           <ul>
             {ordered
-              .filter((schema) => nameQuery === "" || foldSearchText(schema.name.toLowerCase()).includes(nameQuery))
+              .filter((schema) => nameQuery === "" || foldedIncludes(nameQuery, schema.name))
               .map((schema) => {
                 const binder = realize.get(schema.id);
                 return (
@@ -168,7 +166,7 @@ export function AddPropertyRow({
               </li>
             ))}
           </ul>
-          {newName.trim() !== "" && !schemas.some((s) => foldSearchText(s.name.toLowerCase()) === nameQuery) && (
+          {newName.trim() !== "" && !schemas.some((s) => foldedTextOf(s.name) === nameQuery) && (
             <button
               type="button"
               className="nt-add-property-create"

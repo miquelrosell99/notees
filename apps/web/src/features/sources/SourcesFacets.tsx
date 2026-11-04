@@ -13,7 +13,7 @@
  * state (the task-1 shell).
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -22,6 +22,7 @@ import { Icon } from "../../ui/Icon.js";
 import { EmptyState } from "../../components/ui/kit/EmptyState.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { Chip } from "../../components/ui/kit/Chip.js";
+import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 
 import { facetCounts, type SourcesQueryState } from "./sourcesQuery.js";
 
@@ -40,8 +41,7 @@ export function SourcesFacets({
    */
   onQueryChange?: ((next: SourcesQueryState, mode: "push" | "replace") => void) | undefined;
 }) {
-  const [, setVersion] = useState(0);
-  useEffect(() => client?.subscribe(() => setVersion((v) => v + 1)), [client]);
+  useClientVersion(client);
   const [hiddenOpen, setHiddenOpen] = useState(false);
 
   if (client === undefined) {

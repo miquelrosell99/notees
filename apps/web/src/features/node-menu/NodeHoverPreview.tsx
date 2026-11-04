@@ -46,6 +46,7 @@ import { openFloatingEditor } from "../block-editor/FloatingEditor.js";
 import { NodeView } from "../../ui/NodeView.js";
 import { renderStateLabel, parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
 import { Button } from "../../components/ui/kit/Button.js";
+import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import "./NodeHoverPreview.css";
 
@@ -125,8 +126,7 @@ export function NodeHoverPreviewHost({
   anchorRef.current = preview?.anchorEl ?? null;
   // The footer (backlink count) lives outside NodeView's own subscription —
   // a host-level refresh keeps it live across store changes.
-  const [, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  useClientVersion(client);
 
   const clearDwell = () => {
     if (dwellTimer.current !== null) clearTimeout(dwellTimer.current);

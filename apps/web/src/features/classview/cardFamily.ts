@@ -34,6 +34,12 @@ import { CARD_FAMILY_SEED, CARD_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS } from "@note
 
 import type { ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
+import {
+  ensureFamilyBindings,
+  ensureFamilyPropertySchemas,
+  type FamilyPropertySpec,
+} from "./familyEnsure.js";
+
 /** The composed write/read surface both full clients (and the outliner
  *  context's `OutlinerClient & OutlinerReader`, which the full client
  *  satisfies) implement — RPC-mirrored, so the structural pick is safe. */
@@ -46,6 +52,13 @@ export type CardFamilyClient = Pick<
   | "setClassProperty"
 >;
 
+/** The six specs in seed order, ids resolved from the CARD_FAMILY_SEED keys. */
+const CARD_FAMILY: ReadonlyArray<FamilyPropertySpec> = CARD_FAMILY_SEED.map((spec) => ({
+  id: CARD_PROPERTY_UUIDS[spec.property],
+  name: spec.name,
+  type: spec.type,
+}));
+
 /** True when every card schema is present and bound to the card class. */
 export function cardFamilyPresent(
   client: Pick<CardFamilyClient, "listPropertySchemas" | "getClassBindings">,
@@ -55,10 +68,7 @@ export function cardFamilyPresent(
   const bound = new Set(
     client.getClassBindings(SYSTEM_CLASS_UUIDS.card).map((binding) => binding.propertySchemaId),
   );
-  return CARD_FAMILY_SEED.every((spec) => {
-    const id = CARD_PROPERTY_UUIDS[spec.property];
-    return have.has(id) && bound.has(id);
-  });
+  return CARD_FAMILY.every((spec) => have.has(spec.id) && bound.has(spec.id));
 }
 
 /**
@@ -71,32 +81,13 @@ export function cardFamilyPresent(
  */
 export async function ensureCardFamily(client: CardFamilyClient): Promise<void> {
   if (cardFamilyPresent(client)) return;
-  const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
-  for (const spec of CARD_FAMILY_SEED) {
-    const id = CARD_PROPERTY_UUIDS[spec.property];
-    if (!have.has(id)) {
-      await client.createPropertySchema({
-        id,
-        name: spec.name,
-        type: spec.type,
-        // Global scope (exactly like the task family): absent scopeClassIds =
-        // any node may carry it; the card-class bindings below are per-class
-        // config with zero availability semantics.
-      });
-    }
-  }
+  // Global scope (exactly like the task family): absent scopeClassIds =
+  // any node may carry it; the card-class bindings below are per-class
+  // config with zero availability semantics.
+  await ensureFamilyPropertySchemas(client, CARD_FAMILY);
   // The card class is an always-on system seed — never fabricated here. When
   // the node is genuinely absent the bindings are skipped (they would attach
   // to nothing and re-author on every open).
   if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.card) === undefined) return;
-  const bound = new Set(
-    client.getClassBindings(SYSTEM_CLASS_UUIDS.card).map((binding) => binding.propertySchemaId),
-  );
-  for (const spec of CARD_FAMILY_SEED) {
-    const id = CARD_PROPERTY_UUIDS[spec.property];
-    if (bound.has(id)) continue;
-    // No pinning: the whole card family seeds unpinned (the 2026-10-27
-    // pinned roster is frozen) — the empty fields object binds only.
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.card, id, {});
-  }
+  await ensureFamilyBindings(client, SYSTEM_CLASS_UUIDS.card, CARD_FAMILY);
 }

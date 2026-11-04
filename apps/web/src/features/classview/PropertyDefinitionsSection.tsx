@@ -54,8 +54,6 @@
 
 import { useRef, useState } from "react";
 
-import { foldSearchText } from "@notees/store";
-
 import {
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_SPECS,
@@ -80,6 +78,7 @@ import { PropertyEditModal } from "../metadata/PropertySettingsModal.js";
 import { PropertyView } from "../metadata/PropertyView.js";
 import { requestPropertyCreate } from "../metadata/PropertyCreateHost.js";
 import { isSchemaEligibleForClass } from "../metadata/schemaEligibility.js";
+import { foldedIncludes, foldedQueryOf, foldedTextOf } from "../search-filters/foldSearch.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import "./PropertyDefinitionsSection.css";
 
@@ -297,18 +296,18 @@ export function PropertyDefinitionsSection({
   // schemas scoped to this class or its extends-ancestors).
   const directIds = new Set(direct.map((binding) => binding.propertySchemaId));
   const queryTrimmed = query.trim();
-  const queryFolded = foldSearchText(query.trim().toLowerCase());
+  const queryFolded = foldedQueryOf(query);
   const candidates = client
     .listPropertySchemas()
     .filter((schema) => !directIds.has(schema.id))
     .filter((schema) => isSchemaEligibleForClass(client, schema, classId))
     .filter(
       (schema) =>
-        queryFolded === "" || foldSearchText(schema.name.toLowerCase()).includes(queryFolded),
+        queryFolded === "" || foldedIncludes(queryFolded, schema.name),
     );
   const canCreate =
     queryTrimmed !== "" &&
-    !client.listPropertySchemas().some((s) => foldSearchText(s.name.toLowerCase()) === queryFolded);
+    !client.listPropertySchemas().some((s) => foldedTextOf(s.name) === queryFolded);
   const optionCount = candidates.length + (canCreate ? 1 : 0);
 
   const addBinding = async (schemaId: string) => {

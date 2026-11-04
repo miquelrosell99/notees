@@ -9,7 +9,11 @@
  * cascade helpers so every surface derives the label the same way.
  */
 
-import { isClassNode, rendersWithDocumentChrome } from "@notees/domain";
+import {
+  isClassNode,
+  rendersAsInlineBlock,
+  rendersWithDocumentChrome,
+} from "@notees/domain";
 
 /** The minimal node facts the label needs (ClientNode satisfies it). The
  *  classIds ride the parentlessRole "block" demote; absent
@@ -71,4 +75,77 @@ export function parentlessBlockResolverOf(
   client: ParentlessBlockResolverClient,
 ): (classId: string) => boolean {
   return (classId) => client.effectiveClassParentlessBlock(classId);
+}
+
+/** The minimal node facts the bound role predicates read — every field
+ *  optional like the domain's NodeLike picks, so ClientNode rows AND the
+ *  query-run summaries (isClass/isEmbedded/parentId only) both satisfy it. */
+export type RoleFacts = {
+  id?: string;
+  isClass?: boolean | number;
+  isEmbedded?: boolean | number;
+  parentId?: string | null;
+  classIds?: string[];
+};
+
+/** The client shape the bound role predicates need (WorkspaceClient,
+ *  WorkerClient, and the query-run bridge all satisfy it). */
+export type RolePredicateClient = {
+  getNode(id: string): RoleFacts | undefined;
+  effectiveClassParentlessBlock(classId: string): boolean;
+};
+
+/** Parent facts for the bound predicates: the parent's own render-state
+ *  fields when the node is parented, else undefined (see parentRenderFacts). */
+function roleParentFacts(
+  client: RolePredicateClient,
+  node: { parentId?: string | null },
+): RoleFacts | undefined {
+  return node.parentId != null ? client.getNode(node.parentId) : undefined;
+}
+
+/** The bound Page-role predicate: rendersWithDocumentChrome with the parent
+ *  facts and the extends-aware parentlessRole resolver both derived from the
+ *  client — the call chain every surface otherwise copy-pastes. */
+export function rendersWithDocumentChromeOf(client: RolePredicateClient, node: RoleFacts): boolean {
+  return rendersWithDocumentChrome(node, roleParentFacts(client, node), parentlessBlockResolverOf(client));
+}
+
+/** The bound Block-role predicate: the rendersAsInlineBlock twin of
+ *  rendersWithDocumentChromeOf. */
+export function rendersAsInlineBlockOf(client: RolePredicateClient, node: RoleFacts): boolean {
+  return rendersAsInlineBlock(node, roleParentFacts(client, node), parentlessBlockResolverOf(client));
+}
+
+/** The guard cap every containing-page climb shares (a cycle or a corrupt
+ *  chain never loops forever). */
+const ANCESTOR_WALK_GUARD = 64;
+
+/**
+ * The containing-page walk shared by every "resolve the block's page"
+ * surface: the guard-capped parentId climb to the nearest ancestor rendering
+ * with document chrome (the parent-page condition rides along — a bit under
+ * a non-page parent is inert, so the walk continues past it). Starts at
+ * `node.parentId`; pass `includeSelf` for walks that count the node itself
+ * (the calendar group-by, the condensed-links popup). Undefined when the
+ * chain breaks (a missing row) or no ancestor matches — each caller shapes
+ * its own fallback.
+ */
+export function nearestDocumentChromeAncestor<T extends RoleFacts & { id: string }>(
+  client: {
+    getNode(id: string): T | undefined;
+    effectiveClassParentlessBlock(classId: string): boolean;
+  },
+  node: { id?: string; parentId?: string | null },
+  opts?: { includeSelf?: boolean },
+): T | undefined {
+  let currentId: string | undefined =
+    opts?.includeSelf === true ? node.id : (node.parentId ?? undefined);
+  for (let guard = 0; currentId !== undefined && guard < ANCESTOR_WALK_GUARD; guard += 1) {
+    const current = client.getNode(currentId);
+    if (current === undefined) return undefined;
+    if (rendersWithDocumentChromeOf(client, current)) return current;
+    currentId = current.parentId ?? undefined;
+  }
+  return undefined;
 }

@@ -11,27 +11,17 @@
  * picks, Escape closes (the block keeps its plain text).
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
-import { foldSearchText } from "@notees/store";
-
-import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-position.js";
 import { Icon } from "../Icon.js";
 import { titleOfNode } from "../dateDisplay.js";
 import { SearchField } from "../../components/ui/kit/SearchField.js";
+import { useAnchoredPopup } from "../../components/ui/kit/useAnchoredPopup.js";
 import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
-import type { ClientNode } from "@/core/workspace-client/index.js";
+import { useTemplateList, type TemplateListClient } from "./useTemplateList.js";
 
 import "./TemplateListPopup.css";
-
-/** Structural read surface (the outliner seam satisfies it). */
-export interface TemplateListClient {
-  /** Template-class members — the flat, unfiltered candidate set. */
-  getClassMembers(classId: string): ClientNode[];
-  subscribe(listener: () => void): () => void;
-}
 
 export interface TemplateListPopupProps {
   /** Viewport anchor for the caret line (same contract as the slash popup). */
@@ -60,10 +50,6 @@ export function TemplateListPopup({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [placement, setPlacement] = useState<"below" | "above">("below");
   const [isPositioned, setIsPositioned] = useState(false);
-  /** Live re-read on every client notification (templates created elsewhere appear). */
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   // Self-heal the template family before the first read (offline-first
   // workspaces may never have been seeded).
@@ -80,29 +66,7 @@ export function TemplateListPopup({
     };
   }, [ensure]);
 
-  const templates = useMemo<ClientNode[]>(() => {
-    void version;
-    void familyReady;
-    return client
-      .getClassMembers(SYSTEM_CLASS_UUIDS.template)
-      .filter((node) => node.isActive)
-      .sort((a, b) => {
-        const nameA = titleOfNode(a) ?? a.id;
-        const nameB = titleOfNode(b) ?? b.id;
-        return (
-          nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" }) ||
-          a.id.localeCompare(b.id)
-        );
-      });
-  }, [client, version, familyReady]);
-
-  const filtered = useMemo(() => {
-    const q = foldSearchText(query.trim().toLowerCase());
-    if (q === "") return templates;
-    return templates.filter((node) =>
-      foldSearchText((titleOfNode(node) ?? node.id).toLowerCase()).includes(q),
-    );
-  }, [templates, query]);
+  const { templates, filtered } = useTemplateList(client, query, [familyReady]);
 
   const itemCount = filtered.length;
   const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(0, itemCount - 1));
@@ -122,46 +86,23 @@ export function TemplateListPopup({
     }
   }, [effectiveSelectedIndex]);
 
-  // Close on click outside (same contract as the slash popup).
-  useEffect(() => {
-    const handler = (e: globalThis.MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-
-  // Dismissal: document-level Escape — the filter input and the
-  // popup root below own Escape while focus is inside; the hook closes when
-  // focus is elsewhere (e.g. back on the edited block).
+  // Dismissal: document-level pointer-down outside + Escape — the filter
+  // input and the popup root below own Escape while focus is inside; the
+  // hook closes when focus is elsewhere (e.g. back on the edited block).
   usePopupDismissal({ popupRef: containerRef, isOpen: true, onClose });
 
-  // Caret-line placement, identical to the slash popup's.
-  useLayoutEffect(() => {
-    const floating = containerRef.current;
-    if (!floating) return;
-    const update = () => {
-      const { top, placement: resolved } = flipOverlayTop(
-        { top: position.caretTop, bottom: position.top, left: position.left },
-        floating.offsetHeight,
-        4,
-        8,
-      );
-      floating.style.left = `${clampOverlayLeft(position.left, floating.offsetWidth, 8)}px`;
-      floating.style.top = `${top}px`;
+  // Caret-line placement, identical to the slash popup's (the shared
+  // anchored-popup pass: flip above when no room, clamp, imperative
+  // top/left, reposition on resize/scroll).
+  useAnchoredPopup({
+    popupRef: containerRef,
+    getAnchorRect: () => ({ top: position.caretTop, bottom: position.top, left: position.left }),
+    deps: [position],
+    onPlaced: (resolved) => {
       setPlacement(resolved);
       setIsPositioned(true);
-    };
-    update();
-    window.addEventListener("resize", update);
-    document.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      document.removeEventListener("scroll", update, true);
-    };
-  }, [position]);
+    },
+  });
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "ArrowDown") {

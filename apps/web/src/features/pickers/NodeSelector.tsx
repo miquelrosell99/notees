@@ -71,8 +71,6 @@ import { createPortal } from "react-dom";
 import {
   chainNodeIds,
   parseDateNodeId,
-  rendersAsInlineBlock,
-  rendersWithDocumentChrome,
   systemClassNameForId,
   SYSTEM_CLASS_UUIDS,
   type SystemClassName,
@@ -82,11 +80,20 @@ import { foldSearchText } from "@notees/store";
 
 import { MAX_SYNCED_RECENTS, type ClientNode } from "@/core/workspace-client/index.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import {
+  parentlessBlockResolverOf,
+  rendersAsInlineBlockOf,
+  rendersWithDocumentChromeOf,
+} from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import { NodePill } from "../metadata/NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
+import {
+  buildContainingPagePath,
+  buildParentPath,
+  getDisplayClasses,
+} from "./nodeBreadcrumbs.js";
 import { registerPendingCreatedName } from "./pendingCreatedName.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
@@ -109,6 +116,7 @@ import {
   listFilterOptions,
 } from "../search-filters/filterModel.js";
 import { recentUseSections } from "../search-filters/recentUse.js";
+import { foldedIncludes, foldedQueryOf } from "../search-filters/foldSearch.js";
 import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
 import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { useDelayedVisible } from "../../components/ui/kit/useDelayedVisible.js";
@@ -128,6 +136,8 @@ import "./NodeSelector.css";
 export interface NodeSelectorClient extends QuickCreateClient {
   getNode(id: string): ClientNode | undefined;
   getNodeRaw(id: string): ClientNode | undefined;
+  /** The parent's display name (the chrome-flattened breadcrumb titles). */
+  getDisplayName(id: string): string | null;
   /** The parentlessRole "block" demote resolver for the role predicates. */
   effectiveClassParentlessBlock(classId: string): boolean;
   /** The document-chrome node pool (filter-prefix listings). */
@@ -579,13 +589,13 @@ export function NodeSelector({
   const matchesInlineFilters = (node: ClientNode): boolean => {
     const { daily, page, cls } = inlineFilters.filters;
     if (chipFilterState.daily && parseDateNodeId(node.id)?.precision !== "day") return false;
-    if (chipFilterState.pages && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
+    if (chipFilterState.pages && !rendersWithDocumentChromeOf(client, node))
       return false;
-    if (chipFilterState.blocks && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
+    if (chipFilterState.blocks && !rendersAsInlineBlockOf(client, node))
       return false;
     if (chipFilterState.cls && !node.isClass) return false;
     if (daily !== null && (parseDateNodeId(node.id)?.precision === "day") !== daily) return false;
-    if (page !== null && rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock) !== page)
+    if (page !== null && rendersWithDocumentChromeOf(client, node) !== page)
       return false;
     if (cls !== null && node.isClass !== cls) return false;
     return true;
@@ -911,8 +921,8 @@ export function NodeSelector({
   const matchesScopeTab = (node: ClientNode): boolean => {
     if (!scopeTabs || searchMode === "classes") return true;
     return scope === "main"
-      ? node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock)
-      : rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock);
+      ? node.isClass || rendersWithDocumentChromeOf(client, node)
+      : rendersAsInlineBlockOf(client, node);
   };
 
   // The worker-backed client answers reads synchronously from a cache that
@@ -1033,16 +1043,16 @@ export function NodeSelector({
   const recentsListing = useMemo(() => {
     const sections = recentUseSections(client, client.listPages(), MAX_SYNCED_RECENTS);
     const roleFilter = (node: ClientNode): boolean => {
-      if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
+      if (searchMode === "pages" && !rendersWithDocumentChromeOf(client, node))
         return false;
-      if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
+      if (searchMode === "blocks" && !rendersAsInlineBlockOf(client, node))
         return false;
       return matchesScopeTab(node);
     };
     const created = sections.created.filter(roleFilter);
     const linked = sections.linked.filter(roleFilter);
     return { created, linked, rows: [...created, ...linked] };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- roleFilter derives from searchMode/scopeTabs/scope (deps) and parentlessBlock/parentRenderFacts (client-stable); dataVersion rides the async landing notify like the search memo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- roleFilter derives from searchMode/scopeTabs/scope (deps); the memoized parentlessBlock resolver stays a dep because the bound role helpers derive from it via the client (client-stable); dataVersion rides the async landing notify like the search memo.
   }, [client, searchMode, scopeTabs, scope, parentlessBlock, dataVersion]);
 
   // Search results through the client. Classes are matched by name over the
@@ -1057,21 +1067,21 @@ export function NodeSelector({
   const searchResults = useMemo(() => {
     // `/` filter mode steps aside for the option menu — no result set at all.
     if (filterMode) return [];
-    const q = foldSearchText(classRefine.query.trim().toLowerCase());
+    const q = foldedQueryOf(classRefine.query);
     if (searchMode === "classes") {
       const classes = client.listClasses().filter((node) => {
         if (!matchesInlineFilters(node)) return false;
         if (q === "") return true;
         const name = titleOfNode(node) ?? node.id;
-        return foldSearchText(name.toLowerCase()).includes(q);
+        return foldedIncludes(q, name);
       });
       return classes;
     }
     const hits = q === "" ? [] : client.search(classRefine.query.trim());
     const filtered = hits.filter((node) => {
-      if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
+      if (searchMode === "pages" && !rendersWithDocumentChromeOf(client, node))
         return false;
-      if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
+      if (searchMode === "blocks" && !rendersAsInlineBlockOf(client, node))
         return false;
       if (!matchesInlineFilters(node)) return false;
       if (!matchesScopeTab(node)) return false;
@@ -1111,7 +1121,7 @@ export function NodeSelector({
         })
         .filter(matchesInlineFilters)
         .filter(matchesScopeTab)
-        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock));
+        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlockOf(client, node));
     }
     // The empty-query default: the shared recency listing (see
     // `recentsListing` above) — created section first, then linked, MRU
@@ -1418,66 +1428,6 @@ export function NodeSelector({
     isOpen: isNavActive,
   });
 
-  // Build parent page path (e.g. "Root / Parent /") for a document-chrome node.
-  const buildParentPath = (node: ClientNode): string => {
-    if (node.parentId === null) return "";
-    const segments: string[] = [];
-    let currentId: string | null = node.parentId;
-    let guard = 0;
-    while (currentId !== null && guard < 64) {
-      const parent: ClientNode | undefined = client.getNode(currentId);
-      if (!parent || !rendersWithDocumentChrome(parent, undefined, parentlessBlock)) break;
-      segments.unshift(titleOfNode(parent) || "Untitled");
-      currentId = parent.parentId;
-      guard += 1;
-    }
-    if (segments.length === 0) return "";
-    const fullPath = segments.join(" / ") + " /";
-    if (fullPath.length <= 36) return fullPath;
-    const parts = [...segments];
-    while (parts.length > 1) {
-      parts.shift();
-      const candidate = ".../ " + parts.join(" / ") + " /";
-      if (candidate.length <= 36) return candidate;
-    }
-    const last = parts[0]!;
-    return ".../ " + (last.length > 26 ? last.slice(0, 23) + "..." : last) + " /";
-  };
-
-  // Containing-page breadcrumb for a block hit: the nearest
-  // document-chrome ancestor's path plus the page itself — the label that
-  // tells a "…" block result apart from same-named pages.
-  const buildContainingPagePath = (node: ClientNode): string => {
-    let currentId = node.parentId;
-    let guard = 0;
-    while (currentId !== null && guard < 64) {
-      const parent = client.getNode(currentId);
-      if (parent === undefined) break;
-      if (rendersWithDocumentChrome(parent, undefined, parentlessBlock)) {
-        const ancestors = buildParentPath(parent);
-        const name = titleOfNode(parent) || "Untitled";
-        return ancestors !== "" ? `${ancestors} ${name}` : name;
-      }
-      currentId = parent.parentId;
-      guard += 1;
-    }
-    return "";
-  };
-
-  // Get display classes for a node (class names as small pills).
-  const getDisplayClasses = (node: ClientNode): Array<{ nodeUuid: string; name: string }> => {
-    if (node.classIds.length === 0) return [];
-    return node.classIds
-      .map((classUuid) => {
-        const classNode = client.getNode(classUuid);
-        if (!classNode) return null;
-        const name = titleOfNode(classNode);
-        if (!name) return null;
-        return { nodeUuid: classUuid, name };
-      })
-      .filter((c): c is { nodeUuid: string; name: string } => c !== null);
-  };
-
   const handleSearchChange = (newQuery: string) => {
     setSearchQuery(newQuery);
     setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
@@ -1559,11 +1509,11 @@ export function NodeSelector({
               node={node}
               client={client}
               parentPath={
-                rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock)
-                  ? buildParentPath(node)
-                  : buildContainingPagePath(node)
+                rendersWithDocumentChromeOf(client, node)
+                  ? buildParentPath(client, node)
+                  : buildContainingPagePath(client, node)
               }
-              displayClasses={getDisplayClasses(node)}
+              displayClasses={getDisplayClasses(client, node)}
               isHighlighted={globalIndex === selectedIndex}
               isSelected={assignedIds.has(node.id)}
               onClick={() => handleAdd(node)}

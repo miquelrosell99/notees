@@ -12,13 +12,12 @@
  * creates a classed page and opens it for editing.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
-import { foldSearchText } from "@notees/store";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { titleOfNode } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
@@ -27,6 +26,7 @@ import { Modal } from "../../components/ui/kit/Modal.js";
 import { SearchField } from "../../components/ui/kit/SearchField.js";
 import { ensureTemplateFamily } from "../../features/templates/templateFamily.js";
 import { useTemplateInstantiator } from "./useTemplateInstantiator.js";
+import { useTemplateList } from "./useTemplateList.js";
 import "./TemplateGalleryModal.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -48,10 +48,6 @@ export function TemplateGalleryModal({
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  /** Live re-read on every client notification. */
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   // Reset per open + self-heal the template family before the first read.
   useEffect(() => {
@@ -70,28 +66,7 @@ export function TemplateGalleryModal({
     },
   });
 
-  const templates = useMemo<ClientNode[]>(() => {
-    void version;
-    return client
-      .getClassMembers(SYSTEM_CLASS_UUIDS.template)
-      .filter((node) => node.isActive)
-      .sort((a, b) => {
-        const nameA = titleOfNode(a) ?? a.id;
-        const nameB = titleOfNode(b) ?? b.id;
-        return (
-          nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: "base" }) ||
-          a.id.localeCompare(b.id)
-        );
-      });
-  }, [client, version]);
-
-  const filtered = useMemo(() => {
-    const q = foldSearchText(query.trim().toLowerCase());
-    if (q === "") return templates;
-    return templates.filter((node) =>
-      foldSearchText((titleOfNode(node) ?? node.id).toLowerCase()).includes(q),
-    );
-  }, [templates, query]);
+  const { templates, filtered } = useTemplateList(client, query);
 
   const itemCount = filtered.length;
   const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(0, itemCount - 1));

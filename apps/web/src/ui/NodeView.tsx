@@ -35,15 +35,13 @@
 
 import type { ReactNode } from "react";
 
-import { rendersAsInlineBlock } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
 import { FocusedBlockView } from "./FocusedBlockView.js";
 import { NodeMenuButton, type ShareTarget } from "../features/node-menu/NodeMenuButton.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
+import { rendersAsInlineBlockOf } from "./renderStateLabel.js";
 import { ViewToolbar } from "../features/collection/ViewToolbar.js";
 import { useViewModePreference } from "./viewPrefs.js";
 import { SurfaceTopBar } from "../components/ui/kit/SurfaceTopBar.js";
@@ -157,10 +155,8 @@ export function NodeView({
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
   }
-  const parentFacts = parentRenderFacts(client, node);
-  const parentlessBlock = parentlessBlockResolverOf(client);
-  const pageView = !node.isClass && !rendersAsInlineBlock(node, parentFacts, parentlessBlock);
-  const inlineBlock = rendersAsInlineBlock(node, parentFacts, parentlessBlock);
+  const inlineBlock = rendersAsInlineBlockOf(client, node);
+  const pageView = !node.isClass && !inlineBlock;
   /**
    * The card's top-right chrome: pages get the blocks view switcher + the
    * "…" node menu as two pieces (rendered by PageView — in the nodeview top
@@ -217,7 +213,7 @@ export function NodeView({
         {chromeMenu}
       </>
     ) : undefined;
-  const view = rendersAsInlineBlock(node, parentFacts, parentlessBlock) ? (
+  const view = rendersAsInlineBlockOf(client, node) ? (
     /* Block mode — the focused block view: the node is
        the PARENT of a NodeCollection (the v1 "show parents" prop,
        generalized) — each view mode decides the parent display (outline:

@@ -78,12 +78,12 @@ import { useCallback, useEffect, useMemo, useState, useContext } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { parseDateNodeId, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
 import { BlockRow } from "../../ui/BlockRow.js";
 import { titleOfNode, titleOf } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { rendersWithDocumentChromeOf } from "../../ui/renderStateLabel.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { SelectionButton, Checkbox, ImageModal, SortMenuButton, type SortMenuOption } from "../../components/ui/kit/index.js";
 import { registerView } from "./registry.js";
@@ -352,7 +352,7 @@ export function NodeCard({
           </div>
           {menu !== null && (
             <NodeContextMenu
-              state={{ x: menu.x, y: menu.y, node: item.node, isPage: rendersWithDocumentChrome(item.node, parentRenderFacts(client, item.node), parentlessBlockResolverOf(client)) }}
+              state={{ x: menu.x, y: menu.y, node: item.node, isPage: rendersWithDocumentChromeOf(client, item.node) }}
               client={client}
               onClose={() => setMenu(null)}
               onOpenNode={(id: string) => {

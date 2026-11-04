@@ -21,7 +21,6 @@ import {
   parseDateNodeId,
   recurrenceRuleOf,
   recurrenceSeriesOf,
-  rendersWithDocumentChrome,
   spanEndOf,
   withCompletedOccurrence,
   type RecurrenceRule,
@@ -32,7 +31,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { titleOf } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
+import { nearestDocumentChromeAncestor } from "../../ui/renderStateLabel.js";
 import {
   isEventFamilyClass,
   minutesOfTime,
@@ -636,15 +635,8 @@ export function agendaTimeLabelOf(
  * under its day page.
  */
 export function containingPageIdOf(client: AnyClient, node: ClientNode): string {
-  let current = node;
-  const parentlessBlock = parentlessBlockResolverOf(client);
-  for (let guard = 0; guard < 64; guard += 1) {
-    if (current.parentId === null) break;
-    const parent = client.getNode(current.parentId);
-    // The parent-page condition rides along: a bit under a non-page parent
-    // is inert, so the walk continues past it to the real containing page.
-    if (parent === undefined || rendersWithDocumentChrome(current, parent, parentlessBlock)) break;
-    current = parent;
-  }
-  return current.id;
+  // The self-or-ancestor walk rides the shared chrome-ancestor climb; when no
+  // ancestor renders with document chrome (a flagged-class chain or a broken
+  // one) the node groups under itself, the collection's standalone path.
+  return nearestDocumentChromeAncestor(client, node, { includeSelf: true })?.id ?? node.id;
 }

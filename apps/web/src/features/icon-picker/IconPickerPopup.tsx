@@ -16,15 +16,15 @@
  * like the other editor popups. Outside click / Escape close.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { Icon } from "../../ui/Icon.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { ColorButton } from "../../components/ui/kit/ColorButton.js";
 import { Tabs } from "../../components/ui/kit/Tabs.js";
+import { useAnchoredPopup } from "../../components/ui/kit/useAnchoredPopup.js";
 import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
-import { clampOverlayLeft, flipOverlayTop } from "../../ui/editor-popups/overlay-position.js";
 import { EMOJI_CATEGORIES } from "./emojiData.js";
 import { MDI_CATEGORIES } from "./mdiCategories.js";
 import { MDI_ICON_LIST } from "./mdiIconList.js";
@@ -233,34 +233,26 @@ export function IconPickerPopup({
   // closes at the popup root below.
   usePopupDismissal({ popupRef: pickerRef, isOpen: true, onClose });
 
-  // Position: fixed at the anchor, flip above when no room, clamped.
-  useLayoutEffect(() => {
+  // Position: the shared anchored-popup pass — fixed at the anchor, flip
+  // above when no room, clamped horizontally. Without an anchor the popup
+  // reveals itself unpositioned (the picker still works). The rect re-reads
+  // per compute (scroll/resize), replacing the old capture-once behavior.
+  const revealPicker = () => {
     const floating = pickerRef.current;
-    if (floating === null) return;
-    const rect = anchorEl?.getBoundingClientRect();
-    const update = () => {
-      if (rect === undefined || rect === null) {
-        floating.style.visibility = "visible";
-        return;
-      }
-      const { top, placement } = flipOverlayTop(
-        { top: rect.bottom, bottom: rect.bottom, left: rect.left },
-        floating.offsetHeight,
-        POPUP_GAP,
-        VIEWPORT_PADDING,
-      );
-      floating.style.left = `${clampOverlayLeft(rect.left, floating.offsetWidth, VIEWPORT_PADDING)}px`;
-      floating.style.top = `${placement === "above" ? rect.top - floating.offsetHeight - POPUP_GAP : top}px`;
-      floating.style.visibility = "visible";
-    };
-    update();
-    window.addEventListener("resize", update);
-    document.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      document.removeEventListener("scroll", update, true);
-    };
-  }, [anchorEl]);
+    if (floating) floating.style.visibility = "visible";
+  };
+  useAnchoredPopup({
+    popupRef: pickerRef,
+    getAnchorRect: () => {
+      const rect = anchorEl?.getBoundingClientRect();
+      return rect ? { top: rect.top, bottom: rect.bottom, left: rect.left } : null;
+    },
+    deps: [anchorEl],
+    gap: POPUP_GAP,
+    padding: VIEWPORT_PADDING,
+    onPlaced: revealPicker,
+    onAnchorUnavailable: revealPicker,
+  });
 
   const searchResults = useMemo(() => {
     if (search.trim() === "") return null;

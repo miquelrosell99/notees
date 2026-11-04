@@ -24,11 +24,10 @@ import { useRef, useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
 import { titleOf } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { rendersWithDocumentChromeOf } from "../../ui/renderStateLabel.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { aliasedNodeTargetError } from "./aliasProperty.js";
 
@@ -55,7 +54,7 @@ export function AliasedNodeRow({
   // aliases to pages — a non-page carrier (raw-writer bypass) renders no row.
   const mainId =
     node !== undefined &&
-    rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
+    rendersWithDocumentChromeOf(client, node)
       ? (node.aliasedNodeId ?? null)
       : null;
   if (mainId === null) return null;

@@ -94,6 +94,7 @@ import { plainTextExcerpt, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
+import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
 import type { AnyClient } from "../collection/types.js";
 import { carrierStateOf } from "./carrierState.js";
@@ -224,8 +225,7 @@ export function TextPropertyRow({
   // root so the cell stays live even outside a subscribing host; the row
   // keeps that contract with one subscription for all its carriers. The
   // version value feeds the citekey-regeneration memo below.
-  const [storeVersion, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  const storeVersion = useClientVersion(client);
 
   /**
    * The citekey regeneration snapshot — ONLY on the citekey row of a

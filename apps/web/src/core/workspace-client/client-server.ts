@@ -8,7 +8,6 @@
  * domain — takes the shared ClientContext, no inheritance.
  */
 
-import { openAssetIfSealed, sealAssetIfKeyed } from "./asset-crypto.js";
 import {
   readDevicePrefList,
   readDevicePrefScalar,
@@ -18,8 +17,8 @@ import {
   type UserPrefs,
   type UserPrefsSource,
 } from "./prefs.js";
-import { openPrefsBlob, parsePrefsWire, sealPrefsBlob, serializePrefs } from "../prefs-wire.js";
-import { blobBytes, fetchAssetBlob, postAssetUpload } from "./asset-transport.js";
+import { pullServerPrefs, pushServerPrefs } from "./prefs-rest.js";
+import { fetchAndOpenAsset, sealAndUploadAsset } from "./asset-transport.js";
 import {
   normalizeSectionView,
   normalizeSectionViewList,
@@ -90,22 +89,8 @@ export class WorkspaceClientServer {
       this.ctx.restApiKey !== null &&
       !(await this.isOperatorKey())
     ) {
-      try {
-        const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
-          headers: { "X-API-Key": this.ctx.restApiKey },
-        });
-        if (response.ok) {
-          // Plan-07: one opaque blob — unwrap with the master key when present.
-          const body = (await response.json()) as { blob?: unknown };
-          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
-          writeDevicePrefList("favorites", prefs.favorites);
-          writeDevicePrefList("recents", prefs.recents);
-          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
-          return { ...prefs, source: "server" };
-        }
-      } catch {
-        // Unreachable — the cached copy below is the honest offline answer.
-      }
+      const prefs = await pullServerPrefs(this.ctx.restServerUrl, this.ctx.restApiKey);
+      if (prefs !== null) return { ...prefs, source: "server" };
     }
     return {
       favorites: readDevicePrefList("favorites"),
@@ -144,29 +129,40 @@ export class WorkspaceClientServer {
       this.ctx.restApiKey !== null &&
       !(await this.isOperatorKey())
     ) {
-      try {
-        const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
-          method: "PUT",
-          headers: { "X-API-Key": this.ctx.restApiKey, "content-type": "application/json" },
-          body: JSON.stringify({ blob: await sealPrefsBlob(serializePrefs(merged)) }),
-        });
-        if (response.ok) {
-          // Plan-07: one opaque blob — unwrap with the master key when present.
-          const body = (await response.json()) as { blob?: unknown };
-          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
-          writeDevicePrefList("favorites", prefs.favorites);
-          writeDevicePrefList("recents", prefs.recents);
-          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
-          return { ...prefs, source: "server" };
-        }
-      } catch {
-        // Unreachable — the local write above already landed.
-      }
+      const prefs = await pushServerPrefs(this.ctx.restServerUrl, this.ctx.restApiKey, merged);
+      if (prefs !== null) return { ...prefs, source: "server" };
     }
     return { ...merged, source: "local" };
   }
 
   // --- node-scoped hosted views (custom tabs — the prefs channel) -------------
+
+  /**
+   * fetch + the shared non-ok error shape for the section-view CRUD verbs:
+   * the API-key header always, the JSON content-type only when a body rides.
+   * Throws `<verb> failed: HTTP <status>: <text>` on a non-ok answer.
+   */
+  private async restJson(
+    url: string,
+    apiKey: string,
+    verb: string,
+    init: { method?: string; body?: string } = {},
+  ): Promise<unknown> {
+    const response = await fetch(url, {
+      method: init.method ?? "GET",
+      headers: {
+        "X-API-Key": apiKey,
+        ...(init.body !== undefined ? { "content-type": "application/json" } : {}),
+      },
+      ...(init.body !== undefined ? { body: init.body } : {}),
+    });
+    if (!response.ok) {
+      throw new Error(`${verb} failed: HTTP ${response.status}: ${await response.text()}`);
+    }
+    // 204/empty-body answers (DELETE) carry no JSON — parse only real bodies.
+    const text = await response.text();
+    return text === "" ? null : JSON.parse(text);
+  }
 
   private sectionViewsUrl(nodeId: string, sectionKey: string, suffix = ""): string {
     const { serverUrl } = this.requireRest();
@@ -178,15 +174,9 @@ export class WorkspaceClientServer {
   /** GET the surface's custom views in tab order. Throws when the server answers non-ok. */
   async listSectionViews(nodeId: string, sectionKey: string): Promise<SectionView[]> {
     const { apiKey } = this.requireRest();
-    const response = await fetch(this.sectionViewsUrl(nodeId, sectionKey), {
-      headers: { "X-API-Key": apiKey },
-    });
-    if (!response.ok) {
-      throw new Error(
-        `list section views failed: HTTP ${response.status}: ${await response.text()}`,
-      );
-    }
-    return normalizeSectionViewList(await response.json());
+    return normalizeSectionViewList(
+      await this.restJson(this.sectionViewsUrl(nodeId, sectionKey), apiKey, "list section views"),
+    );
   }
 
   /** POST a new view (appended after the last tab). Throws on 4xx/5xx (409 = name collision). No viewMode — view modes are transient surface state, not stored. */
@@ -197,20 +187,19 @@ export class WorkspaceClientServer {
     queryAst: unknown;
   }): Promise<SectionView> {
     const { apiKey } = this.requireRest();
-    const response = await fetch(this.sectionViewsUrl(input.nodeId, input.sectionKey), {
-      method: "POST",
-      headers: { "X-API-Key": apiKey, "content-type": "application/json" },
-      body: JSON.stringify({
-        name: input.name,
-        queryAst: input.queryAst,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(
-        `create section view failed: HTTP ${response.status}: ${await response.text()}`,
-      );
-    }
-    return normalizeSectionView((await response.json()).view);
+    const body = await this.restJson(
+      this.sectionViewsUrl(input.nodeId, input.sectionKey),
+      apiKey,
+      "create section view",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: input.name,
+          queryAst: input.queryAst,
+        }),
+      },
+    );
+    return normalizeSectionView((body as { view: unknown }).view);
   }
 
   /** PATCH a view's name. 404 = missing/foreign row (also throws). */
@@ -221,20 +210,13 @@ export class WorkspaceClientServer {
     name: string,
   ): Promise<SectionView> {
     const { apiKey } = this.requireRest();
-    const response = await fetch(
+    const body = await this.restJson(
       this.sectionViewsUrl(nodeId, sectionKey, `/${encodeURIComponent(viewId)}`),
-      {
-        method: "PATCH",
-        headers: { "X-API-Key": apiKey, "content-type": "application/json" },
-        body: JSON.stringify({ name }),
-      },
+      apiKey,
+      "rename section view",
+      { method: "PATCH", body: JSON.stringify({ name }) },
     );
-    if (!response.ok) {
-      throw new Error(
-        `rename section view failed: HTTP ${response.status}: ${await response.text()}`,
-      );
-    }
-    return normalizeSectionView((await response.json()).view);
+    return normalizeSectionView((body as { view: unknown }).view);
   }
 
   /** PATCH a view's query AST (the per-tab builder commit). 404 = missing/foreign row (also throws). */
@@ -245,20 +227,13 @@ export class WorkspaceClientServer {
     queryAst: unknown,
   ): Promise<SectionView> {
     const { apiKey } = this.requireRest();
-    const response = await fetch(
+    const body = await this.restJson(
       this.sectionViewsUrl(nodeId, sectionKey, `/${encodeURIComponent(viewId)}`),
-      {
-        method: "PATCH",
-        headers: { "X-API-Key": apiKey, "content-type": "application/json" },
-        body: JSON.stringify({ queryAst }),
-      },
+      apiKey,
+      "update section view query",
+      { method: "PATCH", body: JSON.stringify({ queryAst }) },
     );
-    if (!response.ok) {
-      throw new Error(
-        `update section view query failed: HTTP ${response.status}: ${await response.text()}`,
-      );
-    }
-    return normalizeSectionView((await response.json()).view);
+    return normalizeSectionView((body as { view: unknown }).view);
   }
 
   /** PUT the full ordered id list; sequences rewrite 0..n-1. Throws on an incomplete list. */  async reorderSectionViews(
@@ -267,31 +242,23 @@ export class WorkspaceClientServer {
     orderedIds: string[],
   ): Promise<SectionView[]> {
     const { apiKey } = this.requireRest();
-    const response = await fetch(this.sectionViewsUrl(nodeId, sectionKey, "/order"), {
-      method: "PUT",
-      headers: { "X-API-Key": apiKey, "content-type": "application/json" },
-      body: JSON.stringify({ orderedIds }),
-    });
-    if (!response.ok) {
-      throw new Error(
-        `reorder section views failed: HTTP ${response.status}: ${await response.text()}`,
-      );
-    }
-    return normalizeSectionViewList(await response.json());
+    return normalizeSectionViewList(
+      await this.restJson(this.sectionViewsUrl(nodeId, sectionKey, "/order"), apiKey, "reorder section views", {
+        method: "PUT",
+        body: JSON.stringify({ orderedIds }),
+      }),
+    );
   }
 
   /** DELETE a view (204). 404 = missing/foreign row (also throws). */
   async deleteSectionView(nodeId: string, sectionKey: string, viewId: string): Promise<void> {
     const { apiKey } = this.requireRest();
-    const response = await fetch(
+    await this.restJson(
       this.sectionViewsUrl(nodeId, sectionKey, `/${encodeURIComponent(viewId)}`),
-      { method: "DELETE", headers: { "X-API-Key": apiKey } },
+      apiKey,
+      "delete section view",
+      { method: "DELETE" },
     );
-    if (!response.ok) {
-      throw new Error(
-        `delete section view failed: HTTP ${response.status}: ${await response.text()}`,
-      );
-    }
   }
 
   /**
@@ -301,22 +268,7 @@ export class WorkspaceClientServer {
    */
   async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
     const { serverUrl, apiKey } = this.requireRest();
-    // Seal at the CAS boundary when keyed (plan 05); keyless stays plaintext.
-    const sealed = await sealAssetIfKeyed(
-      serverUrl,
-      apiKey,
-      this.ctx.workspaceId,
-      await blobBytes(file),
-      file.type || "application/octet-stream",
-    );
-    return postAssetUpload(
-      serverUrl,
-      apiKey,
-      this.ctx.workspaceId,
-      new Blob([sealed.bytes as BlobPart]),
-      filename,
-      sealed.fields ?? undefined,
-    );
+    return sealAndUploadAsset(serverUrl, apiKey, this.ctx.workspaceId, file, filename);
   }
 
   /**
@@ -350,18 +302,7 @@ export class WorkspaceClientServer {
    */
   async fetchAssetBytes(assetId: string): Promise<Blob> {
     const { serverUrl, apiKey } = this.requireRest();
-    return this.openAssetBlob(assetId, serverUrl, apiKey);
-  }
-
-  /** Download + open a sealed asset (plaintext passes through). */
-  private async openAssetBlob(assetId: string, serverUrl: string, apiKey: string): Promise<Blob> {
-    const { blob, iv } = await fetchAssetBlob(serverUrl, apiKey, assetId, this.ctx.workspaceId);
-    const opened = await openAssetIfSealed(
-      this.ctx.workspaceId,
-      iv,
-      await blobBytes(blob),
-    );
-    return new Blob([opened as BlobPart], { type: blob.type });
+    return fetchAndOpenAsset(serverUrl, apiKey, this.ctx.workspaceId, assetId);
   }
 
   /**
@@ -370,7 +311,7 @@ export class WorkspaceClientServer {
    */
   async downloadAsset(assetId: string): Promise<void> {
     const { serverUrl, apiKey } = this.requireRest();
-    const blob = await this.openAssetBlob(assetId, serverUrl, apiKey);
+    const blob = await fetchAndOpenAsset(serverUrl, apiKey, this.ctx.workspaceId, assetId);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
   }

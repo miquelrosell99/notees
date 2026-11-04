@@ -25,10 +25,11 @@
  * opened against this block).
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { clampOverlayLeft, flipOverlayTop } from "./overlay-position.js";
+import { useAnchoredPopup } from "../../components/ui/kit/useAnchoredPopup.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import "./TriggerPopup.css";
 
 export interface SlashCommand {
@@ -138,46 +139,26 @@ export function TriggerPopup({
     }
   }, [effectiveSelectedIndex]);
 
-  // Close on click outside (focus never leaves the editor in inline mode).
-  useEffect(() => {
-    const handler = (e: globalThis.MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as globalThis.Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
+  // Close on press outside (focus never leaves the editor in inline mode).
+  // The parent editor owns Escape (it forwards the key while the trigger
+  // text is live), so only the outside-pointer half of the dismissal
+  // convention rides the hook.
+  usePopupDismissal({ popupRef: containerRef, isOpen: true, onClose, closeOnEscape: false });
 
   // Position the popup against a virtual element that spans the caret line
-  // (caretTop → top). top/left are written imperatively so repositioning
+  // (caretTop → top) — the shared anchored-popup pass: flip above when no
+  // room below, clamp horizontally, imperative top/left so repositioning
   // (scroll, resize, flip) never goes through React renders; maxHeight when
   // flipped above keeps the popup clear of the caret.
-  useLayoutEffect(() => {
-    const floating = containerRef.current;
-    if (!floating) return;
-
-    const update = () => {
-      const { top, placement: resolved } = flipOverlayTop(
-        { top: position.caretTop, bottom: position.top, left: position.left },
-        floating.offsetHeight,
-        4,
-        8,
-      );
-      floating.style.left = `${clampOverlayLeft(position.left, floating.offsetWidth, 8)}px`;
-      floating.style.top = `${top}px`;
+  useAnchoredPopup({
+    popupRef: containerRef,
+    getAnchorRect: () => ({ top: position.caretTop, bottom: position.top, left: position.left }),
+    deps: [position],
+    onPlaced: (resolved) => {
       setPlacement(resolved);
       setIsPositioned(true);
-    };
-
-    update();
-    window.addEventListener("resize", update);
-    document.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      document.removeEventListener("scroll", update, true);
-    };
-  }, [position]);
+    },
+  });
 
   const header = (
     <div key="header" className="trigger-popup__header">

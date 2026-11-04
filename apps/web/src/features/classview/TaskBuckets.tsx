@@ -11,7 +11,7 @@
  * collapse flag is device-local (never an op).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
@@ -26,6 +26,7 @@ import { useDeviceSetting } from "../settings/deviceSettings.js";
 import { Checkbox } from "../../components/ui/kit/Checkbox.js";
 import { ListRow } from "../../components/ui/kit/index.js";
 import { Pill } from "../../components/ui/kit/Pill.js";
+import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import "./TaskBuckets.css";
 
 const BUCKET_ORDER: Array<{
@@ -49,8 +50,7 @@ export function TaskBuckets({
   client: AnyClient;
   onOpenNode: (nodeId: string) => void;
 }) {
-  const [version, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  const version = useClientVersion(client);
 
   // Family ensure: idempotent no-op once the six schemas + bindings exist.
   // Fire-and-forget: a mid-teardown rejection must not go unhandled (the
