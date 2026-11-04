@@ -10,7 +10,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
+import { closeTestServer, makeTestServer, testEnvelope, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
 afterEach(async () => {
@@ -206,5 +206,60 @@ describe("workspace-key routes", () => {
       payload: {},
     });
     expect(response.statusCode).toBe(403);
+  });
+});
+
+describe("key-gated content reads (plan-07 ruling)", () => {
+  async function seedContent(workspaceId: string): Promise<{ nodeId: string; schemaId: string }> {
+    // A page + a property value, through the relay (the object API is retired).
+    const nodeId = crypto.randomUUID();
+    const schemaId = crypto.randomUUID();
+    const batch = await server!.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", "x-workspace-id": workspaceId, ...server!.authHeaders },
+      payload: {
+        envelopes: [
+          testEnvelope({ workspaceId, opType: "object.create", payload: { objectId: nodeId, isEmbedded: false, contentAst: [{ type: "text", text: "Gated page" }] } }),
+          testEnvelope({ workspaceId, opType: "propertySchema.create", payload: { propertySchemaId: schemaId, name: "gate-schema", type: "text" } }),
+          testEnvelope({ workspaceId, opType: "property.set", payload: { objectId: nodeId, propertySchemaId: schemaId, value: "gated-value", idx: 0 } }),
+        ],
+      },
+    });
+    expect(batch.statusCode).toBe(200);
+    return { nodeId, schemaId };
+  }
+
+  async function assertGated(workspaceId: string, schemaId: string): Promise<void> {
+    const headers = { "x-workspace-id": workspaceId, ...server!.authHeaders };
+    for (const url of [
+      `/api/resolve?name=${encodeURIComponent("Gated page")}`,
+      `/api/classes`,
+      `/api/classes/${crypto.randomUUID()}`,
+      `/api/properties/${schemaId}/values`,
+    ]) {
+      const response = await server!.app.inject({ method: "GET", url, headers });
+      expect(response.statusCode, url).toBe(404);
+      expect(response.json().error.message, url).toContain("content reads are client-side");
+    }
+  }
+
+  it("a keyed workspace gets NO content reads; a keyless workspace keeps them", async () => {
+    server = await makeTestServer();
+    const { token } = await setupUser();
+    const headers = { authorization: `Bearer ${token}` };
+
+    const keyless = await createWorkspace(token);
+    const keylessContent = await seedContent(keyless);
+    const keylessHeaders = { "x-workspace-id": keyless, ...server.authHeaders };
+    expect((await server.app.inject({ method: "GET", url: `/api/resolve?name=${encodeURIComponent("Gated page")}`, headers: keylessHeaders })).statusCode).toBe(200);
+    expect((await server.app.inject({ method: "GET", url: `/api/classes`, headers: keylessHeaders })).statusCode).toBe(200);
+    expect((await server.app.inject({ method: "GET", url: `/api/properties/${keylessContent.schemaId}/values`, headers: keylessHeaders })).statusCode).toBe(200);
+
+    const keyed = await createWorkspace(token);
+    const keyedContent = await seedContent(keyed);
+    void headers;
+    server.ctx.auth.putWorkspaceKey(keyed, "b64u-opaque-wrapped-key");
+    await assertGated(keyed, keyedContent.schemaId);
   });
 });
