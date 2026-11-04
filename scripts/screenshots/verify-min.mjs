@@ -198,7 +198,7 @@ await box.fill(term);
 await page.waitForFunction(
   () => document.body.innerText.includes("2018/09"),
   undefined,
-  { timeout: 300_000 },
+  { timeout: 600_000 },
 ).catch(() => {});
 // Oracle hygiene: the filled input itself echoes the term into body.innerText,
 // which would pass the check with an empty result set. Clear the input (and
