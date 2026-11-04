@@ -75,6 +75,11 @@ export function formatAggregateCell(value: unknown): string {
  * invalid-query placeholder names it).
  */
 export function isUnspecifiedQueryAst(raw: unknown): boolean {
+  // ABSENT is unspecified: a query block with no token at all is the user
+  // not having said anything yet (the "Set a query to see results" state) —
+  // distinct from a PRESENT-but-unparseable AST, which is the invalid-query
+  // placeholder naming a real problem.
+  if (raw === undefined || raw === null) return true;
   const parsed = parseRunAst(raw);
   if (parsed === null) return false;
   if (parsed.aggregation !== undefined) return false;
