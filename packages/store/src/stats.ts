@@ -13,12 +13,18 @@
 import type { StoreDatabase } from "./types.js";
 
 /**
- * Bulk-replay deferral seam: while a collector Set is installed (Store's
- * beginBulk window), rebuildNodeStats only RECORDS the requested ids and
- * returns immediately — no ancestor walk, no DELETE/INSERT. The window's
- * endBulk then runs rebuildAllNodeStats over the whole table. Nothing in
- * the appliers reads node_stats, so deferring is invisible inside the
- * window.
+ * Bulk-replay deferral seam: while a connection is deferred (Store's
+ * beginBulk window), rebuildNodeStats returns immediately — no ancestor
+ * walk, no DELETE/INSERT. The window's endBulk then runs
+ * rebuildAllNodeStats over the whole table. Nothing in the appliers reads
+ * node_stats, so deferring is invisible inside the window.
+ *
+ * Keyed BY CONNECTION (WeakSet), not process-global: two overlapping
+ * windows in one process — two Store instances — defer independently, so
+ * neither can silently defer the other's applies. The previous collector
+ * Set was dropped: the total tail never read it (an empty window skips the
+ * tail entirely; a non-empty one rebuilds the whole table), so recording
+ * ids was O(nodes) of useless UUIDs per window.
  *
  * The bulk tail's table differs from the online incremental path in
  * reader-visible but benign ways (verified: the only reader, the web
@@ -39,11 +45,6 @@ import type { StoreDatabase } from "./types.js";
  *    final derived tables returns.
  *
  * Module-level (not per-connection) because every backend the store ships is
- * synchronous and single-connection-per-Store: a bulk window runs to
- * completion without interleaving another store's applies. Store installs
- * and clears the collector around the window; nesting restores the previous
- * collector.
- *
  * VISIBILITY OF THE DEFERRED STATE: while a window is open, node_stats reads
  * as stale/empty. On the server that is unobservable — hydration runs the
  * window synchronously start-to-finish before any route serves a read. The
@@ -59,14 +60,15 @@ import type { StoreDatabase } from "./types.js";
  * the tables are never permanently unmaintained — in-process failure heals
  * via endBulk's tail, process death heals at open.
  */
-let deferredCollector: Set<string> | null = null;
+const deferredConnections = new WeakSet<StoreDatabase>();
 
-/** Install (or clear, with null) the deferral collector. Returns the
- *  previous collector so callers can nest. */
-export function setNodeStatsDeferral(collector: Set<string> | null): Set<string> | null {
-  const previous = deferredCollector;
-  deferredCollector = collector;
-  return previous;
+/** Install (or clear) the node-stats deferral for ONE connection. */
+export function setNodeStatsDeferral(db: StoreDatabase, deferred: boolean): void {
+  if (deferred) {
+    deferredConnections.add(db);
+  } else {
+    deferredConnections.delete(db);
+  }
 }
 
 /** Ancestor closure of ``nodeIds`` (including the ids themselves). */
@@ -97,10 +99,7 @@ function getAncestorClosure(db: StoreDatabase, nodeIds: string[]): string[] {
 export function rebuildNodeStats(db: StoreDatabase, nodeIds: string[]): void {
   let ids = Array.from(new Set(nodeIds)).filter((id) => id.length > 0);
   if (ids.length === 0) return;
-  if (deferredCollector !== null) {
-    for (const id of ids) deferredCollector.add(id);
-    return;
-  }
+  if (deferredConnections.has(db)) return;
   ids = Array.from(new Set(getAncestorClosure(db, ids).concat(ids)));
   replaceStatsRows(db, ids);
 }

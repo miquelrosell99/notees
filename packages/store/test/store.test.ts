@@ -51,7 +51,8 @@ import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
 import { sqliteWasmBackend } from "../src/adapters/sqlitewasm.js";
 import { rebuildEdges } from "../src/edges.js";
-import { reindexAllSearch } from "../src/search.js";
+import { reindexAllSearch, reindexNode, setSearchIndexDeferral } from "../src/search.js";
+import { rebuildNodeStats, setNodeStatsDeferral } from "../src/stats.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "protocol", "fixtures");
 
@@ -447,6 +448,37 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           (referenceOf.get(row.node_id) as { n: number }).n,
         );
       }
+      // descendant_count pin (review finding 4): an INDEPENDENT code path —
+      // a JS BFS over node_child_order, not the tail's recursive CTE — for
+      // every node's subtree size.
+      const orderRows = bulk.database
+        .prepare("SELECT parent_id, child_id FROM node_child_order")
+        .all() as Array<{ parent_id: string; child_id: string }>;
+      const childrenOf = new Map<string, string[]>();
+      for (const r of orderRows) {
+        const list = childrenOf.get(r.parent_id) ?? [];
+        list.push(r.child_id);
+        childrenOf.set(r.parent_id, list);
+      }
+      const descendantCountOf = (root: string): number => {
+        let count = 0;
+        const visited = new Set<string>([root]);
+        const queue = [root];
+        while (queue.length > 0) {
+          for (const child of childrenOf.get(queue.shift()!) ?? []) {
+            if (visited.has(child)) continue;
+            visited.add(child);
+            count += 1;
+            queue.push(child);
+          }
+        }
+        return count;
+      };
+      for (const row of bulkRows) {
+        expect(row.descendant_count, `descendant_count ${row.node_id}`).toBe(
+          descendantCountOf(row.node_id),
+        );
+      }
     });
 
     it("object-restore.json trashes then restores: page + child active, trash row consumed", async () => {
@@ -738,6 +770,80 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           .all(),
       ).toEqual(statsBefore);
       reopened.close();
+    });
+
+    it("deferral is per-connection: overlapping windows on two stores do not share flags", () => {
+      // Review finding 3: the deferral seams used to be process-global, so
+      // two overlapping windows in one process silently deferred into
+      // whichever state was installed last. Keyed by connection, each
+      // store's window owns its deferral exclusively.
+      const a = makeStore();
+      const b = makeStore();
+      a.apply(env("object.create", { objectId: NODE_PAGE, contentAst: [{ type: "text", text: "A" }] }, 1727200000000));
+      b.apply(env("object.create", { objectId: NODE_BOOK, contentAst: [{ type: "text", text: "B" }] }, 1727200000000));
+
+      // Seam level: deferring A's connection leaves B's untouched — B's
+      // rebuild still writes while A's skips.
+      a.database.exec("DELETE FROM node_stats");
+      b.database.exec("DELETE FROM node_stats");
+      setNodeStatsDeferral(a.database, true);
+      try {
+        rebuildNodeStats(a.database, [NODE_PAGE]);
+        rebuildNodeStats(b.database, [NODE_BOOK]);
+        expect(
+          (a.database.prepare("SELECT COUNT(*) AS n FROM node_stats").get() as { n: number }).n,
+        ).toBe(0);
+        expect(
+          (b.database.prepare("SELECT COUNT(*) AS n FROM node_stats").get() as { n: number }).n,
+        ).toBe(1);
+      } finally {
+        setNodeStatsDeferral(a.database, false);
+      }
+
+      // Same for the search seam: A's reindex skips, B's lands.
+      a.database.exec("DELETE FROM search_index");
+      a.database.exec("DELETE FROM search_index_docid");
+      b.database.exec("DELETE FROM search_index");
+      b.database.exec("DELETE FROM search_index_docid");
+      setSearchIndexDeferral(a.database, true);
+      try {
+        reindexNode(a.database, NODE_PAGE);
+        reindexNode(b.database, NODE_BOOK);
+        expect(
+          (a.database.prepare("SELECT COUNT(*) AS n FROM search_index_docid").get() as { n: number }).n,
+        ).toBe(0);
+        expect(
+          (b.database.prepare("SELECT COUNT(*) AS n FROM search_index_docid").get() as { n: number }).n,
+        ).toBe(1);
+      } finally {
+        setSearchIndexDeferral(a.database, false);
+      }
+
+      // Window level: interleaved begin/end pairs converge independently —
+      // A's end does not heal B's still-open window.
+      a.beginBulk();
+      b.beginBulk();
+      a.apply(env("object.create", { objectId: NODE_BLOCK, parentId: NODE_PAGE, contentAst: [{ type: "text", text: "A2" }] }, 1727200000100));
+      b.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-000000000099", contentAst: [{ type: "text", text: "B2" }] }, 1727200000100));
+      const bStatsBeforeAEnd = (b.database.prepare("SELECT COUNT(*) AS n FROM node_stats").get() as { n: number }).n;
+      a.endBulk();
+      const aCounts = a.database
+        .prepare("SELECT (SELECT COUNT(*) FROM node) AS nodes, (SELECT COUNT(*) FROM node_stats) AS stats")
+        .get() as { nodes: number; stats: number };
+      expect(aCounts.stats).toBe(aCounts.nodes);
+      // B's window is still open: A's end did NOT heal it — B's stats stay
+      // exactly as stale as they were (fewer rows than nodes).
+      const bStatsMid = (b.database.prepare("SELECT COUNT(*) AS n FROM node_stats").get() as { n: number }).n;
+      expect(bStatsMid).toBe(bStatsBeforeAEnd);
+      expect(bStatsMid).toBeLessThan(
+        (b.database.prepare("SELECT COUNT(*) AS n FROM node").get() as { n: number }).n,
+      );
+      b.endBulk();
+      const bCounts = b.database
+        .prepare("SELECT (SELECT COUNT(*) FROM node) AS nodes, (SELECT COUNT(*) FROM node_stats) AS stats")
+        .get() as { nodes: number; stats: number };
+      expect(bCounts.stats).toBe(bCounts.nodes);
+      expect(b.search("B2").length).toBeGreaterThan(0);
     });
 
     it("restore/adopt clears a carried marker without healing (images are converged)", () => {
