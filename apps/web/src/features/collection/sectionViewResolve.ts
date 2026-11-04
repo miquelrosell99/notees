@@ -27,8 +27,12 @@
  *  - `property` conditions (the effective-values read model) evaluate
  *    synchronously on the row too (the one-evaluation
  *    ruling): the client's `getEffectiveProperties` is the same read model
- *    the compiler's property arm reads, so the hosted custom tabs stop
- *    probing for them. Only `content` fts (the FTS index), the
+ *    the compiler's property arm reads, and comparison bounds resolve
+ *    `{today}`-style value placeholders through the compiler's own
+ *    `resolveValuePlaceholder` against the run clock (the same gate: the
+ *    value ops only — contains and the between/within bounds stay literal),
+ *    so the hosted custom tabs stop probing for them. Only `content` fts
+ *    (the FTS index), the
  *    links/referencePath member families (the edge roll-up), and any member
  *    with a query/self target remain probe-path leaves — one membership
  *    probe per leaf through the established `runQueryAst` channel over the
@@ -52,7 +56,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { plainTextExcerpt, parseDateNodeId } from "@notees/domain";
-import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, type CompileOptions, type Condition, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
+import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, resolveValuePlaceholder, type CompileOptions, type Condition, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
 
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
 
@@ -407,7 +411,17 @@ function propertyMatches(
   // conditionMatches before this read.)
   if (condition.value === undefined || condition.value === null) return false;
   const op = condition.op as PropertyOp;
-  return rows.some((row) => valueMatches(row.value, op, condition.value));
+  // The comparison bound rides the placeholder clock — the compiler's
+  // propertySql gate mirrored exactly: a `{today}`-style token in a string
+  // bound resolves to the period start (a plain YYYY-MM-DD date) for the
+  // value ops; contains is a text-substring op and exists carries no value,
+  // so neither resolves. between/within keep their literal bounds above
+  // (propertyRangeSql pushes them raw — parity is literal there).
+  const bound =
+    typeof condition.value === "string" && op !== "contains" && op !== "exists"
+      ? resolveValuePlaceholder(condition.value)
+      : condition.value;
+  return rows.some((row) => valueMatches(row.value, op, bound));
 }
 
 interface EvalContext {
