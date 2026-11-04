@@ -96,7 +96,11 @@ export const ALIAS_SOURCE_INDEX_DDL =
 export const CHILD_ORDER_CHILD_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_node_child_order_child ON node_child_order (child_id);";
 
-const SEARCH_INDEX_DDL_FTS5 = `CREATE VIRTUAL TABLE IF NOT EXISTS search_index
+/** The FTS5 search-index DDL, exported for the full-reindex tail
+ *  (search.ts): DROP + recreate is the fast way to empty a content FTS5
+ *  table — a plain DELETE pays per-row segment-merge costs (seconds at
+ *  tail scale). */
+export const SEARCH_INDEX_DDL_FTS5 = `CREATE VIRTUAL TABLE IF NOT EXISTS search_index
     USING fts5(content, tokenize = 'unicode61');`;
 
 /**

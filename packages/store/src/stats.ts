@@ -43,6 +43,21 @@ import type { StoreDatabase } from "./types.js";
  * completion without interleaving another store's applies. Store installs
  * and clears the collector around the window; nesting restores the previous
  * collector.
+ *
+ * VISIBILITY OF THE DEFERRED STATE: while a window is open, node_stats reads
+ * as stale/empty. On the server that is unobservable — hydration runs the
+ * window synchronously start-to-finish before any route serves a read. The
+ * sync engine's resync window is different: it spans awaited network
+ * fetches, so a mid-resync reader in the browser worker CAN observe the
+ * deferred tables (a backlink badge reading 0 mid-resync). Accepted: a full
+ * resync already invalidates the UI wholesale, and the window closes before
+ * the engine reports "synced".
+ *
+ * TORN-WINDOW SAFETY: a window interrupted by process death leaves the
+ * BULK_WINDOW_META_KEY marker on disk (beginBulk commits it before any bulk
+ * work); the next Store.open runs the total tail before serving reads. So
+ * the tables are never permanently unmaintained — in-process failure heals
+ * via endBulk's tail, process death heals at open.
  */
 let deferredCollector: Set<string> | null = null;
 

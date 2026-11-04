@@ -654,6 +654,22 @@ const replayMs = performance.now() - r0;
 
 const hash = stateHash(store.database);
 const semanticHash = stateHash(store.database, true);
+
+// Finding-2 skip measurement: a clean restart (no marker, no new envelopes)
+// must not pay the maintenance tail at open. Reopen the converged file and
+// count the statements the open takes — schema probes only, no rebuild. Runs
+// after the hash/dump blocks below; tracked here for the RESULT line.
+let reopenMs: number | null = null;
+let reopenStatements: number | null = null;
+function measureReopen(): void {
+  store.close();
+  const instr2: Instrumentation = { buckets: new Map(), statementCalls: 0, prepareCalls: 0 };
+  const tR = performance.now();
+  const reopened = new Store(instrumentedBackend(betterSqlite3Backend(dbPath), instr2));
+  reopenMs = performance.now() - tR;
+  reopenStatements = instr2.statementCalls;
+  reopened.close();
+}
 if (process.env.BENCH_TABLE_HASHES) {
   for (const table of TABLES) {
     console.log(`TABLE ${table} ${tableHash(store.database, table)}`);
@@ -702,12 +718,16 @@ console.log(`sql inside statements: ${sqlTotalMs.toFixed(0)} ms  non-statement (
 console.log(`rows: nodes=${counts.nodes} edges=${counts.edges} stats=${counts.stats} applied=${counts.applied} propValues=${counts.propValues}`);
 console.log(`stateHash: ${hash}`);
 console.log(`semanticHash: ${semanticHash}`);
+if (reopenMs !== null) {
+  console.log(`clean reopen: ${reopenMs.toFixed(1)} ms, ${reopenStatements} statements (no tail work)`);
+}
 console.log("top SQL buckets (total ms / count):");
 for (const [key, b] of top) {
   console.log(`  ${b.totalMs.toFixed(0).padStart(8)} ms  ${String(b.count).padStart(8)}  ${key}`);
 }
 
-store.close();
+if (MODE === "bulk") measureReopen();
+else store.close();
 rmSync(dir, { recursive: true, force: true });
 
 // Machine-readable tail line for scripts collecting numbers.
@@ -726,5 +746,7 @@ console.log(
     edges: counts.edges,
     stateHash: hash,
     semanticHash,
+    reopenMs: reopenMs === null ? undefined : Math.round(reopenMs),
+    reopenStatements: reopenStatements ?? undefined,
   })}`,
 );

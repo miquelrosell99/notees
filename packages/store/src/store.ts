@@ -51,6 +51,15 @@ import {
   schemaSql,
 } from "./schema.js";
 
+/**
+ * The app_meta key marking an UNCLOSED bulk replay window on disk. Written
+ * and committed by beginBulk before any bulk work; cleared by the endBulk
+ * tail (same transaction as the rebuild) or by the open-time heal. A
+ * process that dies inside a window leaves the marker behind, and the next
+ * Store.open runs the total tail before serving reads.
+ */
+const BULK_WINDOW_META_KEY = "notees:bulk_window_open";
+
 export interface NodeRow {
   id: string;
   workspace_id: string;
@@ -185,6 +194,10 @@ export class Store {
    */
   private bulkDepth = 0;
   private readonly bulkStats = new Set<string>();
+  /** True once an envelope was actually applied while the window was open —
+   *  an empty window (a restart with zero new envelopes) skips the total
+   *  tail entirely instead of rebuilding stats+search for nothing. */
+  private bulkDidApply = false;
   /** The connection's synchronous level before the window (restored after). */
   private bulkPrevSynchronous: number | null = null;
   /**
@@ -209,6 +222,7 @@ export class Store {
         : backendOrPath;
     this.db = this.backend.open();
     migrate(this.db, this.backend.ftsModule);
+    this.healInterruptedBulkWindow();
   }
 
   /** Open a store over an explicit backend (e.g. the sql.js adapter). */
@@ -266,9 +280,16 @@ export class Store {
    *  - node_stats and search-index maintenance defer to endBulk's one-pass
    *    rebuild (the per-op cost that dominates a large replay);
    *  - synchronous drops to OFF for the bulk window (the derived DB is
-   *    disposable — wipe-rebuildable by design; a torn window is detected by
-   *    the same hasApplied/cursor resume the online path already uses, and a
-   *    power-loss corruption is healed by deleting the file and replaying).
+   *    disposable — wipe-rebuildable by design; a power-loss corruption is
+   *    healed by deleting the file and replaying).
+   *
+   * TORN-WINDOW SAFETY: beginBulk writes the BULK_WINDOW_META_KEY marker to
+   * app_meta and commits it BEFORE synchronous drops — so a process death
+   * at any point inside the window leaves the marker on disk, and the next
+   * Store.open runs the total tail (stats + search + marker clear) before
+   * the store serves a single read. endBulk's tail also runs after a
+   * mid-window APPLY failure, so within a process the tables never sit
+   * deferral-stale either; the original error still propagates.
    *
    * Online (non-bulk) apply semantics are unchanged — the window must be
    * entered explicitly. Pair with endBulk in a finally; nesting is a no-op
@@ -280,10 +301,22 @@ export class Store {
       return;
     }
     this.bulkDepth = 1;
-    this.bulkStats.clear();
+    this.bulkDidApply = false;
+    // The marker commits at the CURRENT synchronous level — before OFF —
+    // so it survives whatever the window does afterwards.
+    this.db
+      .prepare("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, '1')")
+      .run(BULK_WINDOW_META_KEY);
     try {
-      this.bulkPrevSynchronous = this.db.pragma("synchronous", { simple: true }) as number;
-      this.db.pragma("synchronous = OFF");
+      const prev = this.db.pragma("synchronous", { simple: true });
+      // Guard the type: a backend whose pragma read returns undefined (or
+      // anything non-numeric) must not emit `synchronous = undefined`.
+      if (typeof prev === "number") {
+        this.bulkPrevSynchronous = prev;
+        this.db.pragma("synchronous = OFF");
+      } else {
+        this.bulkPrevSynchronous = null;
+      }
     } catch {
       // A backend without pragma support still gets the deferral win.
       this.bulkPrevSynchronous = null;
@@ -294,10 +327,14 @@ export class Store {
 
   /**
    * Close the bulk window: restore pragmas and rebuild the deferred
-   * node_stats + search index from the final state in one transaction.
-   * Runs the maintenance even when the window's applies failed partway, so
-   * the store never sits with deferral-stale derived tables; the original
-   * error still propagates to the caller either way.
+   * node_stats + search index from the final state in one transaction (the
+   * marker clears in the same transaction, so a crash mid-tail rolls the
+   * marker back to SET and the next open re-heals). A window that applied
+   * NOTHING — a restart over an already-converged store — skips the tail
+   * entirely and just consumes the marker: no full-table rebuild for zero
+   * new envelopes. Runs the maintenance whenever anything was applied, even
+   * when the window's applies failed partway, so the store never sits with
+   * deferral-stale derived tables; the original error still propagates.
    */
   endBulk(): void {
     if (this.bulkDepth === 0) return;
@@ -308,15 +345,20 @@ export class Store {
       // Clear the deferral FIRST so the maintenance writes land.
       setNodeStatsDeferral(null);
       setSearchIndexDeferral(false);
-      const run = this.db.transaction(() => {
-        rebuildAllNodeStats(this.db);
-        reindexAllSearch(this.db);
-      });
-      run();
+      if (this.bulkDidApply) {
+        const run = this.db.transaction(() => {
+          rebuildAllNodeStats(this.db);
+          reindexAllSearch(this.db);
+          this.clearBulkWindowMarker(this.db);
+        });
+        run();
+      } else {
+        this.clearBulkWindowMarker(this.db);
+      }
     } catch (error) {
       maintenanceError = error;
     } finally {
-      if (this.bulkPrevSynchronous !== null) {
+      if (typeof this.bulkPrevSynchronous === "number") {
         try {
           this.db.pragma(`synchronous = ${this.bulkPrevSynchronous}`);
         } catch {
@@ -324,6 +366,7 @@ export class Store {
         }
         this.bulkPrevSynchronous = null;
       }
+      this.bulkDidApply = false;
       this.bulkStats.clear();
     }
     if (maintenanceError !== null) throw maintenanceError;
@@ -332,6 +375,30 @@ export class Store {
   /** True while a bulk replay window is open. */
   get inBulk(): boolean {
     return this.bulkDepth > 0;
+  }
+
+  private clearBulkWindowMarker(db: SqliteDB): void {
+    db.prepare("DELETE FROM app_meta WHERE key = ?").run(BULK_WINDOW_META_KEY);
+  }
+
+  /**
+   * Open-time torn-window heal: a marker on disk means a process died
+   * inside a bulk window (or a window was abandoned without endBulk), so
+   * node_stats/search were left deferral-stale. Run the total tail before
+   * the store serves a single read, then clear the marker in the same
+   * transaction. No marker → no work: a clean restart never pays a rebuild.
+   */
+  private healInterruptedBulkWindow(): void {
+    const marked =
+      this.db.prepare("SELECT 1 AS x FROM app_meta WHERE key = ?").get(BULK_WINDOW_META_KEY) !==
+      undefined;
+    if (!marked) return;
+    const run = this.db.transaction(() => {
+      rebuildAllNodeStats(this.db);
+      reindexAllSearch(this.db);
+      this.clearBulkWindowMarker(this.db);
+    });
+    run();
   }
 
   /** Locally-authored envelopes not yet acknowledged by the server. */
@@ -393,6 +460,7 @@ export class Store {
           const seq = this.recordEnvelope(env.id, env.timestamp);
           cursorMax.set(env.workspaceId, Math.max(cursorMax.get(env.workspaceId) ?? 0, seq));
           summaries.push(summary);
+          if (this.bulkDepth > 0) this.bulkDidApply = true;
         } catch (err) {
           // Quarantine is for HISTORICAL POISON only — ops the log carries
           // that no derived store can faithfully apply: pre-Revision-11
@@ -412,6 +480,7 @@ export class Store {
             quarantined: true,
             error: message,
           });
+          if (this.bulkDepth > 0) this.bulkDidApply = true;
         }
       }
       for (const [workspaceId, seq] of cursorMax) {
@@ -1232,6 +1301,10 @@ export class Store {
     }
     this.db.close?.();
     this.db = next;
+    // The restored image is a converged snapshot by contract — its carried
+    // window marker (if any) is stale metadata, not a wound to heal: drop
+    // it without running the tail.
+    this.clearBulkWindowMarker(this.db);
     this.db
       .prepare("UPDATE sync_state SET restore_epoch = restore_epoch + 1")
       .run();
