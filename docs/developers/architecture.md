@@ -344,10 +344,11 @@ ingest→apply pair in `apps/server/src/workspace-store.ts`). There is no pendin
 queue, debounce, or batch anywhere on the path — an acknowledged write is
 immediately visible to `search`/`searchPage`, and a tombstone immediately drops
 its row (`removeSearchIndexEntry`) plus the routes' `is_active` filter. Read
-surfaces that ride this index (`GET /api/search`, `GET /api/objects?q=`) are
-therefore read-after-write consistent, exactly like `POST /api/query`'s live-table
-arms. `apps/server/test/search-freshness.test.ts` pins the contract through the
-HTTP write path — an asynchronous indexer introduced later turns it red.
+surfaces that ride this index (the web client's local `search`/`searchPage`
+reads) are therefore read-after-write consistent — the web compiles queries to
+its local SQLite (plan 07 retired the server search/query routes). The
+consistency contract is pinned store-side across all three adapters; an
+asynchronous indexer introduced later turns the store suite red.
 
 Restore is adapter-specific: better-sqlite3 has no deserialize, so restore writes a temp
 file and swaps the connection (temp dir removed on close); sql.js exports/imports whole
@@ -666,7 +667,14 @@ count post-refinement and hands it to NodeCollectionTabs;, replacing the "N of M
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
 **CLI** (standalone repo `notees-cli` — split from `apps/cli` 2026-10-05; consumes
-this repo's packages via a pinned `vendor/notees` git submodule). Commander-based (`src/cli.ts`, exported `run()` for tests). Commands:
+this repo's packages via a pinned `vendor/notees` git submodule).
+**Plan-07 debt:** the CLI drives the retired content API (object/search/query/
+backlinks/merge) — it is broken against a post-plan-07 server until its
+relay+local-store rewrite (its own plan); until then CLI releases pin a
+pre-plan-07 server. The plan-07 key-gate ruling keeps the three keyless
+content reads (`/resolve?name=`, `/classes`, `/properties/:id/values`)
+alive exactly for it (and legacy agents). Commander-based (`src/cli.ts`,
+exported `run()` for tests). Commands:
 `object get|create|update|delete|restore|list|children|upsert|search` (`create --batch`
 takes a JSON array of bodies on stdin and creates them with per-parent ordering
 preserved; `upsert` is find-or-create by exact title in `--class`/`--parent` scopes;

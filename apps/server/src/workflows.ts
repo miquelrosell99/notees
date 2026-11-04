@@ -1,45 +1,29 @@
 /**
  * Workflow rules (issue #13) — "when X happens to nodes that fall into Y
- * criteria, do Z", evaluated server-side after every ingest.
+ * criteria, do Z". PLAN 07: post-ingest probe evaluation is RETIRED.
  *
- * THE COORDINATION-STATE RULING (the prefs/shares/plugins precedent): rule
- * definitions and the run audit are server state in relay.db — NOT operation
- * log state. Rule *effects* are ordinary envelopes written by a server actor
- * (client claim "rules-engine") through the one write path, so every derived
- * store converges on them and no op type, wire change, or client lockstep is
- * involved. The only log entries a workflow ever produces are the action
- * envelopes themselves (property.set / the class-assign carrier).
+ * What this module IS today: rule STORAGE + creation-time validation + the
+ * run-audit table — server coordination state in relay.db (the
+ * prefs/shares/plugins precedent), never op-log state. The CRUD routes
+ * (routes-workflows.ts) ride WorkflowStorage; the audit table stays
+ * readable at GET /api/workflows/:id/runs.
  *
- * X (trigger) — existing op types: object.create, property.set, plus the
- * semantic "class.assign". There is NO class.assign op on the wire: class
- * membership add-wins rides a re-issued object.create carrying classIds
- * (op-catalog.ts), so the semantic trigger matches exactly those envelopes.
+ * What is GONE (see the banner at the bottom of this file): the
+ * post-ingest engine — trigger matching, criteria probes against the
+ * derived store (a content read the slimmed server no longer serves),
+ * action firing, the re-entrant depth-capped ingest. Rule *effects*, when
+ * a client-side evaluator (recorded debt — the fallback ruling: no web
+ * rule shapes exist to port) fires them, will be ordinary envelopes by a
+ * client actor through the normal write path — no op type, no wire change.
  *
- * Y (criteria) — the QueryAST (packages/protocol query-ast.ts), compiled by
- * @notees/query against the workspace's derived store and probed for the
- * envelope's affected node. Criteria are pure node filters: an AST carrying
- * an aggregation is rejected at rule creation.
+ * X (trigger, stored for the future evaluator) — existing op types:
+ * object.create, property.set, plus the semantic "class.assign" (no such
+ * wire op: membership add-wins rides a re-issued object.create carrying
+ * classIds, op-catalog.ts).
  *
- * Z (actions) — property.set and class.assign, each translated to its
- * EXISTING wire op at execution time (class.assign → object.create re-issue
- * with classIds, the OR-Set add carrier). New actions ride new trigger sets;
- * none of it changes the wire.
- *
- * LOOP POLICY (the correctness crux): action envelopes are written through a
- * re-entrant, depth-capped ingest. Max depth 1 — a client batch (depth 0) may
- * fire rules, whose actions ingest at depth 1 and are evaluated once more,
- * but matches at depth 1 write NOTHING (outcome "skipped_depth_cap"): rule
- * chains beyond one hop do not execute. Within that one re-entry, the
- * loop breaker applies: a rule never fires on envelopes it caused
- * (outcome "skipped_loop" when it matches anyway). A firing whose action
- * ingest throws is recorded as "actions_failed" and never blocks the
- * triggering ingest.
- *
- * Evaluation is batched per ingest: envelopes are bucketed by op type so a
- * rule only sees envelopes that can trigger it, and each rule's criteria are
- * compiled once per evaluation. Engine ingests do NOT charge the client relay
- * rate budget (server-authored ops, the seed precedent) but DO broadcast, so
- * clients converge on rule effects immediately.
+ * Y (criteria) — the QueryAST (packages/protocol query-ast.ts), validated
+ * at creation; evaluation compiles it against a LOCAL derived store
+ * (client-side, when the evaluator lands). Criteria are pure node filters.
  */
 
 import { mkdirSync } from "node:fs";

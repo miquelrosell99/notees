@@ -120,3 +120,9 @@ folder's retirement:
   links open the remembered workspace (the server node-location route was a
   content read, retired) — cross-workspace resolution degrades to the
   honest not-found after sync. Both recorded in the plan-07 changelog.
+- **Plan-07 third ruled trade (key-gated content reads)** — the three kept
+  content reads (`GET /api/resolve?name=`, `GET /api/classes(/:id)`,
+  `GET /api/properties/:id/values`) are KEY-GATED: a workspace with a
+  `workspace_key` row gets 404s (content reads are client-side over the
+  local derived store); keyless workspaces keep them for CLI/legacy
+  compat. Same row gate as the seed shim — the gate IS the key row.

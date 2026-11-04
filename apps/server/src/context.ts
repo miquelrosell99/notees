@@ -117,7 +117,8 @@ export class ServerContext {
 
   /**
    * The one write path: persist to the relay log, apply to the derived store,
-   * broadcast to WS subscribers, then evaluate workflow rules (issue #13).
+   * broadcast to WS subscribers. (Plan 07: workflow probes retired — rules
+   * are storage-only until the client-side evaluator lands.)
    * `envelopes` may span workspaces (grouped here); per-workspace rate
    * accounting is charged per envelope on client-authorized ingests only.
    */
