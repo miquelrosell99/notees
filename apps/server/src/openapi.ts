@@ -489,7 +489,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
   ["get", "/api/workspaces", {
-    summary: "The account's workspaces (membership view, with envelope stats; the operator key sees the whole directory)",
+    summary: "The account's workspaces (membership view, with envelope stats and per-workspace encrypted flag; the operator key sees the whole directory)",
     tags: ["Workspaces"],
   }],
   ["post", "/api/workspaces", {
