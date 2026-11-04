@@ -176,6 +176,9 @@ describe("E2EE sync boundary", () => {
     expect(blob).toBeDefined();
     expect([...blob!]).not.toEqual([...raw]);
     expect([...(await decryptBytes(key, blob!))]).toEqual([...raw]);
+    // The upload declared the blob sealed — the meta carries it (this is the
+    // flag a downloading engine branches on).
+    expect(relay.getSnapshotMeta().sealed).toBe(true);
 
     // A fresh device restores through the sealed blob.
     const c = await makeCryptoDevice(relay, DEVICE_C, () => nowMs);
@@ -198,6 +201,32 @@ describe("E2EE sync boundary", () => {
     const b = await makeCryptoDevice(relay, DEVICE_B, () => nowMs);
     await expect(b.engine.pull()).rejects.toThrow();
     expect(b.store.getNode(PARENT)).toBeUndefined();
+  });
+
+  it("a keyed client restores a PLAINTEXT server-built snapshot without decrypting (the self-heal image)", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    // The server-side self-heal shape: a snapshot row whose bytes are the
+    // server's own derived store — built by replaying the log, which SKIPS
+    // sealed envelopes, so the image is near-empty but a valid plaintext
+    // derived store, and the row is NOT sealed. Before the meta.sealed
+    // branch, a keyed engine ran AES-GCM over these bytes and the pull
+    // rejected with "snapshot decryption failed" — the workspace never
+    // synced.
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    for (const envelope of baseEnvelopes(DEVICE_A)) keyed.engine.enqueue(envelope);
+    await keyed.engine.push();
+    // The server converged its own (plaintext) projection and stored it.
+    const serverImage = keyed.store.snapshot();
+    relay.putSnapshot(serverImage, { physical: T0 + 50, logical: 0 }); // sealed defaults to false
+
+    // A fresh keyed device pulls: the plaintext image restores AS-IS (no
+    // decrypt attempt), then catch-up carries the sealed envelopes.
+    const fresh = await makeCryptoDevice(relay, DEVICE_B, () => nowMs);
+    await expect(fresh.engine.pull()).resolves.toBeUndefined();
+    expect(titleOf(fresh.store, PARENT)).toBe("Parent");
+    expect(titleOf(fresh.store, NODE)).toBe("Node");
+    expect(relay.getSnapshotMeta().sealed).toBe(false);
   });
 
   it("snapshot with the wrong key fails the pull with a clear error", async () => {

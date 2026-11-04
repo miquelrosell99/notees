@@ -431,7 +431,16 @@ export class SyncEngine {
         this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
         this.persistState();
       } else {
-        const bytes = this.crypto ? await this.decryptSnapshotOrThrow(data) : data;
+        // meta.sealed is the wire's declaration of what the blob IS: a keyed
+        // client seals its uploads (declared sealed=1), while a keyless
+        // client's upload and the server's own self-heal snapshot are
+        // plaintext derived stores (the server's image is built from its
+        // derived state — sealed envelopes skip there — so decrypting it
+        // under a workspace key is a guaranteed failure). Decrypt ONLY a
+        // declared-sealed blob when a provider is installed; a sealed blob
+        // the key can't open still throws the clear error below.
+        const bytes =
+          this.crypto && meta.sealed === true ? await this.decryptSnapshotOrThrow(data) : data;
         // Awaits staged (OPFS-VFS) restores; synchronous backends fall back
         // inside restoreAsync.
         await this.store.restoreAsync(bytes);
@@ -577,7 +586,7 @@ export class SyncEngine {
           }
           return;
         }
-        await upload(sealed, this.receivedHlc);
+        await upload(sealed, this.receivedHlc, true);
       } else {
       // Prefer the streaming source when BOTH sides have it (the OPFS-VFS
       // backend): the image is checkpointed and read lazily from the OPFS

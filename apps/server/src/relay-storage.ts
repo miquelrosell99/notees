@@ -84,6 +84,12 @@ CREATE TABLE IF NOT EXISTS snapshot (
     hlc_logical INTEGER NOT NULL,
     up_to_seq INTEGER NOT NULL,
     size INTEGER NOT NULL,
+    -- E2EE: 1 when the blob is a SEALED image (a keyed client sealed it;
+    -- the client uploads declare it via sealed=1); 0 = a plaintext derived
+    -- store (keyless upload, the server's own self-heal snapshot, imports,
+    -- clones, compactions). GET /snapshot serves it as the sealed flag so a keyed
+    -- client restores plaintext images as-is instead of decrypting.
+    sealed INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_snapshot_workspace ON snapshot (workspace_id, id);
@@ -142,6 +148,7 @@ export interface SnapshotRow {
   hlc_logical: number;
   up_to_seq: number;
   size: number;
+  sealed: number;
   created_at: string;
 }
 
@@ -209,6 +216,12 @@ export class RelayStorage {
     );
     if (!assetColumns.has("iv")) {
       this.db.exec("ALTER TABLE asset ADD COLUMN iv TEXT");
+    }
+    const snapshotColumns = new Set(
+      (this.db.pragma('table_info("snapshot")') as { name: string }[]).map((c) => c.name),
+    );
+    if (!snapshotColumns.has("sealed")) {
+      this.db.exec("ALTER TABLE snapshot ADD COLUMN sealed INTEGER NOT NULL DEFAULT 0");
     }
     this.snapshotDir = snapshotDir;
   }
@@ -359,16 +372,23 @@ export class RelayStorage {
     return join(this.snapshotDir, `${snapshotId}.db`);
   }
 
-  saveSnapshot(workspaceId: string, snapshotId: string, hlc: Hlc, upToSeq: number, bytes: Buffer): void {
+  saveSnapshot(
+    workspaceId: string,
+    snapshotId: string,
+    hlc: Hlc,
+    upToSeq: number,
+    bytes: Buffer,
+    sealed = false,
+  ): void {
     const path = this.snapshotPath(snapshotId);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, bytes);
     this.db
       .prepare(
-        `INSERT INTO snapshot (id, workspace_id, hlc_physical, hlc_logical, up_to_seq, size, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO snapshot (id, workspace_id, hlc_physical, hlc_logical, up_to_seq, size, sealed, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(snapshotId, workspaceId, hlc.physical, hlc.logical, upToSeq, bytes.length, new Date().toISOString());
+      .run(snapshotId, workspaceId, hlc.physical, hlc.logical, upToSeq, bytes.length, sealed ? 1 : 0, new Date().toISOString());
     // Snapshot retention:
     // a snapshot is a FULL derived checkpoint and only the newest per
     // workspace is ever served (latestSnapshot hydration); older ones are

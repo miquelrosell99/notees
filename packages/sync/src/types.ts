@@ -38,6 +38,8 @@ export interface SnapshotMeta {
   hasSnapshot: boolean;
   restoreEpoch: number;
   upToSeq: number | null;
+  /** True when the blob is a SEALED image (a keyed client sealed it); false = a plaintext derived store (a keyless client upload, or the server's own snapshot built from its derived state). */
+  sealed: boolean;
 }
 
 export interface RealtimeHello {
@@ -67,8 +69,8 @@ export interface Transport {
   getSnapshotMeta(): Promise<SnapshotMeta>;
   /** GET /snapshot/data (404 when absent). */
   getSnapshotData(): Promise<Uint8Array>;
-  /** PUT /snapshot/data (best-effort client-produced snapshot). */
-  uploadSnapshot?(bytes: Uint8Array, hlc: Hlc): Promise<void>;
+  /** PUT /snapshot/data (best-effort client-produced snapshot). `sealed` declares the blob is a sealed image (the engine's crypto branch is the only sealer) — the relay stores the flag on the snapshot row and serves it in GET /snapshot meta. */
+  uploadSnapshot?(bytes: Uint8Array, hlc: Hlc, sealed?: boolean): Promise<void>;
   /**
    * Streaming variant: the image is read lazily (OPFS-VFS clients avoid
    * materializing it in the WASM/JS heap). Optional — engines fall back to
