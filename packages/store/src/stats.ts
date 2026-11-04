@@ -44,7 +44,6 @@ import type { StoreDatabase } from "./types.js";
  *    COUNT columns the tail writes are exactly what a direct query over the
  *    final derived tables returns.
  *
- * Module-level (not per-connection) because every backend the store ships is
  * VISIBILITY OF THE DEFERRED STATE: while a window is open, node_stats reads
  * as stale/empty. On the server that is unobservable — hydration runs the
  * window synchronously start-to-finish before any route serves a read. The
