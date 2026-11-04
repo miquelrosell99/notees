@@ -150,6 +150,7 @@ The immutable log gains envelopes; every replica applies them in order.
 
 | Script | Kind | Moved |
 |---|---|---|
+| `migrate-e2ee.mts` | B | the E2EE history migration (plan 06): every plaintext envelope payload becomes the reserved `{"$e": {iv, ct}}` slot and every plaintext CAS asset is sealed (plan-05 layout: `tag ‖ ct` blob, per-asset 12-byte IV in the asset row) — ids/HLCs/timestamps and ALL metadata preserved, ONLY the payload changes. Per member workspace a `workspace_key` row is created (wrapped under the account master key from the kdf record; the password rides `MIGRATE_E2EE_PASSWORD` or a non-echoing prompt; verifier fail-fast). Idempotent (already-`$e` / already-`iv` rows skipped and counted); `--dry-run` is read-only; `--verify` is the only green signal (read-only decrypt + strict-schema validation of every sealed envelope, reopen of every sealed asset). Snapshots dropped + server derived DBs removed + `restore_epoch` bumped per workspace. OPERATOR SEQUENCE: pause clients → dry-run → migrate → verify → flip `NOTEES_E2EE=on` → restart clients. e2e at `apps/server/test/migrate-e2ee.test.ts` |
 | `migrate-node-type.mts` | B | `nodeType` → `is_class`/`present_as_main`, envelope v3; snapshots deleted + epoch bumped |
 | `migrate-title-is-content.mts` | B | `name` retired; titles became content |
 | `migrate-color-tokens.mts` | B | `var(--color-preset-*)` → preset tokens/\#hex (SCHEMA.md "Data color grammar") |
