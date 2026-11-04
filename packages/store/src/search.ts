@@ -984,11 +984,17 @@ export function dropSearchIndex(db: StoreDatabase): void {
 
 /**
  * Reindex every active node from its stored name + content (derived plaintext
- * via reindexNode). Wraps the scan in a transaction; the docid map is cleared
- * first because the rowids it references belonged to the dropped table.
+ * via reindexNode). Wraps the scan in a transaction. BOTH tables are cleared
+ * first: reindexNode's old-row DELETE resolves the FTS rowid THROUGH the
+ * docid map, so clearing only the map (and leaving populated FTS rows)
+ * would leave every old row unreachable — each reindex would append a
+ * second FTS row per node and the table would grow without bound (the
+ * endBulk tail runs this pass on every restart over an already-indexed
+ * store). On the pre-existing empty-table callers the DELETEs are no-ops.
  */
 export function reindexAllSearch(db: StoreDatabase): void {
   const run = db.transaction(() => {
+    db.exec("DELETE FROM search_index");
     db.exec("DELETE FROM search_index_docid");
     const rows = db.prepare("SELECT id FROM node WHERE is_active = 1").all() as { id: string }[];
     for (const row of rows) reindexNode(db, row.id);
