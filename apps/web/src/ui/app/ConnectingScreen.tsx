@@ -23,7 +23,17 @@ export interface ConnectingScreenProps {
 export function ConnectingScreen({ label, progress, error }: ConnectingScreenProps) {
   const fraction =
     progress !== null && Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : null;
-  const text = fraction !== null ? `Catching up… ${Math.floor(fraction * 100)}%` : label;
+  // The engine's catch-up message carries a raw op count ("Catching up… 0
+  // operations") — uninformative on everyday boots, so the label is the clean
+  // phase name; the fraction (when a real replay reports one) carries the
+  // progress instead.
+  const catchingUp = /^catching up/i.test(label);
+  const text =
+    fraction !== null
+      ? `Catching up… ${Math.floor(fraction * 100)}%`
+      : catchingUp
+        ? "Catching up…"
+        : label;
   return (
     <div className="nt-bootstrap">
       <div className="nt-bootstrap-form">

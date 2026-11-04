@@ -324,8 +324,10 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     // client) would otherwise replace the good snapshot and blank every
     // fresh client's restore. Small logs stay exempt (a fresh workspace's
     // empty checkpoint is legitimate; the threshold mirrors the server's
-    // own post-replay self-heal).
-    if (ctx.relay.envelopeCount(workspaceId) > SNAPSHOT_REBUILD_MIN_ENVELOPES) {
+    // own post-replay self-heal). Sealed uploads skip the gate: the body
+    // is ciphertext the server cannot inspect (a corrupt sealed blob fails
+    // loudly at client restore; only a keyed client can produce one).
+    if (sealed !== "1" && ctx.relay.envelopeCount(workspaceId) > SNAPSHOT_REBUILD_MIN_ENVELOPES) {
       const nodes = countSnapshotNodes(body);
       if (nodes === null || nodes === 0) {
         throw new AppError(
@@ -406,8 +408,11 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     }
     const body = Buffer.concat(ctx.relay.readSnapshotParts(upload, parts));
     // The sanity gate, same arms as the single PUT: on a real log the
-    // checkpoint must be a parseable derived store with node rows.
-    if (ctx.relay.envelopeCount(workspaceId) > SNAPSHOT_REBUILD_MIN_ENVELOPES) {
+    // checkpoint must be a parseable derived store with node rows. Sealed
+    // uploads skip it — the body is ciphertext the server cannot inspect;
+    // a corrupt sealed blob fails loudly at client restore instead, and
+    // only a keyed client can produce one for a keyed workspace.
+    if (sealed !== "1" && ctx.relay.envelopeCount(workspaceId) > SNAPSHOT_REBUILD_MIN_ENVELOPES) {
       const nodes = countSnapshotNodes(body);
       if (nodes === null || nodes === 0) {
         throw new AppError(

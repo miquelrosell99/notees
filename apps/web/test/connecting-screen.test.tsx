@@ -12,10 +12,16 @@ import { describe, expect, it } from "vitest";
 import { ConnectingScreen } from "../src/ui/app/ConnectingScreen.js";
 
 describe("ConnectingScreen", () => {
-  it("without progress: renders the phase count text, no bar", () => {
-    render(<ConnectingScreen label="Catching up… 128,450 operations" progress={null} />);
-    expect(screen.getByText("Catching up… 128,450 operations")).toBeInTheDocument();
+  it("without progress: the catch-up phase renders the clean label (no raw op count), no bar", () => {
+    render(<ConnectingScreen label="Catching up… 0 operations" progress={null} />);
+    expect(screen.getByText("Catching up…")).toBeInTheDocument();
+    expect(screen.queryByText(/operations/)).toBeNull();
     expect(document.querySelector(".loading-screen__progress")).toBeNull();
+  });
+
+  it("non-catch-up phase text renders verbatim", () => {
+    render(<ConnectingScreen label="Fetching latest snapshot…" progress={null} />);
+    expect(screen.getByText("Fetching latest snapshot…")).toBeInTheDocument();
   });
 
   it("with a fraction: renders the percent label and the bar at that width", () => {
