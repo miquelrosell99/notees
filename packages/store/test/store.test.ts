@@ -51,6 +51,7 @@ import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
 import { sqliteWasmBackend } from "../src/adapters/sqlitewasm.js";
 import { rebuildEdges } from "../src/edges.js";
+import { reindexAllSearch } from "../src/search.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "protocol", "fixtures");
 
@@ -347,7 +348,45 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(JSON.parse(book?.class_ids ?? "[]")).toEqual([BOOK_CLASS]);
     });
 
-    it("the whole corpus replays inside the bulk window and converges the deferred tables", async () => {
+    it("reindexAllSearch over a populated index replaces rows instead of orphaning them", async () => {
+    const store = makeStore();
+    store.applyMany(await allFixtureEnvelopes());
+    // The endBulk tail reindexes whatever is already there — on a POPULATED
+    // index (a restart over a converged store) the pass must REPLACE the
+    // rows, not append a second copy per node (reindexNode's old-row DELETE
+    // resolves through the docid map, which the full reindex clears first).
+    reindexAllSearch(store.database);
+    const counts = store.database
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM search_index) AS fts,
+                (SELECT COUNT(*) FROM search_index_docid) AS map`,
+      )
+      .get() as { fts: number; map: number };
+    expect(counts.map).toBe(counts.fts);
+    // One docid per node — no duplicate map rows.
+    expect(
+      (
+        store.database
+          .prepare(
+            "SELECT COUNT(*) AS n FROM (SELECT node_id FROM search_index_docid GROUP BY node_id HAVING COUNT(*) > 1)",
+          )
+          .get() as { n: number }
+      ).n,
+    ).toBe(0);
+    // Every map docid points at a live FTS row.
+    expect(
+      (
+        store.database
+          .prepare(
+            `SELECT COUNT(*) AS n FROM search_index_docid d
+             LEFT JOIN search_index s ON s.rowid = d.docid WHERE s.rowid IS NULL`,
+          )
+          .get() as { n: number }
+      ).n,
+    ).toBe(0);
+  });
+
+  it("the whole corpus replays inside the bulk window and converges the deferred tables", async () => {
       const envelopes = await allFixtureEnvelopes();
       const bulk = makeStore();
       bulk.beginBulk();
