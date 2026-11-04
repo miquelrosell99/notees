@@ -10,6 +10,7 @@
  * the same semantic state produce the same rows, not just the same counts.
  */
 
+import { inListChunks } from "./db.js";
 import type { StoreDatabase } from "./types.js";
 
 /**
@@ -72,11 +73,15 @@ export function setNodeStatsDeferral(db: StoreDatabase, deferred: boolean): void
 
 /** Ancestor closure of ``nodeIds`` (including the ids themselves). */
 function getAncestorClosure(db: StoreDatabase, nodeIds: string[]): string[] {
-  const placeholders = nodeIds.map(() => "?").join(",");
-  const rows = db
-    .prepare(
-      `WITH RECURSIVE
-        starting(id) AS (SELECT id FROM node WHERE id IN (${placeholders})),
+  // Padded canonical chunks (inListChunks) — one cache key per ladder rung
+  // instead of one per distinct op's affected-set size.
+  const out = new Set<string>();
+  for (const chunk of inListChunks(nodeIds)) {
+    const ph = chunk.map(() => "?").join(",");
+    const rows = db
+      .prepare(
+        `WITH RECURSIVE
+        starting(id) AS (SELECT id FROM node WHERE id IN (${ph})),
         ancestors(id) AS (
           SELECT parent_id FROM node
           WHERE id IN (SELECT id FROM starting) AND parent_id IS NOT NULL
@@ -85,9 +90,11 @@ function getAncestorClosure(db: StoreDatabase, nodeIds: string[]): string[] {
           WHERE n.parent_id IS NOT NULL
         )
        SELECT id FROM starting UNION SELECT id FROM ancestors`,
-    )
-    .all(...nodeIds) as { id: string }[];
-  return rows.map((r) => r.id);
+      )
+      .all(...chunk) as { id: string }[];
+    for (const row of rows) out.add(row.id);
+  }
+  return [...out];
 }
 
 /**
