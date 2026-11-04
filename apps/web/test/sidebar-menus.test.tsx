@@ -401,6 +401,27 @@ describe("account popup — the user menu", () => {
     expect(bare.querySelector(".nt-profile-sync")).toBeNull();
   });
 
+  it("the syncing badge spins (kit Spinner), not a warning-colored dot — orange is the backlog semantic", async () => {
+    const client = await seedClient();
+    const { container, unmount } = renderSidebar(client, {
+      user,
+      syncStatus: { ...syncStatus, status: "syncing" as const },
+    });
+    const badge = container.querySelector(".nt-profile-sync--syncing")!;
+    expect(badge).not.toBeNull();
+    expect(badge.querySelector(".spinner")).not.toBeNull();
+    unmount();
+
+    // Backlog keeps the warning disc (pending ops, not activity).
+    const { container: backlog } = renderSidebar(client, {
+      user,
+      syncStatus: { ...syncStatus, status: "idle" as const, pending: 3 },
+    });
+    const backlogBadge = backlog.querySelector(".nt-profile-sync--backlog")!;
+    expect(backlogBadge).not.toBeNull();
+    expect(backlogBadge.querySelector(".spinner")).toBeNull();
+  });
+
   it("the bottom row wears the identity at rest: avatar + name + email, no popup needed", async () => {
     const client = await seedClient();
     const { container } = renderSidebar(client, { user });

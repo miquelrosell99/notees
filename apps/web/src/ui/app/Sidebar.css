@@ -344,8 +344,25 @@
 }
 
 .nt-profile-sync--syncing {
-  background: var(--md-sys-color-primary);
-  animation: nt-sync-pulse var(--motion-duration-pulse) var(--motion-easing-standard) infinite;
+  /* The kit Spinner carries the motion; the disc drops to transparent so the
+     arc reads against the avatar, and the ring shadow below keeps the badge
+     attached to the rim. */
+  background: transparent;
+}
+
+.nt-profile-sync--syncing .spinner-wrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nt-profile-sync--syncing .spinner {
+  /* Primary arc — syncing is activity, not warning (the warning hue is the
+     backlog state's reserved semantic). */
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 22%, transparent);
+  border-top-color: var(--md-sys-color-primary);
 }
 
 .nt-profile-sync--backlog {
@@ -356,16 +373,14 @@
   background: var(--md-sys-color-error);
 }
 
-@keyframes nt-sync-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
-/* Reduced motion: the sync pulse freezes on its solid state — the status is
-   color-coded, the pulse is decoration. */
+/* Reduced motion: the spinner (motion decoration) gives way to its solid
+   color-coded state — syncing reads as a primary disc. */
 @media (prefers-reduced-motion: reduce) {
+  .nt-profile-sync--syncing .spinner-wrapper {
+    display: none;
+  }
   .nt-profile-sync--syncing {
-    animation: none;
+    background: var(--md-sys-color-primary);
   }
 }
 
