@@ -264,6 +264,38 @@ describe("locked skip (no crypto provider)", () => {
     expect(skipWarnings).toHaveLength(0); // nothing re-fetched, nothing re-skipped
   });
 
+  it("the pull-path skip records the rewind marker: a fresh engine with constructor crypto (the W2 unlock re-open) re-fetches and applies", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
+    for (const envelope of baseEnvelopes(DEVICE_A)) keyed.engine.enqueue(envelope);
+    await keyed.engine.push();
+
+    // Locked pull (seqs === null, as catch-up pages are): plaintext-free
+    // batch here — everything sealed — so NOTHING applies and the cursor
+    // advances to the end. This is the live migration repro: the pull path
+    // must persist the rewind marker, or the unlock re-open finds nothing.
+    const locked = new Store();
+    const lockedEngine = new SyncEngine(locked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+    });
+    await expect(lockedEngine.pull()).resolves.toBeUndefined();
+    expect(titleOf(locked, PARENT)).toBe(""); // sealed, skipped
+
+    // W2 unlock re-open: a FRESH engine on the SAME store, crypto via the
+    // CONSTRUCTOR options — the rewind must fire from the persisted marker.
+    const unlocked = new Store();
+    const key = await importWorkspaceKey(KEY_BYTES);
+    const reopened = new SyncEngine(unlocked, new MemoryTransport(relay), new Clock(DEVICE_B), {
+      workspaceId: WS,
+      now: () => nowMs,
+      crypto: keyCryptoProvider(key),
+    });
+    await expect(reopened.pull()).resolves.toBeUndefined();
+    expect(titleOf(unlocked, PARENT)).toBe("Parent"); // previously skipped sealed op now applies
+  });
+
   it("a locked engine advances the cursor past skipped $e frames (realtime path)", async () => {
     const relay = new MemoryRelay();
     let nowMs = 100_000;
@@ -437,16 +469,17 @@ describe("constructor crypto rewinds a persisted locked-skip marker (W2 unlock r
   it("constructor crypto with NO marker does not touch the cursor (setCrypto(null) semantics unchanged)", async () => {
     const relay = new MemoryRelay();
     let nowMs = 100_000;
-    const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
-    keyed.engine.enqueue(baseEnvelopes(DEVICE_A)[0]!);
-    await keyed.engine.push();
 
-    // Keyless engine advances the cursor with nothing skipped.
+    // A plaintext-only relay: the keyless pull has nothing sealed to skip, so
+    // NO rewind marker is recorded (a batch WITH skips now correctly records
+    // one from the pull path — see the W2 re-open test above).
     const plain = new Store();
     const plainEngine = new SyncEngine(plain, new MemoryTransport(relay), new Clock(DEVICE_B), {
       workspaceId: WS,
       now: () => nowMs,
     });
+    plainEngine.enqueue(baseEnvelopes(DEVICE_A)[0]!);
+    await plainEngine.push();
     await plainEngine.pull();
     const advanced = plainEngine.getCursorSeq();
     expect(advanced).toBeGreaterThan(0);

@@ -464,7 +464,10 @@ export class SyncEngine {
       if (page.envelopes.length > 0) {
         // Validation happens inside applyRemote, AFTER decryption — the
         // wire payloads are opaque $e slots that validateEnvelope rejects.
-        const pageResult = await this.applyRemote(page.envelopes as Envelope[], null);
+        // The locked branch needs the page's first seq: catch-up pages carry
+        // no per-envelope seqs, and the rewind marker (plan-04 W2 unlock)
+        // is recorded from it.
+        const pageResult = await this.applyRemote(page.envelopes as Envelope[], null, afterSeq + 1);
         appliedOps += pageResult.applied;
         changeInfo = mergeChangeInfo(changeInfo, pageResult.info);
       }
@@ -660,6 +663,7 @@ export class SyncEngine {
   private async applyRemote(
     envelopes: Envelope[],
     seqs: Record<string, number> | null,
+    pageStartSeq?: number,
   ): Promise<{ applied: number; info: BatchChangeInfo }> {
     if (this.crypto) {
       const opened = await Promise.all(
@@ -670,7 +674,7 @@ export class SyncEngine {
     // Locked (no provider): skip encrypted envelopes with a counted warning
     // instead of letting the store's $e rejection kill the batch — plaintext
     // applies, the cursor still advances over the skipped seqs.
-    const plain = this.skipEncryptedWithoutKey(envelopes, seqs);
+    const plain = this.skipEncryptedWithoutKey(envelopes, seqs, pageStartSeq);
     return this.applyRemotePlain(plain, seqs, envelopes);
   }
 
@@ -678,11 +682,17 @@ export class SyncEngine {
    * The locked semantic (shared by the pull and realtime paths): with no
    * crypto provider, encrypted envelopes are filtered out of a remote batch
    * with a counted log warning — never applied, never thrown. Plaintext
-   * envelopes in the same batch apply normally.
+   * envelopes in the same batch apply normally. The lowest skipped seq is
+   * remembered so a later provider install (setCrypto / a fresh engine with
+   * constructor crypto, plan-04 W2's unlock re-open) rewinds the cursor and
+   * re-fetches: realtime frames carry per-envelope seqs; catch-up pages don't
+   * (the cursor advances by page), so the pull path passes the page's first
+   * seq — rewinding there replays already-applied plaintext idempotently.
    */
   private skipEncryptedWithoutKey(
     envelopes: Envelope[],
     seqs: Record<string, number> | null = null,
+    pageStartSeq?: number,
   ): Envelope[] {
     const plain: Envelope[] = [];
     let skipped = 0;
@@ -690,8 +700,6 @@ export class SyncEngine {
       if (isEncryptedPayload(envelope.payload)) {
         skipped += 1;
         if (seqs !== null) {
-          // Realtime skip: remember the lowest skipped seq so a later
-          // setCrypto rewind can re-fetch the sealed frames.
           const seq = seqs[envelope.id];
           if (seq !== undefined && (this.firstSkippedSeq === null || seq < this.firstSkippedSeq)) {
             this.firstSkippedSeq = seq;
@@ -702,6 +710,10 @@ export class SyncEngine {
       }
     }
     if (skipped > 0) {
+      if (seqs === null && pageStartSeq !== undefined &&
+          (this.firstSkippedSeq === null || pageStartSeq < this.firstSkippedSeq)) {
+        this.firstSkippedSeq = pageStartSeq;
+      }
       this.lockedSkipTotal += skipped;
       console.warn(
         `[notees-sync] workspace key unavailable: skipped ${skipped} encrypted envelope(s) ` +
