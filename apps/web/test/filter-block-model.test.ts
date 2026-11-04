@@ -439,6 +439,48 @@ describe("coupling audit — an operator choice never mutates the value payload"
     });
   });
 
+  it("name rows offer ONLY the working operator register (no dead starts/ends/fts arms)", () => {
+    const title: Condition = { type: "name", op: "contains", value: "hello" };
+    // The register: is / is not / contains / does not contain / is set /
+    // is not set — the ops the name morph implements.
+    expect(operatorOptions("content", title, facts).map((option) => option.value)).toEqual([
+      "is",
+      "is-not",
+      "contains",
+      "not-contains",
+      "set",
+      "not-set",
+    ]);
+    // Each offered choice produces the corresponding name condition.
+    expect(applyOperator(title, "is")).toEqual({ type: "name", op: "eq", value: "hello" });
+    expect(applyOperator(title, "is-not")).toEqual({
+      type: "not",
+      child: { type: "name", op: "eq", value: "hello" },
+    });
+    expect(applyOperator(title, "contains")).toEqual(title);
+    expect(applyOperator(title, "not-contains")).toEqual({ type: "not", child: title });
+    expect(applyOperator(title, "set")).toEqual({ type: "name", op: "exists" });
+    expect(applyOperator(title, "not-set")).toEqual({
+      type: "not",
+      child: { type: "name", op: "exists" },
+    });
+  });
+
+  it("content rows keep the FULL register incl. starts/ends/fts", () => {
+    const text: Condition = { type: "content", op: "contains", value: "hello" };
+    expect(operatorOptions("content", text, facts).map((option) => option.value)).toEqual([
+      "is",
+      "is-not",
+      "contains",
+      "not-contains",
+      "starts",
+      "ends",
+      "fts",
+      "set",
+      "not-set",
+    ]);
+  });
+
   it("name: the title text rides the eq/contains flips; the negative wraps with the text inside", () => {
     const title: Condition = { type: "name", op: "contains", value: "hello" };
     expect(applyOperator(title, "is")).toEqual({ type: "name", op: "eq", value: "hello" });
