@@ -78,7 +78,10 @@ class IdbMasterKeyStore implements MasterKeyStore {
     if (db === null) throw new Error("IndexedDB unavailable");
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
-      tx.objectStore(STORE_NAME).put({ id: RECORD_ID, ...record });
+      // The explicit key is required: Firefox rejects a keyless put on an
+      // out-of-line store ("Data provided to an operation does not meet
+      // requirements") where Chromium auto-generates one.
+      tx.objectStore(STORE_NAME).put({ id: RECORD_ID, ...record }, RECORD_ID);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error("custody store failed"));
       tx.onabort = () => reject(tx.error ?? new Error("custody store aborted"));
