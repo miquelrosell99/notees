@@ -40,6 +40,18 @@ class BetterSqlite3Statement implements SqliteStatement {
 
 export class BetterSqlite3DB implements SqliteDB {
   /**
+   * Prepared-statement wrapper cache. better-sqlite3 natively caches the
+   * underlying native statements, but every prepare() call used to allocate
+   * a fresh JS wrapper (and re-hash the SQL string) — tens of wrappers per
+   * applied envelope. The wrapper is stateless between calls, so caching it
+   * is safe. Bounded: the store's distinct SQL is mostly static, but a few
+   * appliers build dynamic placeholder lists; on overflow the map clears
+   * and rebuilds rather than growing without bound.
+   */
+  private static readonly STMT_CACHE_CAP = 1000;
+  private readonly stmtCache = new Map<string, BetterSqlite3Statement>();
+
+  /**
    * @param raw    the wrapped native connection.
    * @param tempDir temp dir owned by this connection (temp-file restores);
    *                removed on close.
@@ -54,7 +66,14 @@ export class BetterSqlite3DB implements SqliteDB {
   }
 
   prepare(sql: string): SqliteStatement {
-    return new BetterSqlite3Statement(this.raw.prepare(sql));
+    const cached = this.stmtCache.get(sql);
+    if (cached !== undefined) return cached;
+    const stmt = new BetterSqlite3Statement(this.raw.prepare(sql));
+    if (this.stmtCache.size >= BetterSqlite3DB.STMT_CACHE_CAP) {
+      this.stmtCache.clear();
+    }
+    this.stmtCache.set(sql, stmt);
+    return stmt;
   }
 
   pragma(source: string, options?: { simple?: boolean }): unknown {
