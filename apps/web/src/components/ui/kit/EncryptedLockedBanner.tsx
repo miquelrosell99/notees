@@ -21,8 +21,8 @@ export function EncryptedLockedBanner({ onUnlock }: { onUnlock?: (() => void) | 
     <div className="encrypted-locked-banner" role="status" aria-live="polite">
       <Icon path="mdi-lock-open-variant-outline" className="encrypted-locked-banner__icon" />
       <span className="encrypted-locked-banner__text">
-        This workspace is encrypted, but this session has no key (a reload drops it) — writes are
-        plaintext and sealed remote changes are skipped until you unlock.
+        This workspace is encrypted, but this session has no key — enter your password below to
+        unlock. Until then writes are plaintext and sealed remote changes are skipped.
       </span>
       {onUnlock !== undefined && (
         <button type="button" className="encrypted-locked-banner__unlock" onClick={onUnlock}>
