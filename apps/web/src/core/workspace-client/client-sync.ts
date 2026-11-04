@@ -37,9 +37,9 @@ export class WorkspaceClientSync {
     this.ctx.undoJournal.clear();
     // E2EE: with a workspace key the engine seals the wire (encrypt at push,
     // decrypt before apply) and seals/opens snapshots; keyless → plaintext
-    // passthrough (offline/keyless workspaces, and the keyed-but-locked
-    // session after a reload — the custody module only hands out a key when
-    // the master key is in memory).
+    // passthrough (offline/keyless workspaces — a keyed workspace never
+    // connects without its key since the fail-loud ruling, so the keyed-
+    // but-locked shape survives only as this runtime safety net).
     const crypto =
       this.ctx.workspaceKey !== null
         ? keyCryptoProvider(await importWorkspaceKey(this.ctx.workspaceKey))

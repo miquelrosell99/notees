@@ -326,7 +326,16 @@ export function WorkspacesView({
                               className="workspace-management__unavailable-icon"
                             />
                           )}
-                          <div className="workspace-management__card-badges" />
+                          <div className="workspace-management__card-badges">
+                            {workspace.encrypted === true && (
+                              <span
+                                className="workspace-management__encrypted-badge"
+                                title="Encrypted — opening asks for your password"
+                              >
+                                <Icon path="mdi-lock-outline" size={0.85} />
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="workspace-management__card-actions">
                           <Button

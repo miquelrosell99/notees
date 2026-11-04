@@ -1,8 +1,10 @@
 /**
- * Unlock re-prompt tests (plan-04 W2): a keyed workspace opened keyless shows
- * the locked banner; Unlock opens the modal; a wrong password is a form
- * error; the server lockout (429) is surfaced distinctly; the right password
- * re-derives the master key and the reconnect clears the banner.
+ * Unlock re-prompt tests (fail-loud ruling): a keyed workspace opened with no
+ * master key REFUSES the connect — no client is created, no relay traffic
+ * happens — and the UnlockWorkspaceModal takes over immediately. Cancel
+ * returns to the workspace selector; the right password re-derives the
+ * master key and opens the workspace sealed. API-key sessions get the
+ * directional copy (no password path).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -70,7 +72,9 @@ function loginResponse() {
 }
 
 function makeFetchMock() {
-  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  // Relay traffic counter: a refused open must produce NONE of these.
+  let relayCalls = 0;
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
     if (url.endsWith("/api/server-info")) {
@@ -89,6 +93,7 @@ function makeFetchMock() {
             createdAt: 1,
             envelopeCount: 0,
             latestSeq: 0,
+            encrypted: true,
           },
         ],
       });
@@ -104,6 +109,7 @@ function makeFetchMock() {
       return Response.json(loginResponse());
     }
     if (url.includes("/api/relay/v2/snapshot?")) {
+      relayCalls += 1;
       return Response.json({
         snapshotId: "",
         hlc: { physical: 0, logical: 0 },
@@ -113,6 +119,7 @@ function makeFetchMock() {
       });
     }
     if (url.endsWith("/api/relay/v2/catch-up")) {
+      relayCalls += 1;
       return Response.json({
         envelopes: [],
         nextAfterSeq: null,
@@ -122,6 +129,7 @@ function makeFetchMock() {
       });
     }
     if (url.includes("/api/relay/v2/snapshot/data?")) {
+      relayCalls += 1;
       return new Response(null, { status: 204 });
     }
     if (url.endsWith("/api/relay/v2/tickets")) {
@@ -129,6 +137,30 @@ function makeFetchMock() {
     }
     throw new Error(`unexpected fetch: ${method} ${url}`);
   });
+  return { fetchMock, relayCalls: () => relayCalls };
+}
+
+async function setupAccountAndOpenKeyed() {
+  const { fetchMock, relayCalls } = makeFetchMock();
+  window.NOTEES_CONFIG = { serverUrl: SERVER, e2ee: "on" };
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+
+  // Boot → initial setup → create account (the app derives the master key).
+  fireEvent.change(screen.getByRole("textbox", { name: /server url/i }), {
+    target: { value: SERVER },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /^continue$/i }));
+  expect(await screen.findByLabelText(/^email$/i)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: EMAIL } });
+  fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: PASSWORD } });
+  fireEvent.change(screen.getByLabelText(/^confirm password$/i), { target: { value: PASSWORD } });
+  fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+  expect(await screen.findByText(/Keyed/)).toBeInTheDocument();
+
+  // Simulate the reload: the session token persists, the master key drops.
+  clearCryptoCustody();
+  return { relayCalls };
 }
 
 describe("UnlockWorkspaceModal", () => {
@@ -165,46 +197,64 @@ describe("UnlockWorkspaceModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^unlock$/i }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
+
+  it("API-key sessions get the direction copy instead of the password form", () => {
+    render(
+      <UnlockWorkspaceModal isOpen email="" apiKeySession onClose={() => {}} onSubmit={() => Promise.resolve()} />,
+    );
+    expect(screen.getByText(/sign in with your email and password/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^password$/i)).toBeNull();
+    expect(screen.getByRole("button", { name: /^back$/i })).toBeInTheDocument();
+  });
 });
 
-describe("unlock re-prompt (App level)", () => {
-  it("locked banner → wrong password error → unlock reconnects and clears the banner", async () => {
-    window.NOTEES_CONFIG = { serverUrl: SERVER, e2ee: "on" };
-    vi.stubGlobal("fetch", makeFetchMock());
-    render(<App />);
+describe("fail-loud open (App level)", () => {
+  it("refuses the open — no client, no relay traffic, unlock modal immediately", async () => {
+    const { relayCalls } = await setupAccountAndOpenKeyed();
 
-    // Boot → initial setup → create account (the app derives the master key).
-    fireEvent.change(screen.getByRole("textbox", { name: /server url/i }), {
-      target: { value: SERVER },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /^continue$/i }));
-    expect(await screen.findByLabelText(/^email$/i)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: EMAIL } });
-    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: PASSWORD } });
-    fireEvent.change(screen.getByLabelText(/^confirm password$/i), { target: { value: PASSWORD } });
-    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
-    expect(await screen.findByText(/Keyed/)).toBeInTheDocument();
-
-    // Simulate the reload: the session token persists, the master key drops.
-    clearCryptoCustody();
-
-    // Open the workspace: keyed but locked → the banner appears.
     fireEvent.click(await screen.findByRole("button", { name: "Open Keyed" }));
-    expect(await screen.findByText(/no key/i)).toBeInTheDocument();
 
-    // Unlock: wrong password is a form error…
-    fireEvent.click(screen.getByRole("button", { name: /^unlock$/i }));
+    // The unlock modal takes over immediately, with the fail-loud copy.
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent(/unlock encrypted workspace/i);
-    const passwordField = () => within(dialog).getByLabelText(/^password$/i);
-    fireEvent.change(passwordField(), { target: { value: "wrong-1" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^unlock$/i }));
-    expect(await within(dialog).findByText(/invalid credentials/i)).toBeInTheDocument();
+    expect(dialog).toHaveTextContent(/this workspace is encrypted/i);
 
-    // …the right password re-derives the master key and the reconnect clears
-    // the banner (resolveWorkspaceKey now unwraps the stored key).
-    fireEvent.change(passwordField(), { target: { value: PASSWORD } });
+    // No client was created: the app shell never rendered and the engine
+    // never talked to the relay.
+    expect(screen.queryByText("KEYED")).toBeNull();
+    await waitFor(() => expect(relayCalls()).toBe(0));
+  });
+
+  it("cancel lands back on the workspace selector; a wrong password is a form error", async () => {
+    await setupAccountAndOpenKeyed();
+    fireEvent.click(await screen.findByRole("button", { name: "Open Keyed" }));
+    const dialog = await screen.findByRole("dialog");
+
+    // Cancel → back on the selector.
+    fireEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByText("Your workspaces")).toBeInTheDocument();
+
+    // Re-open: the modal comes back; a wrong password is a form error.
+    fireEvent.click(screen.getByRole("button", { name: "Open Keyed" }));
+    const again = await screen.findByRole("dialog");
+    fireEvent.change(within(again).getByLabelText(/^password$/i), { target: { value: "wrong-1" } });
+    fireEvent.click(within(again).getByRole("button", { name: /^unlock$/i }));
+    expect(await within(again).findByText(/invalid credentials/i)).toBeInTheDocument();
+  });
+
+  it("the right password re-derives the master key and opens the workspace sealed", async () => {
+    const { relayCalls } = await setupAccountAndOpenKeyed();
+    fireEvent.click(await screen.findByRole("button", { name: "Open Keyed" }));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText(/^password$/i), { target: { value: PASSWORD } });
     fireEvent.click(within(dialog).getByRole("button", { name: /^unlock$/i }));
-    await waitFor(() => expect(screen.queryByText(/no key/i)).toBeNull());
+
+    // The modal closes and the app shell opens with the workspace live.
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(await screen.findByText("KEYED")).toBeInTheDocument();
+    // This time the engine DID sync.
+    await waitFor(() => expect(relayCalls()).toBeGreaterThan(0));
   });
 });

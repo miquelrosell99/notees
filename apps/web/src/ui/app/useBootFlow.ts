@@ -70,7 +70,8 @@ export function useBootFlow(
             // Session credential: re-hydrate the E2EE master key from its
             // IndexedDB record (persisted at derive time) so a reload within
             // the signed-in session does not require re-unlocking. Silent on
-            // absence — the locked banner covers a keyless restore.
+            // absence — a keyed workspace then refuses the open (fail loud)
+            // and the unlock re-prompt covers the restore.
             await restoreMasterKeyFromStorage();
           }
           if (window.location.pathname === "/workspaces" || rememberedWorkspace === "") {
