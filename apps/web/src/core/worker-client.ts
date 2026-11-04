@@ -211,6 +211,12 @@ export interface WorkerClientOptions {
    * screen renders them as progress. Not an RPC response.
    */
   onSyncPhase?: (phase: string, message: string) => void;
+  /**
+   * Engine catch-up progress from the worker ({applied, total} per page) —
+   * the connecting screen renders it as a progress bar + percentage. Not an
+   * RPC response.
+   */
+  onSyncProgress?: (applied: number, total: number) => void;
   /** Test seam: supply a fake worker instead of spawning the real one. */
   spawn?: () => Worker;
 }
@@ -249,6 +255,7 @@ export class WorkerClient {
     apiKey: string,
     offline: boolean,
     onSyncPhase?: (phase: string, message: string) => void,
+    onSyncProgress?: (applied: number, total: number) => void,
   ) {
     this.worker = worker;
     this.workspaceId = workspaceId;
@@ -256,10 +263,12 @@ export class WorkerClient {
     this.apiKey = apiKey;
     this.offline = offline;
     this.onSyncPhase = onSyncPhase;
+    this.onSyncProgress = onSyncProgress;
     worker.onmessage = this.handleMessage;
   }
 
   private readonly onSyncPhase: ((phase: string, message: string) => void) | undefined;
+  private readonly onSyncProgress: ((applied: number, total: number) => void) | undefined;
 
   /** Spawn the worker, post init, and wait until the store is booted. */
   static async create(options: WorkerClientOptions): Promise<WorkerClient> {
@@ -273,6 +282,7 @@ export class WorkerClient {
       options.apiKey,
       options.offline === true,
       options.onSyncPhase,
+      options.onSyncProgress,
     );
     const init: WorkerInitMessage = {
       sqlWasmUrl: options.sqlWasmUrl,
@@ -297,7 +307,8 @@ export class WorkerClient {
     const message = event.data as
       | WorkerResponseMessage
       | (ChangeNotification & { type: "changed" })
-      | { type: "syncPhase"; phase: string; message: string };
+      | { type: "syncPhase"; phase: string; message: string }
+      | { type: "syncProgress"; applied: number; total: number };
     if ("type" in message && message.type === "changed") {
       this.handleChanged(message);
       return;
@@ -305,6 +316,11 @@ export class WorkerClient {
     if ("type" in message && message.type === "syncPhase") {
       // Progress push — NOT an RPC response; never touches the pending map.
       this.onSyncPhase?.(message.phase, message.message);
+      return;
+    }
+    if ("type" in message && message.type === "syncProgress") {
+      // Catch-up progress push — NOT an RPC response either.
+      this.onSyncProgress?.(message.applied, message.total);
       return;
     }
     const response = message as WorkerResponseMessage;

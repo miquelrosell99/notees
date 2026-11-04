@@ -842,4 +842,9 @@ export interface WorkspaceClientOptions {
    * screen renders them verbatim as progress.
    */
   onSyncPhase?: (phase: string, message: string) => void;
+  /**
+   * Engine catch-up progress ({applied, total} per catch-up page) — the
+   * connecting screen renders it as a real progress bar + percentage.
+   */
+  onSyncProgress?: (applied: number, total: number) => void;
 }

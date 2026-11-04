@@ -51,6 +51,8 @@ export interface WorkspaceConnection {
    * progress line. Null when not connecting.
    */
   connectProgress: string | null;
+  /** Catch-up fraction 0–1 for the connecting screen's progress bar, or null before the first payload / after the phase leaves catching-up. */
+  connectProgressFraction: number | null;
   /** True when the live credential is a session (API-key management needs one). */
   sessionSignedIn: boolean;
   setSessionSignedIn: Dispatch<SetStateAction<boolean>>;
@@ -82,6 +84,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
   const [encryptedLocked, setEncryptedLocked] = useState(false);
   const [connectProgress, setConnectProgress] = useState<string | null>(null);
+  const [connectProgressFraction, setConnectProgressFraction] = useState<number | null>(null);
   const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
@@ -108,6 +111,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     setPhase({ name: "connecting", label: options.isOffline ? "Opening local workspace…" : "Connecting…" });
     setError(null);
     setConnectProgress(null);
+    setConnectProgressFraction(null);
     setEncryptedLocked(false);
     const previous = clientRef.current;
     clientRef.current = null;
@@ -116,11 +120,20 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     try {
       const outcome = await openStoreConnection(url, credential, workspaceId, {
         ...options,
-        onSyncPhase: (_phase, message) => setConnectProgress(message),
+        onSyncPhase: (phase, message) => {
+          setConnectProgress(message);
+          // Progress payloads only ride the catching-up phase; leaving it
+          // (synced/error) clears the bar back to the phase text.
+          if (phase !== "catching-up") setConnectProgressFraction(null);
+        },
+        onSyncProgress: (applied, total) => {
+          setConnectProgressFraction(total > 0 ? Math.min(1, Math.max(0, applied / total)) : null);
+        },
       });
       clientRef.current = outcome.client;
       setClient(outcome.client);
       setConnectProgress(null);
+      setConnectProgressFraction(null);
       setEncryptedLocked(outcome.encryptedLocked === true);
       setOffline(options.isOffline);
       setStoreMode(outcome.mode);
@@ -136,6 +149,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
       }
     } catch (err) {
       setConnectProgress(null);
+      setConnectProgressFraction(null);
       setPhase({ name: "server" });
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -157,6 +171,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     storeReason,
     encryptedLocked,
     connectProgress,
+    connectProgressFraction,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,

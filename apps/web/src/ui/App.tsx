@@ -108,6 +108,7 @@ import {
   useUndoChrome,
   useWorkspaceConnection,
 } from "./app/index.js";
+import { ConnectingScreen } from "./app/ConnectingScreen.js";
 // The global stylesheet family, in cascade order — the contract the
 // 2026-10-28 co-location pass established: app.css was the LAST css import,
 // so every file below imports at this same spot, in this exact order, and
@@ -183,6 +184,7 @@ export function App() {
     storeReason,
     encryptedLocked,
     connectProgress,
+    connectProgressFraction,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,
@@ -850,15 +852,11 @@ export function App() {
 
   if (phase.name === "connecting" || client === null) {
     return (
-      <div className="nt-bootstrap">
-        <div className="nt-bootstrap-form" role="status" aria-busy="true">
-          <h1 className="nt-bootstrap-title">Notees</h1>
-          <p className="nt-bootstrap-subtitle">
-            {phase.name === "connecting" ? (connectProgress ?? phase.label) : "Starting…"}
-          </p>
-          {error !== null && <p className="nt-error" role="alert">{error}</p>}
-        </div>
-      </div>
+      <ConnectingScreen
+        label={phase.name === "connecting" ? (connectProgress ?? phase.label) : "Starting…"}
+        progress={phase.name === "connecting" ? connectProgressFraction : null}
+        error={error}
+      />
     );
   }
 

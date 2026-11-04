@@ -61,6 +61,14 @@ export class WorkspaceClientSync {
         },
         onError: (error) => this.ctx.userOnSyncError?.(error),
         onSyncPhase: (phase, message) => this.ctx.userOnSyncPhase?.(phase, message),
+        onPullProgress: (progress) => {
+          if (progress === null) {
+            // The engine's clearing signal — a zero total clears the bar upstream.
+            this.ctx.userOnSyncProgress?.(0, 0);
+            return;
+          }
+          this.ctx.userOnSyncProgress?.(progress.applied, progress.total);
+        },
         // Pushing does NOT change local state — the pushed envelopes applied
         // locally before they entered the outbox. Notifying here was pure
         // redundancy: it dirtied the whole read cache after every push

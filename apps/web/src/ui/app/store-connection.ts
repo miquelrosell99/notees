@@ -39,6 +39,11 @@ export interface ConnectOptions {
    * them as progress.
    */
   onSyncPhase?: ((phase: string, message: string) => void) | undefined;
+  /**
+   * Engine catch-up progress ({applied, total} per page) — the connecting
+   * screen renders it as a progress bar + percentage.
+   */
+  onSyncProgress?: ((applied: number, total: number) => void) | undefined;
 }
 
 /** What the caller applies to React state once the store has opened. */
@@ -163,6 +168,7 @@ export async function openStoreConnection(
             sqliteWasmUrl,
             ...(workspaceKey !== undefined ? { workspaceKey } : {}),
             ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
+            ...(options.onSyncProgress !== undefined ? { onSyncProgress: options.onSyncProgress } : {}),
           },
     );
   } else {
@@ -175,6 +181,7 @@ export async function openStoreConnection(
           sqlJsConfig: { locateFile: () => sqlWasmUrl },
           ...(workspaceKey !== undefined ? { workspaceKey } : {}),
           ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
+          ...(options.onSyncProgress !== undefined ? { onSyncProgress: options.onSyncProgress } : {}),
         });
     // The worker path bootstraps during init; the in-process path syncs
     // here. Local-first on both: an unreachable relay must not block boot
