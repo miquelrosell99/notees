@@ -113,3 +113,10 @@ folder's retirement:
   quiet tree and four preconditions: gate/CI redesign, deploy-path
   redesign, quiet tree, same-pass docs.
 - **`notees-sync` stays in the monorepo.**
+- **Plan-07 ruled trades (server slimming)** — two capability trades were
+  ruled, not drift: (1) the workspace zip export is CLIENT-side and covers
+  the CONNECTED workspace only (unopened workspaces can't export — the
+  server no longer bundles from the derived store); (2) `/<node-uuid>` deep
+  links open the remembered workspace (the server node-location route was a
+  content read, retired) — cross-workspace resolution degrades to the
+  honest not-found after sync. Both recorded in the plan-07 changelog.
