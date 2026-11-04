@@ -192,9 +192,12 @@ await box.fill(term);
 // Poll for the hit instead of sleeping a fixed delay: the early body>500
 // boot gate passes seconds in — long before the restored/caught-up store
 // holds the 2018 date pages.
+// Wait for REAL content: "2018/09" only renders from a replayed page — the
+// filled input echoes "20180900", so waiting on the term itself would pass
+// instantly on the echo with an empty store.
 await page.waitForFunction(
-  (t) => document.body.innerText.includes(t) || document.body.innerText.includes("2018/09"),
-  term,
+  () => document.body.innerText.includes("2018/09"),
+  undefined,
   { timeout: 300_000 },
 ).catch(() => {});
 // Oracle hygiene: the filled input itself echoes the term into body.innerText,
