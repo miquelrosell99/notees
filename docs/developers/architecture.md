@@ -134,6 +134,27 @@ failed write never fails hydration) and once per wipe at most, so the next fresh
 and the next boot — restores instead of replaying the whole log. Snapshots stay an
 optimization, never authority: the log is untouched and remains the durability boundary.
 
+**The bulk replay window** (`Store.beginBulk()`/`endBulk()`, `store.ts`): a full
+wipe-rebuild replay (server hydration, the sync engine's epoch-change resync) wraps its
+replay in an explicit window. Inside it, the two derived-only maintenance families defer
+to one end-of-rebuild pass — `node_stats` (`rebuildNodeStats` only records ids;
+`rebuildAllNodeStats` rebuilds the whole table in one chunked pass) and the search index
+(`reindexNode`/`removeSearchIndexEntry` skip; `reindexAllSearch` runs once) — because
+nothing in the appliers reads either table. Per-op apply semantics (node rows, child
+order, edges, summaries) are untouched, and `synchronous` drops to `OFF` for the window
+(the derived DB is disposable — wipe-rebuildable by design; a torn window is covered by
+the existing hasApplied/cursor resume, and `endBulk` runs its maintenance tail even after
+a mid-window failure so the tables never sit deferral-stale). The online path never
+enters the window. Measured on a 100k-envelope synthetic replay: 82 → ~12,100
+envelopes/sec (see the 2026-11-04 changelog entry). The rebuilt tables converge in every
+reader-observable way; the residue versus the incremental path — class-node stats rows,
+`stats.updated_at` freshness (the tail restores the documented "mirrors the node's own
+`updated_at`" invariant the incremental path can leave stale after icon/color-only
+updates), search docid numbering, and search mention-label freshness (the online index
+snapshots a mention's target name at the source's last reindex; a rename never fans out —
+the tail resolves final names) — is documented at `packages/store/src/stats.ts` and
+`search.ts`.
+
 ## 4. The axes and the bullet-proof schema
 
 *Implemented — this is the Revision 12 embedding model: `is_class` ×
