@@ -19,7 +19,6 @@ import { useEffect, useState } from "react";
 import {
   AuthRequestError,
   fetchMe,
-  fetchNodeLocation,
   listWorkspaces,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
@@ -83,32 +82,11 @@ export function useBootFlow(
           // live in another of the account's workspaces. Connect straight to
           // the holder instead of the remembered workspace.
           rememberWorkspaceList(list);
-          const nodeMatch =
-            /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
-              window.location.pathname,
-            );
-          if (nodeMatch !== null) {
-            try {
-              const { workspaceId } = await fetchNodeLocation(
-                rememberedUrl,
-                credential,
-                nodeMatch[1]!,
-              );
-              if (
-                workspaceId !== rememberedWorkspace &&
-                list.some((ws) => ws.id === workspaceId)
-              ) {
-                return connect(rememberedUrl, credential, workspaceId, {
-                  isOffline: false,
-                  credentialType,
-                  label: list.find((ws) => ws.id === workspaceId)?.name ?? "Workspace",
-                });
-              }
-            } catch {
-              // Node unknown or lookup unreachable: the remembered workspace
-              // opens and the node view renders its honest not-found state.
-            }
-          }
+          // Deep links: plan-07 retired the server node-location route (the
+          // server serves no content reads), so a /<node-uuid> URL opens the
+          // remembered workspace — if the node lives elsewhere, its view
+          // renders the honest not-found state after sync. Cross-workspace
+          // resolution is a documented capability trade of the slimming.
           return connect(rememberedUrl, credential, rememberedWorkspace, {
             isOffline: false,
             credentialType,

@@ -55,7 +55,6 @@ import {
   createAnnotation,
   fetchAssetBlob,
   postAssetUpload,
-  postObjectMerge,
   readBlobAsDataUrl,
   type PrefsPatch,
   type SectionView,
@@ -1127,12 +1126,16 @@ export class WorkerClient {
    * plan summary without writing — the modal's preview. After the real
    * merge the caller pulls so the local projection catches up.
    */
-  async mergeNodesRemote(
-    sourceId: string,
-    targetId: string,
-    dryRun = false,
-  ): Promise<MergePlanSummary> {
-    return postObjectMerge(this.serverUrl, this.apiKey, this.workspaceId, sourceId, targetId, dryRun);
+  /**
+   * Merge in worker mode: the worker owns the store, so the planner runs
+   * THERE (no server merge route — plan-07 retired it).
+   */
+  async planMergeSummary(sourceId: string, targetId: string): Promise<MergePlanSummary> {
+    return (await this.call("planMergeSummary", [sourceId, targetId])) as MergePlanSummary;
+  }
+
+  async mergeNodes(sourceId: string, targetId: string): Promise<MergePlanSummary> {
+    return (await this.call("mergeNodes", [sourceId, targetId])) as MergePlanSummary;
   }
 
   /** Download an asset's bytes (workspace key); the export engine's include-assets read. */

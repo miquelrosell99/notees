@@ -15,7 +15,7 @@
  *   locally (client.mergeNodes, one undo batch per loser); the worker
  *   client rides the server route (POST /api/objects/:id/merge, the
  *   ?dryRun=true variant for the summary) through the pure
- *   postObjectMerge transport helper, then pulls to refresh.
+ *   worker's local planner RPC — no server route, no pull.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -33,7 +33,6 @@ import {
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { postObjectMerge } from "../src/core/workspace-client/merge-transport.js";
 import type { WorkerClient } from "../src/core/worker-client.js";
 import { runSourcesQuery, type SourceRow } from "../src/features/sources/sourcesQuery.js";
 import { groupSourceDuplicates } from "../src/features/sources/duplicates.js";
@@ -274,7 +273,7 @@ describe("MergeDuplicatesModal (in-process client)", () => {
   });
 });
 
-describe("MergeDuplicatesModal (worker client — the server merge route)", () => {
+describe("MergeDuplicatesModal (worker client — the local worker merge)", () => {
   /** A minimal SourceRow for pure modal tests (no store reads). */
   const row = (id: string, title: string): SourceRow => ({
     id,
@@ -294,20 +293,22 @@ describe("MergeDuplicatesModal (worker client — the server merge route)", () =
 
   function workerStub(): {
     client: WorkerClient;
-    remote: ReturnType<typeof vi.fn>;
-    pull: ReturnType<typeof vi.fn>;
+    plan: ReturnType<typeof vi.fn>;
+    apply: ReturnType<typeof vi.fn>;
   } {
-    const remote = vi.fn(async (_source: string, _target: string, dryRun = false) => {
-      if (dryRun) return { ...EMPTY_SUMMARY, childrenMoved: 1 };
-      return EMPTY_SUMMARY;
-    });
-    const pull = vi.fn(async () => {});
-    const client = { mergeNodesRemote: remote, pull } as unknown as WorkerClient;
-    return { client, remote, pull };
+    // Plan-07: both legs run locally in the worker (the server merge route
+    // is retired) — the stub speaks the worker RPC shape.
+    const plan = vi.fn(async (_source: string, _target: string) => ({
+      ...EMPTY_SUMMARY,
+      childrenMoved: 1,
+    }));
+    const apply = vi.fn(async (_source: string, _target: string) => EMPTY_SUMMARY);
+    const client = { planMergeSummary: plan, mergeNodes: apply } as unknown as WorkerClient;
+    return { client, plan, apply };
   }
 
-  it("dry-runs per loser for the summary, POSTs each merge through mergeNodesRemote, then pulls to refresh", async () => {
-    const { client, remote, pull } = workerStub();
+  it("plans per loser for the summary and applies through the worker RPC — no server, no pull", async () => {
+    const { client, plan, apply } = workerStub();
     const onMerged = vi.fn();
     render(
       <MergeDuplicatesModal
@@ -321,26 +322,25 @@ describe("MergeDuplicatesModal (worker client — the server merge route)", () =
 
     const dialog = screen.getByRole("dialog", { name: "Merge 2 duplicates" });
     // The default target is members[0] (Left) — the summary dry-runs the
-    // OTHER member (Right) against it through the remote seam.
-    await waitFor(() => expect(remote).toHaveBeenCalledWith(R, L, true));
+    // OTHER member (Right) against it through the local planner.
+    await waitFor(() => expect(plan).toHaveBeenCalledWith(R, L));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Merge" }));
     const confirm = await screen.findByRole("dialog", { name: "Merge duplicates?" });
     fireEvent.click(within(confirm).getByRole("button", { name: "Merge" }));
 
     await waitFor(() => expect(onMerged).toHaveBeenCalledTimes(1));
-    // The real merge (no dryRun flag), then a pull so the view refreshes.
-    expect(remote).toHaveBeenCalledWith(R, L, false);
-    await waitFor(() => expect(pull).toHaveBeenCalledTimes(1));
+    // The real merge rides the worker RPC; the worker holds the store, so
+    // nothing pulls afterwards.
+    expect(apply).toHaveBeenCalledWith(R, L);
   });
 
-  it("a rejected merge (the route's 422 guard) answers the error line and the modal stays open", async () => {
-    const remote = vi.fn(async (_source: string, _target: string, dryRun = false) => {
-      if (dryRun) return EMPTY_SUMMARY;
+  it("a rejected merge (the planner's guard) answers the error line and the modal stays open", async () => {
+    const plan = vi.fn(async (_source: string, _target: string) => EMPTY_SUMMARY);
+    const apply = vi.fn(async (_source: string, _target: string) => {
       throw new Error("merge failed: merge target is inside the source's subtree");
     });
-    const pull = vi.fn(async () => {});
-    const client = { mergeNodesRemote: remote, pull } as unknown as WorkerClient;
+    const client = { planMergeSummary: plan, mergeNodes: apply } as unknown as WorkerClient;
 
     render(
       <MergeDuplicatesModal
@@ -363,72 +363,9 @@ describe("MergeDuplicatesModal (worker client — the server merge route)", () =
     expect(within(dialog).getByRole("alert").textContent).toContain(
       "merge target is inside the source's subtree",
     );
-    expect(remote).toHaveBeenCalledWith(R, L, false);
-    expect(pull).not.toHaveBeenCalled();
+    expect(apply).toHaveBeenCalledWith(R, L);
     expect(screen.getByRole("dialog", { name: "Merge 2 duplicates" })).not.toBeNull();
   });
 });
 
-describe("postObjectMerge — the worker-mode merge transport", () => {
-  const SERVER = "https://notees.example";
-  const KEY = "operator-key";
-  const WSID = "0192a000-0000-7000-8000-0000000000c1";
-  const SRC = "0192a000-0000-7000-8000-0000000000c2";
-  const TGT = "0192a000-0000-7000-8000-0000000000c3";
 
-  it("POSTs {targetId} with the workspace headers and returns the summary", async () => {
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({ merged: true, targetId: TGT, summary: EMPTY_SUMMARY }),
-          { status: 200 },
-        ),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const summary = await postObjectMerge(SERVER, KEY, WSID, SRC, TGT, false);
-    expect(summary).toEqual(EMPTY_SUMMARY);
-    const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit];
-    expect(url).toBe(`${SERVER}/api/objects/${SRC}/merge`);
-    expect(init.method).toBe("POST");
-    const headers = init.headers as Record<string, string>;
-    expect(headers["X-API-Key"]).toBe(KEY);
-    expect(headers["X-Workspace-Id"]).toBe(WSID);
-    expect(JSON.parse(String(init.body))).toEqual({ targetId: TGT });
-  });
-
-  it("the dryRun variant rides ?dryRun=true and returns the plan summary", async () => {
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ dryRun: true, summary: EMPTY_SUMMARY }), { status: 200 }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await postObjectMerge(SERVER, KEY, WSID, SRC, TGT, true);
-    const [url] = fetchMock.mock.calls[0]! as unknown as [string];
-    expect(url).toBe(`${SERVER}/api/objects/${SRC}/merge?dryRun=true`);
-  });
-
-  it("a 422 guard body surfaces the server's message", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              error: {
-                code: "validation_failed",
-                message: "merge target is inside the source's subtree",
-                status: 422,
-              },
-            }),
-            { status: 422 },
-          ),
-      ),
-    );
-
-    await expect(postObjectMerge(SERVER, KEY, WSID, SRC, TGT, false)).rejects.toThrow(
-      /merge target is inside the source's subtree/,
-    );
-  });
-});

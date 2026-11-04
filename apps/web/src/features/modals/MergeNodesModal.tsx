@@ -32,7 +32,7 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { AnyClient } from "../../ui/app/clients.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { summarizeMerge, summaryLineOf, mergeErrorMessage } from "./mergeSummary.js";
-import { previewMerge, applyMerge, pullIfRemote } from "./mergeClient.js";
+import { applyMerge, previewMerge } from "./mergeClient.js";
 import "./MergeNodesModal.css";
 
 export interface MergeNodesModalProps {
@@ -147,7 +147,6 @@ export function MergeNodesModal({
       for (const sourceId of sourceIds) {
         await applyMerge(client, sourceId, target.id);
       }
-      await pullIfRemote(client);
       onMerged(target.id);
       handleClose();
     } catch (err: unknown) {

@@ -1061,6 +1061,10 @@ export class WorkerCore {
         );
       case "bootstrapWorkspace":
         return this.client.bootstrapWorkspace(args[0] as string);
+      case "planMergeSummary":
+        return this.client.planMergeSummary(args[0] as string, args[1] as string);
+      case "mergeNodes":
+        return this.client.mergeNodes(args[0] as string, args[1] as string);
       case "syncOnce":
         return this.syncOnce();
       case "push":
