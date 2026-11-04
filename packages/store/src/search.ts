@@ -8,7 +8,37 @@ import type { SqliteStatement, StoreDatabase } from "./types.js";
 import { extractContentPlaintext, extractSearchPlaintext } from "./content.js";
 import { isUuidLike } from "./property-values.js";
 
+/**
+ * Bulk-replay deferral seam: while deferred (Store's beginBulk window),
+ * reindexNode/removeSearchIndexEntry skip their writes — nothing in the
+ * appliers reads the search index, and the window's endBulk runs
+ * reindexAllSearch once over the final state. Module-level like the
+ * node-stats deferral: synchronous single-connection backends cannot
+ * interleave applies inside the window.
+ *
+ * The tail's index can differ from the online incremental path in the
+ * mention labels folded into a node's indexed plaintext: the online path
+ * snapshots the target's display name at the SOURCE's last reindex
+ * (a target rename never fans out to mentioning sources — the online index
+ * accumulates that staleness), while the one-pass tail resolves the FINAL
+ * name (the documented "resolves the live name" semantics). Both directions
+ * are deterministic per path; the residue is limited to sources whose
+ * mentions outlived their targets' renames, and the tail's version is the
+ * fresher one. Docid numbering is path-dependent in both directions
+ * (last_insert_rowid) and unobservable outside the map.
+ */
+let searchDeferred = false;
+
+/** Install (or clear) the search-index deferral. Returns the previous flag
+ *  so callers can nest. */
+export function setSearchIndexDeferral(deferred: boolean): boolean {
+  const previous = searchDeferred;
+  searchDeferred = deferred;
+  return previous;
+}
+
 export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void {
+  if (searchDeferred) return;
   db.prepare(
     "DELETE FROM search_index WHERE rowid = (SELECT docid FROM search_index_docid WHERE node_id = ?)",
   ).run(nodeId);
@@ -16,6 +46,7 @@ export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void 
 }
 
 export function reindexNode(db: StoreDatabase, nodeId: string): void {
+  if (searchDeferred) return;
   const row = db.prepare("SELECT content FROM node WHERE id = ?").get(nodeId) as
     | { content: string }
     | undefined;

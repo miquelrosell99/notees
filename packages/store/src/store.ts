@@ -37,8 +37,10 @@ import {
   searchNodes,
   searchNodesPage,
   searchSnippet,
+  setSearchIndexDeferral,
   type SearchSnippet,
 } from "./search.js";
+import { rebuildAllNodeStats, setNodeStatsDeferral } from "./stats.js";
 import { MoveGuardError, NotFoundError } from "./errors.js";
 import {
   ALIAS_SOURCE_INDEX_DDL,
@@ -166,6 +168,25 @@ export function resolveEffectiveDisplayTemplate(db: SqliteDB, classId: string): 
 export class Store {
   private db: SqliteDB;
   private readonly backend: StoreBackend;
+  /**
+   * The bulk replay window (beginBulk/endBulk): entered explicitly around a
+   * full wipe-rebuild replay. While open, the appliers DEFER the two
+   * derived-only maintenance families — node_stats (rebuildNodeStats only
+   * records ids) and the search index (reindexNode/removeSearchIndexEntry
+   * skip) — and endBulk rebuilds both from the final state in one pass.
+   * Nothing in the appliers reads either table, so per-op apply semantics
+   * (node rows, child order, edges, summaries) are untouched. The rebuilt
+   * tables converge in all reader-observable ways; the residue (class-node
+   * stats rows, stats.updated_at freshness, search docid numbering) is
+   * documented at stats.ts / search.ts. Nesting is depth-counted; endBulk
+   * always runs the maintenance tail (even after a mid-window failure) so a
+   * torn window leaves the store with converged stats/search for the applied
+   * prefix — never stale.
+   */
+  private bulkDepth = 0;
+  private readonly bulkStats = new Set<string>();
+  /** The connection's synchronous level before the window (restored after). */
+  private bulkPrevSynchronous: number | null = null;
 
   /**
    * Low-level opening: wrap a backend's connections. A bare path string is
@@ -229,6 +250,81 @@ export class Store {
       for (const id of ids) mark.run(now, id);
     });
     run();
+  }
+
+  /**
+   * Open the bulk replay window. Callers wrap a FULL derived-store rebuild
+   * (wipe + replay the log) in beginBulk/endBulk — the server hydrate path
+   * and the sync engine's epoch-change resync. Inside the window:
+   *  - node_stats and search-index maintenance defer to endBulk's one-pass
+   *    rebuild (the per-op cost that dominates a large replay);
+   *  - synchronous drops to OFF for the bulk window (the derived DB is
+   *    disposable — wipe-rebuildable by design; a torn window is detected by
+   *    the same hasApplied/cursor resume the online path already uses, and a
+   *    power-loss corruption is healed by deleting the file and replaying).
+   *
+   * Online (non-bulk) apply semantics are unchanged — the window must be
+   * entered explicitly. Pair with endBulk in a finally; nesting is a no-op
+   * except for the first begin/last end.
+   */
+  beginBulk(): void {
+    if (this.bulkDepth > 0) {
+      this.bulkDepth += 1;
+      return;
+    }
+    this.bulkDepth = 1;
+    this.bulkStats.clear();
+    try {
+      this.bulkPrevSynchronous = this.db.pragma("synchronous", { simple: true }) as number;
+      this.db.pragma("synchronous = OFF");
+    } catch {
+      // A backend without pragma support still gets the deferral win.
+      this.bulkPrevSynchronous = null;
+    }
+    setNodeStatsDeferral(this.bulkStats);
+    setSearchIndexDeferral(true);
+  }
+
+  /**
+   * Close the bulk window: restore pragmas and rebuild the deferred
+   * node_stats + search index from the final state in one transaction.
+   * Runs the maintenance even when the window's applies failed partway, so
+   * the store never sits with deferral-stale derived tables; the original
+   * error still propagates to the caller either way.
+   */
+  endBulk(): void {
+    if (this.bulkDepth === 0) return;
+    this.bulkDepth -= 1;
+    if (this.bulkDepth > 0) return;
+    let maintenanceError: unknown = null;
+    try {
+      // Clear the deferral FIRST so the maintenance writes land.
+      setNodeStatsDeferral(null);
+      setSearchIndexDeferral(false);
+      const run = this.db.transaction(() => {
+        rebuildAllNodeStats(this.db);
+        reindexAllSearch(this.db);
+      });
+      run();
+    } catch (error) {
+      maintenanceError = error;
+    } finally {
+      if (this.bulkPrevSynchronous !== null) {
+        try {
+          this.db.pragma(`synchronous = ${this.bulkPrevSynchronous}`);
+        } catch {
+          // Best-effort restore — the next open() re-asserts the defaults.
+        }
+        this.bulkPrevSynchronous = null;
+      }
+      this.bulkStats.clear();
+    }
+    if (maintenanceError !== null) throw maintenanceError;
+  }
+
+  /** True while a bulk replay window is open. */
+  get inBulk(): boolean {
+    return this.bulkDepth > 0;
   }
 
   /** Locally-authored envelopes not yet acknowledged by the server. */
@@ -1066,8 +1162,22 @@ export class Store {
     this.adopt(next);
   }
 
+  /** Drop an in-flight bulk window without maintenance (connection swaps,
+   *  close). The maintenance tail cannot run against the swapped/closed
+   *  connection; the flags MUST clear so the process-global deferral cannot
+   *  leak into another Store's applies. */
+  private abandonBulk(): void {
+    if (this.bulkDepth === 0) return;
+    this.bulkDepth = 0;
+    this.bulkStats.clear();
+    this.bulkPrevSynchronous = null;
+    setNodeStatsDeferral(null);
+    setSearchIndexDeferral(false);
+  }
+
   /** The shared restore tail: schema ladder, FTS repair arm, connection swap. */
   private adopt(next: SqliteDB): void {
+    this.abandonBulk();
     // The snapshot may carry an OLDER schema than this build (restore swaps
     // the whole database; nothing migrates it afterwards). Bump to the
     // current version — migrate() is version-gated and idempotent, and no-ops
@@ -1106,12 +1216,14 @@ export class Store {
 
   /** Drop all derived state (schema is recreated empty). */
   reset(): void {
+    this.abandonBulk();
     this.db.close?.();
     this.db = this.backend.reset();
     migrate(this.db, this.backend.ftsModule);
   }
 
   close(): void {
+    this.abandonBulk();
     this.db.close?.();
   }
 }

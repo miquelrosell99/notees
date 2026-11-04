@@ -12,6 +12,44 @@
 
 import type { StoreDatabase } from "./types.js";
 
+/**
+ * Bulk-replay deferral seam: while a collector Set is installed (Store's
+ * beginBulk window), rebuildNodeStats only RECORDS the requested ids and
+ * returns immediately — no ancestor walk, no DELETE/INSERT. The window's
+ * endBulk then runs rebuildAllNodeStats over the whole table. Nothing in
+ * the appliers reads node_stats, so deferring is invisible inside the
+ * window.
+ *
+ * The bulk tail's table differs from the online incremental path in two
+ * UNOBSERVABLE ways (verified: the only reader, the web client's
+ * getBacklinkCount, reads backlink_count with a ?? 0 fallback and never
+ * touches class nodes or stats.updated_at):
+ *  - ROWS: the tail writes a row for EVERY node (classes included); the
+ *    online path only writes rows for nodes a stats-touching op reached —
+ *    class nodes usually have none.
+ *  - updated_at: the tail stamps the node's FINAL updated_at; the online
+ *    path can leave a stale one (an icon/color-only object.update changes
+ *    node.updated_at without triggering a stats rebuild) — the online path
+ *    is order-sensitive here, the tail restores the documented invariant
+ *    ("mirrors the node row's own updated_at"). The COUNT columns — the
+ *    actual data — converge identically.
+ *
+ * Module-level (not per-connection) because every backend the store ships is
+ * synchronous and single-connection-per-Store: a bulk window runs to
+ * completion without interleaving another store's applies. Store installs
+ * and clears the collector around the window; nesting restores the previous
+ * collector.
+ */
+let deferredCollector: Set<string> | null = null;
+
+/** Install (or clear, with null) the deferral collector. Returns the
+ *  previous collector so callers can nest. */
+export function setNodeStatsDeferral(collector: Set<string> | null): Set<string> | null {
+  const previous = deferredCollector;
+  deferredCollector = collector;
+  return previous;
+}
+
 /** Ancestor closure of ``nodeIds`` (including the ids themselves). */
 function getAncestorClosure(db: StoreDatabase, nodeIds: string[]): string[] {
   const placeholders = nodeIds.map(() => "?").join(",");
@@ -40,51 +78,89 @@ function getAncestorClosure(db: StoreDatabase, nodeIds: string[]): string[] {
 export function rebuildNodeStats(db: StoreDatabase, nodeIds: string[]): void {
   let ids = Array.from(new Set(nodeIds)).filter((id) => id.length > 0);
   if (ids.length === 0) return;
+  if (deferredCollector !== null) {
+    for (const id of ids) deferredCollector.add(id);
+    return;
+  }
   ids = Array.from(new Set(getAncestorClosure(db, ids).concat(ids)));
+  replaceStatsRows(db, ids);
+}
 
-  const placeholders = ids.map(() => "?").join(",");
-  db.prepare(`DELETE FROM node_stats WHERE node_id IN (${placeholders})`).run(...ids);
+/**
+ * The bulk-replay tail: recompute the WHOLE node_stats table in one pass
+ * (the beginBulk window's deferred maintenance). Rows are a pure function
+ * of the final node/edge/child-order state, so this converges to the same
+ * table the per-op incremental path would have produced — at O(sum of
+ * subtree sizes) instead of O(ops × ancestor-chain subtree scans).
+ */
+export function rebuildAllNodeStats(db: StoreDatabase): void {
+  db.exec("DELETE FROM node_stats");
+  // Every node row gets a stats row — the incremental path's node JOIN has
+  // no liveness filter (trashed/archived rows keep their counts), and the
+  // full rebuild must converge to the same table.
+  const rows = db.prepare("SELECT id FROM node ORDER BY id").all() as {
+    id: string;
+  }[];
+  replaceStatsRows(
+    db,
+    rows.map((r) => r.id),
+  );
+}
 
-  const targetedValues = ids.map((_, index) => `(?, ${index})`).join(",");
-  db.prepare(
-    `WITH RECURSIVE targeted(id, ord) AS (VALUES ${targetedValues}),
-      descendants(ancestor_id, descendant_id) AS (
-        SELECT t.id, nco.child_id
-        FROM targeted t JOIN node_child_order nco ON nco.parent_id = t.id
-        UNION ALL
-        SELECT d.ancestor_id, nco.child_id
-        FROM descendants d JOIN node_child_order nco ON nco.parent_id = d.descendant_id
-      ),
-      descendant_counts AS (
-        SELECT ancestor_id, COUNT(*) AS descendant_count FROM descendants GROUP BY ancestor_id
-      ),
-      child_counts AS (
-        SELECT parent_id, COUNT(*) AS child_count FROM node_child_order
-        WHERE parent_id IN (SELECT id FROM targeted) GROUP BY parent_id
-      ),
-      backlink_counts AS (
-        SELECT target_id, COUNT(DISTINCT source_id) AS backlink_count FROM edge
-        WHERE target_id IN (SELECT id FROM targeted) GROUP BY target_id
-      ),
-      reference_counts AS (
-        SELECT source_id, COUNT(*) AS reference_count FROM edge
-        WHERE source_id IN (SELECT id FROM targeted) GROUP BY source_id
-      )
-     INSERT INTO node_stats
-       (node_id, child_count, backlink_count, reference_count, descendant_count, updated_at)
-     SELECT
-       t.id AS node_id,
-       COALESCE(cc.child_count, 0) AS child_count,
-       COALESCE(bc.backlink_count, 0) AS backlink_count,
-       COALESCE(rc.reference_count, 0) AS reference_count,
-       COALESCE(dc.descendant_count, 0) AS descendant_count,
-       n.updated_at AS updated_at
-     FROM targeted t
-     JOIN node n ON n.id = t.id
-     LEFT JOIN child_counts cc ON cc.parent_id = t.id
-     LEFT JOIN backlink_counts bc ON bc.target_id = t.id
-     LEFT JOIN reference_counts rc ON rc.source_id = t.id
-     LEFT JOIN descendant_counts dc ON dc.ancestor_id = t.id
-     ORDER BY t.ord`,
-  ).run(...ids);
+/**
+ * DELETE + re-INSERT the stats rows for exactly `ids` (chunked — the
+ * placeholder count stays under conservative SQLite variable limits on every
+ * backend). Shared by the incremental and the full-table rebuilds.
+ */
+function replaceStatsRows(db: StoreDatabase, ids: string[]): void {
+  if (ids.length === 0) return;
+  const CHUNK = 900;
+  for (let start = 0; start < ids.length; start += CHUNK) {
+    const chunk = ids.slice(start, start + CHUNK);
+    const placeholders = chunk.map(() => "?").join(",");
+    db.prepare(`DELETE FROM node_stats WHERE node_id IN (${placeholders})`).run(...chunk);
+
+    const targetedValues = chunk.map((_, index) => `(?, ${index})`).join(",");
+    db.prepare(
+      `WITH RECURSIVE targeted(id, ord) AS (VALUES ${targetedValues}),
+        descendants(ancestor_id, descendant_id) AS (
+          SELECT t.id, nco.child_id
+          FROM targeted t JOIN node_child_order nco ON nco.parent_id = t.id
+          UNION ALL
+          SELECT d.ancestor_id, nco.child_id
+          FROM descendants d JOIN node_child_order nco ON nco.parent_id = d.descendant_id
+        ),
+        descendant_counts AS (
+          SELECT ancestor_id, COUNT(*) AS descendant_count FROM descendants GROUP BY ancestor_id
+        ),
+        child_counts AS (
+          SELECT parent_id, COUNT(*) AS child_count FROM node_child_order
+          WHERE parent_id IN (SELECT id FROM targeted) GROUP BY parent_id
+        ),
+        backlink_counts AS (
+          SELECT target_id, COUNT(DISTINCT source_id) AS backlink_count FROM edge
+          WHERE target_id IN (SELECT id FROM targeted) GROUP BY target_id
+        ),
+        reference_counts AS (
+          SELECT source_id, COUNT(*) AS reference_count FROM edge
+          WHERE source_id IN (SELECT id FROM targeted) GROUP BY source_id
+        )
+       INSERT INTO node_stats
+         (node_id, child_count, backlink_count, reference_count, descendant_count, updated_at)
+       SELECT
+         t.id AS node_id,
+         COALESCE(cc.child_count, 0) AS child_count,
+         COALESCE(bc.backlink_count, 0) AS backlink_count,
+         COALESCE(rc.reference_count, 0) AS reference_count,
+         COALESCE(dc.descendant_count, 0) AS descendant_count,
+         n.updated_at AS updated_at
+       FROM targeted t
+       JOIN node n ON n.id = t.id
+       LEFT JOIN child_counts cc ON cc.parent_id = t.id
+       LEFT JOIN backlink_counts bc ON bc.target_id = t.id
+       LEFT JOIN reference_counts rc ON rc.source_id = t.id
+       LEFT JOIN descendant_counts dc ON dc.ancestor_id = t.id
+       ORDER BY t.ord`,
+    ).run(...chunk);
+  }
 }
