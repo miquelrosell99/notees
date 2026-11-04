@@ -3,7 +3,9 @@
  * account master key is persisted in IndexedDB as a NON-EXTRACTABLE CryptoKey
  * handle so a reload within a signed-in session does not require re-unlocking.
  *
- * - deriveMasterKey persists the handle (fire-and-forget, never raw bytes).
+ * - deriveMasterKey persists the handle (bounded await: the fast-path write is
+ *   done before derive resolves; a stall can never block past ~1s; one warning
+ *   + one deferred retry on failure; never raw bytes).
  * - restoreMasterKeyFromStorage re-hydrates the slot after a reload.
  * - clearCryptoCustody deletes the record and drops the slot (sign-out).
  * - Wiring: a cold slot + a stored handle + a wrapped-key row opens UNLOCKED;
@@ -176,5 +178,124 @@ describe("master-key IndexedDB persistence", () => {
     });
     expect(resolution.key).toBeUndefined();
     expect(resolution.locked).toBe(true);
+  });
+});
+
+describe("deriveMasterKey persistence hardening (bounded await + warning + retry)", () => {
+  /** Deferred fake: the write records its initiation, then settles on the test's release. */
+  function deferredStore(): {
+    store: MasterKeyStore;
+    state: { record: CryptoKey | null; storeCalls: number };
+    release: () => void;
+  } {
+    const state = { record: null as CryptoKey | null, storeCalls: 0 };
+    let releaseStore: (() => void) | null = null;
+    const store: MasterKeyStore = {
+      async store(key: CryptoKey) {
+        state.storeCalls += 1;
+        await new Promise<void>((resolve) => {
+          releaseStore = resolve;
+        });
+        state.record = key;
+      },
+      async load() {
+        return state.record;
+      },
+      async delete() {
+        state.record = null;
+      },
+    };
+    return { store, state, release: () => releaseStore!() };
+  }
+
+  it("awaits the fast-path write: derive does not resolve before the store settles", async () => {
+    const { store, state, release } = deferredStore();
+    setMasterKeyStoreForTests(store);
+
+    const master = await generateMasterKey();
+    const kdf = await createKdfRecord(master, PASSWORD);
+    const derivePromise = deriveMasterKey(PASSWORD, kdf);
+    // Wait out the scrypt unwrap until the custody write has been initiated.
+    for (let i = 0; i < 100 && state.storeCalls === 0; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    expect(state.storeCalls).toBe(1);
+    expect(state.record).toBeNull(); // the write was initiated but is still pending
+
+    let resolved = false;
+    void derivePromise.then(() => {
+      resolved = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(resolved).toBe(false); // the bounded await: derive waits for the store
+
+    release();
+    await derivePromise;
+    expect(state.record).toBeInstanceOf(CryptoKey);
+    expect(state.record!.extractable).toBe(false);
+  });
+
+  it("a stalled store cannot block derive past the cap — warning logged, one deferred retry fires", async () => {
+    const state = { record: null as CryptoKey | null, storeCalls: 0 };
+    const store: MasterKeyStore = {
+      async store() {
+        state.storeCalls += 1;
+        await new Promise<void>(() => {}); // never settles
+      },
+      async load() {
+        return state.record;
+      },
+      async delete() {
+        state.record = null;
+      },
+    };
+    setMasterKeyStoreForTests(store);
+    const warnings: unknown[][] = [];
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      warnings.push(args);
+    });
+
+    const master = await generateMasterKey();
+    const kdf = await createKdfRecord(master, PASSWORD);
+    await expect(deriveMasterKey(PASSWORD, kdf)).resolves.toBeDefined(); // the cap lets it through
+    warnSpy.mockRestore();
+
+    expect(state.storeCalls).toBe(1);
+    expect(warnings.some((args) => String(args[0]).includes("not persisted"))).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 25)); // the deferred retry macrotask
+    expect(state.storeCalls).toBe(2);
+  });
+
+  it("a rejecting store warns and never throws from derive; the retry's failure warns again", async () => {
+    const state = { storeCalls: 0 };
+    const store: MasterKeyStore = {
+      async store() {
+        state.storeCalls += 1;
+        throw new Error("storage disabled (policy)");
+      },
+      async load() {
+        return null;
+      },
+      async delete() {},
+    };
+    setMasterKeyStoreForTests(store);
+    const warnings: unknown[][] = [];
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      warnings.push(args);
+    });
+
+    const master = await generateMasterKey();
+    const kdf = await createKdfRecord(master, PASSWORD);
+    await expect(deriveMasterKey(PASSWORD, kdf)).resolves.toBeDefined();
+
+    await new Promise((resolve) => setTimeout(resolve, 25)); // the deferred retry macrotask
+    warnSpy.mockRestore();
+
+    expect(state.storeCalls).toBe(2); // the initial write + the one retry
+    expect(warnings).toHaveLength(2);
+    for (const args of warnings) {
+      expect(String(args[0])).toContain("not persisted");
+    }
   });
 });

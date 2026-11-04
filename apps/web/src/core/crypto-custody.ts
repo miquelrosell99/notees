@@ -46,10 +46,48 @@ export async function deriveMasterKey(password: string, kdf: KdfRecord): Promise
   masterKeySlot = handle;
   workspaceKeyCache.clear();
   // Persist the non-extractable handle so a reload within the signed-in
-  // session doesn't require re-unlocking. Best-effort: the memory-only
-  // fallback and the locked banner cover a failed write.
-  void storeMasterKey(key).catch(() => {});
+  // session doesn't require re-unlocking. Bounded-await: the fast-path write
+  // is guaranteed done before this resolves; a stall can never block
+  // login/unlock past the cap. Never throws — the memory-only fallback and
+  // the locked banner cover a failed write.
+  await persistMasterKey(key);
   return handle;
+}
+
+/** The persistence stall cap: a slow custody store never blocks derive past this. */
+const MASTER_KEY_PERSIST_TIMEOUT_MS = 1000;
+
+/**
+ * Store the derived handle with a bounded await, one warning on failure, and
+ * one deferred macrotask retry (transient stalls recover silently). Fully
+ * self-contained: never rejects, so deriveMasterKey's contract is unchanged.
+ */
+async function persistMasterKey(key: CryptoKey): Promise<void> {
+  const warn = (error: unknown) => {
+    console.warn(
+      "[notees-web] master key not persisted — reloads will ask for the password again:",
+      error,
+    );
+  };
+  try {
+    await Promise.race([
+      storeMasterKey(key),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`custody store stalled past ${MASTER_KEY_PERSIST_TIMEOUT_MS}ms`)),
+          MASTER_KEY_PERSIST_TIMEOUT_MS,
+        ),
+      ),
+    ]);
+  } catch (error) {
+    warn(error);
+    // One deferred retry on a macrotask — a transient stall (storage pressure,
+    // a busy IDB transaction) recovers silently; a systemic failure (storage
+    // disabled, quota) warns once more. The record write stays idempotent.
+    setTimeout(() => {
+      void storeMasterKey(key).catch(warn);
+    }, 0);
+  }
 }
 
 /**
