@@ -11,13 +11,12 @@
 
 import { useRef, useState } from "react";
 
-import { rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Button } from "../../components/ui/kit/Button.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { rendersWithDocumentChromeOf } from "../../ui/renderStateLabel.js";
 import { ExportPageModal } from "../export/ExportPageModal.js";
 import { SharePageModal } from "../sharing/SharePageModal.js";
 import { NodeContextMenu, type NodeMenuState } from "./NodeContextMenu.js";
@@ -71,7 +70,7 @@ export function NodeMenuButton({
                   x: 0,
                   y: 0,
                   node,
-                  isPage: rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)),
+                  isPage: rendersWithDocumentChromeOf(client, node),
                   anchorEl: buttonRef.current,
                 }
               : null,

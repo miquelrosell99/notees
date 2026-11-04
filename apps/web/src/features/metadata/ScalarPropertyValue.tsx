@@ -1,8 +1,7 @@
-import { rendersAsInlineBlock } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { rendersAsInlineBlockOf } from "../../ui/renderStateLabel.js";
 import { propertyLinkHref } from "../collection/propertyDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { ReferenceSubtree } from "../block-editor/ReferenceSubtree.js";
@@ -51,7 +50,7 @@ export function ScalarPropertyValue({
   const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
   const carrier =
     rawNode !== undefined &&
-    rendersAsInlineBlock(rawNode, parentRenderFacts(client, rawNode), parentlessBlockResolverOf(client))
+    rendersAsInlineBlockOf(client, rawNode)
       ? rawNode
       : undefined;
   // Dead carrier: the value references a

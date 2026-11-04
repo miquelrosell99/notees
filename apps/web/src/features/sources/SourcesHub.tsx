@@ -41,7 +41,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AnyClient } from "../../ui/app/clients.js";
 import { MainContentFrame } from "../../ui/MainContentFrame.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
-import { Badge, Button, SidePanelToggle } from "../../components/ui/kit/index.js";
+import { Badge, Button, SidePanelToggle, useClientVersion } from "../../components/ui/kit/index.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 import type { NodeCollectionItem } from "../collection/index.js";
 import { SourcesFacets } from "./SourcesFacets.js";
@@ -118,8 +118,7 @@ export function SourcesHub({
   const [libraryEmpty, setLibraryEmpty] = useState(false);
   // Live by subscription (the facets-pane idiom): a write elsewhere —
   // adding a source, enabling a hidden type — re-reads the loaded set.
-  const [version, setVersion] = useState(0);
-  useEffect(() => client?.subscribe(() => setVersion((v) => v + 1)), [client]);
+  const version = useClientVersion(client);
 
   // The search box is a local, live filter; the URL follows debounced.
   const [qInput, setQInput] = useState(parsed.q);
@@ -147,7 +146,6 @@ export function SourcesHub({
   useEffect(() => {
     if (client === undefined) return;
     let cancelled = false;
-    void version;
     void (async () => {
       try {
         const result = await runSourcesQuery(client, { classKey: parsed.type, q: "" }, null);

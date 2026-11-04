@@ -60,6 +60,11 @@ import type {
   SetClassPropertyInput,
 } from "@/core/workspace-client/index.js";
 
+import {
+  ensureFamilySchemas,
+  familySchemasPresent,
+} from "./familyEnsure.js";
+
 type MaybePromise<T> = T | Promise<T>;
 
 export interface MeetingFamilySurface {
@@ -140,21 +145,9 @@ export const MEETING_FAMILY: ReadonlyArray<{
   { id: SYSTEM_PROPERTY_UUIDS.agenda, name: SYSTEM_PROPERTY_DISPLAY_NAMES.agenda, type: "text" },
 ];
 
-async function familyPresent(
-  surface: MeetingFamilySurface,
-  classId: string,
-  family: ReadonlyArray<{ id: string }>,
-): Promise<boolean> {
-  const have = new Set((await surface.listPropertySchemas()).map((schema) => schema.id));
-  const bound = new Set(
-    (await surface.getClassBindings(classId)).map((binding) => binding.propertySchemaId),
-  );
-  return family.every((spec) => have.has(spec.id) && bound.has(spec.id));
-}
-
 /** True when the event root's schema + binding exist. */
 export function eventFamilyPresent(surface: MeetingFamilySurface): Promise<boolean> {
-  return familyPresent(surface, EVENT_CLASS_ID, EVENT_FAMILY);
+  return familySchemasPresent(surface, EVENT_CLASS_ID, EVENT_FAMILY);
 }
 
 /**
@@ -164,49 +157,10 @@ export function eventFamilyPresent(surface: MeetingFamilySurface): Promise<boole
  * the idempotent authoring.
  */
 export async function meetingFamilyPresent(surface: MeetingFamilySurface): Promise<boolean> {
-  if (!(await familyPresent(surface, EVENT_CLASS_ID, EVENT_FAMILY))) return false;
-  if (!(await familyPresent(surface, MEETING_CLASS_ID, MEETING_FAMILY))) return false;
+  if (!(await familySchemasPresent(surface, EVENT_CLASS_ID, EVENT_FAMILY))) return false;
+  if (!(await familySchemasPresent(surface, MEETING_CLASS_ID, MEETING_FAMILY))) return false;
   const parents = await surface.getClassParents(MEETING_CLASS_ID);
   return parents.includes(EVENT_CLASS_ID);
-}
-
-/** Author one class's schemas + bindings when missing (shared loop). */
-async function ensureFamilySchemas(
-  surface: MeetingFamilySurface,
-  classId: string,
-  family: ReadonlyArray<{
-    id: string;
-    name: string;
-    type: "datetime" | "text" | "object";
-    targetClassFilter?: string[];
-    pinned?: boolean;
-  }>,
-): Promise<void> {
-  const have = new Set((await surface.listPropertySchemas()).map((schema) => schema.id));
-  for (const spec of family) {
-    if (have.has(spec.id)) continue;
-    await surface.createPropertySchema({
-      id: spec.id,
-      name: spec.name,
-      type: spec.type,
-      // Scoped to the family class (the sole locality authority) — the binding below lands on the same class.
-      scopeClassIds: [classId],
-      ...(spec.targetClassFilter !== undefined
-        ? { targetClassFilter: spec.targetClassFilter }
-        : {}),
-    });
-  }
-  const bound = new Set(
-    (await surface.getClassBindings(classId)).map((binding) => binding.propertySchemaId),
-  );
-  for (const spec of family) {
-    if (bound.has(spec.id)) continue;
-    // Existence-only: the pin flag rides a NEW row only — an existing row
-    // (user-unpinned included) is never re-patched.
-    await surface.setClassProperty(classId, spec.id, {
-      ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
-    });
-  }
 }
 
 /** Author the event root (class node + eventDate schema/binding) when missing. */
@@ -221,7 +175,9 @@ async function ensureEventRoot(surface: MeetingFamilySurface): Promise<void> {
       parentlessRole: "block",
     });
   }
-  await ensureFamilySchemas(surface, EVENT_CLASS_ID, EVENT_FAMILY);
+  // The family's schemas are scoped to the family class (the sole locality
+  // authority) — the shared loop's scopeToClass option.
+  await ensureFamilySchemas(surface, EVENT_CLASS_ID, EVENT_FAMILY, { scopeToClass: true });
 }
 
 /**
@@ -241,7 +197,7 @@ export async function ensureMeetingFamily(surface: MeetingFamilySurface): Promis
   if ((await surface.getNodeRaw(MEETING_CLASS_ID)) === undefined) {
     await surface.createClass(SYSTEM_CLASS_DISPLAY_NAMES.meeting, { id: MEETING_CLASS_ID, icon: SYSTEM_CLASS_ICONS.meeting });
   }
-  await ensureFamilySchemas(surface, MEETING_CLASS_ID, MEETING_FAMILY);
+  await ensureFamilySchemas(surface, MEETING_CLASS_ID, MEETING_FAMILY, { scopeToClass: true });
   const parents = await surface.getClassParents(MEETING_CLASS_ID);
   if (!parents.includes(EVENT_CLASS_ID)) {
     await surface.setClassExtends(MEETING_CLASS_ID, [EVENT_CLASS_ID]);
@@ -250,8 +206,8 @@ export async function ensureMeetingFamily(surface: MeetingFamilySurface): Promis
 
 /** True when the birthday shape is whole (family + edge + the eventDate row). */
 export async function birthdayFamilyPresent(surface: MeetingFamilySurface): Promise<boolean> {
-  if (!(await familyPresent(surface, EVENT_CLASS_ID, EVENT_FAMILY))) return false;
-  if (!(await familyPresent(surface, BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY))) return false;
+  if (!(await familySchemasPresent(surface, EVENT_CLASS_ID, EVENT_FAMILY))) return false;
+  if (!(await familySchemasPresent(surface, BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY))) return false;
   const bound = new Set(
     (await surface.getClassBindings(BIRTHDAY_CLASS_ID)).map(
       (binding) => binding.propertySchemaId,
@@ -280,7 +236,7 @@ export async function ensureBirthdayFamily(surface: MeetingFamilySurface): Promi
       icon: SYSTEM_CLASS_ICONS.birthday,
     });
   }
-  await ensureFamilySchemas(surface, BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY);
+  await ensureFamilySchemas(surface, BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY, { scopeToClass: true });
   const parents = await surface.getClassParents(BIRTHDAY_CLASS_ID);
   if (!parents.includes(EVENT_CLASS_ID)) {
     await surface.setClassExtends(BIRTHDAY_CLASS_ID, [EVENT_CLASS_ID]);

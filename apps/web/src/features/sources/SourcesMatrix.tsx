@@ -23,13 +23,13 @@
  * lint/section vocabulary that make it a comparison).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/clients.js";
 import { Icon } from "../../ui/Icon.js";
-import { Button, Checkbox, EmptyState } from "../../components/ui/kit/index.js";
+import { Button, Checkbox, EmptyState, useClientVersion } from "../../components/ui/kit/index.js";
 import { notificationStore } from "../../components/ui/kit/notificationStore.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { downloadBlob } from "../modals/download.js";
@@ -67,9 +67,7 @@ export function SourcesMatrix({
   const ids = query.ids;
   // Live by subscription (the facets-pane idiom): an external write —
   // enabling the workflow, valuing a field — re-derives pool and rows.
-  const [version, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  void version;
+  const version = useClientVersion(client);
 
   const fields = useMemo(() => matrixFields(client, ids), [client, ids, version]);
   const rows = useMemo(() => matrixRows(client, ids), [client, ids, version]);

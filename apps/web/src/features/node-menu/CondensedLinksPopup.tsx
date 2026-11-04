@@ -13,13 +13,11 @@
 
 import { useRef, type RefObject } from "react";
 
-import { rendersWithDocumentChrome } from "@notees/domain";
-
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 import { titleOf } from "../../ui/dateDisplay.js";
-import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
+import { nearestDocumentChromeAncestor } from "../../ui/renderStateLabel.js";
 import { NodeResultItem } from "../pickers/NodeResultItem.js";
 import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
 import type { HiddenLinkTarget } from "@/editor/condensed.js";
@@ -33,24 +31,14 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * targets whose chain can't be resolved) render no breadcrumb.
  */
 function containingPageLabel(client: AnyClient, targetId: string): string | null {
-  const parentlessBlock = parentlessBlockResolverOf(client);
-  let current = client.getNode(targetId);
-  let currentParent =
-    current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
-  let guard = 0;
-  while (
-    current !== undefined &&
-    !rendersWithDocumentChrome(current, currentParent, parentlessBlock) &&
-    currentParent !== undefined &&
-    guard < 64
-  ) {
-    current = currentParent;
-    currentParent =
-      current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
-    guard += 1;
-  }
-  if (current === undefined || current.id === targetId) return null;
-  return titleOf(client, current.id, { flatten: "chrome" }) ?? null;
+  const target = client.getNode(targetId);
+  if (target === undefined) return null;
+  // includeSelf: the node itself answers when it already renders with
+  // document chrome — but a page target renders no breadcrumb (the
+  // current.id === targetId guard below).
+  const page = nearestDocumentChromeAncestor(client, target, { includeSelf: true });
+  if (page === undefined || page.id === targetId) return null;
+  return titleOf(client, page.id, { flatten: "chrome" }) ?? null;
 }
 
 export function CondensedLinksPopup({

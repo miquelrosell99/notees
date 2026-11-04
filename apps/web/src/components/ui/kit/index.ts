@@ -170,6 +170,12 @@ export type { PresentationOverlayProps } from './PresentationOverlay.js';
 export { usePopupDismissal } from './usePopupDismissal.js';
 export type { UsePopupDismissalOptions } from './usePopupDismissal.js';
 
+export { useClientVersion } from './useClientVersion.js';
+export type { VersionedClient } from './useClientVersion.js';
+
+export { useAnchoredPopup } from './useAnchoredPopup.js';
+export type { UseAnchoredPopupOptions, AnchoredPopupPlacement } from './useAnchoredPopup.js';
+
 export { useDelayedVisible } from './useDelayedVisible.js';
 
 export { SurfaceTopBar } from './SurfaceTopBar.js';

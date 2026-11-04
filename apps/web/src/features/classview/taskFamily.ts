@@ -42,6 +42,8 @@ import {
 
 import type { ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
+import { ensureFamilySchemas } from "./familyEnsure.js";
+
 /** The composed write/read surface both full clients (and the outliner
  *  context's `OutlinerClient & OutlinerReader`, which the full client
  *  satisfies) implement — RPC-mirrored, so the structural pick is safe. */
@@ -91,8 +93,9 @@ const TASK_FAMILY: Array<{
   pinned?: boolean;
   /** Multi cardinality (the `project` relation; absent = single-value). */
   multi?: boolean;
-  /** Node-typed target filter as seed class names (resolved to ids below). */
-  targetClassFilter?: Array<keyof typeof SYSTEM_CLASS_UUIDS>;
+  /** Node-typed target filter (already-resolved seed class ids — the shared
+   *  loop carries the array verbatim). */
+  targetClassFilter?: string[];
   /** The schema-level hide-when-empty contract (the `project` relation). */
   hideWhenEmpty?: boolean;
   /** The schema-level default (TASK_FAMILY_SEED.defaultValue; the Status
@@ -157,7 +160,7 @@ const TASK_FAMILY: Array<{
     name: "Project",
     type: "object",
     multi: true,
-    targetClassFilter: ["project"],
+    targetClassFilter: [SYSTEM_CLASS_UUIDS.project],
     hideWhenEmpty: true,
   },
 ];
@@ -199,38 +202,13 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
         parentlessRole: "block",
       });
     }
-    const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
-    for (const spec of TASK_FAMILY) {
-      if (!have.has(spec.id)) {
-        const options = spec.options?.();
-        await client.createPropertySchema({
-          id: spec.id,
-          name: spec.name,
-          type: spec.type,
-          // Global scope (// Status "can be reused for other nodes", and the ruling covers
-          // the whole family): absent scopeClassIds = any node may carry
-          // it. The task-class bindings below are untouched (per-class
-          // config, zero availability semantics). The `project` relation
-          // rides the same global scope (its spec is explicitly global).
-          ...(spec.multi !== undefined ? { multi: spec.multi } : {}),
-          ...(options !== undefined ? { options } : {}),
-          ...(spec.targetClassFilter !== undefined
-            ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
-            : {}),
-          ...(spec.hideWhenEmpty !== undefined ? { hideWhenEmpty: spec.hideWhenEmpty } : {}),
-          ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
-        });
-      }
-    }
-    const bound = new Set(
-      client.getClassBindings(SYSTEM_CLASS_UUIDS.task).map((binding) => binding.propertySchemaId),
-    );
-    for (const spec of TASK_FAMILY) {
-      if (bound.has(spec.id)) continue;
-      await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, {
-        ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
-      });
-    }
+    // The family is authored through the shared spec-driven loop. Global
+    // scope (Status "can be reused for other nodes", and the ruling covers
+    // the whole family): absent scopeClassIds = any node may carry it — the
+    // task-class bindings are untouched (per-class config, zero availability
+    // semantics). The `project` relation rides the same global scope (its
+    // spec is explicitly global).
+    await ensureFamilySchemas(client, SYSTEM_CLASS_UUIDS.task, TASK_FAMILY);
   }
   // Upgrade pass: restyle the status options with the designed
   // circle icons/colors (stored ids preserved — authored values reference

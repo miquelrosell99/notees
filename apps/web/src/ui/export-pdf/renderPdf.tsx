@@ -22,6 +22,7 @@ import { zipSync } from "fflate";
 import { exportFileName, type ResolvedExportOptions } from "@notees/export";
 
 import { titleOfNode } from "../dateDisplay.js";
+import { blobBytes } from "../../core/workspace-client/asset-transport.js";
 
 import {
   buildSubtreeDocument,
@@ -90,19 +91,6 @@ export function mdiIconPaths(): Promise<ReadonlyMap<string, string>> {
     })
     .catch(() => new Map<string, string>());
   return mdiSpritePromise;
-}
-
-/** Blob → bytes, with a FileReader fallback for jsdom (whose Blob lacks arrayBuffer). */
-async function blobBytes(blob: Blob): Promise<Uint8Array> {
-  if (typeof blob.arrayBuffer === "function") {
-    return new Uint8Array(await blob.arrayBuffer());
-  }
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
 }
 
 /**

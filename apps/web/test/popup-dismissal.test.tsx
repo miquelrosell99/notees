@@ -296,12 +296,12 @@ describe("dismissal matrix: slash command popup (TriggerPopup)", () => {
   it("pointer-down outside closes; pressing a row does not", async () => {
     const { container, editor, unmount } = await seedPage();
     const row = within(slashPopup()!).getAllByRole("option")[0]!;
-    fireEvent.mouseDown(row);
+    fireEvent.pointerDown(row);
     expect(slashPopup()).not.toBeNull();
 
-    // Mousedown in the page chrome (outside the editor text and the popup).
+    // Pointer-down in the page chrome (outside the editor text and the popup).
     const header = container.querySelector<HTMLElement>(".nt-page-header") ?? container;
-    fireEvent.mouseDown(header);
+    fireEvent.pointerDown(header);
     expect(slashPopup()).toBeNull();
     expect(editor.textContent).toBe("/");
     unmount();

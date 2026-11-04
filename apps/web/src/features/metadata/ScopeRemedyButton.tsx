@@ -15,12 +15,13 @@
  * pattern so the offer re-derives as soon as the op applies.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
 
 import { Button } from "../../components/ui/kit/Button.js";
 import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
+import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { missingScopeClasses, nearestRemedyClass } from "./scopeRemedy.js";
 import type { AnyClient } from "./shared.js";
 import "./ScopeRemedyButton.css";
@@ -34,8 +35,7 @@ export function ScopeRemedyButton({
   nodeId: string;
   schema: Pick<ClientPropertySchema, "scopeClassIds">;
 }) {
-  const [, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  useClientVersion(client);
   const [confirmFor, setConfirmFor] = useState<string | null>(null);
 
   const node = client.getNode(nodeId);

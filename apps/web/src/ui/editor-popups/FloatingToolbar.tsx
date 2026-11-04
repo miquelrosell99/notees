@@ -33,7 +33,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type MouseEvent,
@@ -45,7 +44,8 @@ import type { Mark } from "@notees/protocol";
 
 import { Button } from "../../components/ui/kit/Button.js";
 import { FloatingToolbar as FloatingToolbarPanel } from "../../components/ui/kit/FloatingToolbar.js";
-import { clampOverlayLeft, flipOverlayTop, rangeAnchorRect } from "./overlay-position.js";
+import { useAnchoredPopup } from "../../components/ui/kit/useAnchoredPopup.js";
+import { rangeAnchorRect } from "./overlay-position.js";
 
 const MARKS: { mark: Mark; label: string; icon: string }[] = [
   { mark: "bold", label: "Bold (Ctrl+B)", icon: "mdi-format-bold" },
@@ -138,31 +138,24 @@ export function FloatingToolbar({ rootRef, activeMarks, onToggleMark, onMention,
     };
   }, [rootRef]);
 
-  // Anchor the toolbar to the live selection: the compute re-reads the Range
-  // rect, flips above the selection when there is no room below, and clamps
+  // Anchor the toolbar to the live selection — the shared anchored-popup
+  // pass: the compute re-reads the Range rect (so scroll, resize, and
+  // drag-selection all reposition against the current selection), flips
+  // above the selection when there is no room below, and clamps
   // horizontally into the viewport. top/left are written straight to the
   // toolbar element, so repositioning never goes through React renders.
-  useLayoutEffect(() => {
-    if (!isVisible) return;
-    const floating = toolbarRef.current;
-    if (!floating) return;
-
-    const update = () => {
-      const anchor = rangeAnchorRect(rangeRef.current);
-      const { top } = flipOverlayTop(anchor, floating.offsetHeight, 8, 8);
-      floating.style.left = `${clampOverlayLeft(anchor.left, floating.offsetWidth, 8)}px`;
-      floating.style.top = `${top}px`;
-      floating.style.visibility = "visible";
-    };
-
-    update();
-    window.addEventListener("resize", update);
-    document.addEventListener("scroll", update, true);
-    return () => {
-      window.removeEventListener("resize", update);
-      document.removeEventListener("scroll", update, true);
-    };
-  }, [isVisible]);
+  // The pass runs only while the toolbar is shown (the panel unmounts when
+  // hidden); each compute reveals it.
+  useAnchoredPopup({
+    popupRef: toolbarRef,
+    getAnchorRect: () => rangeAnchorRect(rangeRef.current),
+    enabled: isVisible,
+    gap: 8,
+    onPlaced: () => {
+      const floating = toolbarRef.current;
+      if (floating) floating.style.visibility = "visible";
+    },
+  });
 
   const handleMouseDown = useCallback((e: MouseEvent) => {
     e.preventDefault();

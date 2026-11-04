@@ -43,14 +43,13 @@ import {
 } from "react";
 import { uuidv7 } from "uuidv7";
 
-import { rendersAsInlineBlock } from "@notees/domain";
 
 import { withCandidateSpans } from "@/editor/capture.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { titleOf } from "../dateDisplay.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../renderStateLabel.js";
+import { rendersAsInlineBlockOf } from "../renderStateLabel.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { requestPropertyCreate } from "../../features/metadata/PropertyCreateHost.js";
 import { Button, Checkbox, Modal, SelectTrigger } from "../../components/ui/kit/index.js";
@@ -644,8 +643,7 @@ export function LinkEditModalHost({
               ? "verb"
               : (() => {
                   const targetNode = client.getNode(target.initialNodeId);
-                  return targetNode !== undefined &&
-                    rendersAsInlineBlock(targetNode, parentRenderFacts(client, targetNode), parentlessBlockResolverOf(client))
+                  return targetNode !== undefined && rendersAsInlineBlockOf(client, targetNode)
                     ? "block"
                     : "node";
                 })()

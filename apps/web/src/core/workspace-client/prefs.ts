@@ -128,25 +128,6 @@ export function writeDevicePrefScalar(
   }
 }
 
-/** Server body → UserPrefs; a malformed answer is a loud error, never half-read. */
-export function normalizeUserPrefs(body: unknown): UserPrefs {
-  const value = body as {
-    favorites?: unknown;
-    recents?: unknown;
-    cardsAlgorithm?: unknown;
-    adsApiToken?: unknown;
-  };
-  const asIds = (input: unknown): string[] =>
-    Array.isArray(input) ? input.filter((entry): entry is string => typeof entry === "string") : [];
-  return {
-    favorites: asIds(value?.favorites),
-    recents: asIds(value?.recents),
-    cardsAlgorithm: value?.cardsAlgorithm === "sm2" ? "sm2" : "fsrs",
-    // Older servers answer without the column — the honest read is "no token".
-    adsApiToken: typeof value?.adsApiToken === "string" ? value.adsApiToken : "",
-  };
-}
-
 /** Star toggle: add/remove an id, preserving the existing order. */
 export function mergeFavoriteToggle(list: readonly string[], id: string): string[] {
   return list.includes(id) ? list.filter((entry) => entry !== id) : [...list, id];

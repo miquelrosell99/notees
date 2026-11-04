@@ -28,7 +28,7 @@
  * renders the honest empty state.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   SYSTEM_CLASS_DISPLAY_NAMES,
@@ -45,6 +45,7 @@ import {
   ConfirmationModal,
   EmptyState,
   TextField,
+  useClientVersion,
 } from "../../components/ui/kit/index.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { PropertiesTable, metadataRowCount } from "../metadata/index.js";
@@ -66,8 +67,7 @@ export function SourcesDetail({
   onDeleted?: ((nodeId: string) => void) | undefined;
 }) {
   // Live by subscription: a property write here (or anywhere) re-reads.
-  const [, setVersion] = useState(0);
-  useEffect(() => client?.subscribe(() => setVersion((v) => v + 1)), [client]);
+  useClientVersion(client);
   /** The title's inline editor swap. */
   const [titleEditing, setTitleEditing] = useState(false);
   /** The latched delete-confirm target (the node-menu latch idiom). */

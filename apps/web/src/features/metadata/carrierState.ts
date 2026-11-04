@@ -10,10 +10,8 @@
  * panel renders them — one resolution contract, both consumers.
  */
 
-import { rendersAsInlineBlock } from "@notees/domain";
-
 import type { AnyClient } from "../collection/types.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { rendersAsInlineBlockOf } from "../../ui/renderStateLabel.js";
 
 /** One property value's carrier resolution (the metadata panel's branches). */
 export type CarrierState =
@@ -31,10 +29,7 @@ export function carrierStateOf(client: AnyClient, value: unknown): CarrierState 
         : null;
   if (rawRef !== null) {
     const node = client.getNode(rawRef);
-    if (
-      node !== undefined &&
-      rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
-    ) {
+    if (node !== undefined && rendersAsInlineBlockOf(client, node)) {
       return { kind: "carrier", id: rawRef };
     }
     return { kind: "dead" };

@@ -76,7 +76,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS, chainNodeIds, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, chainNodeIds, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, PageSummary, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -84,7 +84,12 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { titleOf, titleOfNode, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import {
+  nearestDocumentChromeAncestor,
+  parentlessBlockResolverOf,
+  rendersAsInlineBlockOf,
+  rendersWithDocumentChromeOf,
+} from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
 import { requestImport } from "../import/requestImport.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
@@ -171,17 +176,8 @@ const PROPERTY_TYPE_GLYPHS: Record<string, string> = {
 
 /** Containing-page breadcrumb for a block hit. */
 function containingPageLabel(client: AnyClient, node: ClientNode): string | null {
-  let currentId = node.parentId;
-  let guard = 0;
-  while (currentId !== null && guard < 64) {
-    const parent = client.getNode(currentId);
-    if (parent === undefined) return null;
-    if (rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client)))
-      return titleOfNode(parent) || "Untitled";
-    currentId = parent.parentId;
-    guard += 1;
-  }
-  return null;
+  const page = nearestDocumentChromeAncestor(client, node);
+  return page !== undefined ? titleOfNode(page) || "Untitled" : null;
 }
 
 /**
@@ -674,7 +670,7 @@ export function CommandPalette({
               const mergeable =
                 current !== undefined &&
                 !current.isClass &&
-                rendersWithDocumentChrome(current, parentRenderFacts(client, current), parentlessBlockResolverOf(client));
+                rendersWithDocumentChromeOf(client, current);
               return mergeable
                 ? [
                     {
@@ -834,19 +830,19 @@ export function CommandPalette({
           setContentItems(
             page.nodes
               .filter((node) => !node.classIds.includes(assetClassId))
-              .filter((node) => !chip.blocks || rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
-              .filter((node) => !chip.pages || rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client)))
+              .filter((node) => !chip.blocks || rendersAsInlineBlockOf(client, node))
+              .filter((node) => !chip.pages || rendersWithDocumentChromeOf(client, node))
               .filter((node) => !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id)))
               .map((node) => ({
                 queryTag: text,
                 key: `content:${node.id}`,
                 group: "Content" as const,
                 label: titleOfNode(node) || "Untitled",
-                icon: rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
+                icon: rendersWithDocumentChromeOf(client, node)
                   ? (client.effectiveNodeIcon(node) ?? "mdi-file-document-outline")
                   : (client.effectiveNodeIcon(node) ?? "mdi-format-text"),
                 keywords: "",
-                meta: rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
+                meta: rendersAsInlineBlockOf(client, node)
                   ? (containingPageLabel(client, node) ?? undefined)
                   : undefined,
                 snippet: client.getSearchSnippet(node.id, text),

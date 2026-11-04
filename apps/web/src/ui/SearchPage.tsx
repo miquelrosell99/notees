@@ -23,14 +23,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { titleOf } from "./dateDisplay.js";
-import { parentlessBlockResolverOf, parentRenderFacts } from "./renderStateLabel.js";
+import { rendersAsInlineBlockOf, rendersWithDocumentChromeOf } from "./renderStateLabel.js";
 import { NodeResultItem } from "../features/pickers/NodeResultItem.js";
+import {
+  buildContainingPagePath,
+  buildParentPath,
+  getDisplayClasses,
+} from "../features/pickers/nodeBreadcrumbs.js";
 import { Button } from "../components/ui/kit/Button.js";
 import { Dropdown } from "../components/ui/kit/Dropdown.js";
 import { SearchField } from "../components/ui/kit/SearchField.js";
@@ -139,14 +142,10 @@ export function SearchPage({
   // Main (the render-state model's is_class branch); Blocks keeps only
   // parented non-class children with the render bit unset.
   const visible = useMemo(() => {
-    const parentlessBlock = parentlessBlockResolverOf(client);
     return hits.filter((node) => {
-      if (
-        scope === "main" &&
-        !(node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlock))
-      )
+      if (scope === "main" && !(node.isClass || rendersWithDocumentChromeOf(client, node)))
         return false;
-      if (scope === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node), parentlessBlock))
+      if (scope === "blocks" && !rendersAsInlineBlockOf(client, node))
         return false;
       if (classFilter !== null && !node.classIds.includes(classFilter)) return false;
       return true;
@@ -179,63 +178,8 @@ export function SearchPage({
     return [{ value: "", label: "Any class" }, ...classes];
   }, [client]);
 
-  // Build parent page path (e.g. "Root / Parent /") for a document-chrome
-  // node — the NodeSelector breadcrumb helper, verbatim.
-  const buildParentPath = (node: ClientNode): string => {
-    if (node.parentId === null) return "";
-    const segments: string[] = [];
-    let currentId: string | null = node.parentId;
-    let guard = 0;
-    while (currentId !== null && guard < 64) {
-      const parent: ClientNode | undefined = client.getNode(currentId);
-      if (!parent || !rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client))) break;
-      segments.unshift(titleOf(client, parent.id, { flatten: "chrome" }) || "Untitled");
-      currentId = parent.parentId;
-      guard += 1;
-    }
-    if (segments.length === 0) return "";
-    const fullPath = segments.join(" / ") + " /";
-    if (fullPath.length <= 36) return fullPath;
-    const parts = [...segments];
-    while (parts.length > 1) {
-      parts.shift();
-      const candidate = ".../ " + parts.join(" / ") + " /";
-      if (candidate.length <= 36) return candidate;
-    }
-    const last = parts[0]!;
-    return ".../ " + (last.length > 26 ? last.slice(0, 23) + "..." : last) + " /";
-  };
-
-  // Containing-page breadcrumb for a block hit: the nearest
-  // document-chrome ancestor's path plus the page itself.
-  const buildContainingPagePath = (node: ClientNode): string => {
-    let currentId = node.parentId;
-    let guard = 0;
-    while (currentId !== null && guard < 64) {
-      const parent = client.getNode(currentId);
-      if (parent === undefined) break;
-      if (rendersWithDocumentChrome(parent, undefined, parentlessBlockResolverOf(client))) {
-        const ancestors = buildParentPath(parent);
-        const name = titleOf(client, parent.id, { flatten: "chrome" }) || "Untitled";
-        return ancestors !== "" ? `${ancestors} ${name}` : name;
-      }
-      currentId = parent.parentId;
-      guard += 1;
-    }
-    return "";
-  };
-
-  // Get display classes for a node (class names as small pills).
-  const getDisplayClasses = (node: ClientNode): Array<{ nodeUuid: string; name: string }> => {
-    if (node.classIds.length === 0) return [];
-    return node.classIds
-      .map((classUuid) => {
-        const name = titleOf(client, classUuid, { flatten: "chrome" });
-        if (!name) return null;
-        return { nodeUuid: classUuid, name };
-      })
-      .filter((c): c is { nodeUuid: string; name: string } => c !== null);
-  };
+  // The result-row breadcrumbs ride the shared nodeBreadcrumbs helpers
+  // (the NodeSelector trio, once the SearchPage copy went "verbatim").
 
   return (
     <div className="search-page">
@@ -287,15 +231,11 @@ export function SearchPage({
                               node={node}
                               client={client}
                               parentPath={
-                                rendersWithDocumentChrome(
-                                  node,
-                                  parentRenderFacts(client, node),
-                                  parentlessBlockResolverOf(client),
-                                )
-                                  ? buildParentPath(node)
-                                  : buildContainingPagePath(node)
+                                rendersWithDocumentChromeOf(client, node)
+                                  ? buildParentPath(client, node)
+                                  : buildContainingPagePath(client, node)
                               }
-                              displayClasses={getDisplayClasses(node)}
+                              displayClasses={getDisplayClasses(client, node)}
                               onClick={() => onOpenNode(node.id)}
                             />
                             {snippet !== null && (

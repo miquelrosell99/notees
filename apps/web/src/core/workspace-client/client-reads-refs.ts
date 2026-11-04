@@ -32,48 +32,28 @@ export class WorkspaceClientReadsRefs {
 
   /**
    * Class effectiveColor: the class's own color, else the nearest ancestor
-   * in the extends chain with a color (walked via class_extends edges).
+   * in the extends chain with a color (the shared walkExtendsChain BFS).
    */
   effectiveClassColor(classId: string): string | null {
-    const seen = new Set<string>();
-    const queue = [classId];
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (seen.has(current)) continue;
-      seen.add(current);
-      const node = this.reads.getNode(current) ?? this.reads.getNodeRaw(current);
-      if (node !== undefined && node.color !== null && node.color !== "") {
-        return node.color;
-      }
-      const parents = this.ctx.store.database
-        .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
-        .all(current) as Array<{ parent_class_id: string }>;
-      for (const parent of parents) queue.push(parent.parent_class_id);
-    }
-    return null;
+    return (
+      this.reads.walkExtendsChain(
+        classId,
+        (node) => node.color !== null && node.color !== "",
+      )?.color ?? null
+    );
   }
 
   /** Raw class-icon walk: the class's own icon, else the nearest ancestor
-   * in the extends chain with an icon (same walk as effectiveClassColor).
+   * in the extends chain with an icon (the shared walkExtendsChain BFS).
    * No display-time default — the shared building block of the two
    * effective-icon resolvers below. */
   private classIconInChain(classId: string): string | null {
-    const seen = new Set<string>();
-    const queue = [classId];
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      if (seen.has(current)) continue;
-      seen.add(current);
-      const node = this.reads.getNode(current) ?? this.reads.getNodeRaw(current);
-      if (node !== undefined && node.icon !== null && node.icon !== "") {
-        return node.icon;
-      }
-      const parents = this.ctx.store.database
-        .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
-        .all(current) as Array<{ parent_class_id: string }>;
-      for (const parent of parents) queue.push(parent.parent_class_id);
-    }
-    return null;
+    return (
+      this.reads.walkExtendsChain(
+        classId,
+        (node) => node.icon !== null && node.icon !== "",
+      )?.icon ?? null
+    );
   }
 
   /** Class effectiveIcon: the raw chain walk, else the display-time default

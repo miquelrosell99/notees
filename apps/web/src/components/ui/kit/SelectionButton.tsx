@@ -24,6 +24,7 @@ import {
 
 import "./SelectionButton.css";
 import { Icon } from "../../../ui/Icon.js";
+import { usePopupDismissal } from "./usePopupDismissal.js";
 
 export type SelectionButtonSize = "sm" | "md" | "lg";
 export type SelectionButtonOrientation = "horizontal" | "vertical";
@@ -138,26 +139,15 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
       }
     }, [value, visibleOptions, orientation]);
 
-    // Close overflow on click outside or Escape
-    useEffect(() => {
-      if (!overflowOpen) return;
-
-      const handleClickOutside = (e: MouseEvent) => {
-        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-          setOverflowOpen(false);
-        }
-      };
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === "Escape") setOverflowOpen(false);
-      };
-
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("keydown", handleKeyDown);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-        document.removeEventListener("keydown", handleKeyDown);
-      };
-    }, [overflowOpen]);
+    // Close overflow on press outside or Escape — the shared dismissal hook
+    // (pointerdown-outside + Escape-from-outside, the fleet contract).
+    // Escape while focus is inside (the toggle or a dropdown item) belongs
+    // to the surface: the container's own keydown below closes it.
+    usePopupDismissal({
+      popupRef: containerRef,
+      isOpen: overflowOpen,
+      onClose: () => setOverflowOpen(false),
+    });
 
     const handleOptionClick = (optionValue: string) => {
       if (!disabled && optionValue !== value) {
@@ -237,6 +227,11 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
         className={containerClasses}
         role="radiogroup"
         onWheel={handleWheel}
+        onKeyDown={(e) => {
+          // The overflow dropdown's interior Escape (the shared dismissal
+          // hook owns Escape from outside the surface only).
+          if (overflowOpen && e.key === "Escape") setOverflowOpen(false);
+        }}
       >
         {/* Animated selection indicator */}
         <span className="selection-button__indicator" style={indicatorStyle} aria-hidden="true" />

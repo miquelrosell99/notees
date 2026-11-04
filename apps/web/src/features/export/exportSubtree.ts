@@ -75,6 +75,7 @@ import { resolveCssColor } from "../../components/ui/kit/colorPresets.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 
 import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";
+import { blobBytes } from "../../core/workspace-client/asset-transport.js";
 
 import type {
   ClientNode,
@@ -493,8 +494,17 @@ export function zipExportBundle(
 export function exportZipFileName(client: ExportClient, firstRootId: string, date: Date = new Date()): string {
   const root = client.getNode(firstRootId);
   const title = root === undefined ? "" : titleOfNode(root).trim();
-  const slug = title.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+  const slug = slugifyName(title);
   return `${slug.length > 0 ? slug : "export"}-${exportTimestamp(date)}.zip`;
+}
+
+/**
+ * Name → filename slug: maximal letter/digit runs (any Unicode script) kept,
+ * every other run → one "-", leading/trailing dashes trimmed. May be "" for
+ * an empty/all-punctuation name — callers pick their own fallback.
+ */
+export function slugifyName(name: string): string {
+  return name.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
 }
 
 /**
@@ -637,7 +647,7 @@ export function buildSubtreeDocument(
  *  naming ruling) keeps repeated exports of one node from overwriting each
  *  other. Exported for the P1 PDF engine's download names. */
 export function exportFileSlugName(rootName: string, rootId: string, extension: string, date: Date = new Date()): string {
-  const slug = rootName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+  const slug = slugifyName(rootName);
   return `${slug.length > 0 ? slug : rootId}-${exportTimestamp(date)}.${extension}`;
 }
 
@@ -839,27 +849,11 @@ const ASSET_MIME_EXTENSIONS: Record<string, string> = {
  * digest is computed client-side.
  */
 function assetZipFileName(originalName: string, hash: string, mimeType: string): string {
-  const slug = originalName
-    .replace(/\.[A-Za-z0-9]{1,8}$/, "")
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/g, "");
+  const slug = slugifyName(originalName.replace(/\.[A-Za-z0-9]{1,8}$/, ""));
   const dot = originalName.lastIndexOf(".");
   const rawExt = dot > 0 ? originalName.slice(dot + 1).toLowerCase() : "";
   const ext = /^[a-z0-9]{1,8}$/.test(rawExt) ? rawExt : (ASSET_MIME_EXTENSIONS[mimeType] ?? "bin");
   return `${slug.length > 0 ? `${slug}-` : ""}${hash.slice(0, 8)}.${ext}`;
-}
-
-/** Blob → bytes, with a FileReader fallback for jsdom (whose Blob lacks arrayBuffer). */
-async function blobBytes(blob: Blob): Promise<Uint8Array> {
-  if (typeof blob.arrayBuffer === "function") {
-    return new Uint8Array(await blob.arrayBuffer());
-  }
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
 }
 
 /**

@@ -27,12 +27,12 @@
  *    layout keeps those sections in the content stack instead.
  */
 
-import { isSystemClassId, parseDateNodeId, rendersWithDocumentChrome } from "@notees/domain";
+import { isSystemClassId, parseDateNodeId } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { parentlessBlockResolverOf, parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { rendersWithDocumentChromeOf } from "../../ui/renderStateLabel.js";
 import { createdPeriodBounds, isoOfDateParts } from "../calendar/calendarViewUtils.js";
 import { sectionEntries, type SectionEntry } from "./sectionRegistry.js";
 
@@ -257,7 +257,7 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
   }
   if (
     node === undefined ||
-    !rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))
+    !rendersWithDocumentChromeOf(client, node)
   ) {
     return { variant: "plain", sections: NO_SECTIONS, systemSections: PAGE_SYSTEM_SECTIONS };
   }

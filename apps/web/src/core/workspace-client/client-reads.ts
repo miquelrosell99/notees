@@ -92,12 +92,28 @@ export class WorkspaceClientReads {
   }
 
   /** Class effectiveParentlessRole — the extends-aware "block" demote: true when the class's OWN flag is "block" OR any
-   *  extends-ancestor's is (the same chain walk as effectiveClassColor,
+   *  extends-ancestor's is (the shared {@link walkExtendsChain} BFS,
    *  reduced to a boolean one-way demote — there is no per-level unflag).
    *  THIS is the resolver the domain role predicates take for the parentless
    *  cascade branch. Lives in the reads domain so every read class (refs,
    *  props) reaches it without circular wiring. */
   effectiveClassParentlessBlock(classId: string): boolean {
+    return this.walkExtendsChain(classId, (node) => node.parentlessRole === "block") !== null;
+  }
+
+  /**
+   * The shared breadth-first walk over the class_extends edges (level order,
+   * per-level parents ordered by class id, cycle-guarded): the first node —
+   * starting at `classId` itself — matching `predicate`, via the same
+   * getNode/getNodeRaw fallback every effective-* resolver used. Null when
+   * nothing in the chain matches. The single traversal behind
+   * effectiveClassParentlessBlock, effectiveClassColor, and the refs
+   * domain's classIconInChain.
+   */
+  walkExtendsChain(
+    classId: string,
+    predicate: (node: ClientNode) => boolean,
+  ): ClientNode | null {
     const seen = new Set<string>();
     const queue = [classId];
     while (queue.length > 0) {
@@ -105,13 +121,13 @@ export class WorkspaceClientReads {
       if (seen.has(current)) continue;
       seen.add(current);
       const node = this.getNode(current) ?? this.getNodeRaw(current);
-      if (node !== undefined && node.parentlessRole === "block") return true;
+      if (node !== undefined && predicate(node)) return node;
       const parents = this.ctx.store.database
         .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
         .all(current) as Array<{ parent_class_id: string }>;
       for (const parent of parents) queue.push(parent.parent_class_id);
     }
-    return false;
+    return null;
   }
 
   /** The parent's render facts for the parent-page condition, when known. */

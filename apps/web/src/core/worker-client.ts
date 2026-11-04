@@ -53,22 +53,13 @@ import type {
 } from "./workspace-client/index.js";
 import {
   createAnnotation,
-  fetchAssetBlob,
-  postAssetUpload,
-  readBlobAsDataUrl,
   type PrefsPatch,
   type SectionView,
   type UserPrefs,
   type UserPrefsSource,
 } from "./workspace-client/index.js";
-import { openAssetIfSealed, sealAssetIfKeyed } from "./workspace-client/asset-crypto.js";
-import { blobBytes } from "./workspace-client/asset-transport.js";
-import {
-  openPrefsBlob,
-  parsePrefsWire,
-  sealPrefsBlob,
-  serializePrefs,
-} from "./prefs-wire.js";
+import { fetchAndOpenAsset, fetchAssetDataUrl, sealAndUploadAsset } from "./workspace-client/asset-transport.js";
+import { pullServerPrefs, pushServerPrefs } from "./workspace-client/prefs-rest.js";
 import {
   readDevicePrefList,
   readDevicePrefScalar,
@@ -1110,35 +1101,10 @@ export class WorkerClient {
 
   /** Upload file bytes to the server's CAS asset store (POST /api/assets). */
   async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
-    // Seal at the CAS boundary when keyed (plan 05); keyless stays plaintext.
     // The REST channel never enters the worker — this runs on the main
-    // thread, same as the in-process client.
-    const sealed = await sealAssetIfKeyed(
-      this.serverUrl,
-      this.apiKey,
-      this.workspaceId,
-      await blobBytes(file),
-      file.type || "application/octet-stream",
-    );
-    return postAssetUpload(
-      this.serverUrl,
-      this.apiKey,
-      this.workspaceId,
-      new Blob([sealed.bytes as BlobPart]),
-      filename,
-      sealed.fields ?? undefined,
-    );
-  }
-
-  /** Download + open a sealed asset (plaintext passes through). */
-  private async openAssetBlob(assetId: string): Promise<Blob> {
-    const { blob, iv } = await fetchAssetBlob(this.serverUrl, this.apiKey, assetId, this.workspaceId);
-    const opened = await openAssetIfSealed(
-      this.workspaceId,
-      iv,
-      await blobBytes(blob),
-    );
-    return new Blob([opened as BlobPart], { type: blob.type });
+    // thread, same as the in-process client (seal + POST ride the shared
+    // transport recipe).
+    return sealAndUploadAsset(this.serverUrl, this.apiKey, this.workspaceId, file, filename);
   }
 
   /** Record an uploaded asset on a node (asset.attach op, enqueued in the worker). */
@@ -1169,12 +1135,12 @@ export class WorkerClient {
 
   /** Download an asset's bytes (workspace key); the export engine's include-assets read. */
   async fetchAssetBytes(assetId: string): Promise<Blob> {
-    return this.openAssetBlob(assetId);
+    return fetchAndOpenAsset(this.serverUrl, this.apiKey, this.workspaceId, assetId);
   }
 
   /** Download an asset's bytes (workspace key) and open them in a new tab. */
   async downloadAsset(assetId: string): Promise<void> {
-    const blob = await this.openAssetBlob(assetId);
+    const blob = await fetchAndOpenAsset(this.serverUrl, this.apiKey, this.workspaceId, assetId);
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
   }
@@ -1189,19 +1155,7 @@ export class WorkerClient {
     // read directly; this path is already async.
     const info = (await this.call("getAssetInfo", [assetNodeId])) as AssetInfo | undefined;
     if (info === undefined || !info.mimeType.startsWith("image/")) return null;
-    try {
-      const fetched = await fetchAssetBlob(this.serverUrl, this.apiKey, info.assetId, this.workspaceId);
-      const opened = await openAssetIfSealed(
-        this.workspaceId,
-        fetched.iv,
-        await blobBytes(fetched.blob),
-      );
-      return await readBlobAsDataUrl(new Blob([opened as BlobPart], { type: fetched.blob.type }));
-    } catch {
-      // Sealed-without-key and decrypt failures both land here: the card
-      // renders the honest no-image fallback (never corrupted bytes).
-      return null;
-    }
+    return fetchAssetDataUrl(this.serverUrl, this.apiKey, this.workspaceId, info.assetId);
   }
 
   /** No-op when the worker already booted this workspace (init bootstraps it). */
@@ -1284,21 +1238,8 @@ export class WorkerClient {
    */
   async getPrefs(): Promise<UserPrefs & { source: UserPrefsSource }> {
     if (!(await this.isOperatorKey())) {
-      try {
-        const response = await fetch(`${this.serverUrl.replace(/\/$/, "")}/api/me/prefs`, {
-          headers: { "X-API-Key": this.apiKey },
-        });
-        if (response.ok) {
-          const body = (await response.json()) as { blob?: unknown };
-          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
-          writeDevicePrefList("favorites", prefs.favorites);
-          writeDevicePrefList("recents", prefs.recents);
-          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
-          return { ...prefs, source: "server" };
-        }
-      } catch {
-        // Unreachable — the cached copy below is the honest offline answer.
-      }
+      const prefs = await pullServerPrefs(this.serverUrl, this.apiKey);
+      if (prefs !== null) return { ...prefs, source: "server" };
     }
     return {
       favorites: readDevicePrefList("favorites"),
@@ -1321,23 +1262,8 @@ export class WorkerClient {
     if (patch.recents !== undefined) writeDevicePrefList("recents", patch.recents);
     if (patch.cardsAlgorithm !== undefined) writeDevicePrefScalar("cardsAlgorithm", patch.cardsAlgorithm);
     if (!(await this.isOperatorKey())) {
-      try {
-        const response = await fetch(`${this.serverUrl.replace(/\/$/, "")}/api/me/prefs`, {
-          method: "PUT",
-          headers: { "X-API-Key": this.apiKey, "content-type": "application/json" },
-          body: JSON.stringify({ blob: await sealPrefsBlob(serializePrefs(merged)) }),
-        });
-        if (response.ok) {
-          const body = (await response.json()) as { blob?: unknown };
-          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
-          writeDevicePrefList("favorites", prefs.favorites);
-          writeDevicePrefList("recents", prefs.recents);
-          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
-          return { ...prefs, source: "server" };
-        }
-      } catch {
-        // Unreachable — the local write above already landed.
-      }
+      const prefs = await pushServerPrefs(this.serverUrl, this.apiKey, merged);
+      if (prefs !== null) return { ...prefs, source: "server" };
     }
     return { ...merged, source: "local" };
   }

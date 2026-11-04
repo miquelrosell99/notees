@@ -5,6 +5,7 @@
  * Pure fetch plumbing — no store, no client state.
  */
 
+import { openAssetIfSealed, sealAssetIfKeyed } from "./asset-crypto.js";
 import type { AssetUploadResult } from "./types.js";
 
 /**
@@ -99,6 +100,77 @@ export async function fetchAssetBlob(
     throw new Error(`asset download failed: HTTP ${response.status}`);
   }
   return { blob: await response.blob(), iv: response.headers.get("x-notees-asset-iv") };
+}
+
+/**
+ * The shared upload recipe both clients ride: seal the bytes at the CAS
+ * boundary when the workspace is keyed (plan 05; keyless stays plaintext),
+ * then POST /api/assets. The REST channel never enters the worker — this
+ * runs on the main thread in both modes.
+ */
+export async function sealAndUploadAsset(
+  serverUrl: string,
+  apiKey: string,
+  workspaceId: string,
+  file: Blob,
+  filename: string,
+): Promise<AssetUploadResult> {
+  const sealed = await sealAssetIfKeyed(
+    serverUrl,
+    apiKey,
+    workspaceId,
+    await blobBytes(file),
+    file.type || "application/octet-stream",
+  );
+  return postAssetUpload(
+    serverUrl,
+    apiKey,
+    workspaceId,
+    new Blob([sealed.bytes as BlobPart]),
+    filename,
+    sealed.fields ?? undefined,
+  );
+}
+
+/**
+ * The shared download recipe both clients ride: GET /api/assets/:id
+ * (workspace header load-bearing), open the bytes when sealed (plaintext
+ * passes through), return a Blob of the opened bytes.
+ */
+export async function fetchAndOpenAsset(
+  serverUrl: string,
+  apiKey: string,
+  workspaceId: string,
+  assetId: string,
+): Promise<Blob> {
+  const { blob, iv } = await fetchAssetBlob(serverUrl, apiKey, assetId, workspaceId);
+  const opened = await openAssetIfSealed(workspaceId, iv, await blobBytes(blob));
+  return new Blob([opened as BlobPart], { type: blob.type });
+}
+
+/**
+ * The shared fetch → open → data-URL tail of the image-asset read (card
+ * covers / thumbnails). Sealed-without-key and decrypt failures both land
+ * in the null — the card renders the honest no-image fallback, never
+ * corrupted bytes. Each caller keeps its own prologue (the info lookup).
+ */
+export async function fetchAssetDataUrl(
+  serverUrl: string,
+  apiKey: string,
+  workspaceId: string,
+  assetId: string,
+): Promise<string | null> {
+  try {
+    const fetched = await fetchAssetBlob(serverUrl, apiKey, assetId, workspaceId);
+    const opened = await openAssetIfSealed(
+      workspaceId,
+      fetched.iv,
+      await blobBytes(fetched.blob),
+    );
+    return await readBlobAsDataUrl(new Blob([opened as BlobPart], { type: fetched.blob.type }));
+  } catch {
+    return null;
+  }
 }
 
 /** Blob → bytes. `Blob.arrayBuffer` is absent in older DOM shims (jsdom) — FileReader fallback. */

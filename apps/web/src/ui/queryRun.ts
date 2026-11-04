@@ -15,10 +15,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { parseQueryAst, type CompileOptions, type QueryAst } from "@notees/query";
 
-import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
-
 import type { NodeCollectionItem, TableColumn } from "../features/collection/index.js";
-import { parentlessBlockResolverOf } from "./renderStateLabel.js";
+import {
+  nearestDocumentChromeAncestor,
+  rendersAsInlineBlockOf,
+} from "./renderStateLabel.js";
 import type {
   ClientNode,
   QueryAggregateResult,
@@ -164,30 +165,12 @@ export function openQueryResult(
   onOpenNode: ((nodeId: string) => void) | undefined,
 ): void {
   if (onOpenNode === undefined) return;
-  const parentlessBlock = parentlessBlockResolverOf(client);
-  if (!rendersAsInlineBlock(row, client.getNode(row.parentId ?? ""), parentlessBlock)) {
+  if (!rendersAsInlineBlockOf(client, row)) {
     onOpenNode(row.id);
     return;
   }
   // Ancestor walk with the parent-page condition: a bit under a non-page
   // parent is inert, so the walk continues past it to the real page.
-  const seen = new Set<string>([row.id]);
-  let current = client.getNode(row.parentId ?? "");
-  let currentParent =
-    current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
-  while (
-    current !== undefined &&
-    !rendersWithDocumentChrome(current, currentParent, parentlessBlock) &&
-    !seen.has(current.id)
-  ) {
-    seen.add(current.id);
-    current = currentParent;
-    currentParent =
-      current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
-  }
-  onOpenNode(
-    current !== undefined && rendersWithDocumentChrome(current, currentParent, parentlessBlock)
-      ? current.id
-      : row.id,
-  );
+  const page = nearestDocumentChromeAncestor(client, row);
+  onOpenNode(page !== undefined ? page.id : row.id);
 }
