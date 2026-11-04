@@ -151,6 +151,30 @@ await page.waitForFunction(
 const bootSecs = ((Date.now() - t0) / 1000).toFixed(1);
 console.log(`boot+settle: ${bootSecs}s; body text length: ${(await page.evaluate(() => document.body.innerText.length))}`);
 
+// Encrypted workspace: a session-token resume carries no master key (a reload
+// drops it by design), so the locked banner is up and the store is empty of
+// sealed content. Drive the unlock flow (plan-04 W2) so the smoke exercises
+// the real encrypted path: re-login derives the master key, the workspace
+// re-opens, and the decrypting replay streams in.
+const lockedBanner = await page.evaluate(() =>
+  document.body.innerText.includes("This workspace is encrypted"));
+if (lockedBanner) {
+  console.log("locked banner up — driving the unlock flow");
+  await page.click(".encrypted-locked-banner__unlock");
+  const passwordInput = page.locator('input[type="password"]');
+  await passwordInput.waitFor({ timeout: 10_000 });
+  await passwordInput.fill(PASSWORD);
+  await passwordInput.press("Enter");
+  // The banner clears once the key resolves (before the replay finishes); the
+  // search phase below waits for actual content.
+  await page.waitForFunction(
+    () => !document.body.innerText.includes("This workspace is encrypted"),
+    undefined,
+    { timeout: 120_000 },
+  ).catch(() => console.log("WARN: banner still up after 120s"));
+  console.log("unlock submitted; replay in flight");
+}
+
 // Footer: no sync error.
 const footerText = await page.evaluate(() => {
   const el = [...document.querySelectorAll("*")].find((e) => /sync/i.test(e.className) && e.children.length < 6);
@@ -173,6 +197,12 @@ await page.waitForFunction(
   term,
   { timeout: 300_000 },
 ).catch(() => {});
+// Oracle hygiene: the filled input itself echoes the term into body.innerText,
+// which would pass the check with an empty result set. Clear the input (and
+// close the palette) before asserting — only a REAL rendered hit survives.
+await box.fill("");
+await box.press("Escape");
+await page.waitForTimeout(500);
 const body = await page.evaluate(() => document.body.innerText);
 const found = body.includes("20180900") || body.includes("2018/09");
 console.log("ui search found hit:", found);
