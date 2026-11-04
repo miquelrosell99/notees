@@ -79,3 +79,35 @@ export interface StoreBackend {
    */
   ftsModule: "fts5" | "fts4";
 }
+
+/**
+ * Canonical placeholder-chunk ladder for dynamic IN-list statements. The
+ * appliers build `IN (${placeholders})` SQL with one prepared-statement
+ * cache key per distinct list length — at subtree-op scale that is one key
+ * per subtree size, and past the adapter's statement-cache cap the map
+ * clear/rebuild cycles. Padding every chunk up to the smallest ladder rung
+ * bounds each statement template to at most `IN_CHUNK_LADDER.length`
+ * distinct shapes, keeping the cache hot. The pad value "" is never a
+ * stored id, so IN-membership semantics are unchanged; chunks never exceed
+ * the ladder max, staying under conservative SQLite host-variable limits
+ * on every backend (the stock sql.js build caps at 999).
+ */
+export const IN_CHUNK_LADDER = [4, 16, 64, 256, 900] as const;
+export const IN_CHUNK_MAX = 900;
+
+/**
+ * Split ids into padded canonical chunks (see IN_CHUNK_LADDER). Empty input
+ * yields no chunks — callers simply skip the loop, which also hardens the
+ * previously malformed `IN ()` shape some sites built for empty lists.
+ */
+export function inListChunks(ids: readonly string[]): string[][] {
+  if (ids.length === 0) return [];
+  const size = IN_CHUNK_LADDER.find((rung) => ids.length <= rung) ?? IN_CHUNK_MAX;
+  const chunks: string[][] = [];
+  for (let start = 0; start < ids.length; start += size) {
+    const chunk = ids.slice(start, start + size).slice();
+    while (chunk.length < size) chunk.push("");
+    chunks.push(chunk);
+  }
+  return chunks;
+}

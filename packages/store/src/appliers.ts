@@ -79,6 +79,7 @@ import {
   translateSqliteError,
   UnsupportedCarrierError,
 } from "./errors.js";
+import { inListChunks } from "./db.js";
 import type { StoreDatabase } from "./types.js";
 
 /**
@@ -329,6 +330,29 @@ function subtreeIds(db: StoreDatabase, nodeId: string): string[] {
          SELECT n.id FROM subtree s JOIN node n ON n.parent_id = s.id
        )
        SELECT id FROM subtree ORDER BY id`,
+    )
+    .all(nodeId) as { id: string }[];
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Subtree ids ordered DEEPEST-FIRST. The permanent-delete cascade chunks its
+ * `DELETE FROM node` (canonical placeholder shapes, inListChunks), and the
+ * node's self-referencing `parent_id` FK is enforced (migrate leaves
+ * `foreign_keys` ON): a chunk must never delete a parent while a child
+ * survives in an earlier chunk. Rows co-deleted by ONE statement are exempt
+ * from immediate FK checks, so depth-descending chunks keep every child in
+ * the same or an earlier chunk than its parent.
+ */
+function subtreeIdsDepthDesc(db: StoreDatabase, nodeId: string): string[] {
+  const rows = db
+    .prepare(
+      `WITH RECURSIVE subtree(id, depth) AS (
+         SELECT id, 0 FROM node WHERE id = ?
+         UNION ALL
+         SELECT n.id, s.depth + 1 FROM subtree s JOIN node n ON n.parent_id = s.id
+       )
+       SELECT id FROM subtree ORDER BY depth DESC, id`,
     )
     .all(nodeId) as { id: string }[];
   return rows.map((r) => r.id);
@@ -1092,8 +1116,10 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     // Soft delete: trash the subtree (SCHEMA.md deletion
     // semantics — restore is whole-tree), keep the tree for restore.
     const ids = subtreeIds(db, p.objectId);
-    const placeholders = ids.map(() => "?").join(",");
-    db.prepare(`UPDATE node SET is_active = 0 WHERE id IN (${placeholders})`).run(...ids);
+    for (const chunk of inListChunks(ids)) {
+      const ph = chunk.map(() => "?").join(",");
+      db.prepare(`UPDATE node SET is_active = 0 WHERE id IN (${ph})`).run(...chunk);
+    }
     if (deletedIsClass) {
       // The registry projection follows the node into the trash (the picker
       // read filters on it — an active registry row under a trashed node is
@@ -1131,59 +1157,65 @@ function permanentlyDeleteSubtree(db: StoreDatabase, objectId: string, ts: strin
     "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 1)",
   ).run(objectId, ts);
 
-  const ids = subtreeIds(db, objectId);
-  const placeholders = ids.map(() => "?").join(",");
+  const ids = subtreeIdsDepthDesc(db, objectId);
   // Everything that loses a materialized count in this purge, collected
   // BEFORE the rows die: the subtree's edge targets lose backlinks and the
   // subtree's ancestors lose descendants — without the rebuild their
   // node_stats rows keep counting the dead rows (the badge reads a stored
   // number, so the divergence never heals on its own).
-  const lostBacklinkTargets = (
-    db
-      .prepare(
-        `SELECT DISTINCT target_id FROM edge WHERE source_id IN (${placeholders}) AND target_id IS NOT NULL`,
-      )
-      .all(...ids) as { target_id: string }[]
-  ).map((r) => r.target_id);
+  const lostBacklinkTargets: string[] = [];
   const ancestors = ancestorIds(db, objectId);
-  db.prepare(`DELETE FROM node WHERE id IN (${placeholders})`).run(...ids);
-  // The registry row is a projection of the class node's liveness: a
-  // permanently purged class takes it along (otherwise the row ghosts in
-  // registry reads forever — the withdrawn-system-class lesson: node gone,
-  // `class.active = 1` left behind by the pre-mirror purge).
-  db.prepare(`DELETE FROM class WHERE id IN (${placeholders})`).run(...ids);
-  db.prepare(
-    `DELETE FROM node_child_order WHERE parent_id IN (${placeholders}) OR child_id IN (${placeholders})`,
-  ).run(...ids, ...ids);
-  db.prepare(`DELETE FROM property_value WHERE node_id IN (${placeholders})`).run(...ids);
-  db.prepare(`DELETE FROM property_value_tombstone WHERE node_id IN (${placeholders})`).run(...ids);
-  // PG5: the subtree's element tombstones die with it (owned rows only —
-  // tombstones of elements on SURVIVING nodes are keyed by globally-unique
-  // element ids and never reference these rows).
-  db.prepare(`DELETE FROM property_value_element_tombstone WHERE node_id IN (${placeholders})`).run(
-    ...ids,
-  );
-  db.prepare(`DELETE FROM class_member_set WHERE node_id IN (${placeholders})`).run(...ids);
-  // External-id mappings are OWNED rows (a hard-deleted node leaves no
-  // mapping behind — soft-trash keeps them); the ref tombstones survive,
-  // keyed by ref, bounding garbage to the ref name (SCHEMA.md
-  // "External-id mappings").
-  db.prepare(`DELETE FROM external_ref WHERE node_id IN (${placeholders})`).run(...ids);
-  db.prepare(`DELETE FROM node_asset WHERE node_id IN (${placeholders})`).run(...ids);
-  // PB1 (keep-value + render-broken, SCHEMA.md "Broken references"): rows
-  // OWNED by the subtree die with it (sources, memberships, attachments).
-  // Incoming references from SURVIVING nodes keep their rows — the other's
-  // property_value / mention content survives deletion by design, so its
-  // edge projection must survive too; deleting here only to have the
-  // source's next rebuildEdges re-derive the identical row (shape-based,
-  // target-existence-blind) was a transient resurrection.
-  // Ghost-target edge rows are inert: every backlink/reference query is
-  // keyed by a live node id, and a target restored from trash heals the
-  // set only when its rows survived.
-  db.prepare(`DELETE FROM node_link WHERE source_id IN (${placeholders})`).run(...ids);
-  db.prepare(`DELETE FROM edge WHERE source_id IN (${placeholders})`).run(...ids);
-  db.prepare(`DELETE FROM node_stats WHERE node_id IN (${placeholders})`).run(...ids);
-  db.prepare(`DELETE FROM trash WHERE node_id IN (${placeholders}) AND node_id != ?`).run(...ids, objectId);
+  // Chunked + padded to canonical ladder shapes (inListChunks): one cache
+  // key per rung instead of one per subtree size, and "" pads never match a
+  // stored id, so IN-membership semantics are unchanged.
+  for (const chunk of inListChunks(ids)) {
+    const ph = chunk.map(() => "?").join(",");
+    lostBacklinkTargets.push(
+      ...(
+        db
+          .prepare(
+            `SELECT DISTINCT target_id FROM edge WHERE source_id IN (${ph}) AND target_id IS NOT NULL`,
+          )
+          .all(...chunk) as { target_id: string }[]
+      ).map((r) => r.target_id),
+    );
+    db.prepare(`DELETE FROM node WHERE id IN (${ph})`).run(...chunk);
+    // The registry row is a projection of the class node's liveness: a
+    // permanently purged class takes it along (otherwise the row ghosts in
+    // registry reads forever — the withdrawn-system-class lesson: node gone,
+    // `class.active = 1` left behind by the pre-mirror purge).
+    db.prepare(`DELETE FROM class WHERE id IN (${ph})`).run(...chunk);
+    db.prepare(
+      `DELETE FROM node_child_order WHERE parent_id IN (${ph}) OR child_id IN (${ph})`,
+    ).run(...chunk, ...chunk);
+    db.prepare(`DELETE FROM property_value WHERE node_id IN (${ph})`).run(...chunk);
+    db.prepare(`DELETE FROM property_value_tombstone WHERE node_id IN (${ph})`).run(...chunk);
+    // PG5: the subtree's element tombstones die with it (owned rows only —
+    // tombstones of elements on SURVIVING nodes are keyed by globally-unique
+    // element ids and never reference these rows).
+    db.prepare(`DELETE FROM property_value_element_tombstone WHERE node_id IN (${ph})`).run(...chunk);
+    db.prepare(`DELETE FROM class_member_set WHERE node_id IN (${ph})`).run(...chunk);
+    // External-id mappings are OWNED rows (a hard-deleted node leaves no
+    // mapping behind — soft-trash keeps them); the ref tombstones survive,
+    // keyed by ref, bounding garbage to the ref name (SCHEMA.md
+    // "External-id mappings").
+    db.prepare(`DELETE FROM external_ref WHERE node_id IN (${ph})`).run(...chunk);
+    db.prepare(`DELETE FROM node_asset WHERE node_id IN (${ph})`).run(...chunk);
+    // PB1 (keep-value + render-broken, SCHEMA.md "Broken references"): rows
+    // OWNED by the subtree die with it (sources, memberships, attachments).
+    // Incoming references from SURVIVING nodes keep their rows — the other's
+    // property_value / mention content survives deletion by design, so its
+    // edge projection must survive too; deleting here only to have the
+    // source's next rebuildEdges re-derive the identical row (shape-based,
+    // target-existence-blind) was a transient resurrection.
+    // Ghost-target edge rows are inert: every backlink/reference query is
+    // keyed by a live node id, and a target restored from trash heals the
+    // set only when its rows survived.
+    db.prepare(`DELETE FROM node_link WHERE source_id IN (${ph})`).run(...chunk);
+    db.prepare(`DELETE FROM edge WHERE source_id IN (${ph})`).run(...chunk);
+    db.prepare(`DELETE FROM node_stats WHERE node_id IN (${ph})`).run(...chunk);
+    db.prepare(`DELETE FROM trash WHERE node_id IN (${ph}) AND node_id != ?`).run(...chunk, objectId);
+  }
   for (const id of ids) removeSearchIndexEntry(db, id);
   // Deleted rows are ghosts that never resolve through: re-materialize the
   // rows whose alias chains touched the subtree (incoming edges keep their
@@ -1299,14 +1331,16 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
     if (ridesThisDelete) toReactivate.push(id);
   }
 
-  const placeholders = toReactivate.map(() => "?").join(",");
-  db.prepare(`UPDATE node SET is_active = 1 WHERE id IN (${placeholders})`).run(...toReactivate);
-  // The registry projection mirrors back with the node (the trash arm
-  // mirrored it off — a restored class re-enters the pickers).
-  db.prepare(`UPDATE class SET active = 1, updated_at = ? WHERE id IN (${placeholders})`).run(
-    env.timestamp,
-    ...toReactivate,
-  );
+  for (const chunk of inListChunks(toReactivate)) {
+    const ph = chunk.map(() => "?").join(",");
+    db.prepare(`UPDATE node SET is_active = 1 WHERE id IN (${ph})`).run(...chunk);
+    // The registry projection mirrors back with the node (the trash arm
+    // mirrored it off — a restored class re-enters the pickers).
+    db.prepare(`UPDATE class SET active = 1, updated_at = ? WHERE id IN (${ph})`).run(
+      env.timestamp,
+      ...chunk,
+    );
+  }
   db.prepare("DELETE FROM trash WHERE node_id = ?").run(p.objectId);
   // Restored rows re-enter alias chains (the resolution walk is live-aware):
   // re-materialize every edge row whose chain touches the reactivated set.
@@ -2675,8 +2709,10 @@ function trashTextCarrierIfOrphaned(
     return;
   }
   const ids = subtreeIds(db, target);
-  const placeholders = ids.map(() => "?").join(",");
-  db.prepare(`UPDATE node SET is_active = 0 WHERE id IN (${placeholders})`).run(...ids);
+  for (const chunk of inListChunks(ids)) {
+    const ph = chunk.map(() => "?").join(",");
+    db.prepare(`UPDATE node SET is_active = 0 WHERE id IN (${ph})`).run(...chunk);
+  }
   db.prepare(
     "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 0)",
   ).run(target, timestamp);

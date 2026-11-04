@@ -43,7 +43,7 @@
 
 import { isValidDefaultForType, visiblePropertyValueRows } from "./property-values.js";
 import { LIGHT_PROPERTY_VALUE_TYPES, type PropertyRowShell } from "./property-shells.js";
-import type { SqliteDB } from "./db.js";
+import { inListChunks, type SqliteDB } from "./db.js";
 
 export interface EffectivePropertySchema {
   id: string;
@@ -319,16 +319,9 @@ function buildEffectiveRows(
   /** The schema's options (parsed; used by the derived-default membership check). */
   const schemaOptions = new Map<string, ReadonlyArray<{ id: string }>>();
   if (schemaIds.size > 0) {
-    const placeholders = [...schemaIds].map(() => "?").join(",");
-    const rows = db
-      .prepare(
-        `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules,
-                date_precision, date_qualified,
-                number_pad, number_decimals, number_rounding,
-                display, hide_when_empty, default_value, options
-         FROM property_schema WHERE id IN (${placeholders})`,
-      )
-      .all(...schemaIds) as Array<{
+    // Padded canonical chunks (inListChunks) — one cache key per ladder rung
+    // instead of one per distinct schema count.
+    const rows: Array<{
       id: string;
       name: string;
       type: string;
@@ -345,7 +338,21 @@ function buildEffectiveRows(
       hide_when_empty: number | null;
       default_value: string | null;
       options: string;
-    }>;
+    }> = [];
+    for (const chunk of inListChunks([...schemaIds])) {
+      const ph = chunk.map(() => "?").join(",");
+      rows.push(
+        ...(db
+          .prepare(
+            `SELECT id, name, type, multi, icon, scope_class_ids, validation_rules,
+                date_precision, date_qualified,
+                number_pad, number_decimals, number_rounding,
+                display, hide_when_empty, default_value, options
+         FROM property_schema WHERE id IN (${ph})`,
+          )
+          .all(...chunk) as typeof rows),
+      );
+    }
     for (const row of rows) {
       if (row.default_value !== null) schemaDefault.set(row.id, parseJson(row.default_value));
       schemaOptions.set(row.id, parseOptions(row.options));
