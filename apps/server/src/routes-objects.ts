@@ -202,6 +202,18 @@ const queryBodySchema = z
   })
   .strict();
 
+export /**
+ * Plan-07 ruling (controller-carried): a workspace with a workspace_key row
+ * is encrypted — the server serves it NO content reads (they are client-side
+ * over the local derived store). Keyless workspaces keep the reads for
+ * CLI/legacy compat. Same gate as the seed shim (context.ts ensureSeeded).
+ */
+function assertContentReadsAllowed(ctx: ServerContext, workspaceId: string): void {
+  if (ctx.auth.getWorkspaceKey(workspaceId) !== undefined) {
+    throw new AppError(404, "not_found", "workspace is encrypted — content reads are client-side");
+  }
+}
+
 export function workspaceFor(ctx: ServerContext, request: FastifyRequest): string {
   const header = request.headers["x-workspace-id"];
   if (typeof header === "string" && z.string().uuid().safeParse(header).success) {
@@ -689,6 +701,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     }
     const { name } = parsed.data;
     const workspaceId = workspaceFor(ctx, request);
+    assertContentReadsAllowed(ctx, workspaceId);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
     const wanted = name.toLowerCase();
@@ -776,6 +789,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
    */
   app.get("/classes", async (request) => {
     const workspaceId = workspaceFor(ctx, request);
+    assertContentReadsAllowed(ctx, workspaceId);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
     const classes = store.database
@@ -808,6 +822,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   app.get("/classes/:id", async (request) => {
     const { id } = request.params as { id: string };
     const workspaceId = workspaceFor(ctx, request);
+    assertContentReadsAllowed(ctx, workspaceId);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
     const classRow = store.database
@@ -862,6 +877,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   app.get("/properties/:id/values", async (request) => {
     const { id } = request.params as { id: string };
     const workspaceId = workspaceFor(ctx, request);
+    assertContentReadsAllowed(ctx, workspaceId);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
     const nameById = new Map(
