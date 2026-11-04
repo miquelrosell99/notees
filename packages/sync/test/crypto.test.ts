@@ -203,28 +203,34 @@ describe("E2EE sync boundary", () => {
     expect(b.store.getNode(PARENT)).toBeUndefined();
   });
 
-  it("a keyed client restores a PLAINTEXT server-built snapshot without decrypting (the self-heal image)", async () => {
+  it("a keyed client SKIPS a plaintext server-built snapshot and replays the log (the live empty-store trap)", async () => {
     const relay = new MemoryRelay();
     let nowMs = 100_000;
-    // The server-side self-heal shape: a snapshot row whose bytes are the
-    // server's own derived store — built by replaying the log, which SKIPS
-    // sealed envelopes, so the image is near-empty but a valid plaintext
-    // derived store, and the row is NOT sealed. Before the meta.sealed
-    // branch, a keyed engine ran AES-GCM over these bytes and the pull
-    // rejected with "snapshot decryption failed" — the workspace never
-    // synced.
     const keyed = await makeCryptoDevice(relay, DEVICE_A, () => nowMs);
     for (const envelope of baseEnvelopes(DEVICE_A)) keyed.engine.enqueue(envelope);
     await keyed.engine.push();
-    // The server converged its own (plaintext) projection and stored it.
-    const serverImage = keyed.store.snapshot();
-    relay.putSnapshot(serverImage, { physical: T0 + 50, logical: 0 }); // sealed defaults to false
 
-    // A fresh keyed device pulls: the plaintext image restores AS-IS (no
-    // decrypt attempt), then catch-up carries the sealed envelopes.
+    // The server-side self-heal shape, reproduced live: a content-empty but
+    // VALID plaintext derived-store image claiming the log tip (sealed
+    // envelopes skip the server's apply, so its projection is near-empty) —
+    // and the row is NOT sealed.
+    const emptyImage = new Store().snapshot();
+    relay.putSnapshot(emptyImage, { physical: T0 + 50, logical: 0 }); // sealed defaults to false
+
+    // A fresh keyed device pulls. Restoring the empty image + jumping the
+    // cursor to upToSeq would blank the workspace (the incident); decrypting
+    // it would throw. The engine must SKIP the restore and let catch-up
+    // replay the sealed envelopes from 0.
     const fresh = await makeCryptoDevice(relay, DEVICE_B, () => nowMs);
+    const warnings: string[] = [];
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation((message?: unknown) => {
+      warnings.push(String(message));
+    });
     await expect(fresh.engine.pull()).resolves.toBeUndefined();
-    expect(titleOf(fresh.store, PARENT)).toBe("Parent");
+    warnSpy.mockRestore();
+
+    expect(warnings.some((w) => w.includes("plaintext for an encrypted workspace"))).toBe(true);
+    expect(titleOf(fresh.store, PARENT)).toBe("Parent"); // catch-up replay, not the image
     expect(titleOf(fresh.store, NODE)).toBe("Node");
     expect(relay.getSnapshotMeta().sealed).toBe(false);
   });

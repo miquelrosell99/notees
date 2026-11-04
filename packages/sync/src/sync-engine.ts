@@ -415,7 +415,27 @@ export class SyncEngine {
       compareHlc(meta.hlc, this.receivedHlc) > 0;
     if (snapshotIsNewer) {
       const data = await this.transport.getSnapshotData();
-      if (!this.crypto && !hasSqliteMagic(data)) {
+      if (this.crypto && meta.sealed !== true) {
+        // Keyed workspace, PLAINTEXT snapshot (a keyless client's upload or
+        // the server's own self-heal image — built from its derived store,
+        // which SKIPS sealed envelopes, so the image is content-empty while
+        // claiming upToSeq = latest). Restoring it and jumping the cursor to
+        // upToSeq would blank the workspace (the live incident) — the
+        // empty-store trap. Skip the restore with a counted warning; the
+        // cursor stays put so the seq catch-up below replays the log from
+        // the durable cursor (post-epoch-wipe that is 0 — a full honest
+        // replay, minutes at log scale but never wrong).
+        this.lockedSkipTotal += 1;
+        console.warn(
+          `[notees-sync] server snapshot is plaintext for an encrypted workspace ` +
+            `(${data.byteLength} bytes) — replaying the log instead; the checkpoint ` +
+            "images the server's derived store, which skips sealed envelopes.",
+        );
+        // The HLC watermark marks this snapshot as seen (no re-download next
+        // cycle); the cursor stays put so catch-up replays the log.
+        this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
+        this.persistState();
+      } else if (!this.crypto && !hasSqliteMagic(data)) {
         // Locked + sealed snapshot: without a provider the blob is opaque
         // bytes (and a garbage restore would throw). Skip the restore with a
         // counted warning and leave the watermarks untouched — the seq
@@ -431,16 +451,9 @@ export class SyncEngine {
         this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
         this.persistState();
       } else {
-        // meta.sealed is the wire's declaration of what the blob IS: a keyed
-        // client seals its uploads (declared sealed=1), while a keyless
-        // client's upload and the server's own self-heal snapshot are
-        // plaintext derived stores (the server's image is built from its
-        // derived state — sealed envelopes skip there — so decrypting it
-        // under a workspace key is a guaranteed failure). Decrypt ONLY a
-        // declared-sealed blob when a provider is installed; a sealed blob
-        // the key can't open still throws the clear error below.
-        const bytes =
-          this.crypto && meta.sealed === true ? await this.decryptSnapshotOrThrow(data) : data;
+        // Keyed + declared-sealed (decrypt; a blob the key can't open throws
+        // the clear error) or keyless + plaintext (restore as-is, legacy).
+        const bytes = this.crypto ? await this.decryptSnapshotOrThrow(data) : data;
         // Awaits staged (OPFS-VFS) restores; synchronous backends fall back
         // inside restoreAsync.
         await this.store.restoreAsync(bytes);
