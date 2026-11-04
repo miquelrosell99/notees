@@ -432,9 +432,11 @@ client hook surface; no WS *client* ships.
 - **Coordination/assets API** — prefix `/api` with an API-key preHandler
   (`src/routes-objects.ts`, `src/assets.ts`): **plan 07 retired the content
   API** (node CRUD, `/search`, `/query`, backlinks, effective-properties,
-  merge, `export.zip`, node location — the server serves no content reads;
-  clients read their local derived stores, content changes ride the relay
-  log). What stays: property-schema CRUD + class binding
+  merge, `export.zip`, node location — the server serves no content reads for
+  encrypted workspaces (key-gated: a `workspace_key` row turns the remaining
+  resolve/classes/property-values reads into 404s; keyless workspaces keep
+  them for CLI/legacy compat); clients read their local derived stores,
+  content changes ride the relay log). What stays: property-schema CRUD + class binding
   (`GET/POST/PATCH/DELETE /property-schemas`, `POST/DELETE
   /classes/:id/properties[...]`), the class catalog (`GET /classes[/:id]`),
   `GET /properties/:id/values`, and the metadata resolver (`GET /resolve`,
