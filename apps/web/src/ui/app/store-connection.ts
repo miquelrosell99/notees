@@ -114,8 +114,8 @@ export async function resolveWorkspaceKey(
     if (wrapped !== undefined) {
       console.warn(
         `[notees-web] workspace ${workspaceId} is encrypted but this session has no master key ` +
-          "(a reload restores the session without it). Opening keyless — writes are plaintext " +
-          "until you sign in again with your password. (Unlock re-prompt is a fast-follow.)",
+          "— opening locked. Click Unlock in the banner and enter your password; until then " +
+          "writes are plaintext and sealed remote changes are skipped.",
       );
       return { key: undefined, locked: true };
     }
