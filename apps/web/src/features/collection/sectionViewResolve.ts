@@ -21,9 +21,12 @@
  *    parent/child/childPath/page/parentPath/root walks), the nodeField wire
  *    predicates (`isClass`/`isEmbedded`/`coverAsset`/`bannerAsset`/
  *    `aliasedNode`), the date family's created/updated windows (`{today}`-
- *    style placeholders resolved against the run clock), and `content`
- *    contains (LIKE semantics — an ASCII case-insensitive substring over the
- *    flattened title text, the same plaintext the derived search index holds).
+ *    style placeholders resolved against the run clock), `content` over the
+ *    FULL derived search plaintext (the store's extractSearchPlaintext,
+ *    ported over the client reads — the mention-resolved excerpt + asset
+ *    original names + text-ish property values, diacritic-folded; a node
+ *    with no plaintext matches nothing, SQL NULL semantics), and `name`
+ *    title-only (the compiler's nameSql, deliberately not the search row).
  *  - `property` conditions (the effective-values read model) evaluate
  *    synchronously on the row too (the one-evaluation
  *    ruling): the client's `getEffectiveProperties` is the same read model
@@ -55,7 +58,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { plainTextExcerpt, parseDateNodeId } from "@notees/domain";
+import { deriveDisplayName, plainTextExcerpt, parseDateNodeId } from "@notees/domain";
 import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, resolveValuePlaceholder, type CompileOptions, type Condition, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
 
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
@@ -71,6 +74,14 @@ export interface SectionViewResolveClient {
   getChildren(id: string): ClientNode[];
   /** The effective-values read model (the property condition's sync arm). */
   getEffectiveProperties(id: string): EffectiveProperty[];
+  /** The asset-metadata read (the content plaintext's asset original names). */
+  getAssetInfo(id: string): { originalName: string } | undefined;
+  /** The property-schema read (select option labels for the content plaintext). */
+  listPropertySchemas(): ReadonlyArray<{
+    id: string;
+    type: string;
+    options?: ReadonlyArray<{ id: string; label: string }> | null;
+  }>;
   runQueryAst(rawAst: unknown, options?: CompileOptions):
     | { ids: string[] }
     | Promise<{ ids: string[] }>;
@@ -430,6 +441,159 @@ interface EvalContext {
   closures: Map<string, Set<string>>;
   /** Resolved `{today}`-style bounds per condition (the run clock). */
   bounds: Map<string, string>;
+  /** Memoized asset original names per asset id (the content plaintext). */
+  assetNames: Map<string, string | null>;
+  /** Memoized derived search plaintexts per node id (the content arm). */
+  plaintexts: Map<string, string>;
+  /** The property-schema list, lazily pulled once per refinement (null = not yet). */
+  schemas: Map<string, { id: string; type: string; options?: ReadonlyArray<{ id: string; label: string }> | null }> | null;
+}
+
+// --- the derived search plaintext (the compiler's content arm contract) ---------------
+//
+// The compiler's contentSql predicates run over the derived FTS row —
+// packages/store/src/content.ts's extractSearchPlaintext: the content
+// plaintext (mention-resolved excerpt + asset original names) UNION the
+// text-ish property values, diacritic-folded at index time (store search.ts
+// foldSearchText). The functions below port that derivation over the client
+// read surface — they MUST mirror the store: a drift here is a sync/probe
+// parity bug, silent until a hosted view disagrees with the probe.
+
+/** Diacritic folding — the mirror of the store's foldSearchText (index time). */
+function foldSearchText(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "");
+}
+
+/** The property-schema list, lazily materialized once per refinement. */
+function schemaOf(
+  ctx: EvalContext,
+  schemaId: string,
+): { id: string; type: string; options?: ReadonlyArray<{ id: string; label: string }> | null } | undefined {
+  if (ctx.schemas === null) {
+    ctx.schemas = new Map();
+    for (const schema of ctx.client.listPropertySchemas()) ctx.schemas.set(schema.id, schema);
+  }
+  return ctx.schemas.get(schemaId);
+}
+
+/** Asset original name per asset id (memoized; null when the row is gone). */
+function assetNameOf(ctx: EvalContext, assetId: string): string | null {
+  let name = ctx.assetNames.get(assetId);
+  if (name === undefined) {
+    name = ctx.client.getAssetInfo(assetId)?.originalName ?? null;
+    ctx.assetNames.set(assetId, name);
+  }
+  return name;
+}
+
+/**
+ * A mention target's CURRENT display name — the port of the store's
+ * resolveMentionName: cascade through link-bearing titles, cycle-guarded
+ * (a diamond's second mention resolves; a true cycle folds to nothing at
+ * the loop point). Not memoized — the store doesn't cache either.
+ */
+function mentionNameOf(ctx: EvalContext, targetId: string, path: Set<string>): string | null {
+  if (path.has(targetId)) return null; // mention cycle: fold, never hang
+  const target = ctx.client.getNode(targetId);
+  if (target === undefined) return null;
+  path.add(targetId);
+  const name = deriveDisplayName(
+    { id: targetId, contentAst: target.contentAst },
+    undefined,
+    (id) => mentionNameOf(ctx, id, path),
+  );
+  path.delete(targetId);
+  return name === "" ? null : name;
+}
+
+/**
+ * Content-derived plaintext — the port of the store's contentPlaintext:
+ * the domain excerpt (mentions resolved through the client read) plus the
+ * asset original names (quote/heading children walked, first name per
+ * asset). The excerpt itself carries text runs, typed-link text, math,
+ * and the recursive quote children.
+ */
+function contentPlaintextOf(ctx: EvalContext, node: ClientNode): string {
+  const path = new Set<string>();
+  const resolveMentionName = (targetId: string): string | null => mentionNameOf(ctx, targetId, path);
+  const parts: string[] = [plainTextExcerpt(node.contentAst, undefined, resolveMentionName)];
+  const seenAssets = new Set<string>();
+  const walk = (tokens: readonly unknown[]): void => {
+    for (const token of tokens) {
+      if (typeof token !== "object" || token === null) continue;
+      const t = token as { type?: unknown; assetId?: unknown; children?: unknown };
+      if (t.type === "asset_ref" && typeof t.assetId === "string" && !seenAssets.has(t.assetId)) {
+        seenAssets.add(t.assetId);
+        const name = assetNameOf(ctx, t.assetId);
+        if (name !== null) parts.push(name);
+      } else if ((t.type === "quote" || t.type === "heading") && Array.isArray(t.children)) {
+        walk(t.children);
+      }
+    }
+  };
+  walk(node.contentAst);
+  return parts.filter((part) => part.length > 0).join(" ");
+}
+
+/**
+ * Text-ish property values, one level deep — the port of the store's
+ * propertyValuesPlaintext: AUTHORED visible rows only (derived binding
+ * defaults do not index), a text carrier contributes the carrier's content
+ * plaintext (one level — the carrier's own values do not ride along),
+ * select/multi_select resolve to option labels (the raw id when the option
+ * is gone), numbers index in string form.
+ */
+function propertyValuesPlaintextOf(ctx: EvalContext, node: ClientNode): string {
+  const parts: string[] = [];
+  for (const row of ctx.client.getEffectiveProperties(node.id)) {
+    if (row.source !== "authored") continue;
+    const schema = schemaOf(ctx, row.propertySchemaId);
+    const type = schema?.type ?? row.schema?.type;
+    if (type === "text") {
+      const ref = refNodeIdOf(row.value);
+      if (ref !== null) {
+        const carrier = ctx.client.getNode(ref);
+        if (carrier !== undefined) {
+          const text = contentPlaintextOf(ctx, carrier);
+          if (text) parts.push(text);
+        }
+      } else if (typeof row.value === "string" && row.value.length > 0) {
+        parts.push(row.value);
+      }
+    } else if (type === "email") {
+      if (typeof row.value === "string" && row.value.length > 0) parts.push(row.value);
+    } else if (type === "number") {
+      if (typeof row.value === "number" && Number.isFinite(row.value)) parts.push(String(row.value));
+    } else if (type === "select" || type === "multi_select") {
+      const ids = Array.isArray(row.value) ? row.value : [row.value];
+      const options = schema?.options ?? [];
+      for (const id of ids) {
+        if (typeof id !== "string") continue;
+        const option = options.find((entry) => entry.id === id);
+        parts.push(option && option.label ? option.label : id);
+      }
+    }
+  }
+  return parts.join(" ");
+}
+
+/**
+ * The derived search plaintext for one node — the port of
+ * extractSearchPlaintext: content plaintext + text-ish property values,
+ * whitespace-collapsed (the fold happens at comparison time, like the
+ * store's index-time foldSearchText). Memoized per refinement.
+ */
+function searchPlaintextOf(ctx: EvalContext, node: ClientNode): string {
+  let cached = ctx.plaintexts.get(node.id);
+  if (cached === undefined) {
+    cached = [contentPlaintextOf(ctx, node), propertyValuesPlaintextOf(ctx, node)]
+      .filter((part) => part.length > 0)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    ctx.plaintexts.set(node.id, cached);
+  }
+  return cached;
 }
 
 /**
@@ -590,15 +754,16 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
       }
       return negated ? !matched : matched;
     }
-    case "content":
-    case "name": {
-      if (condition.op === "exists") {
-        // The title/content plaintext is non-empty (the content "is set").
-        return titleTextOf(node) !== "";
-      }
-      // The text operator set over the flattened title/content (content fts
-      // rides the probe path — leafNeedsProbe flags it before this arm runs).
-      const text = asciiLower(titleTextOf(node));
+    case "content": {
+      // The compiler's contentSql predicates run over the derived search
+      // plaintext (the FTS row) — the full port above, diacritic-folded like
+      // the index. A node with no plaintext has no search row: SQL NULL
+      // semantics — every value op misses (content fts rides the probe path,
+      // leafNeedsProbe flags it before this arm runs).
+      const plaintext = foldSearchText(searchPlaintextOf(ctx, node));
+      if (plaintext === "") return false;
+      if (condition.op === "exists") return true;
+      const text = asciiLower(plaintext);
       const bound = asciiLower(condition.value ?? "");
       switch (condition.op) {
         case "eq":
@@ -609,6 +774,23 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
           return text.startsWith(bound);
         case "ends":
           return text.endsWith(bound);
+        default:
+          return text.includes(bound);
+      }
+    }
+    case "name": {
+      // The title register — title-only (the compiler's nameSql reads the
+      // raw text-run concatenation, deliberately NOT the search plaintext).
+      if (condition.op === "exists") {
+        return titleTextOf(node) !== "";
+      }
+      const text = asciiLower(titleTextOf(node));
+      const bound = asciiLower(condition.value ?? "");
+      switch (condition.op) {
+        case "eq":
+          return text === bound;
+        case "neq":
+          return text !== bound;
         default:
           return text.includes(bound);
       }
@@ -733,7 +915,7 @@ export function createSectionViewMatcher(
   client: SectionViewResolveClient,
   plan: SectionViewPlan,
 ): (node: ClientNode) => boolean {
-  const ctx: EvalContext = { client, closures: new Map(), bounds: new Map() };
+  const ctx: EvalContext = { client, closures: new Map(), bounds: new Map(), assetNames: new Map(), plaintexts: new Map(), schemas: null };
   return (node) => groupMatches(ctx, plan.ast.root.children, plan.ast.root.logic, { node });
 }
 
@@ -804,7 +986,7 @@ export function applySectionView(
   if (plan.ast.root.children.length === 0 && (plan.ast.sort === undefined || plan.ast.sort.length === 0)) {
     return { items: base.items, groups: base.groups, ungrouped: base.ungrouped };
   }
-  const ctx: EvalContext = { client, closures: new Map(), bounds: new Map() };
+  const ctx: EvalContext = { client, closures: new Map(), bounds: new Map(), assetNames: new Map(), plaintexts: new Map(), schemas: null };
   const allKept = (source: NodeCollectionItem[]) => {
     let kept = true;
     for (const entry of source) {
@@ -872,7 +1054,7 @@ export async function resolveSectionViewProbed(
     return ids;
   };
 
-  const ctx: EvalContext = { client, closures: new Map(), bounds: new Map() };
+  const ctx: EvalContext = { client, closures: new Map(), bounds: new Map(), assetNames: new Map(), plaintexts: new Map(), schemas: null };
   const matches = async (child: QueryAst["root"]["children"][number], item: NodeCollectionItem): Promise<boolean> => {
     if (child.type === "group") {
       // Empty group = no constraint, both logics (matches the sync path).

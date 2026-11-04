@@ -110,6 +110,8 @@ function resolveClient(overrides: Partial<SectionViewResolveClient> = {}): Secti
     getClassChildren: () => [],
     getChildren: () => [],
     getEffectiveProperties: () => [],
+    getAssetInfo: () => undefined,
+    listPropertySchemas: () => [],
     runQueryAst: async () => ({ ids: [] }),
     subscribe: () => () => {},
     ...overrides,
@@ -515,6 +517,99 @@ describe("property value placeholders: the sync arm resolves with the compiler",
     const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
     expect(sync).toEqual(compiler);
     expect(sync).toEqual([ids.literal]);
+  });
+});
+
+// --- sync/compiler parity: the content search plaintext --------------------------------
+
+describe("content/name plaintext: the sync arm matches the compiler's full search row", () => {
+  const NEEDLE = "quokka";
+  const ASSET_ID = "0192f000-0000-7000-8000-0000000000a1";
+
+  /** Six class members: the needle lives in the TITLE (titleHit), a text
+   *  property value (propHit), an attached asset's original name
+   *  (assetHit), a mention target's display name (mentionHit, via
+   *  mentionTarget), and nowhere (miss). */
+  async function seedPlaintextWorld(client: WorkspaceClient) {
+    const classId = await client.createClass("Project");
+    const titleHit = await client.createObject({ isEmbedded: false, name: "The quokka diaries", classIds: [classId] });
+
+    const notesId = await client.createPropertySchema({ name: "notes", type: "text" });
+    await client.setClassProperty(classId, notesId, {});
+    const propHit = await client.createObject({ isEmbedded: false, name: "Field notes", classIds: [classId] });
+    await client.setProperty(propHit, notesId, "spotted a quokka at noon", 0);
+
+    await client.attachAsset(titleHit, {
+      assetId: ASSET_ID,
+      hash: "a".repeat(64),
+      mimeType: "image/png",
+      size: 3,
+      originalName: "quokka-sighting.png",
+    });
+    const assetHit = await client.createObject({ isEmbedded: false, name: "Photo log", classIds: [classId] });
+    await client.updateObject(assetHit, {
+      contentAst: [{ type: "text", text: "see " }, { type: "asset_ref", assetId: ASSET_ID }],
+    });
+
+    const mentionTarget = await client.createObject({ isEmbedded: false, name: "Quokka facts", classIds: [classId] });
+    const mentionHit = await client.createObject({ isEmbedded: false, name: "Reading", classIds: [classId] });
+    await client.updateObject(mentionHit, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: mentionTarget }],
+    });
+
+    const miss = await client.createObject({ isEmbedded: false, name: "Wallaby notes", classIds: [classId] });
+    const ids = { titleHit, propHit, assetHit, mentionHit, mentionTarget, miss };
+    return { ids, all: Object.values(ids) };
+  }
+
+  const astWith = (condition: QueryAst["root"]["children"][number]): QueryAst => ({
+    version: 2,
+    scope: { type: "entire_workspace" },
+    root: { type: "group", logic: "and", children: [condition] },
+  });
+
+  async function syncIds(client: WorkspaceClient, all: string[], condition: QueryAst["root"]["children"][number]): Promise<string[]> {
+    const plan = planSectionView(astWith(condition));
+    const result = applySectionView(client, { items: memberItemsOf(client, all), groups: undefined }, plan);
+    return result.items.map((entry) => entry.node.id).sort();
+  }
+
+  async function compilerIds(client: WorkspaceClient, condition: QueryAst["root"]["children"][number]): Promise<string[]> {
+    const result = await client.runQueryAst(astWith(condition));
+    return result.ids.map(String).sort();
+  }
+
+  it("content contains: matches that live ONLY in an asset name / property value / mention resolve — sync === compiler", async () => {
+    const client = await seedClient();
+    const { ids, all } = await seedPlaintextWorld(client);
+    const condition = { type: "content", op: "contains", value: NEEDLE } as QueryAst["root"]["children"][number];
+    const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
+    expect(sync).toEqual(compiler);
+    // The full search plaintext: title, property value, asset name, and the
+    // mention-resolved display name — everything but the plain miss.
+    expect(sync).toEqual(
+      [ids.assetHit, ids.mentionHit, ids.mentionTarget, ids.propHit, ids.titleHit].map(String).sort(),
+    );
+  });
+
+  it("name contains: title-only — property/asset/body matches stay out; sync === compiler", async () => {
+    const client = await seedClient();
+    const { ids, all } = await seedPlaintextWorld(client);
+    const condition = { type: "name", op: "contains", value: NEEDLE } as QueryAst["root"]["children"][number];
+    const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
+    expect(sync).toEqual(compiler);
+    // Only the titles carry the needle; the asset-name/property/mention
+    // matches must NOT satisfy the title register.
+    expect(sync).toEqual([ids.mentionTarget, ids.titleHit].map(String).sort());
+  });
+
+  it("content contains: a row with no plaintext anywhere does not match", async () => {
+    const client = await seedClient();
+    const { ids, all } = await seedPlaintextWorld(client);
+    const condition = { type: "content", op: "contains", value: NEEDLE } as QueryAst["root"]["children"][number];
+    const [sync, compiler] = await Promise.all([syncIds(client, all, condition), compilerIds(client, condition)]);
+    expect(sync).toEqual(compiler);
+    expect(sync).not.toContain(ids.miss);
   });
 });
 
