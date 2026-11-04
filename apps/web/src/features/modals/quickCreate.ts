@@ -41,6 +41,7 @@ import type {
   CreateObjectInput,
   CreatePropertySchemaInput,
   SetClassPropertyInput,
+  UserPrefs,
 } from "@/core/workspace-client/index.js";
 import {
   DEFAULT_CITEKEY_PATTERN,
@@ -58,6 +59,8 @@ import {
  * CAS attach), the full clients carry every one.
  */
 export interface QuickCreateClient {
+  /** Per-user prefs (the ADS credential for the resolver's header — plan 07). */
+  getPrefs?(): Promise<UserPrefs & { source: string }>;
   listClasses(): ClientNode[];
   getClassParents(classId: string): string[];
   getClassMembers(classId: string): ClientNode[];

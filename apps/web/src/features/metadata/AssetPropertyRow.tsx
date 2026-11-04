@@ -149,7 +149,9 @@ export function AssetPropertyRow({
         setError("This source has no DOI, PMID, or ISBN to fetch with.");
         return;
       }
-      const record = await resolveSourceInput(coords.serverUrl, coords.credential, identifier);
+      const record = await resolveSourceInput(coords.serverUrl, coords.credential, identifier, {
+        getAdsApiToken: async () => (await client.getPrefs())?.adsApiToken ?? "",
+      });
       const pdfUrl = record.pdf?.url;
       if (pdfUrl === undefined) {
         setError("No open-access PDF found for this source.");

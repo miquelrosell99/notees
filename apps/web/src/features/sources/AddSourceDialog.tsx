@@ -220,7 +220,12 @@ export function AddSourceDialog({
         const record = await resolvePdfFile(serverUrl, credential, file, file.name);
         setFetched({ record, pdfFile: file });
       } else {
-        const record = await resolveSourceInput(serverUrl, credential, input);
+        // The ADS credential rides its own header (wrapped prefs are opaque
+        // server-side — plan 07); fetched lazily, only for ADS inputs.
+        // Keyless shapes may lack getPrefs.
+        const record = await resolveSourceInput(serverUrl, credential, input, {
+          getAdsApiToken: async () => (await client.getPrefs?.())?.adsApiToken ?? "",
+        });
         setFetched({ record, pdfFile: null });
       }
       setOaDismissed(false);

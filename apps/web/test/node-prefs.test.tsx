@@ -77,9 +77,14 @@ async function seedClient(options: { serverUrl?: string; apiKey?: string } = {})
   return client;
 }
 
-/** fetch stub routing /api/auth/me + /api/me/prefs; `handler` answers prefs GET/PUT. */
+/**
+ * fetch stub routing /api/auth/me + /api/me/prefs. `handler` speaks PREFS
+ * OBJECTS; the wire speaks the plan-07 opaque blob — these tests run keyless
+ * (no master key in custody), so the blob is the unwrapped JSON and the
+ * stub wraps/unwraps transparently.
+ */
 function stubPrefsFetch(
-  handler: (init: { method: string; body: string | undefined }) => unknown,
+  handler: (init: { method: string; prefs: Record<string, unknown> | undefined }) => unknown,
   options: { identity?: { id: string } } = {},
 ) {
   const calls: Array<{ url: string; method: string; body: string | undefined }> = [];
@@ -94,12 +99,28 @@ function stubPrefsFetch(
         headers: { "content-type": "application/json" },
       });
     }
-    const answer = handler({ method, body });
+    const incoming =
+      body === undefined
+        ? undefined
+        : (JSON.parse(body) as { blob?: string }).blob !== undefined
+          ? (JSON.parse((JSON.parse(body) as { blob: string }).blob) as Record<string, unknown>)
+          : (JSON.parse(body) as Record<string, unknown>);
+    const answer = handler({ method, prefs: incoming });
     if (answer instanceof Error) return new Response(answer.message, { status: 503 });
-    return new Response(JSON.stringify(answer), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    const prefs = answer as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        blob: JSON.stringify({
+          v: 1,
+          favorites: prefs.favorites ?? [],
+          recents: prefs.recents ?? [],
+          cardsAlgorithm: prefs.cardsAlgorithm ?? "fsrs",
+          adsApiToken: prefs.adsApiToken ?? "",
+        }),
+        updatedAt: 1,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
   });
   vi.stubGlobal("fetch", mock);
   return calls;
@@ -116,7 +137,6 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
       favorites: [PAGE_ALPHA],
       recents: [PAGE_BETA, PAGE_ALPHA],
       adsApiToken: "ads-secret-token",
-      updatedAt: 1,
     }));
     const prefs = await client.getPrefs();
     expect(prefs).toEqual({
@@ -137,46 +157,53 @@ describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
 
   it("patchPrefs PUTs the merge patch and returns the server answer", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const calls = stubPrefsFetch(({ method, body }) => {
+    const calls = stubPrefsFetch(({ method, prefs }) => {
       expect(method).toBe("PUT");
-      return { ...(body !== undefined ? JSON.parse(body) : {}), updatedAt: 2 };
+      return { ...(prefs ?? {}) };
     });
     const prefs = await client.patchPrefs({ favorites: [PAGE_ALPHA] });
     expect(prefs.source).toBe("server");
     const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
     expect(prefsCalls).toHaveLength(1);
-    expect(JSON.parse(prefsCalls[0]!.body!)).toEqual({ favorites: [PAGE_ALPHA] });
+    // Plan-07: the wire carries ONE opaque blob (unwrapped here — keyless).
+    expect(JSON.parse((JSON.parse(prefsCalls[0]!.body!) as { blob: string }).blob)).toEqual(
+      expect.objectContaining({ favorites: [PAGE_ALPHA] }),
+    );
     // The device cache followed the server answer.
     expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
   });
 
   it("patchPrefs sends a provided adsApiToken in the PUT body and returns it merged", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const calls = stubPrefsFetch(({ method, body }) => {
+    const calls = stubPrefsFetch(({ method, prefs }) => {
       expect(method).toBe("PUT");
-      return { ...(body !== undefined ? JSON.parse(body) : {}), updatedAt: 2 };
+      return { ...(prefs ?? {}) };
     });
     const prefs = await client.patchPrefs({ adsApiToken: "ads-secret-token" });
     expect(prefs.source).toBe("server");
     expect(prefs.adsApiToken).toBe("ads-secret-token");
     const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
     expect(prefsCalls).toHaveLength(1);
-    expect(JSON.parse(prefsCalls[0]!.body!)).toEqual({ adsApiToken: "ads-secret-token" });
+    expect(JSON.parse((JSON.parse(prefsCalls[0]!.body!) as { blob: string }).blob)).toEqual(
+      expect.objectContaining({ adsApiToken: "ads-secret-token" }),
+    );
     // Server-only: the token never lands in the device-local cache.
     expect(localStorage.getItem("notees.prefs.adsApiToken")).toBeNull();
   });
 
   it("patchPrefs carries cardsAlgorithm to the server and the device key", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const calls = stubPrefsFetch(({ method, body }) => {
+    const calls = stubPrefsFetch(({ method, prefs }) => {
       expect(method).toBe("PUT");
-      return { ...(body !== undefined ? JSON.parse(body) : {}), updatedAt: 2 };
+      return { ...(prefs ?? {}) };
     });
     const prefs = await client.patchPrefs({ cardsAlgorithm: "sm2" });
     expect(prefs.source).toBe("server");
     expect(prefs.cardsAlgorithm).toBe("sm2");
     const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
-    expect(JSON.parse(prefsCalls[0]!.body!)).toEqual({ cardsAlgorithm: "sm2" });
+    expect(JSON.parse((JSON.parse(prefsCalls[0]!.body!) as { blob: string }).blob)).toEqual(
+      expect.objectContaining({ cardsAlgorithm: "sm2" }),
+    );
     expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
   });
 
@@ -462,8 +489,8 @@ describe("Sidebar favorites/recents", () => {
   it("star toggle on a row writes the new list to the server", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
     const pageId = await client.createObject({ isEmbedded: false, name: "Beta" });
-    const calls = stubPrefsFetch(({ method, body }) =>
-      method === "PUT" && body !== undefined ? { ...JSON.parse(body), updatedAt: 2 } : { favorites: [], recents: [pageId], updatedAt: 1 },
+    const calls = stubPrefsFetch(({ method, prefs }) =>
+      method === "PUT" ? { ...(prefs ?? {}) } : { favorites: [], recents: [pageId], updatedAt: 1 },
     );
     renderSidebar(client);
     await screen.findByText("Beta");
@@ -471,7 +498,7 @@ describe("Sidebar favorites/recents", () => {
     await waitFor(() => {
       const put = calls.find((call) => call.method === "PUT");
       expect(put).toBeDefined();
-      expect((JSON.parse(put!.body!) as { favorites: string[] }).favorites).toEqual([pageId]);
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { favorites: string[] }).favorites).toEqual([pageId]);
     });
   });
 
@@ -479,9 +506,9 @@ describe("Sidebar favorites/recents", () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
     const a = await client.createObject({ isEmbedded: false, name: "A" });
     const b = await client.createObject({ isEmbedded: false, name: "B" });
-    const calls = stubPrefsFetch(({ method, body }) =>
-      method === "PUT" && body !== undefined
-        ? { ...JSON.parse(body), updatedAt: 2 }
+    const calls = stubPrefsFetch(({ method, prefs }) =>
+      method === "PUT"
+        ? { ...(prefs ?? {}) }
         : { favorites: [a, b], recents: [], updatedAt: 1 },
     );
     renderSidebar(client);
@@ -490,7 +517,7 @@ describe("Sidebar favorites/recents", () => {
     await waitFor(() => {
       const put = calls.find((call) => call.method === "PUT");
       expect(put).toBeDefined();
-      expect((JSON.parse(put!.body!) as { favorites: string[] }).favorites).toEqual([b, a]);
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { favorites: string[] }).favorites).toEqual([b, a]);
     });
   });
 
@@ -506,15 +533,15 @@ describe("Sidebar favorites/recents", () => {
     await waitFor(() => {
       const put = calls.find((call) => call.method === "PUT");
       expect(put).toBeDefined();
-      expect((JSON.parse(put!.body!) as { recents: string[] }).recents).toEqual([pageId]);
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { recents: string[] }).recents).toEqual([pageId]);
     });
   });
 
   it("removing a recent from the row menu syncs the removal", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
     const pageId = await client.createObject({ isEmbedded: false, name: "Delta" });
-    const calls = stubPrefsFetch(({ method, body }) =>
-      method === "PUT" && body !== undefined ? { ...JSON.parse(body), updatedAt: 2 } : { favorites: [], recents: [pageId], updatedAt: 1 },
+    const calls = stubPrefsFetch(({ method, prefs }) =>
+      method === "PUT" ? { ...(prefs ?? {}) } : { favorites: [], recents: [pageId], updatedAt: 1 },
     );
     renderSidebar(client);
     const row = (await screen.findByText("Delta")).closest("li")!;
@@ -523,7 +550,7 @@ describe("Sidebar favorites/recents", () => {
     await waitFor(() => {
       const put = calls.find((call) => call.method === "PUT");
       expect(put).toBeDefined();
-      expect((JSON.parse(put!.body!) as { recents: string[] }).recents).toEqual([]);
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { recents: string[] }).recents).toEqual([]);
     });
   });
 

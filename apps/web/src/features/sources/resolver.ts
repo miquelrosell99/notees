@@ -234,6 +234,7 @@ export async function resolveSourceInput(
   serverUrl: string,
   credential: string,
   raw: string,
+  options: { adsApiToken?: string | undefined; getAdsApiToken?: (() => Promise<string>) | undefined } = {},
 ): Promise<ResolvedSourceRecord> {
   const classified = classifySourceInput(raw);
   if (classified === null) {
@@ -268,10 +269,15 @@ export async function resolveSourceInput(
         `/resolve?pmid=${encodeURIComponent(classified.value)}`,
       );
     case "ads":
+      // Plan-07: wrapped prefs are opaque server-side — the unwrapped ADS
+      // credential rides its own header. Fetched lazily so non-ADS inputs
+      // never touch prefs.
+      const token = options.adsApiToken ?? (await options.getAdsApiToken?.()) ?? "";
       return requestRecord(
         serverUrl,
         credential,
         `/resolve?ads=${encodeURIComponent(classified.value)}`,
+        token !== "" ? { headers: { "x-ads-api-token": token } } : {},
       );
     case "url":
       return requestRecord(serverUrl, credential, `/resolve/pdf?url=${encodeURIComponent(classified.url)}`, {
