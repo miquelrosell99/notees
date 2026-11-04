@@ -33,6 +33,12 @@ export interface ConnectOptions {
   isOffline: boolean;
   credentialType: CredentialType;
   label?: string;
+  /**
+   * Engine sync-phase messages during the open ("Fetching latest snapshot…",
+   * "Catching up… N operations", "Synced") — the connecting screen renders
+   * them as progress.
+   */
+  onSyncPhase?: ((phase: string, message: string) => void) | undefined;
 }
 
 /** What the caller applies to React state once the store has opened. */
@@ -156,6 +162,7 @@ export async function openStoreConnection(
             sqlWasmUrl,
             sqliteWasmUrl,
             ...(workspaceKey !== undefined ? { workspaceKey } : {}),
+            ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
           },
     );
   } else {
@@ -167,6 +174,7 @@ export async function openStoreConnection(
           workspaceId,
           sqlJsConfig: { locateFile: () => sqlWasmUrl },
           ...(workspaceKey !== undefined ? { workspaceKey } : {}),
+          ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
         });
     // The worker path bootstraps during init; the in-process path syncs
     // here. Local-first on both: an unreachable relay must not block boot

@@ -182,6 +182,7 @@ export function App() {
     storeMode,
     storeReason,
     encryptedLocked,
+    connectProgress,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,
@@ -853,7 +854,7 @@ export function App() {
         <div className="nt-bootstrap-form" role="status" aria-busy="true">
           <h1 className="nt-bootstrap-title">Notees</h1>
           <p className="nt-bootstrap-subtitle">
-            {phase.name === "connecting" ? phase.label : "Starting…"}
+            {phase.name === "connecting" ? (connectProgress ?? phase.label) : "Starting…"}
           </p>
           {error !== null && <p className="nt-error" role="alert">{error}</p>}
         </div>

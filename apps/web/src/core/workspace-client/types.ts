@@ -836,4 +836,10 @@ export interface WorkspaceClientOptions {
   /** Semantic conflicts between remote batches and local pending ops. */
   onConflict?: (conflicts: SyncConflict[]) => void;
   onSyncError?: (error: Error) => void;
+  /**
+   * Engine sync-phase messages during bootstrap/pull ("Fetching latest
+   * snapshot…", "Catching up… N operations", "Synced") — the connecting
+   * screen renders them verbatim as progress.
+   */
+  onSyncPhase?: (phase: string, message: string) => void;
 }

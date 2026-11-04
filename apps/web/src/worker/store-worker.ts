@@ -50,6 +50,10 @@ const ctx: WorkerContext = {
     // The change payload (revision/affected/structural) rides
     // along so the main-thread cache refreshes incrementally.
     const onNotify = (change: object) => workerScope.postMessage({ type: "changed", ...change });
+    // Sync-phase progress ("Fetching latest snapshot…", "Catching up… N
+    // operations", "Synced") — surfaced on the connecting screen.
+    const onSyncPhase = (phase: string, message: string) =>
+      workerScope.postMessage({ type: "syncPhase", phase, message });
     const common = {
       opfs,
       fileName,
@@ -61,6 +65,7 @@ const ctx: WorkerContext = {
       serverUrl,
       apiKey,
       onNotify,
+      onSyncPhase,
     };
 
     if (sqliteWasmUrl !== undefined) {
