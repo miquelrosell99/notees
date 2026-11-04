@@ -75,6 +75,34 @@ const ZERO_HLC: Hlc = { physical: 0, logical: 0 };
  * that actually crosses the wire.
  */
 export const SNAPSHOT_UPLOAD_BODY_LIMIT = 256 * 1024 * 1024;
+/** Raw-image floor for compacting before an upload (free pages don't ride along). */
+export const SNAPSHOT_COMPACT_THRESHOLD = 32 * 1024 * 1024;
+/** Sealed-image ceiling for the single-PUT path; above it the upload rides part+commit. */
+export const SNAPSHOT_CHUNK_THRESHOLD = 48 * 1024 * 1024;
+/** Part size for the chunked path (the relay's per-part contract is ≤64 MiB). */
+export const SNAPSHOT_PART_SIZE = 64 * 1024 * 1024;
+
+/**
+ * Fresh multipart-upload id (uuid where the runtime offers it, an RFC 4122
+ * shape built from getRandomValues otherwise — mirrors the offline-id fallback).
+ */
+function newUploadId(): string {
+  const webCrypto = globalThis.crypto as
+    | { randomUUID?: () => string; getRandomValues?: (bytes: Uint8Array) => Uint8Array }
+    | undefined;
+  if (webCrypto !== undefined && typeof webCrypto.randomUUID === "function") {
+    return webCrypto.randomUUID();
+  }
+  if (webCrypto !== undefined && typeof webCrypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    webCrypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+    bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  return `up-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 /**
  * True when an upload failure is the relay's request-body cap (413) — the
@@ -107,6 +135,20 @@ export interface SyncEngineOptions {
    * body cap. Defaults to SNAPSHOT_UPLOAD_BODY_LIMIT (256 MiB — the tooling-safe margin, not the relay's 512 MiB cap).
    */
   snapshotUploadLimit?: number;
+  /**
+   * Raw-image floor for compacting before an upload (bytes): at or above
+   * this the image is VACUUMed before sealing so replay-derived free pages
+   * don't ride along. Defaults to SNAPSHOT_COMPACT_THRESHOLD (32 MiB).
+   */
+  snapshotCompactThreshold?: number;
+  /**
+   * Sealed-image ceiling for the single-PUT path (bytes): above this the
+   * upload rides the part+commit multipart flow instead. Defaults to
+   * SNAPSHOT_CHUNK_THRESHOLD (48 MiB).
+   */
+  snapshotChunkThreshold?: number;
+  /** Part size for the chunked path. Defaults to SNAPSHOT_PART_SIZE (64 MiB). */
+  snapshotPartSize?: number;
   callbacks?: SyncEngineCallbacks;
   /**
    * Optional E2EE boundary (spec §2): encrypt at the push boundary, decrypt
@@ -135,6 +177,12 @@ export class SyncEngine {
    * body cap. Mirrors the SyncEngineOptions field.
    */
   private readonly snapshotUploadLimit: number;
+  /** Raw-image compact floor; mirrors the SyncEngineOptions field. */
+  private readonly snapshotCompactThreshold: number;
+  /** Sealed-image single-PUT ceiling; above it the multipart flow rides. */
+  private readonly snapshotChunkThreshold: number;
+  /** Part size for the multipart flow. */
+  private readonly snapshotPartSize: number;
   private callbacks: SyncEngineCallbacks;
   /** E2EE boundary; null → plaintext wire. Mutable: setCrypto swaps the key. */
   private crypto: EnvelopeCrypto | null;
@@ -191,6 +239,9 @@ export class SyncEngine {
     this.batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
     this.catchUpLimit = options.catchUpLimit ?? DEFAULT_CATCH_UP_LIMIT;
     this.snapshotUploadLimit = options.snapshotUploadLimit ?? SNAPSHOT_UPLOAD_BODY_LIMIT;
+    this.snapshotCompactThreshold = options.snapshotCompactThreshold ?? SNAPSHOT_COMPACT_THRESHOLD;
+    this.snapshotChunkThreshold = options.snapshotChunkThreshold ?? SNAPSHOT_CHUNK_THRESHOLD;
+    this.snapshotPartSize = options.snapshotPartSize ?? SNAPSHOT_PART_SIZE;
     this.callbacks = options.callbacks ?? {};
     this.crypto = options.crypto ?? null;
     this.meta = new SyncMeta(store, `sync:${this.workspaceId}:state`);
@@ -591,8 +642,15 @@ export class SyncEngine {
       if (this.crypto) {
         // E2EE: the streaming source would upload the RAW image (the OPFS
         // stream is unsealed) — buffer, seal, and upload the sealed snapshot
-        // instead. Same pre-flight body cap on the sealed size.
-        const bytes = this.store.snapshot();
+        // instead. Large images get two shrink passes before any size
+        // decision: compact first (VACUUM drops the replay's free pages),
+        // then seal; when the sealed bytes still exceed the single-body
+        // threshold the upload rides the part+commit multipart flow.
+        let bytes = this.store.snapshot();
+        if (bytes.byteLength >= this.snapshotCompactThreshold) {
+          this.store.compact();
+          bytes = this.store.snapshot();
+        }
         const sealed = await this.crypto.encryptSnapshot(bytes);
         if (sealed.byteLength >= this.snapshotUploadLimit) {
           if (!this.snapshotOversizeReported) {
@@ -606,7 +664,23 @@ export class SyncEngine {
           }
           return;
         }
-        await upload(sealed, this.receivedHlc, true);
+        const partUpload = this.transport.uploadSnapshotPart?.bind(this.transport);
+        const commitParts = this.transport.commitSnapshot?.bind(this.transport);
+        if (sealed.byteLength > this.snapshotChunkThreshold && partUpload && commitParts) {
+          const uploadId = newUploadId();
+          const partCount = Math.ceil(sealed.byteLength / this.snapshotPartSize);
+          for (let index = 0; index < partCount; index += 1) {
+            const start = index * this.snapshotPartSize;
+            await partUpload(
+              sealed.subarray(start, Math.min(start + this.snapshotPartSize, sealed.byteLength)),
+              uploadId,
+              index,
+            );
+          }
+          await commitParts(uploadId, partCount, this.receivedHlc, true);
+        } else {
+          await upload(sealed, this.receivedHlc, true);
+        }
       } else {
       // Prefer the streaming source when BOTH sides have it (the OPFS-VFS
       // backend): the image is checkpointed and read lazily from the OPFS

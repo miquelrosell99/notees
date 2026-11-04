@@ -27,6 +27,14 @@ Upload a client-produced snapshot (owner-only in multi-user; single-user today: 
 
 `&mode=import` turns the upload into an **import**: the image may come from any workspace (or any `@notees/store` export) — the server rewrites the baked `workspace_id` to the target and installs it as the target's derived file + snapshot. The target MUST be envelope-empty (else 409 `conflict`): an imported workspace's log starts empty, so the snapshot is load-bearing for rebuilds (hydrate restores it when the derived cache is wiped; the log alone no longer converges the imported content). A node-less image is refused (422) at any log size. `scripts/import-snapshot.mjs` is the reference driver; `POST /api/workspaces/:id/clone` (account API, owner-only) is the server-side equivalent for duplicating an existing workspace.
 
+**Multipart uploads (large checkpoints).** When the sealed image is past the single-body comfort threshold (the reference client chunks above 48 MiB), the client uploads it in parts and commits:
+
+### `PUT /snapshot/data/part?workspaceId=…&upload=…&index=N`
+Stage one chunk of a multipart upload. `upload` is a client-generated uuid; `index` is zero-based and each index stages exactly once — a duplicate index is rejected 422. The part body is binary, ≤64 MiB, and rides the same transfer-only gzip Content-Encoding as the single PUT (decompressed before staging, so committed bytes reassemble exactly). Parts are staged under the server's data dir and wiped at boot (stale-part hygiene for torn uploads). 201 returns `{upload, index}`.
+
+### `POST /snapshot/data/commit?workspaceId=…&upload=…&parts=N&physical=…&logical=…[&sealed=1]`
+Concatenate the upload's parts 0..N-1 in order and store the result as the checkpoint — the SAME sanity gate as the single PUT (node-row check above the envelope threshold) and the same `sealed` flag, and the 201 body mirrors the single PUT. An unknown upload is 404; a `parts` count that does not match the staged indexes (missing or extra) is 422; a gate failure is 422 with the staged parts left in place. Successful commits delete the staged parts.
+
 ### `POST /compact`
 Owner/admin: `{"workspaceId", "upToHlc": {physical, logical}, "prune": true, "dataBase64": "..."}` — snapshot the derived state up to an HLC and optionally prune covered envelopes. `prune: true` requires non-empty `dataBase64`. Single checkpoint flow (replacing the three divergent snapshot endpoints of the first system).
 

@@ -15,7 +15,7 @@
  *  - compaction_segment rows: prune bookkeeping per WIRE.md POST /compact.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -200,8 +200,10 @@ export function storedToEnvelope(row: StoredEnvelope): Envelope {
 export class RelayStorage {
   private readonly db: Db;
   private readonly snapshotDir: string;
+  /** Staging area for multipart snapshot uploads (snapshot-parts/<upload>/<index>). */
+  private readonly partsDir: string;
 
-  constructor(dbPath: string, snapshotDir: string) {
+  constructor(dbPath: string, snapshotDir: string, partsDir?: string) {
     mkdirSync(dirname(dbPath), { recursive: true });
     mkdirSync(snapshotDir, { recursive: true });
     this.db = new Database(dbPath);
@@ -224,6 +226,14 @@ export class RelayStorage {
       this.db.exec("ALTER TABLE snapshot ADD COLUMN sealed INTEGER NOT NULL DEFAULT 0");
     }
     this.snapshotDir = snapshotDir;
+    // Multipart-upload staging: wipe any stale part dirs left by a torn
+    // upload (the commit never landed; the parts can never be addressed
+    // again). Boot hygiene, mirroring the snapshot retention prune.
+    this.partsDir = partsDir ?? join(dirname(snapshotDir), "snapshot-parts");
+    mkdirSync(this.partsDir, { recursive: true });
+    for (const entry of readdirSync(this.partsDir)) {
+      rmSync(join(this.partsDir, entry), { recursive: true, force: true });
+    }
   }
 
   // --- ingest ------------------------------------------------------------------
@@ -433,6 +443,46 @@ export class RelayStorage {
         .prepare("SELECT COUNT(*) AS n FROM snapshot WHERE workspace_id = ?")
         .get(workspaceId) as { n: number }
     ).n;
+  }
+
+  // --- multipart snapshot uploads (part + commit, WIRE.md) ------------------------
+
+  /**
+   * PUT /snapshot/data/part: stage one chunk under the upload id. The
+   * 'wx' flag makes a duplicate index fail loud (EEXIST) — a committed
+   * window must never be silently overwritten.
+   */
+  saveSnapshotPart(uploadId: string, index: number, bytes: Buffer): void {
+    const dir = join(this.partsDir, uploadId);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, String(index)), bytes, { flag: "wx" });
+  }
+
+  /** The staged part indexes for an upload (empty when unknown/torn). */
+  listSnapshotPartIndexes(uploadId: string): number[] {
+    const dir = join(this.partsDir, uploadId);
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir)
+      .map((name) => Number(name))
+      .filter((n) => Number.isInteger(n) && n >= 0)
+      .sort((a, b) => a - b);
+  }
+
+  /** The upload's parts 0..count-1 in order; throws when a part is missing. */
+  readSnapshotParts(uploadId: string, count: number): Buffer[] {
+    const dir = join(this.partsDir, uploadId);
+    if (!existsSync(dir)) throw new Error(`unknown upload ${uploadId}`);
+    const chunks: Buffer[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const path = join(dir, String(index));
+      if (!existsSync(path)) throw new Error(`missing snapshot part ${index} for upload ${uploadId}`);
+      chunks.push(readFileSync(path));
+    }
+    return chunks;
+  }
+
+  deleteSnapshotParts(uploadId: string): void {
+    rmSync(join(this.partsDir, uploadId), { recursive: true, force: true });
   }
 
   // --- compact -------------------------------------------------------------------

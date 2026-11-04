@@ -784,6 +784,35 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     success: { status: 201, description: "the new snapshot id (plus nodeCount in import mode)" },
     errors: ["validation_failed", "conflict"],
   }],
+  ["put", "/api/relay/v2/snapshot/data/part", {
+    summary: "Stage one chunk of a multipart snapshot upload",
+    description:
+      "Part of the multipart flow for checkpoint images past the single-body threshold: the client PUTs each chunk (index-addressed, ≤64 MiB, gzip transfer encoding like the single PUT — decompressed before staging) and commits with POST /snapshot/data/commit. Each index stages exactly once; a duplicate index is rejected 422. Stale part dirs from a torn upload are wiped at boot.",
+    tags: ["Relay"],
+    query: {
+      workspaceId: { description: "workspace uuid", type: "string", required: true },
+      upload: { description: "client-generated multipart upload id (uuid)", type: "string", required: true },
+      index: { description: "zero-based part index", type: "integer", required: true },
+    },
+    success: { status: 201, description: "the staged upload id and index" },
+    errors: ["validation_failed"],
+  }],
+  ["post", "/api/relay/v2/snapshot/data/commit", {
+    summary: "Concatenate a multipart snapshot upload and store the checkpoint",
+    description:
+      "Concatenates the upload's parts 0..parts-1 in order, runs the SAME sanity gate as the single PUT (node-row check above the envelope threshold), stores the checkpoint with the sealed flag, and deletes the staged parts. Unknown upload 404; a parts count that does not match the staged indexes 422.",
+    tags: ["Relay"],
+    query: {
+      workspaceId: { description: "workspace uuid", type: "string", required: true },
+      upload: { description: "multipart upload id (uuid)", type: "string", required: true },
+      parts: { description: "number of parts (must match the staged indexes exactly)", type: "integer", required: true },
+      physical: { description: "HLC physical component", type: "integer", required: true },
+      logical: { description: "HLC logical component", type: "integer", required: true },
+      sealed: { description: '"1" declares a sealed image (stored on the snapshot row, served in GET /snapshot meta)', type: "string" },
+    },
+    success: { status: 201, description: "the new snapshot id (same body shape as the single PUT)" },
+    errors: ["validation_failed", "not_found"],
+  }],
   ["post", "/api/relay/v2/compact", {
     summary: "Snapshot the derived state up to an HLC and optionally prune covered envelopes",
     tags: ["Relay"],

@@ -220,6 +220,49 @@ export class HttpTransport implements Transport {
   }
 
   /**
+   * PUT /snapshot/data/part — one chunk of a multipart snapshot upload,
+   * gzip transfer encoding like uploadSnapshot (the relay gunzips before
+   * storing, so parts reassemble the original bytes exactly).
+   */
+  async uploadSnapshotPart(bytes: Uint8Array, uploadId: string, index: number): Promise<void> {
+    const params = new URLSearchParams({
+      workspaceId: this.workspaceId,
+      upload: uploadId,
+      index: String(index),
+    });
+    const headers: Record<string, string> = { "Content-Type": "application/octet-stream" };
+    let body: NonNullable<RequestInit["body"]> = bytes as unknown as NonNullable<
+      RequestInit["body"]
+    >;
+    if (typeof (globalThis as { CompressionStream?: unknown }).CompressionStream === "function") {
+      body = (await gzipBytes(bytes)) as unknown as NonNullable<RequestInit["body"]>;
+      headers["Content-Encoding"] = "gzip";
+    }
+    await this.request(`/snapshot/data/part?${params.toString()}`, {
+      method: "PUT",
+      headers,
+      body,
+    });
+  }
+
+  /**
+   * POST /snapshot/data/commit — concatenate the upload's parts (0..parts-1),
+   * run the relay's sanity gate, and store the checkpoint. The 201 body
+   * mirrors the single PUT.
+   */
+  async commitSnapshot(uploadId: string, parts: number, hlc: Hlc, sealed: boolean): Promise<void> {
+    const params = new URLSearchParams({
+      workspaceId: this.workspaceId,
+      upload: uploadId,
+      parts: String(parts),
+      physical: String(hlc.physical),
+      logical: String(hlc.logical),
+    });
+    if (sealed) params.set("sealed", "1");
+    await this.request(`/snapshot/data/commit?${params.toString()}`, { method: "POST" });
+  }
+
+  /**
    * Mint a single-use WebSocket admission ticket (WIRE.md §2). The bearer
    * credential rides the X-API-Key header; the returned ticket — not the
    * credential — goes on the socket URL, so logs along the path record an
@@ -552,6 +595,39 @@ export class MemoryRelay {
     this.snapshotSealed = sealed;
   }
 
+  // --- multipart snapshot uploads (part + commit) -----------------------------------
+
+  private readonly snapshotParts = new Map<string, Map<number, Buffer>>();
+
+  /** PUT /snapshot/data/part: store one chunk under the upload id (duplicate index fails loud, mirroring the relay's 422). */
+  putSnapshotPart(uploadId: string, index: number, bytes: Uint8Array): void {
+    let parts = this.snapshotParts.get(uploadId);
+    if (parts === undefined) {
+      parts = new Map();
+      this.snapshotParts.set(uploadId, parts);
+    }
+    if (parts.has(index)) throw new Error(`duplicate snapshot part ${index} for upload ${uploadId}`);
+    parts.set(index, Buffer.from(bytes));
+  }
+
+  snapshotPartIndexes(uploadId: string): number[] {
+    return [...(this.snapshotParts.get(uploadId)?.keys() ?? [])].sort((a, b) => a - b);
+  }
+
+  /** POST /snapshot/data/commit: concatenate parts 0..count-1 in order; missing parts fail loud. */
+  commitSnapshotParts(uploadId: string, count: number): Buffer {
+    const parts = this.snapshotParts.get(uploadId);
+    if (parts === undefined) throw new Error(`unknown upload ${uploadId}`);
+    const chunks: Buffer[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const chunk = parts.get(index);
+      if (chunk === undefined) throw new Error(`missing snapshot part ${index} for upload ${uploadId}`);
+      chunks.push(chunk);
+    }
+    this.snapshotParts.delete(uploadId);
+    return Buffer.concat(chunks);
+  }
+
   /** Simulate a server restore/backup swap: epoch bumps, optionally replacing the log. */
   bumpRestoreEpoch(options: { clearLog?: boolean } = {}): void {
     this.epoch += 1;
@@ -630,6 +706,14 @@ export class MemoryTransport implements Transport {
 
   async uploadSnapshot(bytes: Uint8Array, hlc: Hlc, sealed?: boolean): Promise<void> {
     this.relay.putSnapshot(bytes, hlc, sealed);
+  }
+
+  async uploadSnapshotPart(bytes: Uint8Array, uploadId: string, index: number): Promise<void> {
+    this.relay.putSnapshotPart(uploadId, index, bytes);
+  }
+
+  async commitSnapshot(uploadId: string, parts: number, hlc: Hlc, sealed: boolean): Promise<void> {
+    this.relay.putSnapshot(this.relay.commitSnapshotParts(uploadId, parts), hlc, sealed);
   }
 
   subscribe(handlers: RealtimeHandlers): () => void {

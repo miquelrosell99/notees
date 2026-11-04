@@ -167,6 +167,141 @@ describe("snapshots", () => {
   });
 });
 
+describe("multipart snapshot uploads (part + commit)", () => {
+  const UPLOAD = "0192a000-0000-7000-8000-0000000000aa";
+
+  /** Seed a log above the sanity-gate threshold (1000-envelope WIRE batch cap). */
+  async function seedBigLog(): Promise<void> {
+    for (let batch = 0; batch < 11; batch += 1) {
+      const envelopes = Array.from({ length: 100 }, (_, i) =>
+        testEnvelope({ opType: "object.create", payload: pagePayload(`mp-${batch}-${i}`) }),
+      );
+      await ingest(server!, envelopes);
+    }
+  }
+
+  async function putPart(index: number, bytes: Buffer, upload: string = UPLOAD) {
+    return server!.app.inject({
+      method: "PUT",
+      url: `/api/relay/v2/snapshot/data/part?workspaceId=${server!.workspaceId}&upload=${upload}&index=${index}`,
+      headers: { "content-type": "application/octet-stream", ...server!.authHeaders },
+      payload: bytes,
+    });
+  }
+
+  async function commit(parts: number, upload: string = UPLOAD, extra = "&physical=100&logical=2&sealed=1") {
+    return server!.app.inject({
+      method: "POST",
+      url: `/api/relay/v2/snapshot/data/commit?workspaceId=${server!.workspaceId}&upload=${upload}&parts=${parts}${extra}`,
+      headers: server!.authHeaders,
+    });
+  }
+
+  it("part+commit round-trips a checkpoint exactly like the single PUT (gate, sealed flag, bytes)", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    const image = Buffer.from(server.ctx.workspaces.storeFor(server.workspaceId).snapshot());
+    const third = Math.ceil(image.length / 3);
+    const slices = [
+      image.subarray(0, third),
+      image.subarray(third, third * 2),
+      image.subarray(third * 2),
+    ];
+    for (const [index, slice] of slices.entries()) {
+      const put = await putPart(index, Buffer.from(slice));
+      expect(put.statusCode).toBe(201);
+      expect(put.json()).toEqual({ upload: UPLOAD, index });
+    }
+
+    const done = await commit(3);
+    expect(done.statusCode).toBe(201);
+    expect(done.json()).toMatchObject({
+      workspaceId: server.workspaceId,
+      upToSeq: 1100,
+      upToHlc: { physical: 100, logical: 2 },
+    });
+    expect(done.json().snapshotId).toBeDefined();
+
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(meta.json().sealed).toBe(true);
+    expect(meta.json().snapshotId).toBe(done.json().snapshotId);
+
+    const data = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(data.statusCode).toBe(200);
+    expect(Buffer.from(data.rawPayload).equals(image)).toBe(true);
+  });
+
+  it("a duplicate part index is rejected 422 and does not overwrite the staged chunk", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    const image = Buffer.from(server.ctx.workspaces.storeFor(server.workspaceId).snapshot());
+    expect((await putPart(0, image.subarray(0, 1024))).statusCode).toBe(201);
+    const dup = await putPart(0, Buffer.from("different bytes"));
+    expect(dup.statusCode).toBe(422);
+    expect(dup.json().error.code).toBe("validation_failed");
+
+    // The original part survived: committing 1 part yields the original prefix…
+    // no — a truncated image must fail the gate; stage the rest and commit whole.
+    const rest = image.subarray(1024);
+    // rest may itself exceed a comfortable part size for a test; commit only
+    // needs concatenation, so stage the remainder as part 1 regardless of size.
+    expect((await putPart(1, Buffer.from(rest))).statusCode).toBe(201);
+    const done = await commit(2);
+    expect(done.statusCode).toBe(201);
+    const data = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(Buffer.from(data.rawPayload).equals(image)).toBe(true);
+  });
+
+  it("a parts count that does not match the staged indexes is rejected 422", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    await putPart(0, Buffer.from("a"));
+    await putPart(1, Buffer.from("b"));
+    const mismatch = await commit(3);
+    expect(mismatch.statusCode).toBe(422);
+    expect(mismatch.json().error.code).toBe("validation_failed");
+  });
+
+  it("committing an unknown upload is 404", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    const res = await commit(2, "0192a000-0000-7000-8000-0000000000bb");
+    expect(res.statusCode).toBe(404);
+    expect(res.json().error.code).toBe("not_found");
+  });
+
+  it("the sanity gate arms on commit: an empty image over a big log is rejected 422", async () => {
+    server = await makeTestServer();
+    await seedBigLog();
+    const empty = Store.open(betterSqlite3Backend(":memory:"));
+    const bytes = Buffer.from(empty.snapshot());
+    empty.close();
+    expect((await putPart(0, bytes)).statusCode).toBe(201);
+    const res = await commit(1);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe("validation_failed");
+    // No checkpoint was installed.
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(meta.json().hasSnapshot).toBe(false);
+  });
+});
+
 describe("PUT /snapshot/data — the sanity gate", () => {
   /** Seed a log above the gate threshold (1000-envelope WIRE batch cap). */
   async function seedBigLog(): Promise<void> {
