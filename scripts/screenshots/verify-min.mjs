@@ -174,16 +174,18 @@ if (lockedBanner) {
   ).catch(() => console.log("WARN: banner still up after 120s"));
   console.log("unlock submitted; replay in flight");
 
-  // The shell stays "Connecting…" until the reconnect's bootstrap completes —
+  // The shell stays pre-ready until the reconnect's bootstrap completes —
   // after an epoch wipe that is the FULL decrypting replay (minutes at live
-  // scale). Wait for the shell to settle before touching the search UI.
+  // scale), now with live progress ("Catching up… N operations") on the
+  // connecting screen. Wait for the app shell (the sidebar NAVIGATION
+  // landmark), not merely the absence of the connecting text.
   const settleT0 = Date.now();
   await page.waitForFunction(
-    () => !/^\s*Notees\s+Connecting…\s*$/s.test(document.body.innerText),
+    () => document.body.innerText.includes("NAVIGATION"),
     undefined,
     { timeout: 900_000 },
   ).then(() => console.log(`shell settled after unlock in ${((Date.now() - settleT0) / 1000).toFixed(0)}s`))
-   .catch(() => console.log("WARN: shell still Connecting… after 15m"));
+   .catch(() => console.log("WARN: app shell not up after 15m"));
 }
 
 // Footer: no sync error.
