@@ -34,8 +34,20 @@ import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { resolvePrincipal, type ResolvedRequest } from "./routes-auth.js";
 import { renderSharedNode } from "./share-render.js";
+import { renderShareViewer } from "./share-viewer.js";
 import type { ShareRow } from "./shares.js";
 import { shareIsLive } from "./shares.js";
+
+const MAX_ARTIFACT_BYTES = 5 * 1024 * 1024;
+
+const artifactBodySchema = z
+  .object({
+    ciphertext: z
+      .string()
+      .min(1)
+      .max(MAX_ARTIFACT_BYTES, `share artifact exceeds the ${MAX_ARTIFACT_BYTES}-byte cap`),
+  })
+  .strict();
 
 const createBodySchema = z
   .object({
@@ -130,6 +142,24 @@ export function registerShareRoutes(app: FastifyInstance, ctx: ServerContext): v
     }
     return { ok: true };
   });
+
+  // Plan 08: attach (or replace) the SEALED ARTIFACT for a share — the
+  // ciphertext of the self-contained HTML render, sealed key-in-fragment
+  // (b64u iv ‖ tag ‖ ct). The decryption key never reaches this route (or
+  // any route): it lives only in the published link's #fragment.
+  app.put("/shares/:token/artifact", async (request, reply) => {
+    requireShareAdmin(ctx, request);
+    const { token } = request.params as { token: string };
+    const parsed = artifactBodySchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid share artifact request");
+    }
+    if (!ctx.shares.putArtifact(token, parsed.data.ciphertext)) {
+      throw new AppError(404, "not_found", "no such share token");
+    }
+    reply.code(204);
+    return reply.send();
+  });
 }
 
 /**
@@ -142,6 +172,21 @@ export function registerPublicShareRoute(app: FastifyInstance, ctx: ServerContex
     const share = ctx.shares.get(token);
     if (share === null || !shareIsLive(share)) {
       throw new AppError(404, "not_found", "share link not found");
+    }
+    if (share.artifact !== null) {
+      // Plan 08: the sealed artifact is self-contained — serve the viewer
+      // (it decrypts locally with the link's #fragment key). No store touch:
+      // the artifact outlives the source node's liveness.
+      return reply
+        .header("content-type", "text/html; charset=utf-8")
+        .header("cache-control", "no-store")
+        .header("x-content-type-options", "nosniff")
+        .header("referrer-policy", "no-referrer")
+        .header(
+          "content-security-policy",
+          "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'",
+        )
+        .send(renderShareViewer(share.artifact));
     }
     await ctx.ensureSeeded(share.workspaceId);
     const store = ctx.workspaces.storeFor(share.workspaceId);

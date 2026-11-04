@@ -348,3 +348,127 @@ describe("the public share view", () => {
     expect(view.statusCode).toBe(200);
   });
 });
+
+describe("key-in-fragment share artifacts (plan 08)", () => {
+  /** A stand-in sealed artifact: b64u of iv(12) ‖ tag(16) ‖ ct — opaque bytes. */
+  const ARTIFACT = Buffer.concat([Buffer.alloc(12, 1), Buffer.alloc(16, 2), Buffer.from("sealed-html-bytes")])
+    .toString("base64url");
+
+  async function mintPageShare(): Promise<string> {
+    const page = await createNode(pageBody("Artifact page"));
+    const minted = await mintShare(page.id, server!.authHeaders);
+    expect(minted.statusCode).toBe(201);
+    return minted.json().share.token as string;
+  }
+
+  it("PUT stores the ciphertext verbatim; GET /s serves the viewer with the ciphertext embedded", async () => {
+    server = await makeTestServer();
+    const token = await mintPageShare();
+
+    const put = await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${encodeURIComponent(token)}/artifact`,
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: { ciphertext: ARTIFACT },
+    });
+    expect(put.statusCode).toBe(204);
+
+    const view = await server.app.inject({ method: "GET", url: `/s/${token}` });
+    expect(view.statusCode).toBe(200);
+    expect(view.headers["content-type"]).toContain("text/html");
+    // The ciphertext is embedded; the viewer shell carries the error surface
+    // and the sandboxed iframe (GCM failure renders the error, never partial).
+    expect(view.body).toContain(ARTIFACT);
+    expect(view.body).toContain('id="err"');
+    expect(view.body).toContain('sandbox=""');
+    // The viewer reads the key ONLY from location.hash — no key field, no
+    // key input anywhere in the page source.
+    expect(view.body).not.toContain("shareKey");
+    // No store lookup for the artifact arm: the viewer serves even though
+    // the source page is never touched by this request.
+    expect(view.body).toContain("location.hash");
+  });
+
+  it("re-publish replaces the artifact", async () => {
+    server = await makeTestServer();
+    const token = await mintPageShare();
+    const second = Buffer.concat([Buffer.alloc(12, 3), Buffer.alloc(16, 4), Buffer.from("v2")]).toString("base64url");
+    await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${encodeURIComponent(token)}/artifact`,
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: { ciphertext: ARTIFACT },
+    });
+    await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${encodeURIComponent(token)}/artifact`,
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: { ciphertext: second },
+    });
+    const view = await server.app.inject({ method: "GET", url: `/s/${token}` });
+    expect(view.body).toContain(second);
+    expect(view.body).not.toContain(ARTIFACT);
+  });
+
+  it("a legacy row (no artifact) keeps the server-rendered path untouched", async () => {
+    server = await makeTestServer();
+    const page = await createNode(pageBody("Legacy page"));
+    const minted = await mintShare(page.id, server.authHeaders);
+    const view = await server.app.inject({ method: "GET", url: minted.json().share.urlPath as string });
+    expect(view.statusCode).toBe(200);
+    expect(view.body).toContain("Legacy page");
+    expect(view.body).not.toContain("ARTIFACT_B64U");
+  });
+
+  it("revoke 404s the artifact view exactly like the legacy view", async () => {
+    server = await makeTestServer();
+    const token = await mintPageShare();
+    await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${encodeURIComponent(token)}/artifact`,
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: { ciphertext: ARTIFACT },
+    });
+    const revoke = await server.app.inject({
+      method: "DELETE",
+      url: `/api/shares/${encodeURIComponent(token)}`,
+      headers: server.authHeaders,
+    });
+    expect(revoke.statusCode).toBe(200);
+    const view = await server.app.inject({ method: "GET", url: `/s/${token}` });
+    expect(view.statusCode).toBe(404);
+  });
+
+  it("PUT artifact fails loud: unknown token 404s, over-cap/empty bodies 422, anonymous 401", async () => {
+    server = await makeTestServer();
+    const headers = { "content-type": "application/json", ...server.authHeaders };
+    const missing = await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${crypto.randomUUID()}/artifact`,
+      headers,
+      payload: { ciphertext: ARTIFACT },
+    });
+    expect(missing.statusCode).toBe(404);
+    const oversized = await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${crypto.randomUUID()}/artifact`,
+      headers,
+      payload: { ciphertext: "x".repeat(5 * 1024 * 1024 + 1) },
+    });
+    expect(oversized.statusCode).toBe(422);
+    const empty = await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${crypto.randomUUID()}/artifact`,
+      headers,
+      payload: { ciphertext: "" },
+    });
+    expect(empty.statusCode).toBe(422);
+    const anon = await server.app.inject({
+      method: "PUT",
+      url: `/api/shares/${crypto.randomUUID()}/artifact`,
+      headers: { "content-type": "application/json" },
+      payload: { ciphertext: ARTIFACT },
+    });
+    expect(anon.statusCode).toBe(401);
+  });
+});

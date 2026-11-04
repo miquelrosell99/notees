@@ -907,7 +907,21 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       nodeId: { description: "filter to one node's shares", type: "string" },
     },
   }],
-  ["delete", "/api/shares/:token", {
+  ["put", "/api/shares/:token/artifact", {
+    summary: "Attach (or replace) a share's sealed artifact — key-in-fragment (plan 08)",
+    description:
+      "Stores the SEALED artifact (b64u iv ‖ tag ‖ ct, self-contained HTML render sealed with the share key) verbatim. The decryption key never reaches any route — it lives only in the published link's #fragment; the viewer at GET /s/:token decrypts locally. Re-publish replaces the artifact; legacy rows without one keep the server-rendered path.",
+    tags: ["Shares"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["ciphertext"],
+      properties: { ciphertext: { type: "string", minLength: 1 } },
+    },
+    success: { status: 204, description: "stored" },
+    errors: ["unauthenticated", "forbidden", "not_found", "validation_failed"],
+  }],
+["delete", "/api/shares/:token", {
     summary: "Revoke a share link (owner/admin only; effective immediately)",
     description:
       "Sets revoked_at — the next GET /s/:token answers 404. The row stays for history; already-revoked or unknown tokens 404.",
