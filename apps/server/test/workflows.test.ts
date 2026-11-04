@@ -156,194 +156,6 @@ async function runsOf(ruleId: string): Promise<Array<{ outcome: string; nodeId: 
   return res.json().runs;
 }
 
-describe("workflow engine (issue #13)", () => {
-  it("node created matching the criteria gets the rule's property.set (server actor, audited)", async () => {
-    server = await makeTestServer();
-    const schemaId = await createSchema("wf-flag", "text");
-    const rule = await createRule(schemaId);
-
-    const nodeId = await createNode("wf-paper-node", [SYSTEM_CLASS_UUIDS.journal_article]);
-
-    // The effect: an authored value, visible through the derived read model.
-    expect(await effectiveValues(nodeId, schemaId)).toEqual(["review"]);
-
-    // The cause: ONE ordinary envelope by the rules-engine actor, wired like
-    // any other op (same log, same derived store, no new op type).
-    const engine = engineEnvelopes();
-    expect(engine).toHaveLength(1);
-    expect(engine[0]!.opType).toBe("property.set");
-    expect(engine[0]!.payload).toMatchObject({ objectId: nodeId, propertySchemaId: schemaId, value: "review" });
-
-    // The audit: one actions_written run pointing at both envelope and node.
-    const createEnvelope = server.ctx.relay
-      .allEnvelopes(server.ctx.defaultWorkspace)
-      .find((env) => env.opType === "object.create" && (env.payload as { objectId?: string }).objectId === nodeId);
-    const runs = await runsOf(rule.id);
-    expect(runs).toHaveLength(1);
-    expect(runs[0]!.outcome).toBe("actions_written");
-    expect(runs[0]!.nodeId).toBe(nodeId);
-    expect(runs[0]!.triggerEnvelopeId).toBe(createEnvelope!.id);
-    expect(runs[0]!.actionsWritten).toEqual([{ opType: "property.set", envelopeId: engine[0]!.id }]);
-  });
-
-  it("criteria non-match → nothing written and no run row", async () => {
-    server = await makeTestServer();
-    const schemaId = await createSchema("wf-flag", "text");
-    const rule = await createRule(schemaId);
-
-    const nodeId = await createNode("wf-plain-node", []); // no paper class → criteria miss
-
-    expect(await effectiveValues(nodeId, schemaId)).toEqual([]);
-    expect(engineEnvelopes()).toHaveLength(0);
-    expect(await runsOf(rule.id)).toEqual([]);
-  });
-
-  it("class.assign trigger fires on the class-add carrier and the action assigns a class", async () => {
-    server = await makeTestServer();
-    const res = await api("POST", "/api/workflows", {
-      payload: ruleBody({
-        name: "paper means academic",
-        trigger: { opType: "class.assign" },
-        criteria: ast([{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } }]),
-        actions: [{ type: "class.assign", classId: SYSTEM_CLASS_UUIDS.book }],
-      }),
-    });
-    expect(res.statusCode).toBe(201);
-    const rule = res.json().rule;
-
-    const nodeId = await createNode("wf-academic", [SYSTEM_CLASS_UUIDS.journal_article]);
-
-    const classIds = JSON.parse(
-      server!.ctx.workspaces.storeFor(server!.ctx.defaultWorkspace).getNode(nodeId)!.class_ids,
-    ) as string[];
-    expect(classIds).toContain(SYSTEM_CLASS_UUIDS.book);
-    // The carrier is a re-issued object.create — the wire's OR-Set add op.
-    const engine = engineEnvelopes();
-    expect(engine).toHaveLength(1);
-    expect(engine[0]!.opType).toBe("object.create");
-    expect(engine[0]!.payload).toMatchObject({ objectId: nodeId, classIds: [SYSTEM_CLASS_UUIDS.book] });
-    // Two runs: the firing, and the loop-breaker echo — the class.assign
-    // ACTION is itself a class-add carrier, so at depth 1 it trips the same
-    // rule again and is recorded as skipped_loop (never re-executed).
-    const runs = (await runsOf(rule.id)).map((run) => run.outcome).sort();
-    expect(runs).toEqual(["actions_written", "skipped_loop"]);
-
-    // A create WITHOUT classIds does not trip the class.assign trigger.
-    await createNode("wf-plain", []);
-    expect(engineEnvelopes()).toHaveLength(1);
-    expect(await runsOf(rule.id)).toHaveLength(2);
-  });
-
-  it("loop cap: a rule's action never re-triggers the same rule (skipped_loop, one envelope)", async () => {
-    server = await makeTestServer();
-    const seedSchema = await createSchema("wf-seed", "text");
-    const flagSchema = await createSchema("wf-flag", "text");
-    // Fires when wf-seed exists on the node; its own action writes wf-flag,
-    // whose criteria (wf-seed still exists) would match the rule again.
-    const rule = await createRule(flagSchema, {
-      trigger: { opType: "property.set" },
-      criteria: ast([{ type: "property", schemaId: seedSchema, op: "exists" }]),
-    });
-
-    const nodeId = await createNode("wf-loop", []);
-    await setProperty(nodeId, seedSchema, "seeded");
-
-    // Exactly one engine envelope: the wf-flag write did NOT re-fire the rule.
-    const engine = engineEnvelopes();
-    expect(engine).toHaveLength(1);
-    expect(engine[0]!.payload).toMatchObject({ propertySchemaId: flagSchema });
-    expect(await effectiveValues(nodeId, flagSchema)).toEqual(["review"]);
-
-    // The echo is audited, not executed.
-    const runs = await runsOf(rule.id);
-    expect(runs.map((run) => run.outcome).sort()).toEqual(["actions_written", "skipped_loop"]);
-  });
-
-  it("depth cap: chains beyond one hop do not execute (skipped_depth_cap)", async () => {
-    server = await makeTestServer();
-    const seedSchema = await createSchema("wf-seed", "text");
-    const hop1Schema = await createSchema("wf-hop1", "text");
-    const hop2Schema = await createSchema("wf-hop2", "text");
-
-    // Rule B FIRST (evaluation order is creation order): "when wf-hop1
-    // exists → write wf-hop2". At depth 0 B never matches — wf-hop1 appears
-    // only as A's depth-1 action — so B's one and only chance is the capped
-    // re-entry, where the depth cap must stop it.
-    const resB = await api("POST", "/api/workflows", {
-      payload: ruleBody({
-        name: "B",
-        trigger: { opType: "property.set" },
-        criteria: ast([{ type: "property", schemaId: hop1Schema, op: "exists" }]),
-        actions: [{ type: "property.set", propertySchemaId: hop2Schema, value: "chained" }],
-      }),
-    });
-    expect(resB.statusCode).toBe(201);
-    const ruleB = resB.json().rule;
-    // Rule A: wf-seed present → write wf-hop1.
-    await createRule(hop1Schema, {
-      name: "A",
-      trigger: { opType: "property.set" },
-      criteria: ast([{ type: "property", schemaId: seedSchema, op: "exists" }]),
-    });
-
-    const nodeId = await createNode("wf-chain", []);
-    await setProperty(nodeId, seedSchema, "seeded");
-
-    // A fired once; B's match at depth 1 wrote nothing.
-    expect(engineEnvelopes()).toHaveLength(1);
-    expect(await effectiveValues(nodeId, hop1Schema)).toEqual(["review"]);
-    expect(await effectiveValues(nodeId, hop2Schema)).toEqual([]);
-    const runsB = await runsOf(ruleB.id);
-    expect(runsB).toHaveLength(1);
-    expect(runsB[0]!.outcome).toBe("skipped_depth_cap");
-    expect(runsB[0]!.actionsWritten).toEqual([]);
-  });
-
-  it("disabled rule no-ops; enabling makes it fire", async () => {
-    server = await makeTestServer();
-    const schemaId = await createSchema("wf-flag", "text");
-    const rule = await createRule(schemaId, { enabled: false });
-
-    await createNode("wf-while-disabled", [SYSTEM_CLASS_UUIDS.journal_article]);
-    expect(engineEnvelopes()).toHaveLength(0);
-    expect(await runsOf(rule.id)).toEqual([]);
-
-    const patched = await api("PATCH", `/api/workflows/${rule.id}`, { payload: { enabled: true } });
-    expect(patched.statusCode).toBe(200);
-    expect(patched.json().rule.enabled).toBe(true);
-
-    await createNode("wf-after-enable", [SYSTEM_CLASS_UUIDS.journal_article]);
-    expect(engineEnvelopes()).toHaveLength(1);
-    expect(await runsOf(rule.id)).toHaveLength(1);
-  });
-
-  it("a failing action is audited (actions_failed) and never blocks the triggering ingest", async () => {
-    server = await makeTestServer();
-    // A number-typed schema rejects a string value at apply time
-    // (shape integrity, fail loud) — after the envelope persisted
-    // to the log, exactly the failure mode the audit must absorb.
-    const numberSchema = await createSchema("wf-count", "number");
-    const res = await api("POST", "/api/workflows", {
-      payload: ruleBody({
-        actions: [{ type: "property.set", propertySchemaId: numberSchema, value: "not-a-number" }],
-      }),
-    });
-    expect(res.statusCode).toBe(201);
-    const rule = res.json().rule;
-
-    const nodeId = await createNode("wf-failing", [SYSTEM_CLASS_UUIDS.journal_article]);
-
-    // The derived store took NO partial effect…
-    expect(await effectiveValues(nodeId, numberSchema)).toEqual([]);
-    // …the failure is a first-class audit row with the error message…
-    const runs = await runsOf(rule.id);
-    expect(runs).toHaveLength(1);
-    expect(runs[0]!.outcome).toBe("actions_failed");
-    expect(runs[0]!.detail).toBeTruthy();
-    // …and the client can keep writing (the ingest path is unharmed).
-    await createNode("wf-after-failure");
-  });
-});
 
 describe("workflow routes (issue #13)", () => {
   it("rejects unauthenticated calls on every route", async () => {
@@ -504,13 +316,16 @@ describe("workflow routes (issue #13)", () => {
     const ruleId = created.json().rule.id as string;
     await api("PATCH", `/api/workflows/${ruleId}`, { payload: { name: "renamed" } });
 
-    // Fire one run so the audit has a row to persist.
+    // Plan 07: post-ingest probes are RETIRED — ingesting a matching
+    // envelope writes no rules-engine op and no run row.
     await createNode("wf-restart", [SYSTEM_CLASS_UUIDS.journal_article]);
-    expect(engineEnvelopes()).toHaveLength(1);
+    expect(engineEnvelopes()).toHaveLength(0);
+    const runs = await api("GET", `/api/workflows/${ruleId}/runs`);
+    expect(runs.json().runs).toEqual([]);
 
-    // Rule CRUD alone never touched the op log (the action envelope did).
+    // Rule CRUD alone never touched the op log.
     const total = server.ctx.relay.envelopeCount(server.ctx.defaultWorkspace);
-    expect(total - before).toBe(2); // object.create + the rule's property.set
+    expect(total - before).toBe(1); // just the object.create
 
     const dataDir = server.dataDir;
     const apiKey = server.apiKey;
@@ -524,12 +339,56 @@ describe("workflow routes (issue #13)", () => {
       expect(list.statusCode).toBe(200);
       expect(list.json().rules).toHaveLength(1);
       expect(list.json().rules[0]).toMatchObject({ id: ruleId, name: "renamed" });
+      // Plan 07: probes retired — the audit table survives the restart but
+      // carries no rows (nothing evaluated).
       const runs = await rebuilt.app.inject({ method: "GET", url: `/api/workflows/${ruleId}/runs`, headers });
       expect(runs.statusCode).toBe(200);
-      expect(runs.json().runs[0].outcome).toBe("actions_written");
+      expect(runs.json().runs).toEqual([]);
     } finally {
       await rebuilt.app.close();
       rmSync(dataDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("post-ingest probes retired (plan 07)", () => {
+  it("a matching trigger envelope ingests cleanly with NO evaluation: no rules-engine op, no run row, rule intact", async () => {
+    server = await makeTestServer();
+    await server.ctx.ensureSeeded(server.ctx.defaultWorkspace);
+    const rule = await api("POST", "/api/workflows", {
+      payload: ruleBody({
+        trigger: { opType: "class.assign" },
+        criteria: ast([{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [SYSTEM_CLASS_UUIDS.journal_article] } }]),
+        actions: [{ type: "class.assign", classId: SYSTEM_CLASS_UUIDS.book }],
+      }),
+    });
+    expect(rule.statusCode).toBe(201);
+
+    const objectId = crypto.randomUUID();
+    const ingested = await api("POST", "/api/relay/v2/batch", {
+      payload: {
+        envelopes: [
+          testEnvelope({
+            workspaceId: server!.ctx.defaultWorkspace,
+            opType: "object.create",
+            payload: {
+              objectId,
+              isEmbedded: false,
+              contentAst: [{ type: "text", text: "wf-probe" }],
+              classIds: [SYSTEM_CLASS_UUIDS.journal_article],
+            },
+          }),
+        ],
+      },
+    });
+    expect(ingested.statusCode).toBe(200);
+
+    // The envelope committed; the probe never ran.
+    const row = server!.ctx.workspaces.storeFor(server!.ctx.defaultWorkspace).getNode(objectId);
+    expect(row).toBeDefined();
+    expect(JSON.parse(row!.class_ids)).toEqual([SYSTEM_CLASS_UUIDS.journal_article]);
+    expect(engineEnvelopes()).toHaveLength(0);
+    const runs = await api("GET", `/api/workflows/${rule.json().rule.id}/runs`);
+    expect(runs.json().runs).toEqual([]);
   });
 });
