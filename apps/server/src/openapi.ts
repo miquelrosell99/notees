@@ -554,23 +554,8 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     success: { status: 204, description: "stored" },
     errors: ["unauthenticated", "forbidden", "validation_failed", "conflict"],
   }],
-  ["get", "/api/workspaces/:id/export.zip", {
-    summary: "Full-workspace Markdown zip (one file per page, manifest, optional assets/)",
-    description:
-      "zip-roots exclusion: the system-seed pages (inbox — the scratchpad was withdrawn but legacy workspaces still carry it) and the date chain (year/month/day nodes) are excluded from the bundle — journal scaffolding, not exportable content; links targeting them keep the single-file wikilink convention.",
-    tags: ["Workspaces"],
-    requiredScope: "export",
-    query: {
-      includeAssets: { description: "1 bundles the CAS bytes of every asset_ref'd asset under assets/", type: "string" },
-    },
-    success: { description: "application/zip bundle", schema: { type: "string", format: "binary" } },
-    errors: ["validation_failed", "not_found"],
-  }],
-  ["get", "/api/nodes/:id/location", {
-    summary: "Which of the account's workspaces holds a node (deep-link resolution)",
-    tags: ["Workspaces"],
-    errors: ["not_found"],
-  }],
+
+
   ["get", "/api/api-keys", {
     summary: "List the account's API keys (session required; keys are name + scopes + prefix)",
     tags: ["Account"],
@@ -591,156 +576,22 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
 
   // --- objects ------------------------------------------------------------------------
-  ["get", "/api/objects", {
-    summary: "List objects (paginated, filterable)",
-    description:
-      "`isEmbedded=true` selects the embedded body rows (blocks), `isEmbedded=false` the standalone rows (pages); `trashed=true` scans the trash. Cursor pagination by id (nextCursor).",
-    tags: ["Objects"],
-    requiredScope: "objects.read",
-    query: {
-      isClass: { description: "class identity bit filter (true/false)", type: "string" },
-      isEmbedded: { description: "embedding-flag filter (true/false)", type: "string" },
-      class: { description: "class uuid — members of that class", type: "string" },
-      parent: { description: "direct-children filter (parent_id)", type: "string" },
-      trashed: { description: "true lists inactive (trashed) rows", type: "string" },
-      q: { description: "full-text search term", type: "string" },
-      property: { description: "`<schemaId>:<value>` exact property match", type: "string" },
-      limit: { description: "page size (default 50, max 500)", type: "integer" },
-      cursor: { description: "id cursor from a previous nextCursor", type: "string" },
-    },
-    errors: ["validation_failed"],
-  }],
-  ["post", "/api/objects", {
-    summary: "Create an object (or declare a class with isClass: true)",
-    description:
-      "Every write is an envelope through the one write path. re-POSTing a CALLER-CHOSEN `id` that is already taken — active or trashed — fails 409 `conflict` before anything reaches the log (the first write wins; a concurrent take between the check and the submit hits the same 409). The id-LESS path cannot conflict: the server stamps a fresh UUIDv7, and a retried submit is answered by the Idempotency-Key replay (409 `idempotency_replay` on key reuse with a different body). Relay-level duplicate object.create envelopes (any client) stay first-write-wins no-ops by the applier — that convergence carrier is unchanged.",
-    tags: ["Objects"],
-    requestBody: createObjectBody,
-    success: { status: 201, description: "{ id, object }" },
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["validation_failed", "not_found", "conflict"],
-  }],
-  ["get", "/api/objects/:id", {
-    summary: "Fetch one object (contentAst, classes, tags, properties, wire node fields)",
-    description:
-      "The object projection carries the wire node fields alongside the base shape: `coverAssetId` / `bannerAssetId` (the asset nodes behind the page cover/banner chrome) and `aliasedNodeId` (the main page a node alias points at) — null = unset (SCHEMA.md \"Node structure\"). The same projection backs the list and children reads.",
-    tags: ["Objects"],
-    requiredScope: "objects.read",
-    errors: ["not_found"],
-  }],
-  ["patch", "/api/objects/:id", {
-    summary: "Update an object (embedding flag, icon, color, contentAst, wire node fields)",
-    description:
-      "The only mutation with a natural per-node revision — the node's `hlc`, bumped by object.update/object.move — so it is the only route honoring the optional `baseRevision` guard (409 conflict on stale). Property slots carry their own per-slot revision and are LWW by the op log; a base check there would be misleading and is deliberately not offered.",
-    tags: ["Objects"],
-    requestBody: updateObjectBody,
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["validation_failed", "not_found", "conflict"],
-  }],
-  ["delete", "/api/objects/:id", {
-    summary: "Trash an object (subtree); ?permanent=true&confirm=<id> hard-deletes",
-    tags: ["Objects"],
-    requiredScope: "objects.delete",
-    idempotency: true,
-    query: {
-      permanent: { description: "hard-delete instead of trash", type: "string" },
-      confirm: { description: "must equal the object id when permanent=true", type: "string" },
-    },
-    errors: ["validation_failed", "not_found"],
-  }],
-  ["get", "/api/objects/:id/children", {
-    summary: "Direct children in child-position order (both render zones; active only)",
-    tags: ["Objects"],
-    requiredScope: "objects.read",
-    errors: ["not_found"],
-  }],
-  ["post", "/api/objects/:id/restore", {
-    summary: "Restore from the trash (whole-tree, the object.restore op)",
-    tags: ["Objects"],
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["not_found", "validation_failed"],
-  }],
-  ["post", "/api/objects/:id/merge", {
-    summary: "Merge this object into another: children move, class/tag bindings, authored properties, cover/banner/description, incoming mentions/property references/aliases, and collection memberships remap; the source trashes",
-    description:
-      "The server plans the merge over its derived projection (packages/store planMerge — a batch of EXISTING op types, no wire change) and submits it through the one write path. `?dryRun=true` returns `{ dryRun, summary }` without writing (the CLI's preview contract). Guard failures (trashed/class/collection source, target in the source subtree, source === target) answer 422 `validation_failed` before anything reaches the log.",
-    tags: ["Objects"],
-    requestBody: {
-      type: "object",
-      additionalProperties: false,
-      required: ["targetId"],
-      properties: { targetId: { type: "string", format: "uuid" } },
-    },
-    query: { dryRun: { description: '"true" plans without writing', type: "string" } },
-    success: { description: "{ merged, targetId, summary }" },
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["not_found", "validation_failed"],
-  }],
-  ["get", "/api/objects/:id/backlinks", {
-    summary: "Edges pointing at the node (mentions, typed links, property refs)",
-    tags: ["Objects"],
-    requiredScope: "objects.read",
-  }],
-  ["get", "/api/objects/:id/effective-properties", {
-    summary: "Authored property values ∪ derived class-binding defaults (source/boundBy)",
-    tags: ["Objects"],
-    requiredScope: "objects.read",
-  }],
-  ["put", "/api/objects/:id/classes/:classId", {
-    summary: "Assign the object to a class (idempotent OR-Set add via the object.create carrier)",
-    tags: ["Objects"],
-    params: { classId: "class uuid (a class node's id — classes are nodes)" },
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["validation_failed", "not_found"],
-  }],
-  ["delete", "/api/objects/:id/classes/:classId", {
-    summary: "Remove the class membership (idempotent tombstone)",
-    tags: ["Objects"],
-    params: { classId: "class uuid" },
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["validation_failed", "not_found"],
-  }],
-  ["put", "/api/objects/:id/tags/:tagId", {
-    summary: "Assign a tag (idempotent OR-Set add via the object.create re-issue; tags are pages)",
-    description:
-      "The tag add rides the re-issued object.create carrier (tagIds OR-Set seed — the applier's alreadyExists branch upserts tag_member_set without touching the tree). Idempotent by construction. The tag node must exist and be active (404 otherwise); a class node is rejected (422) — tags are pages, mirroring the web tag picker's page scope (listPages filters is_class = 0).",
-    tags: ["Objects"],
-    params: { tagId: "tag page uuid (a page node's id — tags are pages)" },
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["validation_failed", "not_found"],
-  }],
-  ["delete", "/api/objects/:id/tags/:tagId", {
-    summary: "Remove a tag (idempotent tag.unassign tombstone; removing a non-carried tag is a no-op)",
-    tags: ["Objects"],
-    params: { tagId: "tag page uuid" },
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["validation_failed", "not_found"],
-  }],
-  ["post", "/api/objects/:id/properties", {
-    summary: "Set a typed property value (property.set)",
-    tags: ["Properties"],
-    requestBody: propertyWriteBody,
-    requiredScope: "objects.write",
-    idempotency: true,
-    errors: ["validation_failed", "not_found"],
-  }],
-  ["delete", "/api/objects/:id/properties/:propertySchemaId", {
-    summary: "Unset a typed property value (property.unset; ?idx selects the slot)",
-    tags: ["Properties"],
-    params: { propertySchemaId: "property schema uuid" },
-    requiredScope: "objects.write",
-    idempotency: true,
-    query: { idx: { description: "slot index (default 0)", type: "integer" } },
-    errors: ["validation_failed", "not_found"],
-  }],
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   ["get", "/api/features", {
     summary: "Workspace feature-toggle rows (the workspace_feature projection)",
     description:
@@ -750,21 +601,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
 
   // --- search & query -------------------------------------------------------------------
-  ["get", "/api/search", {
-    summary: "Full-text search over active nodes (FTS index)",
-    description:
-      "Relevance-ranked (rank + recency) with cursor pagination: pass the previous response's `nextCursor` as `cursor` until it comes back null. Quoted `\"phrases\"` match exact adjacency; other terms match as prefixes (ANDed).",
-    tags: ["Search & Query"],
-    requiredScope: "search",
-    query: {
-      q: { description: "search term", type: "string", required: true },
-      isClass: { description: "class identity bit filter", type: "string" },
-      isEmbedded: { description: "embedding-flag filter", type: "string" },
-      limit: { description: "max results (default 50, max 500)", type: "integer" },
-      cursor: { description: "opaque pagination cursor from a previous response's nextCursor", type: "string" },
-    },
-    errors: ["validation_failed"],
-  }],
+
   ["get", "/api/resolve", {
     summary: "Resolve a node id from its exact display name, OR source metadata from an identifier (DOI / ISBN / arXiv / PMID / ADS bibcode)",
     description:
@@ -793,17 +630,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     requiredScope: "search",
     errors: ["validation_failed", "no_identifier_found", "not_found", "resolver_disabled", "resolver_unavailable"],
   }],
-  ["post", "/api/query", {
-    summary: "Arbitrary QueryAST execution (the compiled query language)",
-    description:
-      "The caller compiles its text DSL (or builds an AST) and posts it; the server runs the parameterized AST→SQL compiler (@notees/query) against the derived store. Unparseable ASTs and unsupported compilations are 422 — fail loud, never half-executed.",
-    tags: ["Search & Query"],
-    requestBody: queryBody,
-    requiredScope: "search",
-    errors: ["validation_failed"],
-  }],
 
-  // --- classes & property schemas -------------------------------------------------------
   ["get", "/api/classes", {
     summary: "Class catalog (title-is-content names, parent classes, member counts)",
     tags: ["Classes"],
@@ -1255,13 +1082,13 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "collections.write",
       ],
       mapping: {
-        "objects.read": "GET /api/objects*, /api/classes*, /api/property-schemas*, /api/properties/:id/values, /api/objects/:id/backlinks|effective-properties|children, GET /api/features, GET /api/operations",
-        "objects.write": "POST/PATCH /api/objects, class assign/unassign, property set/unset, restore, POST/PATCH/DELETE /api/property-schemas, class property bind/unbind",
-        "objects.delete": "DELETE /api/objects/:id",
+        "objects.read": "GET /api/classes*, /api/property-schemas*, /api/properties/:id/values, GET /api/features, GET /api/operations (plan-07 retired the object/search/query content reads — clients read their local derived stores)",
+        "objects.write": "POST/PATCH/DELETE /api/property-schemas, class property bind/unbind (plan-07 retired the object write API — content changes ride the relay log)",
+        "objects.delete": "retired with the object API (plan-07)",
         "assets.read": "GET /api/assets/*",
         "assets.write": "POST /api/assets",
-        "search": "GET /api/search, GET /api/resolve (name→id + the metadata resolver), POST /api/resolve/pdf (the PDF→DOI flow), POST /api/query",
-        "export": "GET /api/workspaces/:id/export.zip",
+        "search": "GET /api/resolve (name→id + the metadata resolver), POST /api/resolve/pdf (the PDF→DOI flow) — /api/search and /api/query retired (plan-07)",
+        "export": "retired (plan-07) — the web client builds the workspace zip locally",
         "admin": "the whole /api/plugins surface — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",
       },
       relaySurface: "scoped keys are rejected on all /api/relay/v2 routes (403 scope_denied)",

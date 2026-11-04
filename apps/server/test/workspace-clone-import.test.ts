@@ -126,16 +126,13 @@ describe("POST /api/workspaces/:id/clone", () => {
     });
     expect(list.json().workspaces.map((w: { id: string }) => w.id)).toContain(cloneId);
 
-    // Object reads against the clone return the source's nodes (this route
-    // is the first touch of the clone's store — it hydrates by RESTORING
-    // the installed snapshot, the load-bearing rebuild path).
+    // Node reads against the clone return the source's nodes (this is the
+    // first touch of the clone's store — it hydrates by RESTORING the
+    // installed snapshot, the load-bearing rebuild path). Plan-07: read the
+    // derived store directly — the content API is retired.
+    const cloneStore = server.ctx.workspaces.storeFor(cloneId);
     for (const nodeId of nodeIds) {
-      const object = await server.app.inject({
-        method: "GET",
-        url: `/api/objects/${nodeId}`,
-        headers: { "x-workspace-id": cloneId, "x-api-key": server.apiKey },
-      });
-      expect(object.statusCode).toBe(200);
+      expect(cloneStore.getNode(nodeId)).toBeDefined();
     }
 
     // Every workspace-scoped row in the clone's derived file carries the

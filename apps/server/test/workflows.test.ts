@@ -28,6 +28,7 @@ import {
   closeTestServer,
   makeConfig,
   makeTestServer,
+  testEnvelope,
   type TestServer,
 } from "./helpers";
 
@@ -97,29 +98,47 @@ async function createRule(schemaId: string, overrides: Partial<RuleBody> = {}) {
 }
 
 async function createNode(name: string, classIds: string[] = []): Promise<string> {
-  const res = await api("POST", "/api/objects", {
+  // Plan-07: seed through the relay (the object write API is retired). The
+  // retired API ensured the system seeds on every call — mirror that so the
+  // class tables the rules engine reads exist (relay ingest does not seed).
+  await server!.ctx.ensureSeeded(server!.ctx.defaultWorkspace);
+  const objectId = crypto.randomUUID();
+  const res = await api("POST", "/api/relay/v2/batch", {
     payload: {
-      isEmbedded: false,
-      contentAst: [{ type: "text", text: name }],
-      classIds,
+      envelopes: [
+        testEnvelope({
+          workspaceId: server!.ctx.defaultWorkspace,
+          opType: "object.create",
+          payload: { objectId, isEmbedded: false, contentAst: [{ type: "text", text: name }], classIds },
+        }),
+      ],
     },
   });
-  expect(res.statusCode).toBe(201);
-  return res.json().id as string;
+  expect(res.statusCode).toBe(200);
+  return objectId;
 }
 
 async function setProperty(objectId: string, propertySchemaId: string, value: unknown): Promise<void> {
-  const res = await api("POST", `/api/objects/${objectId}/properties`, {
-    payload: { propertySchemaId, value, idx: 0 },
+  const res = await api("POST", "/api/relay/v2/batch", {
+    payload: {
+      envelopes: [
+        testEnvelope({
+          workspaceId: server!.ctx.defaultWorkspace,
+          opType: "property.set",
+          payload: { objectId, propertySchemaId, value, idx: 0 },
+        }),
+      ],
+    },
   });
   expect(res.statusCode).toBe(200);
 }
 
 async function effectiveValues(objectId: string, schemaId: string): Promise<unknown[]> {
-  const res = await api("GET", `/api/objects/${objectId}/effective-properties`);
-  expect(res.statusCode).toBe(200);
-  return (res.json().properties as Array<{ schemaId: string; value: unknown }>)
-    .filter((row) => row.schemaId === schemaId)
+  // Read the derived store directly — the server serves no content reads.
+  return server!.ctx.workspaces
+    .storeFor(server!.ctx.defaultWorkspace)
+    .getEffectiveProperties(objectId)
+    .filter((row) => row.propertySchemaId === schemaId)
     .map((row) => row.value);
 }
 
@@ -194,8 +213,9 @@ describe("workflow engine (issue #13)", () => {
 
     const nodeId = await createNode("wf-academic", [SYSTEM_CLASS_UUIDS.journal_article]);
 
-    const object = await api("GET", `/api/objects/${nodeId}`);
-    const classIds = (object.json().object.classes as Array<{ id: string }>).map((entry) => entry.id);
+    const classIds = JSON.parse(
+      server!.ctx.workspaces.storeFor(server!.ctx.defaultWorkspace).getNode(nodeId)!.class_ids,
+    ) as string[];
     expect(classIds).toContain(SYSTEM_CLASS_UUIDS.book);
     // The carrier is a re-issued object.create — the wire's OR-Set add op.
     const engine = engineEnvelopes();
@@ -311,15 +331,7 @@ describe("workflow engine (issue #13)", () => {
     expect(res.statusCode).toBe(201);
     const rule = res.json().rule;
 
-    const created = await api("POST", "/api/objects", {
-      payload: {
-        isEmbedded: false,
-        contentAst: [{ type: "text", text: "wf-failing" }],
-        classIds: [SYSTEM_CLASS_UUIDS.journal_article],
-      },
-    });
-    expect(created.statusCode).toBe(201);
-    const nodeId = created.json().id as string;
+    const nodeId = await createNode("wf-failing", [SYSTEM_CLASS_UUIDS.journal_article]);
 
     // The derived store took NO partial effect…
     expect(await effectiveValues(nodeId, numberSchema)).toEqual([]);
@@ -329,10 +341,7 @@ describe("workflow engine (issue #13)", () => {
     expect(runs[0]!.outcome).toBe("actions_failed");
     expect(runs[0]!.detail).toBeTruthy();
     // …and the client can keep writing (the ingest path is unharmed).
-    const after = await api("POST", "/api/objects", {
-      payload: { isEmbedded: false, contentAst: [{ type: "text", text: "wf-after-failure" }] },
-    });
-    expect(after.statusCode).toBe(201);
+    await createNode("wf-after-failure");
   });
 });
 
