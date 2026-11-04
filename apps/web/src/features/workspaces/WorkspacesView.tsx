@@ -27,7 +27,9 @@ import { Pill } from "../../components/ui/kit/Pill.js";
 import { downloadBlob } from "../modals/download.js";
 import { WorkspaceExportModal } from "./WorkspaceExportModal.js";
 import { WorkspaceNameModal } from "./WorkspaceNameModal.js";
-import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./workspaceApi.js";
+import type { AnyClient } from "../../ui/app/clients.js";
+import { deleteWorkspace, renameWorkspace } from "./workspaceApi.js";
+import { exportConnectedWorkspace } from "../export/exportWorkspace.js";
 import { localWorkspaceCopies, rememberedWorkspaceList, rememberWorkspaceList } from "@/core/workspace-registry.js";
 import "./WorkspacesView.css";
 
@@ -37,6 +39,12 @@ export interface WorkspacesViewProps {
   user: AccountUser | null;
   /** The workspace the shell is connected to (null before the first connect). */
   activeWorkspaceId: string | null;
+  /**
+   * The connected store client (null before the first connect). The zip
+   * export builds locally from this store — plan-07 retired the server
+   * `export.zip` route, so export is offered for the connected workspace.
+   */
+  activeClient?: AnyClient | null | undefined;
   /** Enter a workspace (connect on first login; switch when connected). */
   onEnter: (workspaceId: string, name: string) => void;
   /** Called after a rename so the shell can update its label. */
@@ -54,6 +62,7 @@ type NameModalState =
 
 export function WorkspacesView({
   serverUrl,
+  activeClient,
   credential,
   user,
   activeWorkspaceId,
@@ -176,10 +185,18 @@ export function WorkspacesView({
   const handleExport = (includeAssets: boolean): void => {
     if (exportTarget === null) return;
     const target = exportTarget;
+    if (target.id !== activeWorkspaceId || activeClient === null || activeClient === undefined) {
+      // The server no longer bundles exports (plan 07) — the zip is built
+      // from the connected workspace's local store.
+      setExportError("Open this workspace to export it — exports are built locally now.");
+      setExportTarget(null);
+      return;
+    }
     setExporting(true);
     setExportError(null);
-    void exportWorkspace(serverUrl, credential, target.id, target.name ?? "Workspace", {
+    void exportConnectedWorkspace(activeClient, {
       includeAssets,
+      workspaceName: target.name ?? "Workspace",
     })
       .then(({ blob, filename }) => {
         downloadBlob(blob, filename);

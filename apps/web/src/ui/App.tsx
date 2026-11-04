@@ -805,6 +805,7 @@ export function App() {
         serverUrl={serverUrl}
         credential={token}
         user={user}
+        activeClient={client}
         activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId) !== "" && enteringFromApp ? readStored(STORAGE_KEYS.workspaceId) : null}
         onEnter={(workspaceId, name) => {
           setManagerOpen(false);

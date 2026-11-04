@@ -31,7 +31,7 @@ import { Dropdown } from "../../components/ui/kit/Dropdown.js";
 import type { AnyClient } from "../../ui/app/clients.js";
 import type { SourceDuplicateGroup } from "../sources/duplicates.js";
 import { summarizeMerge, summaryLineOf, mergeErrorMessage } from "./mergeSummary.js";
-import { previewMerge, applyMerge, pullIfRemote } from "./mergeClient.js";
+import { applyMerge, previewMerge } from "./mergeClient.js";
 import "./MergeDuplicatesModal.css";
 
 export interface MergeDuplicatesModalProps {
@@ -121,7 +121,6 @@ export function MergeDuplicatesModal({
       }
       // The route wrote server-side in worker mode; pull so the local
       // projection (and the duplicates view over it) catches up.
-      await pullIfRemote(client);
       onMerged();
       handleClose();
     } catch (err: unknown) {

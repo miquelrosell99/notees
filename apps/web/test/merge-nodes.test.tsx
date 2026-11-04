@@ -11,7 +11,7 @@
  *    the per-source plans, and the danger confirmation merges EVERY source
  *    (each trashed, children moved) before onMerged fires once;
  *  - guard failures surface as the error line and the modal stays open;
- *  - worker mode previews/applies through mergeNodesRemote (+ one pull);
+ *  - worker mode previews/applies through the worker's local planner RPC (no pull);
  *  - the command palette offers a general "Merge nodes…" row regardless of
  *    a current node, and keeps the current-page row's mergeable gating;
  *  - the node context menu offers "Merge into…" on non-class nodes only.
@@ -388,7 +388,7 @@ describe("MergeNodesModal", () => {
   });
 });
 
-describe("MergeNodesModal (worker client — the server merge route)", () => {
+describe("MergeNodesModal (worker client — the local worker merge)", () => {
   const L = "0192a000-0000-7000-8000-0000000000a1";
   const R = "0192a000-0000-7000-8000-0000000000a2";
 
@@ -433,18 +433,20 @@ describe("MergeNodesModal (worker client — the server merge route)", () => {
 
   function workerStub(): {
     client: WorkerClient;
-    remote: ReturnType<typeof vi.fn>;
-    pull: ReturnType<typeof vi.fn>;
+    plan: ReturnType<typeof vi.fn>;
+    apply: ReturnType<typeof vi.fn>;
   } {
     const nodes = new Map<string, ClientNode>([
       [L, stubNode({ id: L, contentAst: [{ type: "text", text: "Left" }] })],
       [R, stubNode({ id: R, contentAst: [{ type: "text", text: "Right" }] })],
     ]);
-    const remote = vi.fn(async (_source: string, _target: string, dryRun = false) => {
-      if (dryRun) return { ...EMPTY_SUMMARY, childrenMoved: 1 };
-      return EMPTY_SUMMARY;
-    });
-    const pull = vi.fn(async () => {});
+    // Plan-07: both legs run locally in the worker (the server merge route
+    // is retired) — the stub speaks the worker RPC shape.
+    const plan = vi.fn(async (_source: string, _target: string) => ({
+      ...EMPTY_SUMMARY,
+      childrenMoved: 1,
+    }));
+    const apply = vi.fn(async (_source: string, _target: string) => EMPTY_SUMMARY);
     const client = {
       getNode: (id: string) => nodes.get(id),
       getNodeRaw: (id: string) => nodes.get(id),
@@ -461,14 +463,14 @@ describe("MergeNodesModal (worker client — the server merge route)", () => {
       getDisplayName: () => null,
       createClass: async () => "unused",
       updateObject: async () => {},
-      mergeNodesRemote: remote,
-      pull,
+      planMergeSummary: plan,
+      mergeNodes: apply,
     } as unknown as WorkerClient;
-    return { client, remote, pull };
+    return { client, plan, apply };
   }
 
-  it("previews through mergeNodesRemote dry-run, applies through the route, then pulls once", async () => {
-    const { client, remote, pull } = workerStub();
+  it("previews and applies through the worker's local planner (no server route, no pull)", async () => {
+    const { client, plan, apply } = workerStub();
     const onMerged = vi.fn();
     render(
       <MergeNodesModal
@@ -489,8 +491,7 @@ describe("MergeNodesModal (worker client — the server merge route)", () => {
     });
     fireEvent.click(within(picker).getByText("Right"));
 
-    // The preview rides the ?dryRun=true route variant.
-    await waitFor(() => expect(remote).toHaveBeenCalledWith(L, R, true));
+    await waitFor(() => expect(plan).toHaveBeenCalledWith(L, R));
     await within(dialog).findByText(/1 child moved/);
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Merge" }));
@@ -499,9 +500,9 @@ describe("MergeNodesModal (worker client — the server merge route)", () => {
 
     await waitFor(() => expect(onMerged).toHaveBeenCalledTimes(1));
     expect(onMerged).toHaveBeenCalledWith(R);
-    // The real merge (no dryRun flag), then ONE pull.
-    expect(remote).toHaveBeenCalledWith(L, R, false);
-    await waitFor(() => expect(pull).toHaveBeenCalledTimes(1));
+    // The real merge rides the worker RPC; the worker already holds the
+    // store, so nothing pulls afterwards.
+    expect(apply).toHaveBeenCalledWith(L, R);
   });
 });
 

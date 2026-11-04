@@ -264,39 +264,36 @@ describe("session resume", () => {
     window.history.pushState({}, "", "/");
   });
 
-  it("a deep link to a node in another workspace connects to that workspace", async () => {
+  it("a deep link opens the remembered workspace (plan-07 retired the server location route)", async () => {
     rememberSession();
     const nodeId = "11111111-2222-4333-8444-555555555555";
     window.history.pushState({}, "", `/${nodeId}`);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url.endsWith("/api/workspaces")) {
-          return Response.json({
-            workspaces: [
-              { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
-              { id: "ws2", name: "Orchard", role: "owner", createdAt: 2, envelopeCount: 0, latestSeq: 0 },
-            ],
-          });
-        }
-        if (url.endsWith("/api/auth/me")) {
-          return Response.json(ME);
-        }
-        if (url.endsWith(`/api/nodes/${nodeId}/location`)) {
-          return Response.json({ workspaceId: "ws2" });
-        }
-        // Relay catch-up for the located workspace: unreachable, so connect
-        // fails after recording which workspace it targeted.
-        return new Response("unreachable", { status: 502 });
-      }),
-    );
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/workspaces")) {
+        return Response.json({
+          workspaces: [
+            { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
+            { id: "ws2", name: "Orchard", role: "owner", createdAt: 2, envelopeCount: 0, latestSeq: 0 },
+          ],
+        });
+      }
+      if (url.endsWith("/api/auth/me")) {
+        return Response.json(ME);
+      }
+      // The server serves no content reads anymore: no location call is made.
+      return new Response("unreachable", { status: 502 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
     render(<App />);
     // connect() persists the workspace id before the (failing) sync: the
-    // deep link must have rerouted the connection from ws1 to ws2.
+    // deep link no longer reroutes — the remembered workspace opens.
     await waitFor(() =>
-      expect(localStorage.getItem("notees.workspaceId")).toBe("ws2"),
+      expect(localStorage.getItem("notees.workspaceId")).toBe("ws1"),
     );
+    expect(
+      fetchMock.mock.calls.some((call) => String(call[0]).includes("/location")),
+    ).toBe(false);
   });
 
   it("an unknown deep-link node falls back to the remembered workspace", async () => {
