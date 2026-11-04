@@ -9,9 +9,7 @@
  */
 
 import { openAssetIfSealed, sealAssetIfKeyed } from "./asset-crypto.js";
-import { blobBytes, fetchAssetBlob, postAssetUpload } from "./asset-transport.js";
 import {
-  normalizeUserPrefs,
   readDevicePrefList,
   readDevicePrefScalar,
   writeDevicePrefList,
@@ -20,6 +18,8 @@ import {
   type UserPrefs,
   type UserPrefsSource,
 } from "./prefs.js";
+import { openPrefsBlob, parsePrefsWire, sealPrefsBlob, serializePrefs } from "../prefs-wire.js";
+import { blobBytes, fetchAssetBlob, postAssetUpload } from "./asset-transport.js";
 import {
   normalizeSectionView,
   normalizeSectionViewList,
@@ -95,7 +95,9 @@ export class WorkspaceClientServer {
           headers: { "X-API-Key": this.ctx.restApiKey },
         });
         if (response.ok) {
-          const prefs = normalizeUserPrefs(await response.json());
+          // Plan-07: one opaque blob — unwrap with the master key when present.
+          const body = (await response.json()) as { blob?: unknown };
+          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
           writeDevicePrefList("favorites", prefs.favorites);
           writeDevicePrefList("recents", prefs.recents);
           writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
@@ -146,10 +148,12 @@ export class WorkspaceClientServer {
         const response = await fetch(`${this.ctx.restServerUrl.replace(/\/$/, "")}/api/me/prefs`, {
           method: "PUT",
           headers: { "X-API-Key": this.ctx.restApiKey, "content-type": "application/json" },
-          body: JSON.stringify(patch),
+          body: JSON.stringify({ blob: await sealPrefsBlob(serializePrefs(merged)) }),
         });
         if (response.ok) {
-          const prefs = normalizeUserPrefs(await response.json());
+          // Plan-07: one opaque blob — unwrap with the master key when present.
+          const body = (await response.json()) as { blob?: unknown };
+          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
           writeDevicePrefList("favorites", prefs.favorites);
           writeDevicePrefList("recents", prefs.recents);
           writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);

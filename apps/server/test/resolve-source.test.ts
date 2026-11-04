@@ -376,15 +376,18 @@ describe("GET /api/resolve — metadata branch", () => {
     expect(noToken.json().error.code).toBe("validation_failed");
     expect(noToken.json().error.message).toContain("ADS API token");
 
-    // The user sets their token (the Settings → Account write path)…
+    // The user sets their token (the Settings → Account write path) — the
+    // prefs blob is opaque; the KEYLESS self-host form is the unwrapped JSON
+    // the server can still read the ADS credential out of (plan 07).
     const put = await server.app.inject({
       method: "PUT",
       url: "/api/me/prefs",
       headers: { "content-type": "application/json", ...userHeaders },
-      payload: { adsApiToken: "ads-token-abc" },
+      payload: {
+        blob: JSON.stringify({ v: 1, favorites: [], recents: [], cardsAlgorithm: "fsrs", adsApiToken: "ads-token-abc" }),
+      },
     });
     expect(put.statusCode).toBe(200);
-    expect(put.json().adsApiToken).toBe("ads-token-abc");
 
     // …and the lookup resolves, the token riding ONLY the ADS Authorization.
     const res = await server.app.inject({

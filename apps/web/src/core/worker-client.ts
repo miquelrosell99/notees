@@ -63,6 +63,18 @@ import {
 } from "./workspace-client/index.js";
 import { openAssetIfSealed, sealAssetIfKeyed } from "./workspace-client/asset-crypto.js";
 import { blobBytes } from "./workspace-client/asset-transport.js";
+import {
+  openPrefsBlob,
+  parsePrefsWire,
+  sealPrefsBlob,
+  serializePrefs,
+} from "./prefs-wire.js";
+import {
+  readDevicePrefList,
+  readDevicePrefScalar,
+  writeDevicePrefList,
+  writeDevicePrefScalar,
+} from "./workspace-client/prefs.js";
 import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
 import { isReadUnchanged } from "./workspace-client/read-revisions.js";
 import type {
@@ -1248,17 +1260,86 @@ export class WorkerClient {
   }
 
   /**
-   * Per-user UI prefs (favorites/recents, server-side). RPC into
-   * the worker (it owns the REST config); resolves the device-local cache
-   * when offline, tagged `source`.
+   * Per-user UI prefs (favorites/recents, server-side). Plan-07: the REST
+   * call is MAIN-THREAD here (not RPC'd into the worker) because the prefs
+   * blob wraps/unwraps with the account master key, and custody never
+   * enters the worker. Same device-local cache fallback, tagged `source`.
    */
   async getPrefs(): Promise<UserPrefs & { source: UserPrefsSource }> {
-    return (await this.call("getPrefs", [])) as UserPrefs & { source: UserPrefsSource };
+    if (!(await this.isOperatorKey())) {
+      try {
+        const response = await fetch(`${this.serverUrl.replace(/\/$/, "")}/api/me/prefs`, {
+          headers: { "X-API-Key": this.apiKey },
+        });
+        if (response.ok) {
+          const body = (await response.json()) as { blob?: unknown };
+          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
+          writeDevicePrefList("favorites", prefs.favorites);
+          writeDevicePrefList("recents", prefs.recents);
+          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
+          return { ...prefs, source: "server" };
+        }
+      } catch {
+        // Unreachable — the cached copy below is the honest offline answer.
+      }
+    }
+    return {
+      favorites: readDevicePrefList("favorites"),
+      recents: readDevicePrefList("recents"),
+      cardsAlgorithm: readDevicePrefScalar("cardsAlgorithm"),
+      adsApiToken: "",
+      source: "local",
+    };
   }
 
   /** Merge-patch per-user UI prefs (see WorkspaceClient.patchPrefs). */
   async patchPrefs(patch: PrefsPatch): Promise<UserPrefs & { source: UserPrefsSource }> {
-    return (await this.call("patchPrefs", [patch])) as UserPrefs & { source: UserPrefsSource };
+    const merged: UserPrefs = {
+      favorites: patch.favorites ?? readDevicePrefList("favorites"),
+      recents: patch.recents ?? readDevicePrefList("recents"),
+      cardsAlgorithm: patch.cardsAlgorithm ?? readDevicePrefScalar("cardsAlgorithm"),
+      adsApiToken: patch.adsApiToken ?? "",
+    };
+    if (patch.favorites !== undefined) writeDevicePrefList("favorites", patch.favorites);
+    if (patch.recents !== undefined) writeDevicePrefList("recents", patch.recents);
+    if (patch.cardsAlgorithm !== undefined) writeDevicePrefScalar("cardsAlgorithm", patch.cardsAlgorithm);
+    if (!(await this.isOperatorKey())) {
+      try {
+        const response = await fetch(`${this.serverUrl.replace(/\/$/, "")}/api/me/prefs`, {
+          method: "PUT",
+          headers: { "X-API-Key": this.apiKey, "content-type": "application/json" },
+          body: JSON.stringify({ blob: await sealPrefsBlob(serializePrefs(merged)) }),
+        });
+        if (response.ok) {
+          const body = (await response.json()) as { blob?: unknown };
+          const prefs = parsePrefsWire(await openPrefsBlob(typeof body.blob === "string" ? body.blob : ""));
+          writeDevicePrefList("favorites", prefs.favorites);
+          writeDevicePrefList("recents", prefs.recents);
+          writeDevicePrefScalar("cardsAlgorithm", prefs.cardsAlgorithm);
+          return { ...prefs, source: "server" };
+        }
+      } catch {
+        // Unreachable — the local write above already landed.
+      }
+    }
+    return { ...merged, source: "local" };
+  }
+
+  /** The operator key owns no user server-side — never PUT prefs with it. */
+  private operatorKey: Promise<boolean> | null = null;
+  private isOperatorKey(): Promise<boolean> {
+    this.operatorKey ??= (async () => {
+      try {
+        const response = await fetch(`${this.serverUrl.replace(/\/$/, "")}/api/auth/me`, {
+          headers: { "X-API-Key": this.apiKey },
+        });
+        if (!response.ok) return false;
+        return ((await response.json()) as { email?: string }).email === "API key";
+      } catch {
+        return false;
+      }
+    })();
+    return this.operatorKey;
   }
 
   // --- node-scoped hosted views (custom tabs — the prefs channel) -------------
