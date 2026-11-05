@@ -454,8 +454,12 @@ client hook surface; no WS *client* ships.
   (`GET/POST/DELETE /api-keys`, optional per-key scope sets),
   `GET /server-info`. Per-user prefs ride ONE opaque blob (plan 07 — wrapped
   under the account master key when one exists, unwrapped for keyless
-  self-host); workflow rules + run audit stay coordination data with
-  post-ingest probes retired (client-side evaluation is recorded debt).
+  self-host); workflow rules + run audit stay coordination data — probes
+  retired with plan 07, and the WEB client now evaluates the rules itself
+  (the plan-07 recorded debt shipped 2026-11-05: `apps/web/src/core/
+  workflow-evaluator.ts`, a verbatim port of the retired probe semantics,
+  hooked to every freshly-applied remote batch via the engine's
+  `onBatchApplied`; run rows sync up through `POST /api/workflows/:id/runs`).
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
 - **Prefs channel** (`src/routes-prefs.ts`, `src/routes-section-views.ts`,

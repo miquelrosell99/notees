@@ -305,6 +305,50 @@ describe("workflow routes (issue #13)", () => {
     expect(fetched.json().rule.criteria).toEqual(created.json().rule.criteria);
   });
 
+  it("the client evaluator's run upload appends rows readable through GET runs (ghost → 404, bad body → 422)", async () => {
+    server = await makeTestServer();
+    const created = await api("POST", "/api/workflows", { payload: ruleBody() });
+    const ruleId = created.json().rule.id as string;
+
+    const ghost = await api("POST", `/api/workflows/${crypto.randomUUID()}/runs`, {
+      payload: { runs: [{ triggerEnvelopeId: "e", nodeId: "n", actionsWritten: [], outcome: "skipped_loop" }] },
+    });
+    expect(ghost.statusCode).toBe(404);
+
+    const bad = await api("POST", `/api/workflows/${ruleId}/runs`, {
+      payload: { runs: [{ triggerEnvelopeId: "e", nodeId: "n", actionsWritten: [], outcome: "exploded" }] },
+    });
+    expect(bad.statusCode).toBe(422);
+
+    const uploaded = await api("POST", `/api/workflows/${ruleId}/runs`, {
+      payload: {
+        runs: [
+          {
+            triggerEnvelopeId: "0192a000-0000-7000-8000-0000000000e1",
+            nodeId: "0192a000-0000-7000-8000-0000000000e2",
+            actionsWritten: [{ opType: "property.set", envelopeId: "0192a000-0000-7000-8000-0000000000e3" }],
+            outcome: "actions_written",
+            detail: null,
+          },
+          {
+            triggerEnvelopeId: "0192a000-0000-7000-8000-0000000000e1",
+            nodeId: "0192a000-0000-7000-8000-0000000000e2",
+            actionsWritten: [],
+            outcome: "skipped_depth_cap",
+            detail: "rule chains beyond depth 1 do not execute",
+          },
+        ],
+      },
+    });
+    expect(uploaded.statusCode).toBe(200);
+    expect(uploaded.json().count).toBe(2);
+
+    const runs = await api("GET", `/api/workflows/${ruleId}/runs`);
+    expect(runs.statusCode).toBe(200);
+    const outcomes = (runs.json().runs as Array<{ outcome: string }>).map((run) => run.outcome).sort();
+    expect(outcomes).toEqual(["actions_written", "skipped_depth_cap"]);
+  });
+
   it("rules are coordination state: CRUD stamps no envelope; rows survive a restart", async () => {
     server = await makeTestServer();
     const schemaId = await createSchema("wf-flag", "text");

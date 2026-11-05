@@ -854,6 +854,10 @@ export class SyncEngine {
         : plain;
 
     const summaries = this.store.applyMany(ordered, { quarantinePoisonOps: true });
+    // The workflow evaluator's hook: only FRESHLY applied envelopes (the
+    // idempotent replays carry `ignored` and must not re-fire rules).
+    const freshApplied = ordered.filter((_envelope, i) => summaries[i]?.ignored !== true);
+    if (freshApplied.length > 0) this.callbacks.onBatchApplied?.(freshApplied);
     // summaries pair 1:1 with `ordered` (one entry per envelope, ignored
     // included): the structural check reads the envelope (op type + payload
     // — presentAsMain rides object.update), the affected ids read the

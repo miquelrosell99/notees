@@ -17,7 +17,11 @@
  *  - PATCH  /workflows/:id        merge-patch name/enabled/trigger/criteria/
  *                                 actions (re-validated whole where present);
  *  - DELETE /workflows/:id        delete a rule;
- *  - GET    /workflows/:id/runs   the run audit, newest first (capped page).
+  - GET    /workflows/:id/runs   the run audit, newest first (capped page);
+ *  - POST   /workflows/:id/runs   the client-side evaluator's audit upload
+ *                                 (the server evaluates nothing since the
+ *                                 probes retired — runs stay coordination
+ *                                 data, now from every device).
  *
  * Rule state is server coordination state, NOT log state — no envelope is
  * stamped by any route here (the prefs/shares/plugins ruling; see
@@ -25,6 +29,8 @@
  */
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
+
+import { z } from "zod";
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
@@ -39,6 +45,32 @@ import {
   type WorkflowRule,
   type WorkflowRun,
 } from "./workflows.js";
+
+/** Client-uploaded run rows (the evaluator's audit sync). */
+const workflowRunsUploadSchema = z
+  .object({
+    runs: z
+      .array(
+        z
+          .object({
+            triggerEnvelopeId: z.string().min(1).max(64),
+            nodeId: z.string().min(1).max(64),
+            actionsWritten: z
+              .array(
+                z
+                  .object({ opType: z.string().min(1).max(64), envelopeId: z.string().min(1).max(64) })
+                  .strict(),
+              )
+              .max(20),
+            outcome: z.enum(["actions_written", "actions_failed", "skipped_loop", "skipped_depth_cap"]),
+            detail: z.string().max(500).nullish(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict();
 
 /**
  * Read gate: any authenticated principal (operator key, session, user API
@@ -217,5 +249,36 @@ export function registerWorkflowRoutes(app: FastifyInstance, ctx: ServerContext)
     }
     const runs = ctx.workflows.runs(workspaceId, id, WORKFLOW_RUNS_PAGE);
     return { runs: runs.map(runView) };
+  });
+
+  /**
+   * Run-audit upload: the client-side evaluator (the plan-07 port; the server
+   * evaluates nothing since the probes retired) posts its run rows so the
+   * coordination table holds every device's audit. Any authenticated
+   * principal — runs are observability, not secrets.
+   */
+  app.post("/workflows/:id/runs", async (request) => {
+    requireWorkflowReader(ctx, request);
+    const { id } = request.params as { id: string };
+    const workspaceId = ctx.defaultWorkspace;
+    if (ctx.workflows.find(workspaceId, id) === null) {
+      throw new AppError(404, "not_found", `no workflow rule with id "${id}"`);
+    }
+    const parsed = workflowRunsUploadSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid workflow runs upload");
+    }
+    for (const run of parsed.data.runs) {
+      ctx.workflows.recordRun({
+        ruleId: id,
+        workspaceId,
+        triggerEnvelopeId: run.triggerEnvelopeId,
+        nodeId: run.nodeId,
+        actionsWritten: run.actionsWritten,
+        outcome: run.outcome,
+        detail: run.detail ?? null,
+      });
+    }
+    return { ok: true, count: parsed.data.runs.length };
   });
 }
