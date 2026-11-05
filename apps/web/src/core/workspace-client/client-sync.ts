@@ -13,12 +13,21 @@ import { SyncEngine, summarizeEnvelopes, type EnvelopeCrypto } from "@notees/syn
 import { buildSystemSeedEnvelopes } from "@notees/domain";
 
 import {
+  RULES_ENGINE_CLIENT,
+  WorkflowEvaluator,
+  type WorkflowRuleView,
+  type WorkflowRunRecord,
+} from "../workflow-evaluator.js";
+import {
   CONFLICT_LOG_CAP,
   IDLE_SNAPSHOT,
   type ConflictHistoryEntry,
   type SyncStatusSnapshot,
 } from "./types.js";
 import type { ClientContext } from "./client-context.js";
+
+/** How long the workflow-rule listing is cached between applied batches. */
+const RULES_CACHE_TTL_MS = 30_000;
 
 export class WorkspaceClientSync {
   constructor(private readonly ctx: ClientContext) {}
@@ -69,6 +78,12 @@ export class WorkspaceClientSync {
           }
           this.ctx.userOnSyncProgress?.(progress.applied, progress.total);
         },
+        // The workflow evaluator's hook (issue #13): evaluate every freshly
+        // applied remote batch against the local store. Never blocks sync.
+        onBatchApplied: (envelopes) => {
+          const evaluator = this.ctx.workflowEvaluator;
+          if (evaluator !== null) void evaluator.evaluate(envelopes).catch(() => {});
+        },
         // Pushing does NOT change local state — the pushed envelopes applied
         // locally before they entered the outbox. Notifying here was pure
         // redundancy: it dirtied the whole read cache after every push
@@ -87,6 +102,37 @@ export class WorkspaceClientSync {
           this.ctx.store.markLocalEnvelopesPushed(ids);
           this.ctx.store.prunePushedLocalEnvelopes();
         },
+      },
+    });
+    // The workflow-rules evaluator (issue #13): the client-side port of the
+    // retired server probe — rules are coordination data (GET /api/workflows),
+    // actions ride the client's own write path with the rules-engine claim,
+    // and the run audit syncs to the server's coordination table.
+    this.ctx.workflowEvaluator = new WorkflowEvaluator({
+      workspaceId,
+      database: this.ctx.store.database,
+      rules: () => this.fetchWorkflowRules(),
+      writeActions: async (envelopes) => {
+        for (const envelope of envelopes) this.ctx.engine!.enqueue(envelope);
+        await this.ctx.engine!.push();
+        // Fresh action-envelope ids — the relay saves them (duplicates are
+        // the client's own echoes, which the evaluator never re-fires on).
+        return { savedIds: envelopes.map((envelope) => envelope.id) };
+      },
+      makeEnvelope: (input) =>
+        newEnvelope({
+          workspaceId,
+          actorId: this.ctx.actorId,
+          deviceId: this.ctx.deviceId,
+          hlc: this.ctx.clock.now(),
+          opType: input.opType,
+          payload: input.payload,
+          affectedNodeIds: input.affectedNodeIds,
+          client: RULES_ENGINE_CLIENT,
+          timestamp: new Date().toISOString(),
+        }),
+      recordRun: (run) => {
+        this.postWorkflowRun(run);
       },
     });
     // Re-envelope the durable unpushed backlog (offline work from a previous
@@ -136,6 +182,52 @@ export class WorkspaceClientSync {
       n: number;
     };
     return row.n === 0;
+  }
+
+  private rulesCache: { at: number; rules: WorkflowRuleView[] } | null = null;
+
+  /** The workspace's workflow rules (30 s cache — evaluation rides every applied batch). */
+  private async fetchWorkflowRules(): Promise<WorkflowRuleView[]> {
+    if (this.ctx.restServerUrl === null || this.ctx.restApiKey === null) return [];
+    if (this.rulesCache !== null && Date.now() - this.rulesCache.at < RULES_CACHE_TTL_MS) {
+      return this.rulesCache.rules;
+    }
+    const response = await fetch(`${this.ctx.restServerUrl}/api/workflows`, {
+      headers: { "X-API-Key": this.ctx.restApiKey },
+    });
+    if (!response.ok) throw new Error(`workflow rules fetch failed: ${response.status}`);
+    const body = (await response.json()) as {
+      rules?: Array<{
+        id: string;
+        name: string;
+        enabled: boolean;
+        trigger: { opType: WorkflowRuleView["triggerOpType"] };
+        criteria: unknown;
+        actions: WorkflowRuleView["actions"];
+      }>;
+    };
+    const rules = (body.rules ?? []).map((rule) => ({
+      id: rule.id,
+      name: rule.name,
+      enabled: rule.enabled,
+      triggerOpType: rule.trigger.opType,
+      criteria: rule.criteria,
+      actions: rule.actions,
+    }));
+    this.rulesCache = { at: Date.now(), rules };
+    return rules;
+  }
+
+  /** The run audit rides to the server's coordination table (best-effort). */
+  private postWorkflowRun(run: WorkflowRunRecord): void {
+    if (this.ctx.restServerUrl === null || this.ctx.restApiKey === null) return;
+    void fetch(`${this.ctx.restServerUrl}/api/workflows/${run.ruleId}/runs`, {
+      method: "POST",
+      headers: { "X-API-Key": this.ctx.restApiKey, "content-type": "application/json" },
+      body: JSON.stringify({ runs: [run] }),
+    }).catch(() => {
+      // The local session buffer already holds the row.
+    });
   }
 
   /**

@@ -31,6 +31,7 @@ import {
 import { UndoJournal, type UndoCaptureSource, type UndoRecordMode } from "../undo-journal.js";
 import { mapNode, nodeRowStamp } from "./mappers.js";
 import { ReadRevisions } from "./read-revisions.js";
+import type { WorkflowEvaluator } from "../workflow-evaluator.js";
 import {
   CHANGE_AFFECT_CAP,
   CONFLICT_LOG_CAP,
@@ -77,6 +78,8 @@ export class ClientContext {
 
   workspaceId: string = DEFAULT_WORKSPACE_ID;
   engine: SyncEngine | null = null;
+  /** The workflow-rules evaluator (issue #13); null until bootstrap wires it. */
+  workflowEvaluator: WorkflowEvaluator | null = null;
   /** Combined teardown for the wired realtime channel + status subscription. */
   realtimeStop: (() => void) | null = null;
   closed = false;
