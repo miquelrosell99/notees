@@ -135,13 +135,14 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
         password on encrypted workspaces.
       </p>
       <ul className="nt-apikey-list">
-        {keys.map((key) => (
-          <li key={key.id} className={key.revokedAt !== null ? "nt-apikey nt-apikey-revoked" : "nt-apikey"}>
+        {keys
+          // Revoked keys are history, not inventory — the list shows the live set.
+          .filter((key) => key.revokedAt === null)
+          .map((key) => (
+          <li key={key.id} className="nt-apikey">
             <span className="nt-apikey-name">{key.name}</span>
             <span className="nt-apikey-badges">
-              {!key.machine && key.revokedAt === null && (
-                <span className="nt-apikey-badge nt-apikey-badge-machine">password-gated (legacy)</span>
-              )}
+              {!key.machine && <span className="nt-apikey-badge nt-apikey-badge-machine">password-gated (legacy)</span>}
               {key.scopes === null ? (
                 <span className="nt-apikey-badge">full access</span>
               ) : (
@@ -154,81 +155,93 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
             </span>
             <code className="nt-apikey-prefix">{key.prefix}…</code>
             <span className="nt-apikey-meta">
-              {key.revokedAt !== null
-                ? "revoked"
-                : key.lastUsedAt !== null
-                  ? `last used ${new Date(key.lastUsedAt).toLocaleDateString()}`
-                  : "never used"}
+              {key.lastUsedAt !== null ? `last used ${new Date(key.lastUsedAt).toLocaleDateString()}` : "never used"}
             </span>
-            {key.revokedAt === null &&
-              (revokeConfirm === key.id ? (
-                <span className="nt-apikey-revoke-confirm">
-                  Revoke?
-                  <button type="button" onClick={() => void handleRevoke(key.id)}>
-                    Yes
-                  </button>
-                  <button type="button" onClick={() => setRevokeConfirm(null)}>
-                    No
-                  </button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="nt-apikey-revoke"
-                  onClick={() => setRevokeConfirm(key.id)}
-                >
-                  Revoke
+            {revokeConfirm === key.id ? (
+              <span className="nt-apikey-revoke-confirm">
+                Revoke?
+                <button type="button" onClick={() => void handleRevoke(key.id)}>
+                  Yes
                 </button>
-              ))}
+                <button type="button" onClick={() => setRevokeConfirm(null)}>
+                  No
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="nt-apikey-revoke"
+                onClick={() => setRevokeConfirm(key.id)}
+              >
+                Revoke
+              </button>
+            )}
           </li>
         ))}
-        {keys.length === 0 && <li className="nt-apikey-empty">No API keys yet.</li>}
+        {keys.every((key) => key.revokedAt !== null) && <li className="nt-apikey-empty">No API keys yet.</li>}
       </ul>
       <form className="nt-apikey-new" onSubmit={(e) => void handleCreate(e)}>
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder="Key name (e.g. laptop CLI)"
-          required
-        />
+        <div className="nt-apikey-fields">
+          <label className="nt-apikey-field">
+            <span>Name</span>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Key name (e.g. laptop CLI)"
+              required
+            />
+          </label>
+          <label className="nt-apikey-field">
+            <span>Your password</span>
+            <input
+              type="password"
+              value={sealPassword}
+              onChange={(e) => setSealPassword(e.target.value)}
+              placeholder="Seals the key — checked like an unlock"
+              autoComplete="off"
+              required
+            />
+          </label>
+        </div>
         <fieldset className="nt-apikey-access">
-          <legend>Access</legend>
-          <div className="nt-apikey-scopes">
-            {API_SCOPES.map((scope) => (
-              <button
-                key={scope.id}
-                type="button"
-                aria-pressed={selectedScopes.includes(scope.id)}
-                className={
-                  selectedScopes.includes(scope.id) ? "nt-scope-chip nt-scope-chip-on" : "nt-scope-chip"
-                }
-                onClick={() =>
-                  setSelectedScopes((current) =>
-                    current.includes(scope.id)
-                      ? current.filter((entry) => entry !== scope.id)
-                      : [...current, scope.id],
-                  )
-                }
-              >
-                {scope.label}
-              </button>
-            ))}
-          </div>
+          <legend>Permissions</legend>
+          <table className="nt-apikey-acl">
+            <thead>
+              <tr>
+                <th scope="col">Permission</th>
+                <th scope="col">Allow</th>
+              </tr>
+            </thead>
+            <tbody>
+              {API_SCOPES.map((scope) => (
+                <tr key={scope.id}>
+                  <td>{scope.label}</td>
+                  <td className="nt-apikey-acl-check">
+                    <input
+                      type="checkbox"
+                      aria-label={scope.label}
+                      checked={selectedScopes.includes(scope.id)}
+                      onChange={() =>
+                        setSelectedScopes((current) =>
+                          current.includes(scope.id)
+                            ? current.filter((entry) => entry !== scope.id)
+                            : [...current, scope.id],
+                        )
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="nt-apikey-seal-note">
+            All unchecked = full access. Every key opens your workspaces by itself —
+            including encrypted ones; the seal is built on this device and the password is
+            never stored. Possession of a key is possession of what its checked permissions
+            allow.
+          </p>
         </fieldset>
-        <p className="nt-apikey-seal-note">
-          Every key opens your workspaces by itself — including encrypted ones. Your
-          password seals the key at creation (checked like an unlock; the seal is built
-          on this device and the password is never stored). Possession of a key is
-          possession of what its scopes allow.
-        </p>
-        <input
-          type="password"
-          value={sealPassword}
-          onChange={(e) => setSealPassword(e.target.value)}
-          placeholder="Your password (seals the key)"
-          autoComplete="off"
-          required
-        />
         <button type="submit" disabled={newName.trim() === "" || sealPassword === ""}>
           Create key
         </button>

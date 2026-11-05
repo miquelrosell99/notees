@@ -343,11 +343,14 @@ describe("SettingsPage", () => {
     interface Key {
       id: string;
       name: string;
-      revokedAt: null;
+      revokedAt: number | null;
       scopes: string[] | null;
       machine: boolean;
     }
-    let keys: Key[] = [{ id: "k1", name: "laptop CLI", revokedAt: null, scopes: null, machine: false }];
+    let keys: Key[] = [
+      { id: "k1", name: "laptop CLI", revokedAt: null, scopes: null, machine: false },
+      { id: "k0", name: "retired probe", revokedAt: 1_700_000_000_000, scopes: null, machine: false },
+    ];
     const envelope = (k: Key) => ({
       id: k.id,
       userId: "u1",
@@ -396,7 +399,9 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("laptop CLI")).toBeInTheDocument();
     expect(screen.getByText("password-gated (legacy)")).toBeInTheDocument();
     expect(screen.getByText("full access")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Read objects" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Read objects" })).toBeInTheDocument();
+    // Revoked keys are history — the list shows the live set only.
+    expect(screen.queryByText("retired probe")).not.toBeInTheDocument();
 
     // Create a new key: password seals it (custody installed), secret shown once.
     fireEvent.change(screen.getByPlaceholderText(/key name/i), {
@@ -483,14 +488,15 @@ describe("SettingsPage", () => {
 
     renderPage({ section: "account" });
     expect(await screen.findByText("export bot")).toBeInTheDocument();
-    // Row badges render the human labels; the chips share two of them.
+    // The label appears twice: the row's scope badge and the ACL table row.
+    // (The checkbox itself is matched by role + accessible name.)
     expect(screen.getAllByText("Read objects")).toHaveLength(2);
     expect(screen.getAllByText("Export")).toHaveLength(2);
 
     // Select two chips → create (with the seal password) → the POST carries
     // the scope list.
-    fireEvent.click(screen.getByRole("button", { name: "Read objects" }));
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Read objects" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Search" }));
     fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "reader" } });
     fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
       target: { value: "correct horse battery staple" },
