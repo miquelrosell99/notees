@@ -22,6 +22,7 @@ import {
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
 import { clearCryptoCustody, deriveMasterKey } from "@/core/crypto-custody.js";
+import { redeemRecoveryCode } from "@/core/recovery.js";
 import { rememberWorkspaceList } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, clearStored, readStored, writeStored } from "./storage.js";
 import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
@@ -47,6 +48,8 @@ export interface AuthFlow {
   handleLogin: (event: FormEvent) => Promise<void>;
   handleSignup: (event: FormEvent) => Promise<void>;
   handleApiKeySubmit: (event: FormEvent) => Promise<void>;
+  /** The locked-out recovery path (a code + a new password); stays on the login screen. */
+  redeemRecoveryWithCode: (input: { code: string; newPassword: string; confirm: string }) => Promise<void>;
 }
 
 export interface AuthFlowDeps {
@@ -129,8 +132,32 @@ export function useAuthFlow({ conn, serverUrl, setServerUrl, setHint, setWorkspa
     }
   }
 
-  async function handleSignup(event: FormEvent) {
-    event.preventDefault();
+  /**
+   * The locked-out path: a recovery code unwraps the master key and re-wraps
+   * it under the new password (the server burns the code). Stays on the login
+   * screen with a success hint — the user signs in with the NEW password.
+   */
+  async function redeemRecoveryWithCode(input: { code: string; newPassword: string; confirm: string }): Promise<void> {
+    setError(null);
+    setHint(null);
+    if (input.newPassword.length < 8) {
+      setError("The new password must be at least 8 characters.");
+      return;
+    }
+    if (input.newPassword !== input.confirm) {
+      setError("The new passwords do not match.");
+      return;
+    }
+    try {
+      await redeemRecoveryCode(serverUrl, input.code.trim(), input.newPassword);
+      setPassword("");
+      setHint("Password reset — sign in with your new password.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleSignup(event: FormEvent) {    event.preventDefault();
     setError(null);
     if (password !== passwordConfirm) {
       setError("Passwords do not match.");
@@ -204,5 +231,6 @@ export function useAuthFlow({ conn, serverUrl, setServerUrl, setHint, setWorkspa
     handleLogin,
     handleSignup,
     handleApiKeySubmit,
+    redeemRecoveryWithCode,
   };
 }

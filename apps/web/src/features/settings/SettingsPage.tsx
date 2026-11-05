@@ -16,7 +16,8 @@ import { useEffect, useState } from "react";
 import { createKdfRecord, importMasterKey, unwrapMasterKeyWithBytes } from "@notees/protocol";
 
 import type { AccountUser } from "@/core/auth-api.js";
-import { changePassword, unlock } from "@/core/auth-api.js";
+import { changePassword, listRecoveryCodes, unlock } from "@/core/auth-api.js";
+import { generateAndInstallRecoveryCodes } from "@/core/recovery.js";
 
 import { Button } from "../../components/ui/kit/Button.js";
 import { Card } from "../../components/ui/kit/Card.js";
@@ -926,9 +927,121 @@ function AccountSection({ serverUrl, token, user, onSignOut }: AccountSectionPro
   );
 }
 
-function SecuritySection() {
+function RecoveryCodesCard({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listRecoveryCodes(serverUrl, token)
+      .then((result) => {
+        if (!cancelled) setRemaining(result.codes.length);
+      })
+      .catch(() => {
+        // Unreachable — the count stays unknown; generation still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, token]);
+
+  const generate = async () => {
+    if (busy) return;
+    setNotice(null);
+    setBusy(true);
+    try {
+      // The password unwraps the master key (via the session-less unlock
+      // check); the codes wrap it and are shown ONCE. Generation revokes any
+      // previous set.
+      const { kdf } = await unlock(serverUrl, { email, password });
+      const created = await generateAndInstallRecoveryCodes(serverUrl, token, password, kdf);
+      setCodes(created);
+      setRemaining(created.length);
+      setPassword("");
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-ads">
+      <p className="settings-section__description">
+        Recovery codes are the ONLY way back in after a lost password — lost password with no
+        code means lost history. Each code works once: entering it lets you set a new password.
+        Store them somewhere safe, outside this app.
+      </p>
+      {remaining !== null && (
+        <p className="settings-section__subtitle" role="status">
+          {remaining === 0
+            ? "No recovery codes on file."
+            : `${remaining} recovery code${remaining === 1 ? "" : "s"} on file.`}
+        </p>
+      )}
+      {codes === null ? (
+        <>
+          <TextField
+            label="Account password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            disabled={busy}
+          />
+          <div className="settings-ads__row">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void generate()}
+              disabled={busy || password === ""}
+              loading={busy}
+            >
+              Generate new codes
+            </Button>
+            {notice !== null && (
+              <p className="settings-ads__notice" role="status" data-kind={notice.kind}>
+                {notice.text}
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="settings-section__subtitle" role="alert">
+            Save these codes NOW — they are shown exactly once. Generating a new set revokes them.
+          </p>
+          <ol className="settings-recovery-codes">
+            {codes.map((code) => (
+              <li key={code}>
+                <code>{code}</code>
+              </li>
+            ))}
+          </ol>
+          <div className="settings-ads__row">
+            <Button variant="outline" size="sm" onClick={() => setCodes(null)}>
+              I saved them
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SecuritySection({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
   return (
     <>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Recovery Codes</h3>
+        <Card>
+          <RecoveryCodesCard serverUrl={serverUrl} token={token} email={email} />
+        </Card>
+      </div>
+
       <div className="settings-section">
         <h3 className="settings-section__title">Two-Factor Authentication</h3>
         <Card>
@@ -1147,7 +1260,9 @@ export function SettingsPage({
         {section === "account" && (
           <AccountSection serverUrl={serverUrl} token={token} user={user} onSignOut={onSignOut} />
         )}
-        {section === "security" && <SecuritySection />}
+        {section === "security" && (
+          <SecuritySection serverUrl={serverUrl} token={token} email={user.email ?? ""} />
+        )}
         {section === "support" && <SupportSection />}
         {section === "about" && <AboutSection />}
       </div>
