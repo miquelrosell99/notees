@@ -383,9 +383,14 @@ from the server rather than from local durable state (see the Clients section).
 validated (`validateEnvelope` fails loud on unknown opTypes/newer protocol versions
 *before* the transaction opens), applied in one store transaction, then the cursor
 advances and persists — a crash mid-backlog resumes from the last applied page. The
-cursor, the received-HLC watermark, and the restoreEpoch persist in the store's
+cursor, the received-HLC watermark, the snapshot-upload watermark, and the
+restoreEpoch persist in the store's
 `app_meta` table under `sync:<workspaceId>:state` (`meta.ts`); the `sync_state` table in
-the schema is a repurposed local-apply watermark, not the client cursor.
+the schema is a repurposed local-apply watermark, not the client cursor. The upload
+watermark (`uploadedSnapshotHlc`) is durable so a short-lived client (a fresh engine per
+invocation, CLI-style) does not re-upload the whole projection after every restart when
+the relay's checkpoint carries a lower hlc than its own (a lagging device's upload, a
+backup restore); an epoch wipe resets it durably.
 
 **Snapshot shortcut.** If the server's snapshot HLC is newer than the received watermark,
 the client restores the snapshot bytes (a serialized derived-state SQLite database,

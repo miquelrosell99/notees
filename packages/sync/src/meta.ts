@@ -23,6 +23,17 @@ export interface PersistedSyncState {
    * to re-fetch them. Null/absent = nothing skipped.
    */
   firstSkippedSeq?: number | null;
+  /**
+   * The receivedHlc watermark at the last snapshot this device uploaded to
+   * the relay. Persisted so a short-lived client (CLI-style — a fresh engine
+   * every invocation) does not re-upload the whole projection after every
+   * restart whenever the relay's checkpoint carries a lower hlc than this
+   * device's watermark (a lagging device's compaction/upload, a backup
+   * restore): within one session uploadedSnapshotHlc already gates the
+   * re-upload, and restarts must not weaken that. Null/absent = nothing
+   * uploaded yet this epoch (an epoch bump resets it).
+   */
+  uploadedSnapshotHlc?: Hlc | null;
 }
 
 export class SyncMeta {

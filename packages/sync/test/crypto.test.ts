@@ -175,7 +175,16 @@ describe("E2EE sync boundary", () => {
     const blob = relay.snapshotBlob();
     expect(blob).toBeDefined();
     expect([...blob!]).not.toEqual([...raw]);
-    expect([...(await decryptBytes(key, blob!))]).toEqual([...raw]);
+    // The sealed blob opens under the workspace key to this device's derived
+    // state. Content, not raw bytes: the blob was captured mid-sync and
+    // app_meta is device-local bookkeeping (the sync-state row — now
+    // including the durable upload watermark) legitimately advances AFTER
+    // the upload; it is excluded from every convergence dump by the same
+    // rule.
+    const opened = new Store();
+    await opened.restoreAsync(await decryptBytes(key, blob!));
+    expect(titleOf(opened, PARENT)).toBe("Parent");
+    expect(titleOf(opened, NODE)).toBe("Node");
     // The upload declared the blob sealed — the meta carries it (this is the
     // flag a downloading engine branches on).
     expect(relay.getSnapshotMeta().sealed).toBe(true);

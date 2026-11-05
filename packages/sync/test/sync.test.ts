@@ -8,6 +8,10 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { Clock, newEnvelope, type Envelope } from "@notees/protocol";
 import { Store, validateEnvelope } from "@notees/store";
 
@@ -747,6 +751,130 @@ describe("snapshot upload — the 413 honesty", () => {
     for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
     await engine.syncOnce();
     expect(errors).toHaveLength(0);
+  });
+});
+
+/**
+ * The upload watermark is DURABLE. The CLI (a fresh engine per invocation)
+ * surfaced this: uploadedSnapshotHlc was session-only, so whenever the
+ * relay's checkpoint carried a lower hlc than the device's own watermark
+ * (a lagging device's upload, a backup restore), every invocation
+ * re-uploaded the whole projection — a long-lived web session self-healed
+ * after one cycle; a short-lived client paid a full upload per command.
+ */
+describe("snapshot upload — the watermark survives restarts", () => {
+  const stateRow = (store: Store) =>
+    (
+      store.database
+        .prepare("SELECT value FROM app_meta WHERE key = ?")
+        .get(`sync:${WS}:state`) as { value: string } | undefined
+    )?.value;
+
+  function countingTransport(relay: MemoryRelay, uploads: Array<{ physical: number }>) {
+    const transport = new MemoryTransport(relay);
+    const realUpload = transport.uploadSnapshot!.bind(transport);
+    transport.uploadSnapshot = async (bytes, hlc, sealed) => {
+      uploads.push(hlc);
+      return realUpload(bytes, hlc, sealed);
+    };
+    return transport;
+  }
+
+  it("a restarted engine does not re-upload when the relay checkpoint sits below its own watermark", async () => {
+    const relay = new MemoryRelay();
+    relay.ingest(baseEnvelopes(DEVICE_A));
+    const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "notees-sync-wm-"));
+    const dbPath = join(dir, "store.db");
+    const uploads: Array<{ physical: number }> = [];
+
+    // Invocation 1: fresh durable store — full catch-up, first upload.
+    {
+      const store = new Store(dbPath);
+      const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
+        workspaceId: WS,
+      });
+      await engine.syncOnce();
+      store.close();
+    }
+    expect(uploads).toHaveLength(1);
+    expect(relay.getSnapshotMeta().hlc.physical).toBe(T0 + 50);
+    // The upload watermark is part of the persisted engine state.
+    {
+      const store = new Store(dbPath);
+      expect(stateRow(store)).toContain('"uploadedSnapshotHlc"');
+      store.close();
+    }
+
+    // The relay's checkpoint is replaced by a LOWER-hlc image — a lagging
+    // device's upload landing after ours, or a backup restore. Below our
+    // watermark, so nothing this device holds is new to the world.
+    relay.putSnapshot(relay.snapshotBlob()!, { physical: T0 + 20, logical: 0 });
+
+    // Invocation 2 (a fresh engine — the CLI shape): no re-upload.
+    {
+      const store = new Store(dbPath);
+      const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
+        workspaceId: WS,
+      });
+      await engine.syncOnce();
+      store.close();
+    }
+    expect(uploads).toHaveLength(1);
+
+    // …and once the device's own watermark moves past what it uploaded, the
+    // upload resumes (the watermark gates, it does not deadbolt).
+    relay.ingest([
+      makeEnvelope(DEVICE_B, T0 + 60, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "from another device" }],
+      }),
+    ]);
+    {
+      const store = new Store(dbPath);
+      const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
+        workspaceId: WS,
+      });
+      await engine.syncOnce();
+      store.close();
+    }
+    expect(uploads).toHaveLength(2);
+    expect(uploads[1]!.physical).toBe(T0 + 60);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("a restore-epoch wipe resets the durable watermark — the wiped relay needs the upload again", async () => {
+    const relay = new MemoryRelay();
+    relay.ingest(baseEnvelopes(DEVICE_A));
+    const dir = mkdtempSync(join(process.env.TMPDIR ?? tmpdir(), "notees-sync-wm-"));
+    const dbPath = join(dir, "store.db");
+    const uploads: Array<{ physical: number }> = [];
+
+    {
+      const store = new Store(dbPath);
+      const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
+        workspaceId: WS,
+      });
+      await engine.syncOnce();
+      store.close();
+    }
+    expect(uploads).toHaveLength(1);
+
+    // Server restore/backup swap: epoch bump + fresh log (the snapshot is
+    // dropped with it). Same engine state, but the relay forgets the image.
+    relay.bumpRestoreEpoch({ clearLog: true });
+    relay.ingest(baseEnvelopes(DEVICE_B));
+    {
+      const store = new Store(dbPath);
+      const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
+        workspaceId: WS,
+      });
+      await engine.syncOnce();
+      store.close();
+    }
+    // The wipe path re-uploads for the new epoch: watermark reset is durable.
+    expect(uploads).toHaveLength(2);
+    expect(relay.getSnapshotMeta().hlc.physical).toBe(T0 + 50);
+    rmSync(dir, { recursive: true, force: true });
   });
 });
 
