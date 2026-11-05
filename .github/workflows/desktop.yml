@@ -1,0 +1,43 @@
+name: desktop
+
+# Desktop installers (Windows .msi + macOS .dmg) from the web build, on v* tags
+# and manual dispatch. NOT code-signed: the self-hosted audience installs the
+# unsigned builds for now — add signing (certificate + env secrets) before a
+# wider release.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # The core packages resolve from the pinned vendor/notees submodule
+          # (→ miquelrosell99/notees-sync); brand is the design-token source.
+          submodules: recursive
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.0.0 --activate
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
+        with:
+          workspaces: src-tauri
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build installer (unsigned)
+        uses: tauri-apps/tauri-action@2d793bf2c8c505b9b76211601b09aab48922225d # action v1.0.0
+        with:
+          projectPath: .
+          releaseDraft: true
+          args: ""
