@@ -43,6 +43,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build installer (unsigned)
         uses: tauri-apps/tauri-action@2d793bf2c8c505b9b76211601b09aab48922225d # action v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: .
           tagName: ${{ github.ref_name }}
