@@ -42,5 +42,7 @@ jobs:
         uses: tauri-apps/tauri-action@2d793bf2c8c505b9b76211601b09aab48922225d # action v1.0.0
         with:
           projectPath: .
+          tagName: ${{ github.ref_name }}
+          releaseName: "Notees Desktop ${{ github.ref_name }}"
           releaseDraft: true
           args: ""
