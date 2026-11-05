@@ -122,7 +122,11 @@ log. The server exposes it at `POST /api/objects/:id/merge` (`?dryRun=true` prev
 web client applies the plan as one undo-journal batch.
 
 Server-side hydration (`apps/server/src/workspace-store.ts`): on first access of a
-workspace, restore the newest snapshot if it covers the log tail, then replay remaining
+workspace, restore the newest snapshot if it covers the log tail — a **sealed** snapshot
+never: the blob opens only under a workspace key, which the server's plaintext
+projection does not hold (restoring it threw `SQLITE_NOTADB` and 500'd every ingest;
+the sealed row stays a client-only checkpoint and the replay below rebuilds the
+plaintext prefix, skipping sealed envelopes by the sweep's rule) — then replay remaining
 envelopes in seq order, one at a time. An envelope that is schema-valid but not yet
 applicable (e.g. a create whose parent has not arrived) is *skipped* and retried on next
 boot — it never poisons the whole replay. A per-workspace promise queue serializes the

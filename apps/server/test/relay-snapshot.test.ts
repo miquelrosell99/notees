@@ -1,11 +1,14 @@
 import { gunzipSync, gzipSync } from "node:zlib";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Store } from "@notees/store";
 import { betterSqlite3Backend } from "@notees/store/better-sqlite3";
 
-import { closeTestServer, ingest, makeTestServer, pagePayload, testEnvelope, type TestServer } from "./helpers";
+import { closeTestServer, ingest, makeConfig, makeTestServer, pagePayload, testEnvelope, TEST_API_KEY, TEST_WORKSPACE, type TestServer } from "./helpers";
+import { buildServer } from "../src/index.js";
 
 let server: TestServer | null = null;
 afterEach(async () => {
@@ -593,5 +596,44 @@ describe("GET /stats", () => {
     const body = res.json();
     expect(body.envelopeCount).toBe(1);
     expect(body.maxHlc.physical).toBeGreaterThan(0);
+  });
+});
+
+describe("sealed snapshots vs the plaintext hydrate", () => {
+  it("a sealed latest snapshot is never restored at hydrate — ingest stays green across a reopen", async () => {
+    // Phase 1: a plaintext envelope in the log, then a SEALED snapshot
+    // becomes the latest checkpoint (a keyed client uploaded it — the blob
+    // is opaque to the server's projection).
+    server = await makeTestServer();
+    const dataDir = server.dataDir;
+    const seeded = await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("pre-seal") })]);
+    expect(seeded.statusCode).toBe(200);
+    const put = await server.app.inject({
+      method: "PUT",
+      url: `/api/relay/v2/snapshot/data?workspaceId=${server.workspaceId}&physical=1&logical=0&sealed=1`,
+      headers: { "content-type": "application/octet-stream", ...server.authHeaders },
+      payload: Buffer.from("sealed-garbage-not-a-database"),
+    });
+    expect(put.statusCode).toBe(201);
+    await server.app.close();
+    server = null; // the data dir survives — phase 2 reboots on it
+    // The derived projection is wipe-rebuildable by design: drop it so the
+    // reopened server hydrates from the relay log + latest snapshot.
+    rmSync(join(dataDir, "derived", `${TEST_WORKSPACE}.db`), { force: true });
+
+    // Phase 2: a FRESH WorkspaceManager (a server restart, a wiped
+    // projection) — the first ingest hydrates against the sealed snapshot.
+    // Pre-fix the restore threw SQLITE_NOTADB and every ingest 500'd.
+    const reopened = await buildServer(makeConfig(dataDir), { logger: false });
+    server = {
+      ...reopened,
+      dataDir,
+      apiKey: TEST_API_KEY,
+      workspaceId: TEST_WORKSPACE,
+      authHeaders: { "x-api-key": TEST_API_KEY },
+    };
+    const tail = await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("post-seal") })]);
+    expect(tail.statusCode).toBe(200);
+    expect((tail.json() as { savedIds: string[] }).savedIds).toHaveLength(1);
   });
 });

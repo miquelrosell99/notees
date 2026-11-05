@@ -224,13 +224,22 @@ export class WorkspaceManager {
     // applying envelopes the restore already carries — the replay skips
     // them by id, so the gate bought nothing the idempotency didn't.
     let afterSeq = 0;
-    if (appliedCount === 0 && snapshot !== null) {
+    if (appliedCount === 0 && snapshot !== null && snapshot.sealed !== 1) {
       const bytes = this.relay.readSnapshotData(snapshot.id);
       if (bytes !== null && bytes.length > 0) {
         handle.store.restore(bytes);
         afterSeq = snapshot.up_to_seq;
       }
     }
+    // A SEALED latest snapshot (a keyed client sealed it at upload) is
+    // never restored here: the blob cannot open into the server's
+    // plaintext projection — restoring it threw SQLITE_NOTADB and
+    // poisoned every ingest for the workspace with a 500 (surfaced by the
+    // CLI's first keyed sync: the sealed snapshot upload lands, the next
+    // batch's hydrate tries to restore it). With the restore skipped the
+    // replay below rebuilds the plaintext prefix from the log — encrypted
+    // envelopes skip the apply there by the same rule as the self-heal
+    // sweep.
     // The E2EE slot ({"$e": …}) rides the log but is not applicable to
     // derived state. StoreError skips count as pending and retry on the
     // next pass (an envelope whose parent has not arrived yet).
