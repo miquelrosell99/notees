@@ -12,19 +12,34 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import {
+  API_SCOPES,
   createApiKey,
+  installApiKeyCustody,
   listApiKeys,
   revokeApiKey,
+  unlock,
   type AccountUser,
   type ApiKeyEntry,
 } from "@/core/auth-api.js";
+import { buildMachineCustodyRecord } from "@/core/machine-key.js";
+import { importMasterKey, unwrapMasterKeyWithBytes } from "@notees/protocol";
 
 import { Modal } from "../components/ui/kit/Modal.js";
 
-export function ApiKeysSection({ serverUrl, token }: { serverUrl: string; token: string }) {
+export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
   const [keys, setKeys] = useState<ApiKeyEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  /** Empty = full access (the key is created without a scope list). */
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  /**
+   * Machine key: custody wrap installed at mint. The master for the wrap is
+   * re-derived from `machinePassword` at that moment (the session's working
+   * master is non-extractable by design) — the unlock oracle checks the
+   * password, the wrap never leaves the device except as the opaque record.
+   */
+  const [machineWanted, setMachineWanted] = useState(false);
+  const [machinePassword, setMachinePassword] = useState("");
   const [freshKey, setFreshKey] = useState<{ name: string; token: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [revokeConfirm, setRevokeConfirm] = useState<string | null>(null);
@@ -43,17 +58,48 @@ export function ApiKeysSection({ serverUrl, token }: { serverUrl: string; token:
     };
   }, [serverUrl, token]);
 
+  async function refreshKeys(): Promise<void> {
+    const { apiKeys } = await listApiKeys(serverUrl, token);
+    setKeys(apiKeys);
+  }
+
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    const name = newName.trim();
     try {
-      const { token: fullToken } = await createApiKey(serverUrl, token, newName.trim());
-      setFreshKey({ name: newName.trim(), token: fullToken });
+      const { apiKey, token: fullToken } = await createApiKey(serverUrl, token, name, {
+        scopes: selectedScopes.length > 0 ? selectedScopes : undefined,
+      });
+      try {
+        if (machineWanted) {
+          const { kdf } = await unlock(serverUrl, { email, password: machinePassword });
+          const { bytes } = await unwrapMasterKeyWithBytes(machinePassword, kdf);
+          // Extractable re-import: the wrap exports the master (the session
+          // working key is non-extractable by design — the recovery-code and
+          // change-password pattern).
+          const master = await importMasterKey(bytes, true);
+          const record = await buildMachineCustodyRecord(master, fullToken);
+          await installApiKeyCustody(serverUrl, token, apiKey.id, record);
+        }
+      } catch (custodyError) {
+        // The key EXISTS but is human — say so plainly, never pretend.
+        throw new Error(
+          "key created WITHOUT custody (" +
+            (custodyError instanceof Error ? custodyError.message : String(custodyError)) +
+            ") — it is not a machine key; revoke it and retry",
+        );
+      }
+      setFreshKey({ name, token: fullToken });
       setNewName("");
-      const { apiKeys } = await listApiKeys(serverUrl, token);
-      setKeys(apiKeys);
+      setSelectedScopes([]);
+      setMachineWanted(false);
+      setMachinePassword("");
+      await refreshKeys();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      // A mint may have landed before the failure — keep the list honest.
+      await refreshKeys().catch(() => undefined);
     }
   }
 
@@ -84,12 +130,26 @@ export function ApiKeysSection({ serverUrl, token }: { serverUrl: string; token:
       <h3 className="nt-settings-heading">API keys</h3>
       <p className="nt-settings-hint">
         API keys let other clients (the CLI, GTK, Flutter) sign in as you without your
-        password. A key is shown once at creation — store it somewhere safe.
+        password. A key is shown once at creation — store it somewhere safe. Scopes
+        restrict what a key may touch; a machine key also carries custody and opens
+        encrypted workspaces alone.
       </p>
       <ul className="nt-apikey-list">
         {keys.map((key) => (
           <li key={key.id} className={key.revokedAt !== null ? "nt-apikey nt-apikey-revoked" : "nt-apikey"}>
             <span className="nt-apikey-name">{key.name}</span>
+            <span className="nt-apikey-badges">
+              {key.machine && <span className="nt-apikey-badge nt-apikey-badge-machine">machine</span>}
+              {key.scopes === null ? (
+                <span className="nt-apikey-badge">full access</span>
+              ) : (
+                key.scopes.map((scope) => (
+                  <span key={scope} className="nt-apikey-badge">
+                    {API_SCOPES.find((known) => known.id === scope)?.label ?? scope}
+                  </span>
+                ))
+              )}
+            </span>
             <code className="nt-apikey-prefix">{key.prefix}…</code>
             <span className="nt-apikey-meta">
               {key.revokedAt !== null
@@ -129,7 +189,52 @@ export function ApiKeysSection({ serverUrl, token }: { serverUrl: string; token:
           placeholder="Key name (e.g. laptop CLI)"
           required
         />
-        <button type="submit" disabled={newName.trim() === ""}>
+        <fieldset className="nt-apikey-access">
+          <legend>Access</legend>
+          <div className="nt-apikey-scopes">
+            {API_SCOPES.map((scope) => (
+              <button
+                key={scope.id}
+                type="button"
+                aria-pressed={selectedScopes.includes(scope.id)}
+                className={
+                  selectedScopes.includes(scope.id) ? "nt-scope-chip nt-scope-chip-on" : "nt-scope-chip"
+                }
+                onClick={() =>
+                  setSelectedScopes((current) =>
+                    current.includes(scope.id)
+                      ? current.filter((entry) => entry !== scope.id)
+                      : [...current, scope.id],
+                  )
+                }
+              >
+                {scope.label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <label className="nt-apikey-machine">
+          <input
+            type="checkbox"
+            checked={machineWanted}
+            onChange={(e) => setMachineWanted(e.target.checked)}
+          />
+          <span>
+            Machine key — opens encrypted workspaces without a password. Possession of this
+            key is possession of the content.
+          </span>
+        </label>
+        {machineWanted && (
+          <input
+            type="password"
+            value={machinePassword}
+            onChange={(e) => setMachinePassword(e.target.value)}
+            placeholder="Your password (seals the key — checked like an unlock, wrap stays on this device)"
+            autoComplete="off"
+            required
+          />
+        )}
+        <button type="submit" disabled={newName.trim() === "" || (machineWanted && machinePassword === "")}>
           Create key
         </button>
       </form>
@@ -173,7 +278,7 @@ export function SettingsPanel({
         Signed in as <strong>{user.email}</strong>
         {user.isAdmin ? " (admin)" : ""}
       </p>
-      <ApiKeysSection serverUrl={serverUrl} token={token} />
+      <ApiKeysSection serverUrl={serverUrl} token={token} email={user.email ?? ""} />
     </Modal>
   );
 }

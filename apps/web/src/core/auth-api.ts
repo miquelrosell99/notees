@@ -317,6 +317,22 @@ export function createWorkspace(serverUrl: string, token: string, name?: string)
 
 // --- API keys (user settings → machine credentials) -------------------------------
 
+/**
+ * The scope vocabulary the server's enforcement understands (`scopes.ts`),
+ * with human labels for the settings UI. An EMPTY selection means full
+ * access (the key is created without a scope list — the unrestricted default).
+ */
+export const API_SCOPES: Array<{ id: string; label: string }> = [
+  { id: "objects.read", label: "Read objects" },
+  { id: "objects.write", label: "Write objects" },
+  { id: "objects.delete", label: "Delete objects" },
+  { id: "assets.read", label: "Read assets" },
+  { id: "assets.write", label: "Upload assets" },
+  { id: "search", label: "Search" },
+  { id: "export", label: "Export" },
+  { id: "admin", label: "Admin" },
+];
+
 export interface ApiKeyEntry {
   id: string;
   userId: string;
@@ -325,6 +341,10 @@ export interface ApiKeyEntry {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  /** The scope set, or null = unrestricted (full access). */
+  scopes: string[] | null;
+  /** Machine key: carries custody — possession opens encrypted workspaces without the password. */
+  machine: boolean;
 }
 
 export function listApiKeys(serverUrl: string, token: string): Promise<{ apiKeys: ApiKeyEntry[] }> {
@@ -335,13 +355,39 @@ export function createApiKey(
   serverUrl: string,
   token: string,
   name: string,
+  options: { scopes?: string[] | undefined } = {},
 ): Promise<{ apiKey: ApiKeyEntry; token: string }> {
   return request<{ apiKey: ApiKeyEntry; token: string }>(
     serverUrl,
     "/api-keys",
-    { method: "POST", body: JSON.stringify({ name }) },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        // An empty selection keeps the unrestricted default (omit the key).
+        ...(options.scopes !== undefined && options.scopes.length > 0 ? { scopes: options.scopes } : {}),
+      }),
+    },
     token,
   );
+}
+
+/** Install a machine key's opaque custody record (two-phase mint, phase 2; 204, no body). */
+export async function installApiKeyCustody(
+  serverUrl: string,
+  token: string,
+  keyId: string,
+  record: { salt: string; wrappedMaster: string },
+): Promise<void> {
+  const response = await fetch(
+    `${serverUrl.replace(/\/$/, "")}/api/api-keys/${encodeURIComponent(keyId)}/custody`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(record),
+    },
+  );
+  await ensureOk(response);
 }
 
 export function revokeApiKey(serverUrl: string, token: string, id: string): Promise<{ ok: boolean }> {

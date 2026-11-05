@@ -298,6 +298,75 @@
   opacity: 0.55;
 }
 
+.nt-apikey-badges {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-wrap: wrap;
+}
+
+.nt-apikey-badge {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: 0 var(--spacing-1-5);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-apikey-badge-machine {
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-primary);
+}
+
+.nt-apikey-access {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+}
+
+.nt-apikey-access legend {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0;
+  margin-bottom: var(--spacing-1);
+}
+
+.nt-apikey-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.nt-scope-chip {
+  border: 1px solid var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--shape-medium);
+  padding: var(--spacing-tiny) var(--spacing-2);
+  font-size: var(--font-size-sm);
+}
+
+.nt-scope-chip-on {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.nt-apikey-machine {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-apikey-machine input {
+  margin-top: 0.2em;
+}
+
 .nt-apikey-fresh {
   border: 1px solid var(--md-sys-color-primary);
   border-radius: var(--shape-large);
