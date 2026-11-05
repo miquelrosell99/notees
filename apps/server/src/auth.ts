@@ -208,6 +208,11 @@ CREATE INDEX IF NOT EXISTS idx_member_user ON workspace_member (user_id);
 -- creation (like session tokens, nt_-prefixed, only hashed at rest).
 -- The scopes column: optional JSON array of scope names; NULL
 -- means unrestricted (the default; pre-scopes rows migrate as NULL).
+-- The custody columns: the opaque machine-key wrap of the account master
+-- key (salt + AES-GCM wrap produced client-side; both NULL for human keys —
+-- the presence of custody_wrap IS the machine-key flag). The server can
+-- never open the wrap; a client holding the key derives the unwrap key
+-- from the token locally.
 CREATE TABLE IF NOT EXISTS api_key (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
@@ -217,7 +222,9 @@ CREATE TABLE IF NOT EXISTS api_key (
     created_at INTEGER NOT NULL,
     last_used_at INTEGER,
     revoked_at INTEGER,
-    scopes TEXT
+    scopes TEXT,
+    custody_salt TEXT,
+    custody_wrap TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
 
@@ -404,6 +411,12 @@ export interface ApiKeyRow {
    * sessions are always unrestricted).
    */
   scopes: string[] | null;
+  /**
+   * Machine key: custody_wrap is present — the key carries an opaque
+   * client-side wrap of the account master key, so a client holding the
+   * token can open encrypted workspaces without the password.
+   */
+  machine: boolean;
 }
 
 interface ApiKeyRaw {
@@ -415,6 +428,8 @@ interface ApiKeyRaw {
   last_used_at: number | null;
   revoked_at: number | null;
   scopes: string | null;
+  custody_salt: string | null;
+  custody_wrap: string | null;
 }
 
 function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
@@ -427,6 +442,7 @@ function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
     lastUsedAt: raw.last_used_at,
     revokedAt: raw.revoked_at,
     scopes: raw.scopes === null ? null : (JSON.parse(raw.scopes) as string[]),
+    machine: raw.custody_wrap !== null,
   };
 }
 
@@ -480,6 +496,14 @@ export class AuthStorage {
     );
     if (!keyColumns.has("scopes")) {
       this.db.exec("ALTER TABLE api_key ADD COLUMN scopes TEXT");
+    }
+    for (const [name, ddl] of [
+      ["custody_salt", "ALTER TABLE api_key ADD COLUMN custody_salt TEXT"],
+      ["custody_wrap", "ALTER TABLE api_key ADD COLUMN custody_wrap TEXT"],
+    ] as const) {
+      if (!keyColumns.has(name)) {
+        this.db.exec(ddl);
+      }
     }
     const prefColumns = new Set(
       (this.db.pragma("table_info(user_prefs)") as { name: string }[]).map((c) => c.name),
@@ -778,9 +802,60 @@ export class AuthStorage {
     return rows.map(toApiKeyRow);
   }
 
+  /**
+   * Install the opaque machine-key custody record ({salt, wrappedMaster} —
+   * both b64u, produced client-side) for an existing key. Idempotent: an
+   * installed record is never overwritten (the installer saw the token
+   * once; a re-install race would brick the wrap). Returns null when the
+   * key is unknown or revoked.
+   */
+  installApiKeyCustody(
+    userId: string,
+    keyId: string,
+    salt: string,
+    wrappedMaster: string,
+  ): "installed" | "already" | null {
+    const key = this.db
+      .prepare("SELECT custody_wrap, revoked_at FROM api_key WHERE id = ? AND user_id = ?")
+      .get(keyId, userId) as { custody_wrap: string | null; revoked_at: number | null } | undefined;
+    if (key === undefined || key.revoked_at !== null) return null;
+    if (key.custody_wrap !== null) return "already";
+    this.db
+      .prepare("UPDATE api_key SET custody_salt = ?, custody_wrap = ? WHERE id = ?")
+      .run(salt, wrappedMaster, keyId);
+    return "installed";
+  }
+
+  /**
+   * The opaque custody record for the key authenticating with `token`
+   * itself (the GET /api-keys/self/custody surface). Revoked keys and
+   * human keys answer null — key existence stays unrevealed.
+   */
+  apiKeyCustodyForToken(token: string): { keyId: string; salt: string; wrappedMaster: string } | null {
+    const row = this.db
+      .prepare("SELECT id, custody_salt, custody_wrap, revoked_at FROM api_key WHERE key_hash = ?")
+      .get(tokenDigest(token)) as
+      | { id: string; custody_salt: string | null; custody_wrap: string | null; revoked_at: number | null }
+      | undefined;
+    if (
+      row === undefined ||
+      row.revoked_at !== null ||
+      row.custody_salt === null ||
+      row.custody_wrap === null
+    ) {
+      return null;
+    }
+    return { keyId: row.id, salt: row.custody_salt, wrappedMaster: row.custody_wrap };
+  }
+
   revokeApiKey(userId: string, keyId: string): boolean {
+    // Custody clears with the revocation: a revoked key's wrap must not
+    // linger (possession of the token would otherwise still unlock content).
     const result = this.db
-      .prepare("UPDATE api_key SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL")
+      .prepare(
+        "UPDATE api_key SET revoked_at = ?, custody_salt = NULL, custody_wrap = NULL " +
+          "WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+      )
       .run(Date.now(), keyId, userId);
     return result.changes > 0;
   }

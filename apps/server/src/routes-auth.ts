@@ -92,6 +92,14 @@ const recoveryRedeemBodySchema = z
   .object({ id: z.string().min(1).max(256), verifier: z.string().min(1).max(256), newKdfRecord: kdfRecordSchema })
   .strict();
 
+/** Machine-key custody install: the opaque wrap the server can never open. */
+const apiKeyCustodySchema = z
+  .object({
+    salt: z.string().min(1).max(256),
+    wrappedMaster: z.string().min(1).max(8192),
+  })
+  .strict();
+
 /** Log-once latch for the legacy (pre-keyFp) records at change-password. */
 let legacyKeyFpWarned = false;
 
@@ -929,5 +937,51 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       return { ok: true };
     }
     throw new AppError(401, "unauthenticated", "a valid session token is required");
+  });
+
+  // --- Machine-key custody (API-key custody; the recovery-code shape) ----
+  //
+  // Minting is two-phase because the server generates the token and shows it
+  // once: the client can only wrap the master key AFTER it sees the token.
+  // 1. POST /api-keys → {apiKey, token}
+  // 2. POST /api-keys/:id/custody (session) — installs the opaque wrap
+  // 3. GET  /api-keys/self/custody (the key itself authenticates) — a client
+  //    holding a machine key fetches the wrap and unwraps locally: no
+  //    password, ever. The wrap is AES-GCM self-authenticating, so the
+  //    record carries no separate verifier (unlike recovery codes, whose
+  //    verifier gates the server-side burn).
+
+  app.post("/api-keys/:id/custody", async (request, reply) => {
+    const { principal } = requireAccount(ctx, request);
+    const { id } = request.params as { id: string };
+    const parsed = apiKeyCustodySchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid custody request");
+    }
+    const outcome = ctx.auth.installApiKeyCustody(principal.userId, id, parsed.data.salt, parsed.data.wrappedMaster);
+    if (outcome === null) {
+      throw new AppError(404, "not_found", "no such API key (or already revoked)");
+    }
+    reply.code(204);
+    return reply.send();
+  });
+
+  app.get("/api-keys/self/custody", async (request) => {
+    const resolved = resolvePrincipal(ctx, request);
+    if (resolved === null || resolved.apiKeyToken === undefined) {
+      // User custody: only the API key itself may read its wrap (sessions
+      // manage keys but never need the material; the operator key is refused
+      // by design, same as the workspace-key surface).
+      throw new AppError(
+        resolved === null ? 401 : 403,
+        resolved === null ? "unauthenticated" : "forbidden",
+        resolved === null ? "a valid API key is required" : "key custody is user-side; an API key principal is required",
+      );
+    }
+    const custody = ctx.auth.apiKeyCustodyForToken(resolved.apiKeyToken);
+    if (custody === null) {
+      throw new AppError(404, "not_found", "no machine-key custody for this key");
+    }
+    return { salt: custody.salt, wrappedMaster: custody.wrappedMaster };
   });
 }

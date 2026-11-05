@@ -230,6 +230,32 @@ export function generateRecoveryCode(): string {
   return b64uEncode(randomBytes(10));
 }
 
+// --- machine keys (API-key custody; 2026-11-05) --------------------------------------
+//
+// The recovery-code shape applied to API keys: a machine key token (nk_ +
+// 32 chars, ~190 bits) derives a key (fast scrypt — the token's entropy is
+// the defense) that WRAPS THE MASTER KEY (wrapWorkspaceKey/unwrapWorkspaceKey
+// verbatim, the master in the wrapped slot). The server stores only the
+// opaque wrap + a per-key salt + an HMAC verifier beside the api_key row —
+// the token and the master key never reach custody storage. A client holding
+// the machine key fetches the opaque record (GET /api-keys/self/custody) and
+// unwraps locally: no password, ever, nothing cached. Minting is two-phase
+// because the server generates the token and shows it once — the wrap can
+// only be built after the client sees the token (POST /api-keys/:id/custody).
+
+/** Fast scrypt for the token→key derivation (the token's entropy is the real defense). */
+export const MACHINE_SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 } as const;
+
+/** Derive the machine key from an API-key token and the record's per-key salt. */
+export function deriveMachineKey(token: string, salt: Uint8Array): Uint8Array {
+  return scrypt(utf8ToBytes(token), salt, { ...MACHINE_SCRYPT_PARAMS, dkLen: 32 });
+}
+
+/** HMAC the installer posts so a garbage wrap is detectable server-side at install time. */
+export function machineKeyVerifierOf(machineKeyBytes: Uint8Array): Uint8Array {
+  return hmac(sha256, machineKeyBytes, utf8ToBytes("notees-machine-check"));
+}
+
 /**
  * Unwrap the account master key: ONE scrypt derivation yielding BOTH the
  * non-extractable handle (the session's working key) and the raw 32-byte

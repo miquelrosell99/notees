@@ -631,7 +631,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
 
 
   ["get", "/api/api-keys", {
-    summary: "List the account's API keys (session required; keys are name + scopes + prefix)",
+    summary: "List the account's API keys (session required; keys are name + scopes + prefix + machine flag)",
     tags: ["Account"],
   }],
   ["post", "/api/api-keys", {
@@ -647,6 +647,37 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     summary: "Revoke an API key (session revokes any of the account's keys; a key may revoke only itself)",
     tags: ["Account"],
     errors: ["not_found", "conflict"],
+  }],
+  ["post", "/api/api-keys/:id/custody", {
+    summary: "Install a machine key's opaque custody record (session required; the wrap is client-side AES-GCM of the master key under a key derived from the key's own token)",
+    description:
+      "minting is two-phase — POST /api-keys returns the token once, then this route installs the wrap the client built from it. Idempotent: an installed record is never overwritten. Revocation clears the record with the key.",
+    tags: ["Account"],
+    requestBody: {
+      required: true,
+      properties: {
+        salt: { type: "string", minLength: 1, maxLength: 256 },
+        wrappedMaster: { type: "string", minLength: 1, maxLength: 8192 },
+      },
+    },
+    success: { status: 204, description: "stored (or already installed)" },
+    errors: ["unauthenticated", "validation_failed", "not_found"],
+  }],
+  ["get", "/api/api-keys/self/custody", {
+    summary: "Fetch this key's machine-custody record (the API key itself authenticates; sessions and the operator key are refused)",
+    description:
+      "a client holding a machine key derives the unwrap key from its own token and opens the wrap locally — encrypted workspaces without the password. Human keys answer 404; the wrap is AES-GCM self-authenticating, so the record carries no separate verifier.",
+    tags: ["Account"],
+    success: {
+      status: 200,
+      description: "{ salt, wrappedMaster } — the opaque wrap; AES-GCM self-authenticating",
+      schema: {
+        type: "object",
+        required: ["salt", "wrappedMaster"],
+        properties: { salt: { type: "string" }, wrappedMaster: { type: "string" } },
+      },
+    },
+    errors: ["unauthenticated", "forbidden", "not_found"],
   }],
 
   // --- objects ------------------------------------------------------------------------
