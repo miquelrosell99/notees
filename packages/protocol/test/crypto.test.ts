@@ -7,6 +7,7 @@ import {
   b64uEncode,
   createKdfRecord,
   decryptAssetBytes,
+  deriveRecoveryKey,
   encryptAssetBytes,
   decryptBytes,
   decryptEnvelope,
@@ -17,9 +18,13 @@ import {
   envelopeAad,
   exportWorkspaceKey,
   generateMasterKey,
+  generateRecoveryCode,
   generateWorkspaceKey,
+  importMasterKey,
   importWorkspaceKey,
   masterKeyFp,
+  recoveryCodeIdOf,
+  recoveryKeyVerifierOf,
   SCRYPT_PARAMS,
   unwrapMasterKey,
   unwrapWorkspaceKey,
@@ -208,6 +213,39 @@ describe("server-format interop (golden vector)", () => {
 
     // Wrong password fails at the verifier, before any unwrap.
     await expect(unwrapMasterKey("wrong password", record)).rejects.toThrow(/verifier|password/i);
+  });
+});
+
+describe("recovery-code helpers", () => {
+  it("the code id is stable, the derivation is deterministic, and the verifier is a fixed HMAC", async () => {
+    const code = "recover-me-0001";
+    const salt = Uint8Array.from({ length: 16 }, (_, i) => i + 1);
+    const key1 = deriveRecoveryKey(code, salt);
+    const key2 = deriveRecoveryKey(code, salt);
+    expect(key1.length).toBe(32);
+    expect([...key1]).toEqual([...key2]);
+    expect([...key1]).not.toEqual([...deriveRecoveryKey("other-code-0001", salt)]);
+    // The id is b64u(SHA256(code)) — computable at generation AND redeem.
+    expect(recoveryCodeIdOf(code)).toBe(recoveryCodeIdOf(code));
+    expect(recoveryCodeIdOf(code)).not.toBe(recoveryCodeIdOf("recover-me-0002"));
+    expect(recoveryCodeIdOf(code)).toMatch(/^[A-Za-z0-9_-]+$/);
+    // The verifier pins the HMAC formula (b64u-encoded by the caller).
+    expect(recoveryKeyVerifierOf(key1)).toEqual(recoveryKeyVerifierOf(key2));
+  });
+
+  it("a recovery key wraps and unwraps the master key (wrapWorkspaceKey verbatim)", async () => {
+    const master = await generateMasterKey();
+    const masterBytes = new Uint8Array(await crypto.subtle.exportKey("raw", master));
+    const code = generateRecoveryCode();
+    const salt = Uint8Array.from({ length: 16 }, (_, i) => 0x30 + i);
+    const recoveryKey = await importMasterKey(deriveRecoveryKey(code, salt));
+    const wrapped = await wrapWorkspaceKey(recoveryKey, master);
+    // A DIFFERENT code's key must not open the wrap.
+    const wrongKey = await importMasterKey(deriveRecoveryKey("not-the-code-00", salt));
+    await expect(unwrapWorkspaceKey(wrongKey, wrapped)).rejects.toThrow();
+    // The right key recovers the master bytes.
+    const reopened = await unwrapWorkspaceKey(recoveryKey, wrapped);
+    expect([...(await exportWorkspaceKey(reopened))]).toEqual([...masterBytes]);
   });
 });
 

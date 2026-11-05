@@ -199,6 +199,37 @@ export function importMasterKey(bytes: Uint8Array, extractable = false): Promise
   ]);
 }
 
+// --- recovery codes (the only account-recovery path; 2026-11-05) ---------------------
+//
+// A recovery code derives a key (fast scrypt — the work factor is the defense
+// against offline guessing of a high-entropy code) that WRAPS THE MASTER KEY
+// (wrapWorkspaceKey/unwrapWorkspaceKey verbatim). The server stores only the
+// opaque wrap + a salt + an HMAC verifier, keyed by b64u(SHA256(code)) — the
+// plaintext code never reaches any storage. Redeeming burns the record.
+
+/** Fast-ish scrypt for the code→key derivation (offline-checked; the code's entropy is the real defense). */
+export const RECOVERY_SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 } as const;
+
+/** Derive the recovery key from a code and the record's per-code salt. */
+export function deriveRecoveryKey(code: string, salt: Uint8Array): Uint8Array {
+  return scrypt(utf8ToBytes(code), salt, { ...RECOVERY_SCRYPT_PARAMS, dkLen: 32 });
+}
+
+/** HMAC the server compares at redeem time to prove the code was entered (wrong code → 401, record NOT burned). */
+export function recoveryKeyVerifierOf(recoveryKeyBytes: Uint8Array): Uint8Array {
+  return hmac(sha256, recoveryKeyBytes, utf8ToBytes("notees-recovery-check"));
+}
+
+/** The record's public lookup id — computable from the code alone (generation AND redeem). */
+export function recoveryCodeIdOf(code: string): string {
+  return b64uEncode(sha256(utf8ToBytes(code)));
+}
+
+/** A fresh plaintext recovery code (b64u of 10 random bytes, ~80 bits). */
+export function generateRecoveryCode(): string {
+  return b64uEncode(randomBytes(10));
+}
+
 /**
  * Unwrap the account master key: ONE scrypt derivation yielding BOTH the
  * non-extractable handle (the session's working key) and the raw 32-byte

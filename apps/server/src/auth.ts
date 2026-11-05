@@ -282,6 +282,21 @@ CREATE TABLE IF NOT EXISTS workspace_key (
     updated_at INTEGER NOT NULL
 );
 
+-- Account recovery codes: the OPAQUE wraps only. id = b64u(SHA256(plaintext
+-- code)) — the plaintext code never reaches this table; recoveryKey =
+-- scrypt(code, salt) wraps the master key (AES-GCM); the verifier is an HMAC
+-- the redeem route compares (wrong code → 401, record NOT burned). Redeeming
+-- deletes the row — every code is one-time.
+CREATE TABLE IF NOT EXISTS recovery_code (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    wrapped_recovery TEXT NOT NULL,
+    verifier TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_recovery_code_user ON recovery_code (user_id, id);
+
 -- (The retired per-user section_view table's one-time migration runs in the
 -- constructor, after this DDL — it must be conditional on the old table
 -- existing, which plain SQL cannot express.)
@@ -858,6 +873,50 @@ export class AuthStorage {
         record.keyFp ?? null,
         userId,
       );
+  }
+
+  // --- recovery codes (opaque wraps; the plaintext code never reaches storage) ----
+
+  /** Replace the user's recovery set (generating a new set revokes the old). */
+  replaceRecoveryCodes(
+    userId: string,
+    records: Array<{ id: string; salt: string; wrappedRecovery: string; verifier: string }>,
+  ): void {
+    const run = this.db.transaction(() => {
+      this.db.prepare("DELETE FROM recovery_code WHERE user_id = ?").run(userId);
+      const insert = this.db.prepare(
+        `INSERT INTO recovery_code (id, user_id, salt, wrapped_recovery, verifier, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      );
+      const now = Date.now();
+      for (const record of records) {
+        insert.run(record.id, userId, record.salt, record.wrappedRecovery, record.verifier, now);
+      }
+    });
+    run();
+  }
+
+  /** The user's live recovery records (ids + creation stamps — no code material). */
+  listRecoveryCodes(userId: string): Array<{ id: string; createdAt: number }> {
+    return (
+      this.db
+        .prepare("SELECT id, created_at AS created_at FROM recovery_code WHERE user_id = ? ORDER BY created_at ASC")
+        .all(userId) as Array<{ id: string; created_at: number }>
+    ).map((row) => ({ id: row.id, createdAt: row.created_at }));
+  }
+
+  /** The record's public material for the redeem flow (no verifier — that stays server-side). */
+  getRecoveryCode(id: string): { userId: string; salt: string; wrappedRecovery: string; verifier: string } | null {
+    const row = this.db
+      .prepare("SELECT user_id, salt, wrapped_recovery, verifier FROM recovery_code WHERE id = ?")
+      .get(id) as { user_id: string; salt: string; wrapped_recovery: string; verifier: string } | undefined;
+    if (row === undefined) return null;
+    return { userId: row.user_id, salt: row.salt, wrappedRecovery: row.wrapped_recovery, verifier: row.verifier };
+  }
+
+  /** Burn a code (redeem = one-time use). */
+  deleteRecoveryCode(id: string): void {
+    this.db.prepare("DELETE FROM recovery_code WHERE id = ?").run(id);
   }
 
   /** Remove a workspace and all its membership rows (owner-initiated delete). */
