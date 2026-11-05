@@ -215,16 +215,17 @@ there is no `notees export`.
 
 ## 9. Docker + Compose (shipped 2026-09-26; plain-Docker deploy since 2026-10-04)
 
-Two images build from this monorepo (context = the repo root):
+Two images build the stack — since the 2026-11-05 repo split, each from its
+own repo (context = that repo's root):
 
-- **`apps/server/Dockerfile`** — multi-stage: `deps` (frozen workspace install;
+- **`apps/server/Dockerfile`** (this repo, `notees-sync`) — multi-stage: `deps` (frozen workspace install;
   toolchain for the better-sqlite3 musl build), `build` (`pnpm --filter
   @notees/server... build` → tsup bundle, workspace TS inlined), `deploy`
   (`pnpm --filter @notees/server deploy --prod /out` pruned copy), `runtime`
   (`node:22-alpine`, `USER node`, `VOLUME /data`, `EXPOSE 8377`, wget
   `/healthz` healthcheck).
-- **`apps/web/Dockerfile`** — `deps` + `build` (`pnpm --filter @notees/web...
-  build` → vite dist: static assets + worker chunk + sql.js wasm), then
+- **`apps/web/Dockerfile`** (the [`notees-web`](https://github.com/miquelrosell99/notees-web)
+  repo) — `deps` + `build` (`pnpm --filter @notees/web... build` → vite dist: static assets + worker chunk + sql.js wasm; the core packages resolve from the repo's pinned `vendor/notees` submodule, which the build context must carry — initialize submodules before building), then
   `nginx:1.27-alpine`. The stock `/docker-entrypoint.d` mechanism runs
   `50-notees-config.sh`, which writes `/config.js`
   (`window.NOTEES_CONFIG = { serverUrl: … }`) from `NOTEES_SERVER_URL`
@@ -283,7 +284,9 @@ there (validated with a Komodo deploy — `VERIFY-PASS`). Build/up from the
 repo root:
 
 ```sh
+# from the notees-sync checkout (this repo):
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \
+# from the notees-web checkout (vendor submodule initialized):
 && docker build -f apps/web/Dockerfile -t ghcr.io/miquelrosell99/notees-web:latest . \
 && docker compose up -d
 ```
@@ -298,9 +301,10 @@ builds). After a data migration that rewrites the log,
 `docker compose restart notees-sync` rehydrates the server's derived store
 from snapshot+tail (`RelayStorage.ingest` alone does not apply to the
 running store — see `migrations.md`). Smoke:
-`node scripts/screenshots/verify-min.mjs` from `scripts/screenshots/` with
-`NOTEES_ADMIN_PASSWORD` (`.admin_password` inside the stack's `config/` on a
-split host; `config/notees/.admin_password` on a repo-root deployment).
+`node scripts/screenshots/verify-min.mjs` from the `notees-web` checkout (the
+script ships there — `scripts/screenshots/`), run against the live stack,
+with `NOTEES_ADMIN_EMAIL`/`NOTEES_ADMIN_PASSWORD` (`NOTEES_ADMIN_PASSWORD`, or
+`.admin_password` inside the stack's `config/` on a split host; `config/notees/.admin_password` on a repo-root deployment).
 
 Headless UI probes (playwright; the screenshot tooling in
 `scripts/screenshots/`): sign in through the bootstrap's **API-key tab** with

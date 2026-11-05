@@ -369,7 +369,9 @@ launches to leak. Probe rules:
   reserve screenshots for visual claims (alignment, rhythm, theme) — read the
   PNG back before asserting.
 
-Legacy self-launching probes (`scripts/screenshots/*-probe.mjs`) still exist;
+Legacy self-launching probes (`scripts/screenshots/*-probe.mjs`) still exist
+in the `notees-web` repo (the whole probe suite moved there in the 2026-11-05
+split);
 any NEW one must launch through `scripts/screenshots/probe-lib.mjs`
 (`launchProbeBrowser` — guaranteed teardown), and the
 `reap-orphan-chrome.mjs` cron (every 15 min, kills Playwright-cache chromium

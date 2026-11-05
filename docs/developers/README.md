@@ -25,12 +25,14 @@ change it describes.
 
 [ui-primitives.md](ui-primitives.md) is the web client's component-library
 reference: the compose-from-the-library law, the primitive catalog, and the
-popup-dismissal seam.
+popup-dismissal seam. (The web app itself lives in
+[`miquelrosell99/notees-web`](https://github.com/miquelrosell99/notees-web)
+— repo split 2026-11-05; the page stays here as the core-side reference.)
 
-[ui-debugging.md](ui-debugging.md) is the visual-diagnosis runbook: the
-screenshot capture suite (`scripts/screenshots/run.sh` on throwaway
-containers) and the live-stack probe pattern (`probe-template.mjs`,
-computed-style dumps, the react-pdf/jsdom limits).
+[ui-debugging.md](ui-debugging.md) is the visual-diagnosis runbook. Its tools
+(the screenshot capture suite `scripts/screenshots/run.sh`, the probe
+pattern) ship in the `notees-web` repo now — the page stays as the method
+reference.
 
 [sdk-publishing.md](sdk-publishing.md) is archived reference for the parked
 npm-distribution program.
@@ -41,6 +43,10 @@ The companion clients are sibling repos, checked out next to this one; each
 owns its own releases (tags, CI publishing, changelog) — this repo documents
 only that they exist and how the wire stays convergent between them:
 
+- **notees-web** (`miquelrosell99/notees-web`) — the web client: React/Vite
+  outliner editor + worker (`notees-web` image), consuming this repo's
+  packages via a pinned `vendor/notees` submodule. Releases: `v*` tags → CI
+  publishes the `notees-web` image.
 - **notees-gtk** (`/root/projects/notees-gtk`) — the GTK4 desktop client:
   Python lockstep port of the protocol, derived SQLite appliers, sync
   engine. Releases: annotated `v*` tags → CI publishes sdist/wheel + Arch

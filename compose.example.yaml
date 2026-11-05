@@ -57,9 +57,10 @@ services:
 
   notees-web:
     image: ${NOTEES_WEB_IMAGE:-ghcr.io/miquelrosell99/notees-web:latest}
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+    # Repo split 2026-11-05: the web client image builds from the
+    # miquelrosell99/notees-web repo (docker build -f apps/web/Dockerfile .)
+    # — this repo ships the sync server only; pull the web image or build it
+    # from its own checkout.
     container_name: notees-web
     ports:
       - "${NOTEES_WEB_HTTP:-0.0.0.0:8378}:80"

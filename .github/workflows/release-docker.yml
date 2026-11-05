@@ -1,8 +1,10 @@
 name: Release Docker images
 
-# Publishes the two service images to ghcr using the workflow's GITHUB_TOKEN
+# Publishes the sync server image to ghcr using the workflow's GITHUB_TOKEN
 # (packages: write) — the dedicated CI push that does NOT depend on a
 # personal registry token (the host's ghcr login stays read-only).
+# (Repo split 2026-11-05: the web client image publishes from the
+# miquelrosell99/notees-web repo's own release workflow.)
 #
 # Tag push (v*) publishes the tag (v-prefixed + semver). `:latest` applies
 # ONLY to stable semver tags — prereleases (v2.0.0-m2 and friends, any tag
@@ -49,8 +51,6 @@ jobs:
         include:
           - image: notees-sync
             dockerfile: apps/server/Dockerfile
-          - image: notees-web
-            dockerfile: apps/web/Dockerfile
     steps:
       - name: Guard — dispatch must not target a release tag
         if: github.event_name == 'workflow_dispatch'

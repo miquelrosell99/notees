@@ -24,76 +24,10 @@ the fleet `typescript-conventions` skill.
 Conventional Commits: `feat(web): …`, `fix(server): …` style.
 Never re-tag a release; same-day correction = next patch tag.
 
-## Web UI primitives law (binding for any apps/web change)
+## Web UI primitives law — MOVED
 
-Full catalog and drift classes: `docs/developers/ui-primitives.md`.
+Repo split 2026-11-05: the web UI laws (ui-kit composition, token-only CSS,
+the popup-dismissal seam, view surfaces owning their URL/tab title,
+chrome-row layout contracts) bind only in the `notees-web` repo — see its
+`AGENTS.md` + `docs/developers/ui-primitives.md`. This repo has no app chrome.
 
-1. All chrome composes from `apps/web/src/components/ui/kit/` — one element
-   per file, co-located CSS, barrel-exported. No ad-hoc styled controls in
-   feature code.
-2. Token-only CSS from `src/ui/variables.css` — no hex/rgba literals.
-3. Values that track type metrics or layout take the adaptive form
-   (`1lh`/`em`/`ch`/`%`, `clamp()`, spacing/radius/motion tokens); hard-coded
-   px only where genuinely constant (hairlines, tap-target floors).
-4. Popups compose `usePopupDismissal` (Escape + pointer-down-outside seam).
-   The seam stamps the popup root `data-fleet-popup` while open; the overlay
-   system keys off the stamp (`[data-fleet-popup] { pointer-events: auto }`,
-   the Modal's inside/outside-press distinction — stamped popups AND stacked
-   fleet dialogs count as inside — the aria-hidden lift, and Escape ownership
-   while any stamped popup is open). Transient popups ride the `--z-floating`   tier (above the modal band); tiers below it are for chrome that never
-   flies above a dialog.
-5. Never mention legacy version names in files/comments/classes.
-6. The drift gate `css-token-drift.test.ts` enforces the font-size slice —
-   run the web suite after touching CSS; a failure in your blast radius is
-   yours to fix before claiming done.
-
-## View surfaces own their URL and their tab title
-
-Binding for any new full-view surface (settings section, hub, search page,
-anything taking the PageCard slot) — ship BOTH in the same slice, not as a
-later fix (canonical: `docs/developers/development.md` §7):
-
-1. **A URL route** — deep-linkable at boot, the pushState seam for in-app
-   navigation, and the `popStateNavHandler` mapping on back/forward. A view
-   that only flips React state is unreachable by reload/back/bookmarks.
-2. **A tab title** — the App's ONE title effect (`App.tsx`) names the open
-   surface ("NAME - Notees" / "SECTION - Notees"); extend it, never add a
-   parallel writer.
-
-Two traps with shipped fixes behind them: the render-precedence race (the
-PageCard slot checks `selectedPageId` first — openers must clear what they
-replace, or the click silently does nothing) and the stale title (a view
-that clears the selection must still update the title — the effect branches
-on the view, not only the node).
-
-## Chrome-row layout contracts
-
-Canonical: `docs/developers/ui-primitives.md` ("Chrome-row layout
-contracts"). Hard-won rulings from shipped layout bugs — check them before
-restructuring any chrome row:
-
-1. **A chrome row's right side is ONE cluster.** Every right-hand control
-   (ported view chrome, filter toolbar, switchers) shares a single
-   right-justified container (`NodeCollectionTopBar`'s cluster) — sibling
-   flex items with a grown, justify-end row between them read as broken
-   (split controls, dead space in the middle of the row).
-2. **The button IS the badge.** Never nest a `Badge` pill inside a `Button`
-   — the two boxes double and overlap. A count toggle passes the number as
-   the Button's own label (ghost + `active`; transparent at rest).
-3. **In-card sections retire page-stack chrome.** Inside a container card the
-   section's stack hairline, header clearance, and title-alignment content
-   indent (`spacing-7`) retire — the card boundary and padding own the
-   separation. Page-stack spacing is for the page stack, not cards.
-4. **Hover-gated chrome always pairs `:hover` with `:focus-within`.** A
-   hover-only affordance strands keyboard users (the "+" add-tab precedent).
-5. **The ghost `active` prop is visual only** — pass `aria-pressed`
-   explicitly (the top-bar sidebar toggles are the reference register).
-
-## Anti-hallucination register
-
-`docs/developers/development.md` lists the designed-not-built items
-(typed-link resolution, citations + MD export, asset annotations,
-property-schema CRUD UX, `notees shell` REPL, computed properties, E2EE,
-plugins, multi-user auth, outliner editor program, TreeCrdt port). Do not
-document, export, or test them as existing. `docs/developers/architecture.md`
-reconciles code-vs-design discrepancies — code wins.
