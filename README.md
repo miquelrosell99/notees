@@ -1,5 +1,12 @@
 # Notees
 
+> **ARCHIVED 2026-11-05 — superseded by the repo split.** This monorepo is the historical home of Notees; its full history is preserved here and the tree remains pushable, but development moved to two public repos:
+>
+> - **[`miquelrosell99/notees-sync`](https://github.com/miquelrosell99/notees-sync)** — the core + sync server: wire authority (`packages/protocol` with SCHEMA.md/WIRE.md + the fixture corpus), the TS reference packages (domain/store/sync/query/export), the server, log migrations, and the developers runbooks.
+> - **[`miquelrosell99/notees-web`](https://github.com/miquelrosell99/notees-web)** — the web client + the person-facing docs; consumes the core via a pinned `vendor/notees` submodule (as do the GTK/Flutter/CLI clients).
+>
+> The split was a path-preserving filter of this history — every path below still exists unchanged in one of the two repos.
+
 **One object graph. The operation log is the only authority. Every interface — UI, CLI, API, export — is a projection of the same derived state.**
 
 Notees is a local-first personal knowledge environment: a single node table for pages, blocks, and classes; three information layers (attributes, discourse links, plain prose) feeding one edge index; and an append-only op log that syncs between your devices and converges without a server you have to trust.

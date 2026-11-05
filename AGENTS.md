@@ -1,5 +1,7 @@
 # AGENTS.md
 
+> **ARCHIVED 2026-11-05 — superseded by the repo split; history preserved.** Development moved to **[`miquelrosell99/notees-sync`](https://github.com/miquelrosell99/notees-sync)** (core + server) and **[`miquelrosell99/notees-web`](https://github.com/miquelrosell99/notees-web)** (web client + user docs). The guidance below describes the monorepo as it was at archive time; each new repo carries its own rewritten AGENTS.md. Do not start new work here.
+
 Notees — a self-hosted, privacy-first, local-first **personal information environment**: one object graph (nodes carry `is_class` + `is_embedded`; "page" and "block" are structural roles, not node kinds; typed properties, typed link marks, assets) whose only authority is an immutable **operation log** (envelope **v3**); every SQLite database (server, browser worker, CLI) is a derived projection of that log. TypeScript everywhere (Node 22, pnpm 9).
 
 ## Skills (mandatory)
