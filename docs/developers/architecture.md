@@ -340,7 +340,7 @@ plaintext.
 property, class, and delete applier rewrites its owner's FTS row inside the same
 transaction that applies the op (`packages/store/src/appliers.ts`), and the server's
 write path awaits that apply before acknowledging (the per-workspace
-ingest→apply pair in `apps/server/src/workspace-store.ts`). There is no pending
+apply→persist pair in `apps/server/src/workspace-store.ts`). There is no pending
 queue, debounce, or batch anywhere on the path — an acknowledged write is
 immediately visible to `search`/`searchPage`, and a tombstone immediately drops
 its row (`removeSearchIndexEntry`) plus the routes' `is_active` filter. Read
@@ -524,10 +524,14 @@ client hook surface; no WS *client* ships.
 object API mutation, an asset upload with `objectId` — becomes an envelope and flows
 through a single funnel, `ServerContext.ingestBatch` (`src/context.ts`):
 
-1. persist to the relay log **first** (`relay.db`, idempotent ingest) — the log is the
-   durability boundary;
-2. apply the newly-saved envelopes to the workspace's derived store
-   (`WorkspaceManager.applyNow`, log-first-then-apply order);
+1. apply the candidate envelopes to the workspace's derived store FIRST
+   (`WorkspaceManager.applyNow`, apply-before-persist order) — `applyMany` is
+   one transaction, so a payload-semantic rejection (a 422, e.g. a
+   wrong-typed `propertySchema.defaultValue`) rolls the store back untouched
+   and nothing persists: a rejected envelope never enters the log (every
+   hydration, sweep, and fresh-client catch-up would re-hit it otherwise);
+2. persist the applied envelopes to the relay log (`relay.db`, idempotent
+   ingest) — the log is the durability boundary;
 3. broadcast an `ops` frame to that workspace's WS subscribers (`src/bus.ts`).
 
 The object/assets API does not touch the store directly: `ctx.submit` stamps a

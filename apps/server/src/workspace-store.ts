@@ -298,18 +298,25 @@ export class WorkspaceManager {
   }
 
   private applyNow(handle: WorkspaceHandle, workspaceId: string, envelopes: Envelope[]): ApplyOutcome {
+    // The poison decision lands BEFORE persistence: an envelope the derived
+    // store rejects (a payload-semantic StoreError — e.g. a wrong-typed
+    // propertySchema defaultValue) must never sit in the stored log. The
+    // persists-then-applies order re-quarantined every such envelope on
+    // every future replay (hydration, sweep, fresh-client catch-up).
+    // applyMany is one transaction: a mid-batch throw rolls the store back
+    // untouched, so a rejected batch leaves no derived state behind either —
+    // only the 422 to the writer, whose client-side quarantine owns the op.
+    const fresh = envelopes.filter(
+      (env) => !this.relay.hasEnvelope(env.id) && !isEncryptedPayload(env.payload),
+    );
+    let summaries: ChangeSummary[] = [];
+    if (fresh.length > 0) {
+      summaries = handle.store.applyMany(fresh);
+    }
     const { savedIds, seqs } = this.relay.ingest(envelopes);
     if (savedIds.length === 0) {
       return { savedIds, seqs, summaries: [] };
     }
-    const saved = new Set(savedIds);
-    const fresh = envelopes.filter(
-      (env) => saved.has(env.id) && !isEncryptedPayload(env.payload),
-    );
-    if (fresh.length === 0) {
-      return { savedIds, seqs, summaries: [] };
-    }
-    const summaries = handle.store.applyMany(fresh);
     handle.lastSeq = Math.max(handle.lastSeq, this.relay.latestSeq(workspaceId));
     return { savedIds, seqs, summaries };
   }
