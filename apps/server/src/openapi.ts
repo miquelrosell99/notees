@@ -1094,6 +1094,19 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     tags: ["Workflows"],
     errors: ["not_found"],
   }],
+  ["post", "/api/workflows/:id/runs", {
+    summary: "Upload the client-side evaluator's run rows (any authenticated principal)",
+    description:
+      "The plan-07 port: the server evaluates nothing since the probes retired, so each device's workflow evaluator posts its run rows here — the coordination table holds every device's audit and the GET stays the single read surface.",
+    tags: ["Workflows"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["runs"],
+      properties: { runs: { type: "array", items: { type: "object" }, description: "1–100 run rows" } },
+    },
+    errors: ["validation_failed", "not_found"],
+  }],
 ];
 
 function toOpenApiPath(fastifyPath: string): string {

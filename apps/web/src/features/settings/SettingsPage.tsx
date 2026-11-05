@@ -471,11 +471,40 @@ function GeneralSection() {
 
 interface SyncSectionProps {
   serverUrl: string;
+  token: string;
   onForgetServer: () => void;
   onConnectServer: (url: string) => void;
 }
 
-function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSectionProps) {
+/** The workflow-rules status line: rules are evaluated on THIS device as envelopes apply. */
+function WorkflowStatusLine({ serverUrl, token }: { serverUrl: string; token: string }) {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${serverUrl.replace(/\/$/, "")}/api/workflows`, { headers: { "X-API-Key": token } })
+      .then(async (response) => {
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as { rules?: unknown[] };
+        setCount(body.rules?.length ?? 0);
+      })
+      .catch(() => {
+        // Unreachable — no status line; evaluation still runs.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, token]);
+  if (count === null) return null;
+  return (
+    <p className="settings-section__subtitle" role="status">
+      {count === 0
+        ? "No workflow rules active."
+        : `${count} workflow rule${count === 1 ? "" : "s"} active — evaluated on this device as envelopes apply.`}
+    </p>
+  );
+}
+
+function SyncSection({ serverUrl, token, onForgetServer, onConnectServer }: SyncSectionProps) {
   // "disconnect" un-selects the current server (sign-out; the address stays
   // in the list); "remove-current" deletes the current entry, which implies
   // the sign-out — a removed address cannot stay selected.
@@ -524,6 +553,16 @@ function SyncSection({ serverUrl, onForgetServer, onConnectServer }: SyncSection
 
   return (
     <>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Workflow Rules</h3>
+        <Card>
+          <WorkflowStatusLine serverUrl={serverUrl} token={token} />
+          <p className="settings-section__description">
+            Rules run on this device as envelopes apply — actions are ordinary envelopes that
+            every client converges on. The full rules UI is future work.
+          </p>
+        </Card>
+      </div>
       <div className="settings-section">
         <h3 className="settings-section__title">Sync Server</h3>
         <Card>
@@ -1253,6 +1292,7 @@ export function SettingsPage({
         {section === "sync" && (
           <SyncSection
             serverUrl={serverUrl}
+            token={token}
             onForgetServer={onForgetServer}
             onConnectServer={onConnectServer}
           />

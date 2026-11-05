@@ -130,6 +130,11 @@ export interface SyncEngineCallbacks {
   onPush?: (envelopeCount: number, info?: BatchChangeInfo) => void;
   onPull?: (envelopeCount: number, info?: BatchChangeInfo) => void;
   onPullProgress?: (progress: SyncPullProgress | null) => void;
+  /**
+   * The envelopes of a remote batch that actually applied (idempotent
+   * replays excluded) — the workflow evaluator's hook (issue #13).
+   */
+  onBatchApplied?: (envelopes: Envelope[]) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: SyncStatus, error: Error | null) => void;
   /** Honest backlog after pushes/pulls so the UI can show quarantined ops. */
