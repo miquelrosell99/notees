@@ -33,13 +33,14 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
   /** Empty = full access (the key is created without a scope list). */
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   /**
-   * Machine key: custody wrap installed at mint. The master for the wrap is
-   * re-derived from `machinePassword` at that moment (the session's working
-   * master is non-extractable by design) — the unlock oracle checks the
-   * password, the wrap never leaves the device except as the opaque record.
+   * Every key carries custody: the wrap is installed at mint, sealed with
+   * `sealPassword` (the master for the wrap is re-derived from it at that
+   * moment — the session's working master is non-extractable by design; the
+   * unlock oracle checks the password, the wrap never leaves the device
+   * except as the opaque record). Keys minted before custody existed keep
+   * working password-gated.
    */
-  const [machineWanted, setMachineWanted] = useState(false);
-  const [machinePassword, setMachinePassword] = useState("");
+  const [sealPassword, setSealPassword] = useState("");
   const [freshKey, setFreshKey] = useState<{ name: string; token: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [revokeConfirm, setRevokeConfirm] = useState<string | null>(null);
@@ -72,29 +73,26 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
         scopes: selectedScopes.length > 0 ? selectedScopes : undefined,
       });
       try {
-        if (machineWanted) {
-          const { kdf } = await unlock(serverUrl, { email, password: machinePassword });
-          const { bytes } = await unwrapMasterKeyWithBytes(machinePassword, kdf);
-          // Extractable re-import: the wrap exports the master (the session
-          // working key is non-extractable by design — the recovery-code and
-          // change-password pattern).
-          const master = await importMasterKey(bytes, true);
-          const record = await buildMachineCustodyRecord(master, fullToken);
-          await installApiKeyCustody(serverUrl, token, apiKey.id, record);
-        }
+        const { kdf } = await unlock(serverUrl, { email, password: sealPassword });
+        const { bytes } = await unwrapMasterKeyWithBytes(sealPassword, kdf);
+        // Extractable re-import: the wrap exports the master (the session
+        // working key is non-extractable by design — the recovery-code and
+        // change-password pattern).
+        const master = await importMasterKey(bytes, true);
+        const record = await buildMachineCustodyRecord(master, fullToken);
+        await installApiKeyCustody(serverUrl, token, apiKey.id, record);
       } catch (custodyError) {
-        // The key EXISTS but is human — say so plainly, never pretend.
+        // The key EXISTS but carries no custody — say so plainly, never pretend.
         throw new Error(
           "key created WITHOUT custody (" +
             (custodyError instanceof Error ? custodyError.message : String(custodyError)) +
-            ") — it is not a machine key; revoke it and retry",
+            ") — it will need your password on encrypted workspaces; revoke it and retry",
         );
       }
       setFreshKey({ name, token: fullToken });
       setNewName("");
       setSelectedScopes([]);
-      setMachineWanted(false);
-      setMachinePassword("");
+      setSealPassword("");
       await refreshKeys();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -129,17 +127,21 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
     <section className="nt-settings-section">
       <h3 className="nt-settings-heading">API keys</h3>
       <p className="nt-settings-hint">
-        API keys let other clients (the CLI, GTK, Flutter) sign in as you without your
-        password. A key is shown once at creation — store it somewhere safe. Scopes
-        restrict what a key may touch; a machine key also carries custody and opens
-        encrypted workspaces alone.
+        API keys let other clients (the CLI, GTK, Flutter) sign in as you. A key is
+        shown once at creation — store it somewhere safe. Every key opens your
+        workspaces by itself (your password seals the key at creation; it is checked
+        like an unlock and never leaves the device). Scopes restrict what a key may
+        touch. Keys minted before custody existed are flagged — they need your
+        password on encrypted workspaces.
       </p>
       <ul className="nt-apikey-list">
         {keys.map((key) => (
           <li key={key.id} className={key.revokedAt !== null ? "nt-apikey nt-apikey-revoked" : "nt-apikey"}>
             <span className="nt-apikey-name">{key.name}</span>
             <span className="nt-apikey-badges">
-              {key.machine && <span className="nt-apikey-badge nt-apikey-badge-machine">machine</span>}
+              {!key.machine && key.revokedAt === null && (
+                <span className="nt-apikey-badge nt-apikey-badge-machine">password-gated (legacy)</span>
+              )}
               {key.scopes === null ? (
                 <span className="nt-apikey-badge">full access</span>
               ) : (
@@ -213,28 +215,21 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
             ))}
           </div>
         </fieldset>
-        <label className="nt-apikey-machine">
-          <input
-            type="checkbox"
-            checked={machineWanted}
-            onChange={(e) => setMachineWanted(e.target.checked)}
-          />
-          <span>
-            Machine key — opens encrypted workspaces without a password. Possession of this
-            key is possession of the content.
-          </span>
-        </label>
-        {machineWanted && (
-          <input
-            type="password"
-            value={machinePassword}
-            onChange={(e) => setMachinePassword(e.target.value)}
-            placeholder="Your password (seals the key — checked like an unlock, wrap stays on this device)"
-            autoComplete="off"
-            required
-          />
-        )}
-        <button type="submit" disabled={newName.trim() === "" || (machineWanted && machinePassword === "")}>
+        <p className="nt-apikey-seal-note">
+          Every key opens your workspaces by itself — including encrypted ones. Your
+          password seals the key at creation (checked like an unlock; the seal is built
+          on this device and the password is never stored). Possession of a key is
+          possession of what its scopes allow.
+        </p>
+        <input
+          type="password"
+          value={sealPassword}
+          onChange={(e) => setSealPassword(e.target.value)}
+          placeholder="Your password (seals the key)"
+          autoComplete="off"
+          required
+        />
+        <button type="submit" disabled={newName.trim() === "" || sealPassword === ""}>
           Create key
         </button>
       </form>

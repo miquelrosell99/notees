@@ -355,16 +355,10 @@
   color: var(--md-sys-color-on-primary-container);
 }
 
-.nt-apikey-machine {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-2);
+.nt-apikey-seal-note {
+  margin: 0;
   font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-apikey-machine input {
-  margin-top: 0.2em;
 }
 
 .nt-apikey-fresh {

@@ -338,6 +338,8 @@ describe("SettingsPage", () => {
   });
 
   it("manages API keys against the real endpoints in the Account section", async () => {
+    const { createKdfRecord, generateMasterKey } = await import("@notees/protocol");
+    const kdf = await createKdfRecord(await generateMasterKey(), "correct horse battery staple");
     interface Key {
       id: string;
       name: string;
@@ -372,6 +374,13 @@ describe("SettingsPage", () => {
           keys = [...keys, created];
           return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
         }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
+        }
         if (url.endsWith("/api/api-keys/k1") && method === "DELETE") {
           keys = keys.filter((k) => k.id !== "k1");
           return Response.json({ ok: true });
@@ -382,19 +391,28 @@ describe("SettingsPage", () => {
 
     renderPage({ section: "account" });
 
-    // Existing key listed with its full-access badge; the scope chips render.
+    // Existing key listed: legacy keys carry the password-gated badge; the
+    // scope chips render.
     expect(await screen.findByText("laptop CLI")).toBeInTheDocument();
+    expect(screen.getByText("password-gated (legacy)")).toBeInTheDocument();
     expect(screen.getByText("full access")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Read objects" })).toBeInTheDocument();
 
-    // Create a new key: POST /api-keys, secret shown once.
+    // Create a new key: password seals it (custody installed), secret shown once.
     fireEvent.change(screen.getByPlaceholderText(/key name/i), {
       target: { value: "desktop CLI" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
     });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
     expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
     expect(
       calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys")),
+    ).toBe(true);
+    // Custody installed under the same flow.
+    expect(
+      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys/k2/custody")),
     ).toBe(true);
 
     // Revoke the first key: inline confirmation, then DELETE.
@@ -407,6 +425,8 @@ describe("SettingsPage", () => {
   });
 
   it("scoped keys: chip selection posts the scope list and rows render scope badges", async () => {
+    const { createKdfRecord, generateMasterKey } = await import("@notees/protocol");
+    const kdf = await createKdfRecord(await generateMasterKey(), "correct horse battery staple");
     interface Key {
       id: string;
       name: string;
@@ -450,6 +470,13 @@ describe("SettingsPage", () => {
           keys = [...keys, created];
           return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
         }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
+        }
         return new Response("unexpected", { status: 500 });
       }),
     );
@@ -460,10 +487,14 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("Read objects")).toHaveLength(2);
     expect(screen.getAllByText("Export")).toHaveLength(2);
 
-    // Select two chips → create → the POST carries the scope list.
+    // Select two chips → create (with the seal password) → the POST carries
+    // the scope list.
     fireEvent.click(screen.getByRole("button", { name: "Read objects" }));
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "reader" } });
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
     await screen.findByText(/copy it now/i);
     const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
@@ -473,7 +504,7 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("machine keys: the checkbox reveals a password seal; a mint installs the custody wrap", async () => {
+  it("custody is the norm: a mint seals the key, legacy rows wear the password-gated badge", async () => {
     const {
       b64uDecode,
       createKdfRecord,
@@ -481,7 +512,6 @@ describe("SettingsPage", () => {
       generateMasterKey,
       importMasterKey,
       masterKeyFp,
-
       unwrapWorkspaceKey,
     } = await import("@notees/protocol");
     const master = await generateMasterKey();
@@ -494,7 +524,10 @@ describe("SettingsPage", () => {
       scopes: string[] | null;
       machine: boolean;
     }
-    let keys: Key[] = [{ id: "k1", name: "ci bot", scopes: null, machine: true }];
+    let keys: Key[] = [
+      { id: "k1", name: "ci bot", scopes: null, machine: true },
+      { id: "k0", name: "old key", scopes: null, machine: false },
+    ];
     const envelope = (k: Key) => ({
       id: k.id,
       userId: "u1",
@@ -533,15 +566,18 @@ describe("SettingsPage", () => {
     );
 
     renderPage({ section: "account" });
-    // The seeded machine key carries its badge.
+    // Custody-carrying keys wear no badge (the norm); the legacy one is flagged.
     expect(await screen.findByText("ci bot")).toBeInTheDocument();
-    expect(screen.getByText("machine")).toBeInTheDocument();
+    expect(screen.getByText("old key")).toBeInTheDocument();
+    expect(screen.getByText("password-gated (legacy)")).toBeInTheDocument();
+    expect(screen.queryByText("machine")).not.toBeInTheDocument();
 
-    // The checkbox is always available; checking reveals the password seal.
-    fireEvent.click(screen.getByRole("checkbox", { name: /machine key/i }));
-    const seal = screen.getByPlaceholderText(/seals the key/i);
-    fireEvent.change(seal, { target: { value: "correct horse battery staple" } });
+    // Mint: the seal password is required before submit is enabled.
     fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "ci bot 2" } });
+    expect(screen.getByRole("button", { name: /create key/i })).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
     expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
 
@@ -551,8 +587,8 @@ describe("SettingsPage", () => {
       email: "ada@example.com",
       password: "correct horse battery staple",
     });
-    // …and phase 2 installed a wrap that opens under a key derived from the
-    // once-shown token, reproducing the account master key.
+    // …and the installed wrap opens under a key derived from the once-shown
+    // token, reproducing the account master key.
     const install = calls.find((c) => c.url.endsWith("/api/api-keys/k2/custody"));
     expect(install).toBeDefined();
     const record = JSON.parse(String(install?.body)) as { salt: string; wrappedMaster: string };
@@ -562,9 +598,8 @@ describe("SettingsPage", () => {
     const reopened = await unwrapWorkspaceKey(machineKey, record.wrappedMaster);
     const reopenedBytes = new Uint8Array(await crypto.subtle.exportKey("raw", reopened as never));
     expect(masterKeyFp(reopenedBytes)).toBe(expectedFp);
-    // The re-listed row now carries the machine badge.
-    expect((await screen.findAllByText("machine")).length).toBeGreaterThanOrEqual(2);
   });
+
 
   it("signs out from the Account section", () => {
     stubFetch({});
