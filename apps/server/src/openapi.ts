@@ -332,6 +332,21 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     public: true,
     errors: ["validation_failed", "invalid_credentials", "account_locked", "rate_limited"],
   }],
+  ["post", "/api/auth/unlock", {
+    summary: "Email + password → the kdf record ONLY (no session is minted)",
+    description:
+      "The unlock re-prompt's password check: validates the password (same scrypt verify, per-IP rate limit and per-account lockout as login — it is a password oracle) and returns the password-derived key record so the client can re-derive the master key. The caller already holds a live credential, so NO session row is created.",
+    tags: ["Account"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["email", "password"],
+      properties: { email: { type: "string" }, password: { type: "string" } },
+    },
+    public: true,
+    success: { description: "{ kdf } — the password-derived key record; no token, no session" },
+    errors: ["validation_failed", "invalid_credentials", "account_locked", "rate_limited"],
+  }],
   ["post", "/api/auth/logout", {
     summary: "Revoke the current session (session token required)",
     tags: ["Account"],

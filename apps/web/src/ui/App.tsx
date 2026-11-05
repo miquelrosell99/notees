@@ -48,7 +48,7 @@ import {
   rememberWorkspaceName,
   rememberedWorkspaceList,
 } from "@/core/workspace-registry.js";
-import { login, logout } from "@/core/auth-api.js";
+import { logout, unlock } from "@/core/auth-api.js";
 import { deriveMasterKey } from "@/core/crypto-custody.js";
 import { clearCryptoCustody } from "@/core/crypto-custody.js";
 
@@ -813,16 +813,16 @@ export function App() {
         const request = unlockRequest;
         if (request === null) return;
         if (user === null) throw new Error("No account email in this session.");
-        // Re-login for a fresh kdf record, re-derive the master key into the
-        // custody slot, then re-open with the FRESH session token — the
-        // re-login is what upgrades an API-key refusal into a sealed open.
-        const response = await login(serverUrl, { email: user.email, password });
+        // The unlock endpoint validates the password and returns ONLY the
+        // kdf record — no session is minted (the old login-based flow left
+        // an unused session row per unlock). The master key re-derives into
+        // the custody slot and the open re-rides the EXISTING credential.
+        const response = await unlock(serverUrl, { email: user.email, password });
         await deriveMasterKey(password, response.kdf);
-        setToken(response.token);
         setUnlockRequest(null);
-        await connect(serverUrl, response.token, request.workspaceId, {
+        await connect(request.url, request.credential, request.workspaceId, {
           isOffline: false,
-          credentialType: "session",
+          credentialType: request.credentialType,
           label: request.name,
         });
       }}

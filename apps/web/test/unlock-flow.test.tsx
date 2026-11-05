@@ -74,6 +74,10 @@ function loginResponse() {
 function makeFetchMock() {
   // Relay traffic counter: a refused open must produce NONE of these.
   let relayCalls = 0;
+  // Unlock-endpoint counter: the re-prompt must ride /auth/unlock, never
+  // /auth/login (which would mint an unused session per unlock).
+  let unlockCalls = 0;
+  let loginCallsAfterSetup = 0;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
@@ -102,11 +106,21 @@ function makeFetchMock() {
       return Response.json({ wrappedKey });
     }
     if (url.endsWith("/api/auth/login") && method === "POST") {
+      loginCallsAfterSetup += 1;
       const body = JSON.parse(String(init!.body)) as { password: string };
       if (body.password !== PASSWORD) {
         return Response.json({ error: { message: "Invalid credentials." } }, { status: 401 });
       }
       return Response.json(loginResponse());
+    }
+    if (url.endsWith("/api/auth/unlock") && method === "POST") {
+      unlockCalls += 1;
+      const body = JSON.parse(String(init!.body)) as { password: string };
+      if (body.password !== PASSWORD) {
+        return Response.json({ error: { message: "Invalid credentials." } }, { status: 401 });
+      }
+      // The endpoint's contract: the kdf record ONLY — no token, no session.
+      return Response.json({ kdf });
     }
     if (url.includes("/api/relay/v2/snapshot?")) {
       relayCalls += 1;
@@ -137,11 +151,17 @@ function makeFetchMock() {
     }
     throw new Error(`unexpected fetch: ${method} ${url}`);
   });
-  return { fetchMock, relayCalls: () => relayCalls };
+  return {
+    fetchMock,
+    relayCalls: () => relayCalls,
+    unlockCalls: () => unlockCalls,
+    loginCalls: () => loginCallsAfterSetup,
+  };
 }
 
 async function setupAccountAndOpenKeyed() {
-  const { fetchMock, relayCalls } = makeFetchMock();
+  const counters = makeFetchMock();
+  const { fetchMock } = counters;
   window.NOTEES_CONFIG = { serverUrl: SERVER, e2ee: "on" };
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
@@ -160,7 +180,7 @@ async function setupAccountAndOpenKeyed() {
 
   // Simulate the reload: the session token persists, the master key drops.
   clearCryptoCustody();
-  return { relayCalls };
+  return counters;
 }
 
 describe("UnlockWorkspaceModal", () => {
@@ -244,7 +264,7 @@ describe("fail-loud open (App level)", () => {
   });
 
   it("the right password re-derives the master key and opens the workspace sealed", async () => {
-    const { relayCalls } = await setupAccountAndOpenKeyed();
+    const { relayCalls, unlockCalls, loginCalls } = await setupAccountAndOpenKeyed();
     fireEvent.click(await screen.findByRole("button", { name: "Open Keyed" }));
     const dialog = await screen.findByRole("dialog");
 
@@ -256,5 +276,10 @@ describe("fail-loud open (App level)", () => {
     expect(await screen.findByText("KEYED")).toBeInTheDocument();
     // This time the engine DID sync.
     await waitFor(() => expect(relayCalls()).toBeGreaterThan(0));
+    // The unlock hygiene: the re-prompt rode /auth/unlock (kdf only), never
+    // /auth/login (which would have minted an unused session). The one login
+    // call on record is the initial account setup.
+    expect(unlockCalls()).toBe(1);
+    expect(loginCalls()).toBe(0);
   });
 });

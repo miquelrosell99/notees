@@ -668,6 +668,63 @@ describe("api keys", () => {
   });
 });
 
+describe("POST /auth/unlock", () => {
+  it("a good password returns the kdf record only — no token, no session row", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const sessionsBefore = server.ctx.auth.sessionCount();
+
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/unlock",
+      payload: { email: "admin@example.com", password: "admin-password-1" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().kdf).toMatchObject({ algorithm: "scrypt" });
+    expect(res.json().kdf.wrappedMasterKey).toBeDefined();
+    expect(res.json().kdf.keyVerifier).toBeDefined();
+    // The hygiene contract: kdf ONLY — no token field, sessions untouched.
+    expect(res.json().token).toBeUndefined();
+    expect(server.ctx.auth.sessionCount()).toBe(sessionsBefore);
+  });
+
+  it("a bad password yields 401 without minting anything", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const sessionsBefore = server.ctx.auth.sessionCount();
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/unlock",
+      payload: { email: "admin@example.com", password: "wrong-password" },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe("invalid_credentials");
+    expect(server.ctx.auth.sessionCount()).toBe(sessionsBefore);
+  });
+
+  it("feeds the SAME per-account lockout as login (it is a password oracle)", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const bad = { email: "admin@example.com", password: "wrong-password" };
+    // Failures 1–4 answer 401; the 5th crosses the threshold and answers 429 —
+    // exactly the login arms.
+    for (let i = 0; i < 4; i += 1) {
+      const response = await server.app.inject({ method: "POST", url: "/api/auth/unlock", payload: bad });
+      expect(response.statusCode).toBe(401);
+    }
+    const fifth = await server.app.inject({ method: "POST", url: "/api/auth/unlock", payload: bad });
+    expect(fifth.statusCode).toBe(429);
+    expect(fifth.json().error.code).toBe("account_locked");
+    // And the lockout is SHARED: an immediately following login is refused too.
+    const login = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "admin@example.com", password: "admin-password-1" },
+    });
+    expect(login.statusCode).toBe(429);
+  });
+});
+
 describe("per-account lockout", () => {
   it("locks after 5 failures for 15 minutes, even with the right password", async () => {
     server = await makeTestServer();
