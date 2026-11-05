@@ -27,6 +27,18 @@ pnpm typecheck  # tsc --noEmit
 
 The UI laws (compose from `apps/web/src/components/ui/kit/`, token-only CSS, adaptive values) live in `AGENTS.md`; the full catalog is in the notees-sync repo's `docs/developers/ui-primitives.md`.
 
+## Desktop (Tauri)
+
+The web client also builds as a desktop app through the Tauri v2 shell in `src-tauri/` — a minimal single-window host (no native commands; the web boot flow handles server URL + login, and the store rides sql.js/OPFS in the webview). Prerequisite: a Rust toolchain ([rustup](https://rustup.rs/)).
+
+```bash
+pnpm install          # also fetches the pinned @tauri-apps/cli
+pnpm tauri:dev        # vite dev server + the shell against it (still needs a sync server on :8377)
+pnpm tauri:build      # production web build + installers → src-tauri/target/release/bundle/
+```
+
+Installers are **unsigned** (no code signing configured) — fine for the self-hosted audience; expect OS warnings on first install. CI (`.github/workflows/desktop.yml`) builds Windows (.msi) + macOS (.dmg) installers on `v*` tags and uploads them as release artifacts. Regenerate the icon set with `pnpm tauri icon <source-png>` after a brand change.
+
 ## Docker
 
 The `notees-web` image builds from this repo's root (the build context must carry the initialized `vendor/notees` submodule):
@@ -43,4 +55,5 @@ CI publishes `:nightly` (scheduled) and release tags (`v*` tag push) to ghcr; se
 - `docs/` — the person-facing documentation (front door, getting started, one page per feature under `features/`, the `workflows/` convention docs); the developers runbooks live in the notees-sync repo under `docs/developers/`
 - `brand/` — the brand submodule (design tokens/assets; `src/ui/variables.css` references it)
 - `vendor/notees` — pinned notees-sync checkout (the core packages)
+- `src-tauri/` — the Tauri v2 desktop shell (a build target for the web client; see "Desktop (Tauri)")
 - `CHANGELOG.md` — the shipped-work record
