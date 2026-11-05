@@ -1,0 +1,4 @@
+# Rust build output — never committed
+/target/
+# Mobile scaffolding output (none today; reserved for a future mobile target)
+/gen/

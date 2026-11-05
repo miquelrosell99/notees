@@ -9,10 +9,13 @@
   "scripts": {
     "test": "pnpm --filter @notees/web test",
     "typecheck": "pnpm --filter @notees/web typecheck",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
     "build": "pnpm -r --workspace-concurrency=1 build",
     "release": "pnpm -r --filter \"./vendor/notees/packages/*\" build && pnpm -r --filter \"./vendor/notees/packages/*\" publish"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "2.12.4",
     "tsup": "^8.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
