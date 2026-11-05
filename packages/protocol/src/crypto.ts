@@ -122,6 +122,24 @@ export interface KdfRecord {
   salt: string;
   wrappedMasterKey: string;
   keyVerifier: string;
+  /**
+   * b64u(HMAC-SHA256(masterKey, "notees-key-fp")) — a non-secret fingerprint
+   * proving WHICH master key a record wraps. Lets the password-change route
+   * verify the NEW record wraps the SAME master key before installing it
+   * (without the fp, a mistyped new password would lock every other device
+   * out). Absent on legacy records (pre-2026-11-05): the server accepts those
+   * but cannot verify key sameness.
+   */
+  keyFp?: string;
+}
+
+/**
+ * The key fingerprint for raw master bytes (HMAC-SHA256(key=master,
+ * message="notees-key-fp"), b64u). Non-secret by construction — an HMAC tag
+ * reveals nothing about the key without the key.
+ */
+export function masterKeyFp(masterBytes: Uint8Array): string {
+  return b64uEncode(hmac(sha256, masterBytes, utf8ToBytes("notees-key-fp")));
 }
 
 function scryptKeyBytes(password: string, salt: Uint8Array): Uint8Array {
@@ -151,13 +169,34 @@ export async function createKdfRecord(
     await crypto.subtle.wrapKey("raw", masterKey, wrapKey, { name: "AES-GCM", iv: iv as BufferSource }),
   );
   const { ct, tag } = splitCtTag(sealed);
+  // The key fingerprint rides along so a password change can be verified to
+  // wrap the SAME master key. exportKey requires the master to be
+  // extractable (generateMasterKey's are; the change-password flow re-imports
+  // the bytes extractable for exactly this).
+  const masterBytes = new Uint8Array(await crypto.subtle.exportKey("raw", masterKey));
   return {
     algorithm: "scrypt",
     ...SCRYPT_PARAMS,
     salt: b64uEncode(salt),
     wrappedMasterKey: b64uEncode(joinIvTagCt(iv, tag, ct)),
     keyVerifier: b64uEncode(keyVerifierOf(wrapKeyBytes)),
+    keyFp: masterKeyFp(masterBytes),
   };
+}
+
+/**
+ * Re-import raw master-key bytes (the change-password flow's only sanctioned
+ * export — the bytes exist transiently to build the new record). Defaults
+ * non-extractable; pass extractable ONLY when a fingerprint/wrap needs the
+ * material.
+ */
+export function importMasterKey(bytes: Uint8Array, extractable = false): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", bytes as BufferSource, { name: "AES-GCM", length: 256 }, extractable, [
+    "encrypt",
+    "decrypt",
+    "wrapKey",
+    "unwrapKey",
+  ]);
 }
 
 /**

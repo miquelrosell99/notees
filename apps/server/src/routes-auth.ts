@@ -52,6 +52,27 @@ const loginBodySchema = z
   .object({ email: emailSchema, password: z.string().min(1).max(256) })
   .strict();
 
+const kdfRecordSchema = z
+  .object({
+    algorithm: z.literal("scrypt"),
+    N: z.number().int().positive(),
+    r: z.number().int().positive(),
+    p: z.number().int().positive(),
+    salt: z.string().min(1),
+    wrappedMasterKey: z.string().min(1),
+    keyVerifier: z.string().min(1),
+    /** Required here: the route must be able to prove the new record wraps the SAME master key. */
+    keyFp: z.string().min(1),
+  })
+  .strict();
+
+const changePasswordBodySchema = z
+  .object({ currentPassword: z.string().min(1).max(256), newKdfRecord: kdfRecordSchema })
+  .strict();
+
+/** Log-once latch for the legacy (pre-keyFp) records at change-password. */
+let legacyKeyFpWarned = false;
+
 const setupBodySchema = z
   .object({
     email: emailSchema,
@@ -416,6 +437,47 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     // Deliberately NO createSession: sessions table stays untouched.
     const kdf = await ctx.auth.ensureKdfRecord(user.id, parsed.data.password);
     return { kdf };
+  });
+
+  app.post("/auth/change-password", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    const parsed = changePasswordBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid change-password request");
+    }
+    const { currentPassword, newKdfRecord } = parsed.data;
+    const row = ctx.auth.findUserById(principal.userId);
+    const ok = await verifyPassword(currentPassword, row?.passwordHash ?? ctx.dummyPasswordHash);
+    if (row === null || !ok) {
+      throw new AppError(401, "invalid_credentials", "current password is incorrect");
+    }
+    const stored = ctx.auth.getKdfRecord(principal.userId);
+    if (stored === null) {
+      throw new AppError(422, "validation_failed", "no key record on file — sign in with your password once, then retry");
+    }
+    // The sameness gate: the new record must wrap the SAME master key. A
+    // mistyped new password produces a record wrapping a FRESH random key —
+    // installing it would lock every other device out of the workspace keys,
+    // unrecoverably. Fail loud instead.
+    if (stored.keyFp !== undefined && newKdfRecord.keyFp !== stored.keyFp) {
+      throw new AppError(
+        422,
+        "validation_failed",
+        "the new password record wraps a DIFFERENT key — refusing to install it. Re-run the change from a signed-in device.",
+      );
+    }
+    if (stored.keyFp === undefined && !legacyKeyFpWarned) {
+      legacyKeyFpWarned = true;
+      console.warn(
+        "[notees-auth] change-password: the stored key record predates key fingerprints — " +
+          "cannot verify key sameness; accepting. Sign in once more to backfill a fingerprint.",
+      );
+    }
+    ctx.auth.replaceKdfRecord(principal.userId, newKdfRecord);
+    // Sessions and API keys stay valid — the master key is unchanged, only
+    // its password wrap moved. Other devices learn the new password at next
+    // unlock.
+    return { ok: true };
   });
 
   app.post("/auth/login", async (request) => {

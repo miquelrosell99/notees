@@ -175,7 +175,11 @@ CREATE TABLE IF NOT EXISTS "user" (
     kdf_r INTEGER,
     kdf_p INTEGER,
     wrapped_master_key TEXT,
-    key_verifier TEXT
+    key_verifier TEXT,
+    -- b64u(HMAC-SHA256(master, "notees-key-fp")) — non-secret fingerprint the
+    -- change-password route compares so a new record must wrap the SAME
+    -- master key. NULL on legacy records (accepted unverifiably, log-once).
+    kdf_key_fp TEXT
 );
 CREATE TABLE IF NOT EXISTS session (
     token_hash TEXT PRIMARY KEY,
@@ -337,6 +341,8 @@ export interface KdfRecord {
   salt: string;
   wrappedMasterKey: string;
   keyVerifier: string;
+  /** b64u(HMAC-SHA256(master, "notees-key-fp")) — absent on legacy records. */
+  keyFp?: string;
 }
 
 async function deriveKey(password: string, salt: Buffer, N: number, r: number, p: number): Promise<Buffer> {
@@ -363,6 +369,9 @@ export async function createKdfRecord(password: string): Promise<KdfRecord> {
     salt: salt.toString("base64url"),
     wrappedMasterKey: Buffer.concat([iv, tag, ciphertext]).toString("base64url"),
     keyVerifier: verifier.toString("base64url"),
+    // The non-secret master fingerprint (protocol's masterKeyFp formula —
+    // the change-password route compares it against the stored record).
+    keyFp: createHmac("sha256", masterKey).update("notees-key-fp").digest().toString("base64url"),
   };
 }
 
@@ -444,6 +453,7 @@ export class AuthStorage {
       ["kdf_p", "INTEGER"],
       ["wrapped_master_key", "TEXT"],
       ["key_verifier", "TEXT"],
+      ["kdf_key_fp", "TEXT"],
     ];
     for (const [name, type] of additions) {
       if (!columns.has(name)) {
@@ -794,7 +804,7 @@ export class AuthStorage {
   getKdfRecord(userId: string): KdfRecord | null {
     const row = this.db
       .prepare(
-        `SELECT kdf_salt, kdf_n, kdf_r, kdf_p, wrapped_master_key, key_verifier
+        `SELECT kdf_salt, kdf_n, kdf_r, kdf_p, wrapped_master_key, key_verifier, kdf_key_fp
          FROM "user" WHERE id = ?`,
       )
       .get(userId) as
@@ -805,6 +815,7 @@ export class AuthStorage {
           kdf_p: number | null;
           wrapped_master_key: string | null;
           key_verifier: string | null;
+          kdf_key_fp: string | null;
         }
       | undefined;
     if (
@@ -826,7 +837,27 @@ export class AuthStorage {
       salt: row.kdf_salt,
       wrappedMasterKey: row.wrapped_master_key,
       keyVerifier: row.key_verifier,
+      ...(row.kdf_key_fp !== null ? { keyFp: row.kdf_key_fp } : {}),
     };
+  }
+
+  /** Install a replacement kdf record (password change / recovery redeem). */
+  replaceKdfRecord(userId: string, record: KdfRecord): void {
+    this.db
+      .prepare(
+        `UPDATE "user" SET kdf_salt = ?, kdf_n = ?, kdf_r = ?, kdf_p = ?,
+                wrapped_master_key = ?, key_verifier = ?, kdf_key_fp = ? WHERE id = ?`,
+      )
+      .run(
+        record.salt,
+        record.N,
+        record.r,
+        record.p,
+        record.wrappedMasterKey,
+        record.keyVerifier,
+        record.keyFp ?? null,
+        userId,
+      );
   }
 
   /** Remove a workspace and all its membership rows (owner-initiated delete). */
@@ -869,12 +900,7 @@ export class AuthStorage {
     const existing = this.getKdfRecord(userId);
     if (existing !== null) return existing;
     const record = await createKdfRecord(password);
-    this.db
-      .prepare(
-        `UPDATE "user" SET kdf_salt = ?, kdf_n = ?, kdf_r = ?, kdf_p = ?,
-                wrapped_master_key = ?, key_verifier = ? WHERE id = ?`,
-      )
-      .run(record.salt, record.N, record.r, record.p, record.wrappedMasterKey, record.keyVerifier, userId);
+    this.replaceKdfRecord(userId, record);
     return record;
   }
 
