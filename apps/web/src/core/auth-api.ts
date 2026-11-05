@@ -319,8 +319,8 @@ export function createWorkspace(serverUrl: string, token: string, name?: string)
 
 /**
  * The scope vocabulary the server's enforcement understands (`scopes.ts`),
- * with human labels for the settings UI. An EMPTY selection means full
- * access (the key is created without a scope list — the unrestricted default).
+ * with human labels for the settings UI. ALL selected = full access (the
+ * key is created without a scope list); unchecking withholds a permission.
  */
 export const API_SCOPES: Array<{ id: string; label: string }> = [
   { id: "objects.read", label: "Read objects" },
@@ -364,7 +364,8 @@ export function createApiKey(
       method: "POST",
       body: JSON.stringify({
         name,
-        // An empty selection keeps the unrestricted default (omit the key).
+        // All-on keeps the unrestricted default (omit the key); a partial
+        // selection sends the allow-list.
         ...(options.scopes !== undefined && options.scopes.length > 0 ? { scopes: options.scopes } : {}),
       }),
     },

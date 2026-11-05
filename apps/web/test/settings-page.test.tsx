@@ -412,9 +412,10 @@ describe("SettingsPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
     expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
-    expect(
-      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys")),
-    ).toBe(true);
+    const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
+    expect(create).toBeDefined();
+    // The default is every permission on → full access: no scope list rides.
+    expect(JSON.parse(String(create?.body))).toEqual({ name: "desktop CLI" });
     // Custody installed under the same flow.
     expect(
       calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys/k2/custody")),
@@ -493,10 +494,10 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("Read objects")).toHaveLength(2);
     expect(screen.getAllByText("Export")).toHaveLength(2);
 
-    // Select two chips → create (with the seal password) → the POST carries
-    // the scope list.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Read objects" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Search" }));
+    // Every permission starts on (full access). Uncheck two → create (with
+    // the seal password) → the POST carries the remaining allow-list.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Admin" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Upload assets" }));
     fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "reader" } });
     fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
       target: { value: "correct horse battery staple" },
@@ -506,7 +507,7 @@ describe("SettingsPage", () => {
     const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
     expect(JSON.parse(String(create?.body))).toEqual({
       name: "reader",
-      scopes: ["objects.read", "search"],
+      scopes: ["objects.read", "objects.write", "objects.delete", "assets.read", "search", "export"],
     });
   });
 

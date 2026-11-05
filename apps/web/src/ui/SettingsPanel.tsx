@@ -25,13 +25,18 @@ import { buildMachineCustodyRecord } from "@/core/machine-key.js";
 import { importMasterKey, unwrapMasterKeyWithBytes } from "@notees/protocol";
 
 import { Modal } from "../components/ui/kit/Modal.js";
+import { Checkbox } from "../components/ui/kit/Checkbox.js";
 
 export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
   const [keys, setKeys] = useState<ApiKeyEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
-  /** Empty = full access (the key is created without a scope list). */
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  /**
+   * The ACL grant. Every permission starts enabled — all-on is the full
+   * access default (the key is created without a scope list); unchecking
+   * withholds a permission (403 scope_denied on the wire).
+   */
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(API_SCOPES.map((scope) => scope.id));
   /**
    * Every key carries custody: the wrap is installed at mint, sealed with
    * `sealPassword` (the master for the wrap is re-derived from it at that
@@ -69,8 +74,11 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
     setError(null);
     const name = newName.trim();
     try {
+      // All-on IS the full-access default — the key is created without a
+      // scope list; a partial selection sends the allow-list.
+      const allOn = selectedScopes.length === API_SCOPES.length;
       const { apiKey, token: fullToken } = await createApiKey(serverUrl, token, name, {
-        scopes: selectedScopes.length > 0 ? selectedScopes : undefined,
+        scopes: allOn ? undefined : selectedScopes,
       });
       try {
         const { kdf } = await unlock(serverUrl, { email, password: sealPassword });
@@ -91,7 +99,7 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
       }
       setFreshKey({ name, token: fullToken });
       setNewName("");
-      setSelectedScopes([]);
+      setSelectedScopes(API_SCOPES.map((scope) => scope.id));
       setSealPassword("");
       await refreshKeys();
     } catch (err) {
@@ -218,15 +226,15 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
                 <tr key={scope.id}>
                   <td>{scope.label}</td>
                   <td className="nt-apikey-acl-check">
-                    <input
-                      type="checkbox"
+                    <Checkbox
+                      size="md"
                       aria-label={scope.label}
                       checked={selectedScopes.includes(scope.id)}
-                      onChange={() =>
+                      onChange={(checked) =>
                         setSelectedScopes((current) =>
-                          current.includes(scope.id)
-                            ? current.filter((entry) => entry !== scope.id)
-                            : [...current, scope.id],
+                          checked
+                            ? [...current, scope.id]
+                            : current.filter((entry) => entry !== scope.id),
                         )
                       }
                     />
@@ -236,10 +244,10 @@ export function ApiKeysSection({ serverUrl, token, email }: { serverUrl: string;
             </tbody>
           </table>
           <p className="nt-apikey-seal-note">
-            All unchecked = full access. Every key opens your workspaces by itself —
-            including encrypted ones; the seal is built on this device and the password is
-            never stored. Possession of a key is possession of what its checked permissions
-            allow.
+            All permissions on = full access. Uncheck what this key may not do — an
+            unchecked permission is refused (403). Every key opens your workspaces by
+            itself, including encrypted ones; the seal is built on this device and the
+            password is never stored.
           </p>
         </fieldset>
         <button type="submit" disabled={newName.trim() === "" || sealPassword === ""}>
