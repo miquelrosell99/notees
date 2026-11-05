@@ -121,6 +121,26 @@ export function login(serverUrl: string, input: { email: string; password: strin
   });
 }
 
+export interface UnlockResponse {
+  /**
+   * The password-derived key record ONLY — the endpoint mints no session
+   * (the unlock re-prompt reuses the caller's live credential).
+   */
+  kdf: LoginResponse["kdf"];
+}
+
+/**
+ * The unlock re-prompt's password check: validates the password (same
+ * rate limits and lockout as login — it is a password oracle) and returns
+ * the kdf record for the master-key re-derivation. No token, no session.
+ */
+export function unlock(serverUrl: string, input: { email: string; password: string }): Promise<UnlockResponse> {
+  return request<UnlockResponse>(serverUrl, "/auth/unlock", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 /** Open registration — only exists when the server's signup flag is on (404 otherwise). */
 export function signup(
   serverUrl: string,
