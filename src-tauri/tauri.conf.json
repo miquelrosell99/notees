@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm --filter @notees/web dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm --filter @notees/web build",
+    "beforeBuildCommand": "pnpm --filter @notees/web... build",
     "frontendDist": "../apps/web/dist"
   },
   "app": {
