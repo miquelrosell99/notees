@@ -70,8 +70,57 @@ const changePasswordBodySchema = z
   .object({ currentPassword: z.string().min(1).max(256), newKdfRecord: kdfRecordSchema })
   .strict();
 
+const recoveryRecordsSchema = z
+  .object({
+    records: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(256),
+            salt: z.string().min(1).max(256),
+            wrappedRecovery: z.string().min(1).max(8192),
+            verifier: z.string().min(1).max(256),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(50),
+  })
+  .strict();
+
+const recoveryRedeemBodySchema = z
+  .object({ id: z.string().min(1).max(256), verifier: z.string().min(1).max(256), newKdfRecord: kdfRecordSchema })
+  .strict();
+
 /** Log-once latch for the legacy (pre-keyFp) records at change-password. */
 let legacyKeyFpWarned = false;
+
+/**
+ * The keyFp sameness gate shared by change-password and the recovery redeem:
+ * the new record must wrap the SAME master key — a mistyped new password
+ * produces a record wrapping a FRESH random key, and installing it would lock
+ * every other device out, unrecoverably. Fail loud instead.
+ */
+function assertNewRecordWrapsSameMaster(ctx: ServerContext, userId: string, newKeyFp: string): void {
+  const stored = ctx.auth.getKdfRecord(userId);
+  if (stored === null) {
+    throw new AppError(422, "validation_failed", "no key record on file — sign in with your password once, then retry");
+  }
+  if (stored.keyFp !== undefined && newKeyFp !== stored.keyFp) {
+    throw new AppError(
+      422,
+      "validation_failed",
+      "the new password record wraps a DIFFERENT key — refusing to install it. Re-run the change from a signed-in device.",
+    );
+  }
+  if (stored.keyFp === undefined && !legacyKeyFpWarned) {
+    legacyKeyFpWarned = true;
+    console.warn(
+      "[notees-auth] password change: the stored key record predates key fingerprints — " +
+        "cannot verify key sameness; accepting. Sign in once more to backfill a fingerprint.",
+    );
+  }
+}
 
 const setupBodySchema = z
   .object({
@@ -451,32 +500,72 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     if (row === null || !ok) {
       throw new AppError(401, "invalid_credentials", "current password is incorrect");
     }
-    const stored = ctx.auth.getKdfRecord(principal.userId);
-    if (stored === null) {
-      throw new AppError(422, "validation_failed", "no key record on file — sign in with your password once, then retry");
-    }
-    // The sameness gate: the new record must wrap the SAME master key. A
-    // mistyped new password produces a record wrapping a FRESH random key —
-    // installing it would lock every other device out of the workspace keys,
-    // unrecoverably. Fail loud instead.
-    if (stored.keyFp !== undefined && newKdfRecord.keyFp !== stored.keyFp) {
-      throw new AppError(
-        422,
-        "validation_failed",
-        "the new password record wraps a DIFFERENT key — refusing to install it. Re-run the change from a signed-in device.",
-      );
-    }
-    if (stored.keyFp === undefined && !legacyKeyFpWarned) {
-      legacyKeyFpWarned = true;
-      console.warn(
-        "[notees-auth] change-password: the stored key record predates key fingerprints — " +
-          "cannot verify key sameness; accepting. Sign in once more to backfill a fingerprint.",
-      );
-    }
+    assertNewRecordWrapsSameMaster(ctx, principal.userId, newKdfRecord.keyFp);
     ctx.auth.replaceKdfRecord(principal.userId, newKdfRecord);
     // Sessions and API keys stay valid — the master key is unchanged, only
     // its password wrap moved. Other devices learn the new password at next
     // unlock.
+    return { ok: true };
+  });
+
+  app.post("/auth/recovery-codes", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    const parsed = recoveryRecordsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid recovery-codes request");
+    }
+    // Opaque wraps only — the server never sees the codes, the recovery key,
+    // or the master key. Generating a set REVOKES the previous one.
+    ctx.auth.replaceRecoveryCodes(principal.userId, parsed.data.records);
+    return { ok: true, count: parsed.data.records.length };
+  });
+
+  app.get("/auth/recovery-codes", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    return { codes: ctx.auth.listRecoveryCodes(principal.userId) };
+  });
+
+  app.get("/auth/recovery/:id", async (request) => {
+    const { id } = request.params as { id: string };
+    const record = ctx.auth.getRecoveryCode(id);
+    if (record === null) {
+      throw new AppError(404, "not_found", "unknown or already-used recovery code");
+    }
+    // The salt + wrapped master are not secret (the wrap is AES-GCM under a
+    // key only the code derives). The VERIFIER stays server-side — it is the
+    // redeem-time proof the code was entered.
+    return { salt: record.salt, wrappedRecovery: record.wrappedRecovery };
+  });
+
+  app.post("/auth/redeem-recovery", async (request) => {
+    // Public by design — the caller is locked out. The login limiter guards
+    // the verifier oracle, exactly like a password check.
+    if (!ctx.limiters.login.tryAcquire(`login:${request.ip}`, 1, ctx.config.loginPerMinute)) {
+      throw new AppError(
+        429,
+        "rate_limited",
+        `too many login attempts (max ${ctx.config.loginPerMinute}/min)`,
+      );
+    }
+    const parsed = recoveryRedeemBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid recovery redeem request");
+    }
+    const { id, verifier, newKdfRecord } = parsed.data;
+    const record = ctx.auth.getRecoveryCode(id);
+    if (record === null) {
+      throw new AppError(404, "not_found", "unknown or already-used recovery code");
+    }
+    // A wrong code is a 401 and the record is NOT burned — a typo must not
+    // cost a one-time code.
+    if (record.verifier !== verifier) {
+      throw new AppError(401, "invalid_credentials", "invalid recovery code");
+    }
+    // The sameness gate (same master key) then burn + install: the code is
+    // one-time; the new password rewraps the SAME master key.
+    assertNewRecordWrapsSameMaster(ctx, record.userId, newKdfRecord.keyFp);
+    ctx.auth.deleteRecoveryCode(id);
+    ctx.auth.replaceKdfRecord(record.userId, newKdfRecord);
     return { ok: true };
   });
 

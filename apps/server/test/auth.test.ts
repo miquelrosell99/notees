@@ -12,6 +12,18 @@ import { join } from "node:path";
 import { unzipSync } from "fflate";
 import { afterEach, describe, expect, it } from "vitest";
 
+import {
+  b64uEncode,
+  createKdfRecord,
+  deriveRecoveryKey,
+  generateMasterKey,
+  importMasterKey,
+  recoveryCodeIdOf,
+  recoveryKeyVerifierOf,
+  unwrapMasterKeyWithBytes,
+  wrapWorkspaceKey,
+} from "@notees/protocol";
+
 import { chainNodeIds, SYSTEM_PAGE_UUIDS } from "@notees/domain";
 
 import { hashPassword } from "../src/auth.js";
@@ -844,6 +856,170 @@ describe("POST /auth/change-password", () => {
       payload: { currentPassword: "x", newKdfRecord: newRecord("QUJDREVGRw") },
     });
     expect(operator.statusCode).toBe(401);
+  });
+});
+
+describe("recovery codes", () => {
+  /** Build a REAL opaque record wrapping `masterBytes` under `code` (client-side recipe). */
+  async function buildCode(masterBytes: Uint8Array, code: string) {
+    const salt = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(salt);
+    const recoveryKeyBytes = deriveRecoveryKey(code, salt);
+    const recoveryKey = await importMasterKey(recoveryKeyBytes);
+    const master = await importMasterKey(masterBytes, true);
+    const wrappedRecovery = await wrapWorkspaceKey(recoveryKey, master);
+    return {
+      code,
+      record: {
+        id: recoveryCodeIdOf(code),
+        salt: b64uEncode(salt),
+        wrappedRecovery,
+        verifier: b64uEncode(recoveryKeyVerifierOf(recoveryKeyBytes)),
+      },
+    };
+  }
+
+  async function install(records: unknown[], token: string) {
+    return server!.app.inject({
+      method: "POST",
+      url: "/api/auth/recovery-codes",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { records },
+    });
+  }
+
+  it("full round-trip: install → list → fetch → redeem burns the code and installs the new password record", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const userId = setup.json().user.id as string;
+    const oldSalt = (setup.json().kdf as { salt: string }).salt;
+    // The real master, unwrapped client-side the way the app does it.
+    const { bytes: masterBytes } = await unwrapMasterKeyWithBytes(
+      "admin-password-1",
+      setup.json().kdf,
+    );
+
+    const codes = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => buildCode(masterBytes, `testcode-${i}-abcdef`)),
+    );
+    const installed = await install(codes.map((c) => c.record), token);
+    expect(installed.statusCode).toBe(200);
+    expect(installed.json().count).toBe(8);
+
+    const listed = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/recovery-codes",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json().codes).toHaveLength(8);
+    // The listing exposes ids + stamps ONLY — no code material.
+    expect(Object.keys(listed.json().codes[0]).sort()).toEqual(["createdAt", "id"]);
+
+    // The public fetch carries the salt + wrap, NEVER the verifier (and the
+    // plaintext code appears nowhere).
+    const victim = codes[3]!;
+    const fetched = await server.app.inject({ method: "GET", url: `/api/auth/recovery/${victim.record.id}` });
+    expect(fetched.statusCode).toBe(200);
+    expect(Object.keys(fetched.json()).sort()).toEqual(["salt", "wrappedRecovery"]);
+    expect(fetched.json().verifier).toBeUndefined();
+    expect(JSON.stringify(fetched.json())).not.toContain(victim.code);
+
+    // Redeem: a client-side new record wrapping the SAME master under the new
+    // password (its keyFp matches the stored one by construction).
+    const newKdf = await createKdfRecord(await importMasterKey(masterBytes, true), "new-password-1");
+    const redeem = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/redeem-recovery",
+      payload: { id: victim.record.id, verifier: victim.record.verifier, newKdfRecord: newKdf },
+    });
+    expect(redeem.statusCode).toBe(200);
+    // The code is BURNED and the new record installed (same key, new wrap).
+    const after = server.ctx.auth.getKdfRecord(userId)!;
+    expect(after.salt).not.toBe(oldSalt);
+    expect(after.keyFp).toBe(setup.json().kdf.keyFp);
+    const relisted = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/recovery-codes",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(relisted.json().codes).toHaveLength(7);
+    // A second redeem of the same code is a 404.
+    const again = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/redeem-recovery",
+      payload: { id: victim.record.id, verifier: victim.record.verifier, newKdfRecord: newKdf },
+    });
+    expect(again.statusCode).toBe(404);
+  });
+
+  it("a wrong verifier is 401 and the code is NOT burned (a typo must not cost a code)", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const { bytes } = await unwrapMasterKeyWithBytes("admin-password-1", setup.json().kdf);
+    const code = await buildCode(bytes, "wrong-verifier-code");
+    await install([code.record], token);
+
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/redeem-recovery",
+      payload: { id: code.record.id, verifier: "QUJDREVGR0g", newKdfRecord: { ...setup.json().kdf, keyFp: setup.json().kdf.keyFp } },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe("invalid_credentials");
+    const listed = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/recovery-codes",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json().codes).toHaveLength(1);
+  });
+
+  it("a new record wrapping a DIFFERENT key is refused 422 and the code is NOT burned", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const { bytes } = await unwrapMasterKeyWithBytes("admin-password-1", setup.json().kdf);
+    const code = await buildCode(bytes, "different-key-code");
+    await install([code.record], token);
+
+    // A record wrapping a FRESH master (the mistyped-new-password shape).
+    const wrongKey = await createKdfRecord(await generateMasterKey(), "typo-password");
+    const res = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/redeem-recovery",
+      payload: { id: code.record.id, verifier: code.record.verifier, newKdfRecord: wrongKey },
+    });
+    expect(res.statusCode).toBe(422);
+    const listed = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/recovery-codes",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json().codes).toHaveLength(1);
+  });
+
+  it("the session routes refuse the operator API key; install revokes the previous set", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const { bytes } = await unwrapMasterKeyWithBytes("admin-password-1", setup.json().kdf);
+
+    const denied = await install([], server.authHeaders["x-api-key"] ?? "");
+    expect(denied.statusCode).toBe(401);
+
+    const first = await buildCode(bytes, "first-set-code-1");
+    await install([first.record], token);
+    const second = await buildCode(bytes, "second-set-code-1");
+    await install([second.record], token);
+    const listed = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/recovery-codes",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(listed.json().codes).toHaveLength(1);
+    expect(listed.json().codes[0].id).toBe(second.record.id);
   });
 });
 

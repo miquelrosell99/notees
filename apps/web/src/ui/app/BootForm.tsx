@@ -6,6 +6,7 @@
  */
 
 import type { Dispatch, SetStateAction } from "react";
+import { useState } from "react";
 
 import { ThemeToggle } from "../ThemeToggle.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -50,10 +51,16 @@ export function BootForm({
     handleSignup,
     handleApiKeySubmit,
     handleWorkOffline,
+    redeemRecoveryWithCode,
   } = boot;
   const isLogin = phase.name === "login";
   const isSignup = phase.name === "signup";
   const isNewAccount = phase.name === "setup" || isSignup;
+  // The locked-out path: a recovery code + a new password (login screen only).
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [recoveryNew, setRecoveryNew] = useState("");
+  const [recoveryConfirm, setRecoveryConfirm] = useState("");
   return (
     <div className="nt-bootstrap">
       <div className="nt-bootstrap-form nt-card">
@@ -101,7 +108,81 @@ export function BootForm({
           </div>
         )}
 
-        {isLogin && authTab === "apikey" ? (
+        {isLogin && authTab === "account" && recoveryMode ? (
+          <form
+            className="nt-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void redeemRecoveryWithCode({
+                code: recoveryCode,
+                newPassword: recoveryNew,
+                confirm: recoveryConfirm,
+              });
+            }}
+          >
+            <label className="nt-field">
+              <span>Server URL</span>
+              <input
+                value={serverUrl}
+                onChange={(e) => setServerUrl(e.target.value)}
+                placeholder="https://notees.example.com"
+                required
+              />
+            </label>
+            <label className="nt-field">
+              <span>Recovery code</span>
+              <input
+                value={recoveryCode}
+                onChange={(e) => setRecoveryCode(e.target.value)}
+                placeholder="One of your saved codes"
+                autoComplete="off"
+                required
+              />
+            </label>
+            <label className="nt-field">
+              <span>New password</span>
+              <input
+                type="password"
+                value={recoveryNew}
+                onChange={(e) => setRecoveryNew(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <label className="nt-field">
+              <span>Confirm new password</span>
+              <input
+                type="password"
+                value={recoveryConfirm}
+                onChange={(e) => setRecoveryConfirm(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <Button type="submit" variant="primary">
+              Reset password
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRecoveryMode(false);
+                setRecoveryCode("");
+                setRecoveryNew("");
+                setRecoveryConfirm("");
+                setError(null);
+              }}
+            >
+              Back to sign in
+            </Button>
+            <p className="nt-hint">
+              The code is burned on use — each one works once. Lost password with no
+              recovery code means lost history.
+            </p>
+            {hint !== null && <p className="nt-hint">{hint}</p>}
+            {error !== null && <p className="nt-error" role="alert">{error}</p>}
+          </form>
+        ) : isLogin && authTab === "apikey" ? (
           <form
             className="nt-form"
             onSubmit={(e) => void handleApiKeySubmit(e)}
@@ -252,6 +333,21 @@ export function BootForm({
                   }}
                 >
                   Create one
+                </button>
+              </p>
+            )}
+            {isLogin && authTab === "account" && (
+              <p className="nt-hint">
+                Locked out?{" "}
+                <button
+                  type="button"
+                  className="nt-link"
+                  onClick={() => {
+                    setError(null);
+                    setRecoveryMode(true);
+                  }}
+                >
+                  Use a recovery code
                 </button>
               </p>
             )}

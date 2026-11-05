@@ -164,6 +164,64 @@ export function changePassword(
   );
 }
 
+// --- recovery codes (opaque wraps; the plaintext code never reaches storage) ----
+
+export interface RecoveryRecordWire {
+  /** b64u(SHA256(plaintext code)) — the public lookup id. */
+  id: string;
+  salt: string;
+  /** AES-GCM wrap of the master key under scrypt(code, salt). */
+  wrappedRecovery: string;
+  /** HMAC the redeem route compares (wrong code → 401, record NOT burned). */
+  verifier: string;
+}
+
+/** Install a fresh recovery set (revokes the previous one). Session required. */
+export function installRecoveryCodes(
+  serverUrl: string,
+  token: string,
+  records: RecoveryRecordWire[],
+): Promise<{ ok: boolean; count: number }> {
+  return request<{ ok: boolean; count: number }>(
+    serverUrl,
+    "/auth/recovery-codes",
+    { method: "POST", body: JSON.stringify({ records }) },
+    token,
+  );
+}
+
+/** The account's live recovery records (ids + creation stamps only). */
+export function listRecoveryCodes(
+  serverUrl: string,
+  token: string,
+): Promise<{ codes: Array<{ id: string; createdAt: number }> }> {
+  return request<{ codes: Array<{ id: string; createdAt: number }> }>(
+    serverUrl,
+    "/auth/recovery-codes",
+    {},
+    token,
+  );
+}
+
+/** A record's public material for the redeem flow (no verifier — server-side only). */
+export function fetchRecoveryRecord(
+  serverUrl: string,
+  id: string,
+): Promise<{ salt: string; wrappedRecovery: string }> {
+  return request<{ salt: string; wrappedRecovery: string }>(serverUrl, `/auth/recovery/${id}`);
+}
+
+/** Redeem: burn the code and install the new kdf record. Public (the caller is locked out). */
+export function redeemRecovery(
+  serverUrl: string,
+  input: { id: string; verifier: string; newKdfRecord: KdfRecordWire },
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(serverUrl, "/auth/redeem-recovery", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
 /** Open registration — only exists when the server's signup flag is on (404 otherwise). */
 export function signup(
   serverUrl: string,

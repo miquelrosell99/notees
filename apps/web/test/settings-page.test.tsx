@@ -423,6 +423,12 @@ describe("SettingsPage", () => {
     expect(
       screen.getByText(/two-factor authentication is not available in this build/i),
     ).toBeInTheDocument();
+    // The Recovery Codes card is live: the status line, the password field,
+    // and the generate affordance (the flow itself is covered by the
+    // recovery-codes suite).
+    expect(screen.getByRole("heading", { name: /^recovery codes$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^account password$/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /generate new codes/i })).toBeInTheDocument();
   });
 });
 

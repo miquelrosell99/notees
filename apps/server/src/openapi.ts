@@ -363,6 +363,49 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     },
     errors: ["validation_failed", "invalid_credentials", "unauthenticated"],
   }],
+  ["post", "/api/auth/recovery-codes", {
+    summary: "Install a fresh set of recovery-code records (session required; revokes the previous set)",
+    description:
+      "Stores the OPAQUE recovery records the client built: per code, {id = b64u(SHA256(code)), salt, wrappedRecovery = AES-GCM wrap of the master key under scrypt(code, salt), verifier = HMAC for the redeem check}. The plaintext code, the recovery key, and the master key never reach the server.",
+    tags: ["Account"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["records"],
+      properties: { records: { type: "array", items: { type: "object" }, description: "1–50 opaque records" } },
+    },
+    errors: ["validation_failed", "unauthenticated"],
+  }],
+  ["get", "/api/auth/recovery-codes", {
+    summary: "The account's live recovery records (ids + creation stamps only — session required)",
+    tags: ["Account"],
+  }],
+  ["get", "/api/auth/recovery/:id", {
+    summary: "A recovery record's public material (salt + wrapped master) for the redeem flow",
+    description:
+      "Public by design (the caller is locked out): returns the salt and the wrapped master key so the client can derive the recovery key from the typed code and unwrap. The verifier stays server-side. 404 for unknown or already-used codes.",
+    tags: ["Account"],
+    public: true,
+    errors: ["not_found"],
+  }],
+  ["post", "/api/auth/redeem-recovery", {
+    summary: "Redeem a recovery code — burn it and rewrap the master key under a new password",
+    description:
+      "The locked-out path: the client sends the record id, the verifier it computed from the typed code, and the new kdf record. A wrong verifier is 401 and the record is NOT burned (a typo must not cost a one-time code); the new record's keyFp must match the stored one (same master key); on success the code is deleted and the new record installed. Login rate limits apply.",
+    tags: ["Account"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "verifier", "newKdfRecord"],
+      properties: {
+        id: { type: "string" },
+        verifier: { type: "string" },
+        newKdfRecord: { type: "object", additionalProperties: false },
+      },
+    },
+    public: true,
+    errors: ["validation_failed", "invalid_credentials", "not_found", "rate_limited"],
+  }],
   ["post", "/api/auth/logout", {
     summary: "Revoke the current session (session token required)",
     tags: ["Account"],
