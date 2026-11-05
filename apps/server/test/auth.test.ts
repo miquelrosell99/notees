@@ -725,6 +725,128 @@ describe("POST /auth/unlock", () => {
   });
 });
 
+describe("POST /auth/change-password", () => {
+  function newRecord(fp: string) {
+    return {
+      algorithm: "scrypt" as const,
+      N: 131072,
+      r: 8,
+      p: 1,
+      salt: "c2FsdA",
+      wrappedMasterKey: "d3JhcHBlZA",
+      keyVerifier: "dmVyaWZpZXI",
+      keyFp: fp,
+    };
+  }
+
+  async function change(payload: Record<string, unknown>, token: string) {
+    return server!.app.inject({
+      method: "POST",
+      url: "/api/auth/change-password",
+      headers: { authorization: `Bearer ${token}` },
+      payload,
+    });
+  }
+
+  it("installs a same-key record on a valid current password; sessions stay valid", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const userId = setup.json().user.id as string;
+    const storedFp = setup.json().kdf.keyFp as string;
+
+    const res = await change(
+      { currentPassword: "admin-password-1", newKdfRecord: newRecord(storedFp) },
+      token,
+    );
+    expect(res.statusCode).toBe(200);
+    const stored = server.ctx.auth.getKdfRecord(userId);
+    expect(stored?.salt).toBe("c2FsdA");
+    expect(stored?.keyFp).toBe(storedFp);
+    // The session that made the change keeps working (no forced sign-out).
+    const me = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(me.statusCode).toBe(200);
+  });
+
+  it("the current password is verified (wrong → 401, record untouched)", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const userId = setup.json().user.id as string;
+    const before = server.ctx.auth.getKdfRecord(userId);
+
+    const res = await change(
+      { currentPassword: "wrong-password", newKdfRecord: newRecord(before!.keyFp!) },
+      token,
+    );
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe("invalid_credentials");
+    expect(server.ctx.auth.getKdfRecord(userId)?.salt).toBe(before?.salt);
+  });
+
+  it("a keyFp MISMATCH is refused 422 — the lock-the-account footgun stays shut", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const userId = setup.json().user.id as string;
+    const before = server.ctx.auth.getKdfRecord(userId);
+
+    const res = await change(
+      { currentPassword: "admin-password-1", newKdfRecord: newRecord("QUJDREVGRw") },
+      token,
+    );
+    expect(res.statusCode).toBe(422);
+    expect(server.ctx.auth.getKdfRecord(userId)?.salt).toBe(before?.salt);
+  });
+
+  it("a legacy stored record (no keyFp) is accepted and gains the new record's fp", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const token = setup.json().token as string;
+    const userId = setup.json().user.id as string;
+    // Downgrade the stored record to the legacy shape (no fingerprint).
+    server.ctx.auth.replaceKdfRecord(userId, {
+      algorithm: "scrypt",
+      N: 131072,
+      r: 8,
+      p: 1,
+      salt: "bGVnYWN5",
+      wrappedMasterKey: "bGVnYWN5",
+      keyVerifier: "bGVnYWN5",
+    });
+
+    const res = await change(
+      { currentPassword: "admin-password-1", newKdfRecord: newRecord("bGVnYWN5LWZw") },
+      token,
+    );
+    expect(res.statusCode).toBe(200);
+    expect(server.ctx.auth.getKdfRecord(userId)?.salt).toBe("c2FsdA");
+    expect(server.ctx.auth.getKdfRecord(userId)?.keyFp).toBe("bGVnYWN5LWZw");
+  });
+
+  it("a session-only route: the operator API key is refused", async () => {
+    server = await makeTestServer();
+    const setup = await setupAdmin();
+    const storedFp = setup.json().kdf.keyFp as string;
+    const res = await change(
+      { currentPassword: "admin-password-1", newKdfRecord: newRecord(storedFp) },
+      setup.json().token as string,
+    );
+    expect(res.statusCode).toBe(200);
+    const operator = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/change-password",
+      headers: server.authHeaders,
+      payload: { currentPassword: "x", newKdfRecord: newRecord("QUJDREVGRw") },
+    });
+    expect(operator.statusCode).toBe(401);
+  });
+});
+
 describe("per-account lockout", () => {
   it("locks after 5 failures for 15 minutes, even with the right password", async () => {
     server = await makeTestServer();

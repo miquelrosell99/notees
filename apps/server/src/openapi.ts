@@ -347,6 +347,22 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     success: { description: "{ kdf } — the password-derived key record; no token, no session" },
     errors: ["validation_failed", "invalid_credentials", "account_locked", "rate_limited"],
   }],
+  ["post", "/api/auth/change-password", {
+    summary: "Rewrap the master key under a new password (session required)",
+    description:
+      "Installs a replacement kdf record. The current password is verified; the new record's keyFp (HMAC fingerprint of the master key) MUST match the stored record's — the sameness gate that stops a mistyped new password from locking every other device out. Legacy stored records without a fingerprint are accepted with a one-time server warning. Sessions and API keys stay valid (the master key is unchanged); other devices need the new password at next unlock.",
+    tags: ["Account"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["currentPassword", "newKdfRecord"],
+      properties: {
+        currentPassword: { type: "string" },
+        newKdfRecord: { type: "object", additionalProperties: false, description: "the full scrypt kdf record INCLUDING keyFp" },
+      },
+    },
+    errors: ["validation_failed", "invalid_credentials", "unauthenticated"],
+  }],
   ["post", "/api/auth/logout", {
     summary: "Revoke the current session (session token required)",
     tags: ["Account"],

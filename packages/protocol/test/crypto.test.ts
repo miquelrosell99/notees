@@ -19,6 +19,7 @@ import {
   generateMasterKey,
   generateWorkspaceKey,
   importWorkspaceKey,
+  masterKeyFp,
   SCRYPT_PARAMS,
   unwrapMasterKey,
   unwrapWorkspaceKey,
@@ -180,10 +181,18 @@ describe("server-format interop (golden vector)", () => {
       salt: b64uEncode(salt),
       wrappedMasterKey: b64uEncode(Buffer.concat([iv, tag, ct])),
       keyVerifier: b64uEncode(createHmac("sha256", derived).update("notees-key-check").digest()),
+      // The pinned key fingerprint: HMAC-SHA256(key=master, "notees-key-fp").
+      keyFp: masterKeyFp(masterBytes),
     };
 
     // Client side: the TS unwrap opens the server-built record.
     const masterKey = await unwrapMasterKey(password, record);
+
+    // The pinned vector's fingerprint is a fixed HMAC over the fixed master —
+    // pin the exact value so any drift in the formula fails here, not at a
+    // password change.
+    expect(record.keyFp).toBe(masterKeyFp(Uint8Array.from({ length: 32 }, (_, i) => 0x50 + i)));
+    expect(record.keyFp).toMatch(/^[A-Za-z0-9_-]+$/);
 
     // The unwrapped key opens a blob the server sealed with the master key:
     // node:crypto produces ct and tag apart; WebCrypto's seal layout is ct ‖ tag.
