@@ -26,29 +26,27 @@ The owner un-parked both items the same day; both shipped:
 bulk-style), the next lever is visibility-observer value loading on the
 remaining full-read surfaces — none needed today.
 
-## Tauri desktop client — PARKED (owner, 2026-10-15)
+## Tauri desktop client — UN-PARKED (owner, 2026-11-05) — ships as a notees-web build target
 
-A Tauri client is not being built for now. The client map stays: web (TS),
-GTK (native Linux, kept for the GNOME feel), Flutter (mobile).
+The owner un-parked this on 2026-11-05: Tauri v2 ships as a **build target
+in the `notees-web` repo** (`src-tauri/` — a minimal single-window shell
+hosting the web client; CI builds unsigned Windows .msi + macOS .dmg
+installers on `v*` tags). The parked preconditions resolved differently
+than feared: the web split happened first (2026-11-05), so the web app is
+already consumable as a standalone repo; the shell reuses the vendor-pinned
+core packages like any other client.
 
-- **The niche question was settled narrow**: with GTK retained, Tauri's only
-  justification is a Windows/macOS desktop target — on Linux it would merely
-  wrap the web UI and duplicate GTK. The browser tab bridges any other gap.
-- **Cheap to add later, so no reason to build speculatively**: a Tauri client
-  is just another peer with a derived SQLite projection of the op log; it
-  reuses the web UI, the TS packages, and the fixture corpus (its only new
-  seam is the store backend — sql.js in the webview or a Rust SQLite plugin
-  that must stay fixture-identical). No migration cost, no lockstep debt
-  until it exists.
-- **If it ever ships, it is the Windows/macOS client** — GTK stays
-  Linux-native; the two must not overlap.
-- It would force the deferred **web split** (the parked preconditions:
-  gate/CI redesign, deploy-path redesign, quiet tree, same-pass docs), since
-  Tauri wants the web app consumable as a library.
-
-**Un-park condition**: a concrete, non-Linux desktop requirement (owner
-needs Windows/macOS installs, or a second non-Linux user appears). "Someday
-maybe" does not un-park it.
+- **The niche question is settled the same narrow way**: Tauri remains the
+  Windows/macOS desktop target only — GTK stays Linux-native; the two must
+  not overlap.
+- **Sibling-client implications: none for GTK/Flutter.** The desktop shell
+  uses the TS reference directly through the web client's own store
+  (sql.js/OPFS in the webview, per `detectStoreMode`) — there is NO Rust
+  SQLite port and no new store backend to keep fixture-identical, so no
+  GTK/Flutter lockstep debt is created. The only fixture-relevant surface
+  would be a future Rust store backend, which is explicitly out of scope.
+- The shell has zero custom native commands for v1 — the web boot flow
+  keeps owning server URL + login.
 
 ## SDK publish — ARCHIVED (owner, 2026-10-03)
 
