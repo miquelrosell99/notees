@@ -370,6 +370,54 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     };
   });
 
+  app.post("/auth/unlock", async (request) => {
+    // The unlock re-prompt re-derives the master key from the kdf record; the
+    // caller ALREADY holds a live credential (a remembered session or an API
+    // key), so this endpoint mints NO session. It is a password oracle all
+    // the same — the SAME per-IP counter and per-account lockout as login.
+    if (!ctx.limiters.login.tryAcquire(`login:${request.ip}`, 1, ctx.config.loginPerMinute)) {
+      throw new AppError(
+        429,
+        "rate_limited",
+        `too many login attempts (max ${ctx.config.loginPerMinute}/min)`,
+      );
+    }
+    const parsed = loginBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid unlock request");
+    }
+    const email = parsed.data.email;
+    const lock = ctx.lockout.status(email);
+    if (lock.locked) {
+      throw new AppError(
+        429,
+        "account_locked",
+        `too many failed attempts — try again in ${Math.ceil(lock.retryAfterSeconds / 60)} minutes`,
+      );
+    }
+    const user = ctx.auth.findUserByEmail(email);
+    // Verify against a dummy hash when the account is unknown so response
+    // time does not reveal which emails exist (login parity).
+    const stored = user?.passwordHash ?? ctx.dummyPasswordHash;
+    const ok = await verifyPassword(parsed.data.password, stored);
+    if (user === null || !ok) {
+      const after = ctx.lockout.recordFailure(email);
+      if (after.locked) {
+        throw new AppError(
+          429,
+          "account_locked",
+          `too many failed attempts — try again in ${Math.ceil(after.retryAfterSeconds / 60)} minutes`,
+        );
+      }
+      throw new AppError(401, "invalid_credentials", "invalid email or password");
+    }
+    ctx.lockout.recordSuccess(email);
+    // Same legacy-record backfill as login (the plaintext only exists here).
+    // Deliberately NO createSession: sessions table stays untouched.
+    const kdf = await ctx.auth.ensureKdfRecord(user.id, parsed.data.password);
+    return { kdf };
+  });
+
   app.post("/auth/login", async (request) => {
     if (!ctx.limiters.login.tryAcquire(`login:${request.ip}`, 1, ctx.config.loginPerMinute)) {
       throw new AppError(

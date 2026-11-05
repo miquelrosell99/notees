@@ -572,6 +572,11 @@ export class AuthStorage {
     return { token, expiresAt };
   }
 
+  /** Session-row count — operator/test observability (the unlock route mints none). */
+  sessionCount(): number {
+    return (this.db.prepare("SELECT COUNT(*) AS n FROM session").get() as { n: number }).n;
+  }
+
   /** Resolve a token to its user, extending the expiry (sliding, capped). */
   resolveSession(token: string): { user: SessionUser; expiresAt: number } | null {
     const digest = tokenDigest(token);
