@@ -23,7 +23,7 @@ import {
   COVER_CLASS_ID,
   runMigration,
   type MigrateScriptSurface,
-} from "../../../scripts/migrate-cover-to-asset.mts";
+} from "../../../vendor/notees/scripts/migrate-cover-to-asset.mts";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";

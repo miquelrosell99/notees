@@ -24,7 +24,7 @@ import {
   buildEnvelopes,
   planMoves,
   validateEnvelopes,
-} from "../../../scripts/migrate-cover-banner-alias.mts";
+} from "../../../vendor/notees/scripts/migrate-cover-banner-alias.mts";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

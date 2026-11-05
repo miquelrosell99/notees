@@ -30,7 +30,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import {
   isQueryAstV1,
   mapQueryAstV1ToV2,
-} from "../../../../../../scripts/lib/map-query-ast-v1-v2.js";
+} from "../../../../../../vendor/notees/scripts/lib/map-query-ast-v1-v2.js";
 
 export interface GraphColorGroup {
   id: string;

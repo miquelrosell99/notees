@@ -21,7 +21,7 @@ import {
   planRetirement,
   validateEnvelopes,
   CLASS_CLASS_ID,
-} from "../../../scripts/migrate-retire-class-class.mts";
+} from "../../../vendor/notees/scripts/migrate-retire-class-class.mts";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

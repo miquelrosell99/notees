@@ -1,5 +1,5 @@
 {
-  "name": "notees-v2",
+  "name": "notees-web",
   "private": true,
   "version": "0.0.0",
   "packageManager": "pnpm@9.0.0",
@@ -7,10 +7,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck",
-    "build": "pnpm -r build",
-    "release": "pnpm -r --filter \"./packages/*\" build && pnpm -r --filter \"./packages/*\" publish"
+    "test": "pnpm --filter @notees/web test",
+    "typecheck": "pnpm --filter @notees/web typecheck",
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "release": "pnpm -r --filter \"./vendor/notees/packages/*\" build && pnpm -r --filter \"./vendor/notees/packages/*\" publish"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

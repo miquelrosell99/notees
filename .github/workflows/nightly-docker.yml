@@ -3,11 +3,15 @@ name: Nightly Docker images
 # Scheduled build of main's head (03:47 UTC, staggered 24 min after the
 # nightly CI's 03:23 so the two runs don't contend) — the `:nightly` channel
 # for hosts that want to track main without building
-# locally. Publishes `ghcr.io/miquelrosell99/{notees-sync,notees-web}:nightly`
+# locally. Publishes `ghcr.io/miquelrosell99/notees-web:nightly`
 # plus a dated tag (`nightly-YYYYMMDD`). NEVER `:latest` — that tag belongs
 # to stable semver releases only (see release-docker.yml). Uses the
 # workflow's GITHUB_TOKEN (packages: write); manual dispatch reruns the
 # nightly build on demand.
+#
+# (Repo split 2026-11-05: this workflow publishes the web image only. The
+# sync server image (`notees-sync`) publishes from the
+# miquelrosell99/notees-sync repo's own nightly workflow.)
 #
 # The dispatch input `git-ref` (default `main`) selects the ref to build —
 # nightly is main's head, so a dispatch guard fails the run unless git-ref
@@ -41,8 +45,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: notees-sync
-            dockerfile: apps/server/Dockerfile
           - image: notees-web
             dockerfile: apps/web/Dockerfile
     steps:
@@ -56,6 +58,9 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs['git-ref'] || github.ref }}
+          # The image build resolves @notees/* from the pinned vendor/notees
+          # submodule — the context must carry it.
+          submodules: recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1

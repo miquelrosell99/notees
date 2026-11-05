@@ -64,5 +64,5 @@ Documentation for people — using the app, and developing or operating it. One 
 - **[Object API quick reference](api.md)** — every endpoint, auth, idempotency, scoped keys.
 - **[The Notees CLI](cli.md)** — commands, exit codes, the shell.
 - **[Feature status](feature-status.md)** — every feature labeled Today vs Designed.
-- **[developers/](developers/)** — the runbooks for people developing or operating a Notees server (architecture, hacking, deployment, migrations, releases). Start from [developers/README.md](developers/README.md).
+- **developers runbooks** — the runbooks for people developing or operating a Notees server (architecture, hacking, deployment, migrations, releases) live in the [`notees-sync` repo](https://github.com/miquelrosell99/notees-sync/tree/main/docs/developers). Start from its README.
 - **[packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md)** — the normative model and wire spec the docs summarize.

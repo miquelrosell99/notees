@@ -1,6 +1,6 @@
 # Getting started
 
-Prerequisites, install, running the server, and the account boot. The ideas behind the commands are in [philosophy.md](philosophy.md); for people developing or operating a Notees server, the [developers/](developers/) docs are the runbooks.
+Prerequisites, install, running the server, and the account boot. The ideas behind the commands are in [philosophy.md](philosophy.md); for people developing or operating a Notees server, the developers docs in the [`notees-sync` repo](https://github.com/miquelrosell99/notees-sync/tree/main/docs/developers) are the runbooks.
 
 ## Prerequisites and install
 

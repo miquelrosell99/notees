@@ -1,3 +1,14 @@
+# Standalone workspace for the Notees web client. The core packages
+# (@notees/protocol, @notees/domain, @notees/store, @notees/sync,
+# @notees/query, @notees/export) are consumed from a pinned checkout of the
+# notees-sync repo — see vendor/notees (git submodule) and README.md
+# "Syncing the vendored packages".
 packages:
-  - "packages/*"
-  - "apps/*"
+  - "apps/web"
+  - "vendor/notees/packages/protocol"
+  - "vendor/notees/packages/domain"
+  - "vendor/notees/packages/store"
+  - "vendor/notees/packages/sync"
+  - "vendor/notees/packages/query"
+  - "vendor/notees/packages/export"
+  - "vendor/notees/apps/server"

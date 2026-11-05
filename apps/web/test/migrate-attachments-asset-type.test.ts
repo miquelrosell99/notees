@@ -21,7 +21,7 @@ import {
   planAssetType,
   validateEnvelopes,
   ATTACHMENTS_SCHEMA_ID,
-} from "../../../scripts/migrate-attachments-asset-type.mts";
+} from "../../../vendor/notees/scripts/migrate-attachments-asset-type.mts";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

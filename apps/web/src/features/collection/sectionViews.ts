@@ -30,7 +30,7 @@
 import { useEffect, useState } from "react";
 
 import type { SectionView } from "@/core/workspace-client/index.js";
-import { isQueryAstV1 } from "../../../../../scripts/lib/map-query-ast-v1-v2.js";
+import { isQueryAstV1 } from "../../../../../vendor/notees/scripts/lib/map-query-ast-v1-v2.js";
 
 /** The views seam both client classes satisfy (structural — tests can fake it). */
 export interface SectionViewsClient {
