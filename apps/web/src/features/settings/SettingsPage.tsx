@@ -13,7 +13,10 @@
  */
 import { useEffect, useState } from "react";
 
+import { createKdfRecord, importMasterKey, unwrapMasterKeyWithBytes } from "@notees/protocol";
+
 import type { AccountUser } from "@/core/auth-api.js";
+import { changePassword, unlock } from "@/core/auth-api.js";
 
 import { Button } from "../../components/ui/kit/Button.js";
 import { Card } from "../../components/ui/kit/Card.js";
@@ -665,6 +668,102 @@ interface AccountSectionProps {
  * mount, and a save rides straight to the server (the Account section holds
  * server coordinates, like the API-keys card beside it).
  */
+function ChangePasswordCard({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirmNext, setConfirmNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+
+  const submit = async () => {
+    if (busy) return;
+    setNotice(null);
+    if (next.length < 8) {
+      setNotice({ kind: "error", text: "The new password must be at least 8 characters." });
+      return;
+    }
+    if (next !== confirmNext) {
+      setNotice({ kind: "error", text: "The new passwords do not match." });
+      return;
+    }
+    setBusy(true);
+    try {
+      // The current password unlocks the kdf record; the SAME master key is
+      // re-wrapped under the new password (the route compares keyFp to prove
+      // sameness). The raw bytes exist strictly inside this call.
+      const { kdf } = await unlock(serverUrl, { email, password: current });
+      const { bytes } = await unwrapMasterKeyWithBytes(current, kdf);
+      const extractable = await importMasterKey(bytes, true);
+      const newKdfRecord = await createKdfRecord(extractable, next);
+      await changePassword(serverUrl, token, { currentPassword: current, newKdfRecord });
+      setNotice({
+        kind: "ok",
+        text: "Password changed. Other devices will need the new password at next unlock — this device stays signed in.",
+      });
+      setCurrent("");
+      setNext("");
+      setConfirmNext("");
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-ads">
+      <p className="settings-section__description">
+        Rewraps the account master key under a new password. Your history stays readable —
+        other devices simply need the new password at next unlock. Lost password with no
+        recovery code means lost history.
+      </p>
+      <TextField
+        label="Current password"
+        type="password"
+        value={current}
+        onChange={(event) => setCurrent(event.target.value)}
+        autoComplete="current-password"
+        disabled={busy}
+      />
+      <TextField
+        label="New password"
+        type="password"
+        value={next}
+        onChange={(event) => setNext(event.target.value)}
+        autoComplete="new-password"
+        disabled={busy}
+      />
+      <TextField
+        label="Confirm new password"
+        type="password"
+        value={confirmNext}
+        onChange={(event) => setConfirmNext(event.target.value)}
+        autoComplete="new-password"
+        disabled={busy}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void submit();
+        }}
+      />
+      <div className="settings-ads__row">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => void submit()}
+          disabled={busy || current === "" || next === "" || confirmNext === ""}
+          loading={busy}
+        >
+          Change password
+        </Button>
+        {notice !== null && (
+          <p className="settings-ads__notice" role="status" data-kind={notice.kind}>
+            {notice.text}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdsTokenCard({ serverUrl, token }: { serverUrl: string; token: string }) {
   const [value, setValue] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -799,12 +898,7 @@ function AccountSection({ serverUrl, token, user, onSignOut }: AccountSectionPro
       <div className="settings-section">
         <h3 className="settings-section__title">Change Password</h3>
         <Card>
-          <p className="settings-section__description">
-            Changing your password will sign you out everywhere and revoke all API keys.
-          </p>
-          <p className="settings-section__subtitle">
-            Changing your password is not available in this build.
-          </p>
+          <ChangePasswordCard serverUrl={serverUrl} token={token} email={user.email ?? ""} />
         </Card>
       </div>
 

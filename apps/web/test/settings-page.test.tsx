@@ -408,15 +408,17 @@ describe("SettingsPage", () => {
     expect(onSignOut).toHaveBeenCalled();
   });
 
-  it("marks profile, password, and security features as unavailable", () => {
+  it("marks profile and security placeholders, and ships the change-password card", () => {
     stubFetch({});
     renderPage({ section: "account" });
     expect(
       screen.getByText(/editing your profile is not available in this build/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/changing your password is not available in this build/i),
-    ).toBeInTheDocument();
+    // The Change Password card is live: the three fields render (the submit
+    // flow is covered by the change-password suite).
+    expect(screen.getByLabelText(/^current password$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^new password$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^confirm new password$/i)).toBeInTheDocument();
     renderPage({ section: "security" });
     expect(
       screen.getByText(/two-factor authentication is not available in this build/i),

@@ -51,6 +51,8 @@ export interface LoginResponse {
     salt: string;
     wrappedMasterKey: string;
     keyVerifier: string;
+    /** Master-key fingerprint (absent on legacy records). */
+    keyFp?: string;
   };
 }
 
@@ -139,6 +141,27 @@ export function unlock(serverUrl: string, input: { email: string; password: stri
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export type KdfRecordWire = LoginResponse["kdf"];
+
+/**
+ * Rewrap the account master key under a new password. The route verifies the
+ * current password AND that the new record's keyFp matches the stored one
+ * (same master key) — a mistyped new password would otherwise lock every
+ * other device out, unrecoverably. Sessions stay valid.
+ */
+export function changePassword(
+  serverUrl: string,
+  token: string,
+  input: { currentPassword: string; newKdfRecord: KdfRecordWire },
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(
+    serverUrl,
+    "/auth/change-password",
+    { method: "POST", body: JSON.stringify(input) },
+    token,
+  );
 }
 
 /** Open registration — only exists when the server's signup flag is on (404 otherwise). */
