@@ -47,10 +47,21 @@ is preserved verbatim; only where the state lives changes.
 ### The Repeat property
 
 - New system property schema, text type, **single-value**, self-healed at a
-  fixed id (new `SYSTEM_PROPERTY_UUIDS` entry), display name **Repeat**.
-- Bound to the `event` and `task` system classes. Everything extending them
-  (`meeting`, `birthday`, task subclasses) inherits the binding; a source's
-  Publication date can never carry it.
+  fixed id: `SYSTEM_PROPERTY_UUIDS.repeat = 00000000-0000-0000-0003-0000000000013`
+  (the next free slot in the task/event-family block).
+- **The placeholder `taskRecurrence` (…0003-…0006, the optionless select
+  "authored optionless until the recurrence spec lands") is this spec's
+  landing spot — and it is withdrawn, not converted**: schema `type` is
+  create-only (`propertySchema.update` cannot change it), and seed ids are
+  never reused. The migration deletes the …006 select schema in live
+  workspaces and the seed map marks it WITHDRAWN (comment only, entry stays).
+  Web-side seeds (`ensureTaskFamily`) drop the taskRecurrence entry in favor
+  of `repeat`.
+- Bound to the `event` and `task` system classes (`bindTo` gains
+  multi-class support — `SystemClassName | SystemClassName[]`; the
+  seed-envelope builder emits one binding row per class and the union scope).
+  Everything extending them (`meeting`, `birthday`, task subclasses) inherits
+  the binding; a source's Publication date can never carry it.
 - **`scopeClassIds = [event, task]`** — scope is the locality authority, so
   CLI/API writes of Repeat onto a non-event/task node are rejected fail-loud at
   write time. This is what makes the capability deliberate: the property system
@@ -109,6 +120,17 @@ web Repeat control renders disabled with a "set a date first" hint. A Repeat
 value whose anchor day cannot be resolved reads as a series that occurs nowhere
 (fail-loud parse still applies to the rule itself).
 
+### Read-model note (web)
+
+`text` is a **heavy** property type: `getPropertyRowShells` returns
+`value: null` for it (shells carry only `valueCount`). The workspace-wide
+recurrence scan therefore runs **two-pass**: shells identify nodes with an
+authored Repeat row (`valueCount ≥ 1`), then `getEffectiveProperties` runs
+only for those nodes. A Repeat value is a plain RRULE string when authored
+through the surfaces; the readers also resolve the `{nodeId}` carrier shape
+(defensive, for CLI/API-written carrier values) through the node's flattened
+content.
+
 ### Migration
 
 New log migration `scripts/migrate-repeat-property.mts` (rehearsal-gated like
@@ -124,9 +146,14 @@ its siblings):
 2. Move `exdates` / `until` / `completedOccurrences` from the date value's
    metadata to the Repeat value's metadata.
 3. Strip the old keys from the date value.
-4. Nodes whose class does not reach event/task after the move: the migration
-   reports them (they predate scope enforcement); the write is still applied —
-   existing graph state is grandfathered, but new writes are refused.
+4. Nodes outside the event/task closure carrying old repeat metadata: the
+   migration **reports them and strips the old keys** (rewrites the datetime
+   value without `repeat`/`exdates`/`until`/`completedOccurrences`). The
+   Repeat property write is NOT applied for them — the applier's scope check
+   (`property.set` R3, `MoveGuardError`) refuses ineligible nodes, and no
+   protocol change is justified for grandfathered noise. Post-rewire no
+   consumer reads date-value recurrence metadata, so the stripped state is
+   inert; the report names every affected node.
 
 No new op type: Repeat is authored with ordinary `property.set` on a text
 schema. Op fixtures exercise the applier path for the new seed + scope.
