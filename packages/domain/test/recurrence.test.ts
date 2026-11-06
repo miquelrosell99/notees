@@ -126,6 +126,10 @@ describe("parseRecurrenceRule / formatRecurrenceRule (RR5)", () => {
       "RRULE:BYDAY=MO;FREQ=WEEKLY",
       "RRULE:FREQ=WEEKLY;COUNT=3;INTERVAL=2",
       "RRULE:FREQ=WEEKLY;UNTIL=20261231;BYDAY=MO",
+      // prototype-key segments are unknown keys, not ignorable
+      "RRULE:FREQ=WEEKLY;toString=1",
+      "RRULE:FREQ=WEEKLY;constructor=1",
+      "RRULE:toString=1;BYDAY=MO;FREQ=WEEKLY",
       // FREQ missing
       "RRULE:INTERVAL=2",
       "RRULE:",

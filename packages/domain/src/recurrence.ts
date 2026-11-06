@@ -132,15 +132,17 @@ const FREQ_BY_RRULE: Record<string, RecurrenceFreq> = {
 };
 
 const RRULE_KEYS = ["FREQ", "INTERVAL", "BYDAY", "BYMONTHDAY", "COUNT", "UNTIL"];
-/** Canonical key order — FREQ first, then INTERVAL, BYDAY, BYMONTHDAY, COUNT|UNTIL. */
-const KEY_ORDER: Record<string, number> = {
-  FREQ: 0,
-  INTERVAL: 1,
-  BYDAY: 2,
-  BYMONTHDAY: 3,
-  COUNT: 4,
-  UNTIL: 4,
-};
+/** Canonical key order — FREQ first, then INTERVAL, BYDAY, BYMONTHDAY, COUNT|UNTIL.
+ * A Map (no inherited keys) so a segment naming an Object.prototype member is
+ * an unknown key, never a rank. */
+const KEY_ORDER = new Map<string, number>([
+  ["FREQ", 0],
+  ["INTERVAL", 1],
+  ["BYDAY", 2],
+  ["BYMONTHDAY", 3],
+  ["COUNT", 4],
+  ["UNTIL", 4],
+]);
 const WEEKDAY_SET: ReadonlySet<string> = new Set(RECURRENCE_WEEKDAYS);
 
 function weekdayOrder(a: RecurrenceWeekday, b: RecurrenceWeekday): number {
@@ -254,7 +256,7 @@ export function parseRecurrenceRule(text: unknown): RecurrenceRule {
     }
     const key = segment.slice(0, eq);
     const value = segment.slice(eq + 1);
-    const order = KEY_ORDER[key];
+    const order = KEY_ORDER.get(key);
     if (order === undefined) {
       throw new RecurrenceParseError(
         `invalid recurrence rule: unknown key ${JSON.stringify(key)} ` +
@@ -297,6 +299,14 @@ export function parseRecurrenceRule(text: unknown): RecurrenceRule {
       case "UNTIL":
         until = parseUntil(value);
         break;
+      default:
+        // Unreachable while the switch covers every KEY_ORDER entry — kept
+        // as the fail-loud backstop so an unknown key can never slip
+        // through silently.
+        throw new RecurrenceParseError(
+          `invalid recurrence rule: unknown key ${JSON.stringify(key)} ` +
+            `(supported: ${RRULE_KEYS.join(", ")})`,
+        );
     }
   }
 
