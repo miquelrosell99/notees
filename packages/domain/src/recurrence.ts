@@ -124,12 +124,12 @@ const RRULE_PREFIX = "RRULE:";
 const YMD = /^(\d{4})(\d{2})(\d{2})$/;
 const POSITIVE_INT = /^\d+$/;
 
-const FREQ_BY_RRULE: Record<string, RecurrenceFreq> = {
-  DAILY: "daily",
-  WEEKLY: "weekly",
-  MONTHLY: "monthly",
-  YEARLY: "yearly",
-};
+const FREQ_BY_RRULE = new Map<string, RecurrenceFreq>([
+  ["DAILY", "daily"],
+  ["WEEKLY", "weekly"],
+  ["MONTHLY", "monthly"],
+  ["YEARLY", "yearly"],
+]);
 
 const RRULE_KEYS = ["FREQ", "INTERVAL", "BYDAY", "BYMONTHDAY", "COUNT", "UNTIL"];
 /** Canonical key order — FREQ first, then INTERVAL, BYDAY, BYMONTHDAY, COUNT|UNTIL.
@@ -274,11 +274,11 @@ export function parseRecurrenceRule(text: unknown): RecurrenceRule {
     lastOrder = order;
     switch (key) {
       case "FREQ": {
-        const parsed = FREQ_BY_RRULE[value];
+        const parsed = FREQ_BY_RRULE.get(value);
         if (parsed === undefined) {
           throw new RecurrenceParseError(
             `invalid recurrence rule: unknown FREQ ${JSON.stringify(value)} ` +
-              `(expected ${Object.keys(FREQ_BY_RRULE).join(", ")})`,
+              `(expected ${[...FREQ_BY_RRULE.keys()].join(", ")})`,
           );
         }
         freq = parsed;

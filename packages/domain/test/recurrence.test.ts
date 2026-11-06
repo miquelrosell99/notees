@@ -110,6 +110,8 @@ describe("parseRecurrenceRule / formatRecurrenceRule (RR5)", () => {
       "RRULE:FREQ=WEEKLY;BYDAY=XX",
       "RRULE:FREQ=HOURLY",
       "RRULE:FREQ=daily",
+      "RRULE:FREQ=toString",
+      "RRULE:FREQ=constructor",
       "RRULE:FREQ=DAILY;INTERVAL=0",
       "RRULE:FREQ=DAILY;INTERVAL=1000",
       "RRULE:FREQ=MONTHLY;BYMONTHDAY=0",
