@@ -189,6 +189,31 @@ export async function ensureWorkspaceKey(
   return flight;
 }
 
+/**
+ * The READ-ONLY open path (keying is deliberate): fetch the wrapped key and
+ * unwrap it — NEVER generate or store one. Resolves null when the server
+ * holds no wrapped key (404): the workspace is plaintext and stays plaintext
+ * until the user keys it (creation carries the bundle; the banner action
+ * calls `ensureWorkspaceKey`). A stored key that does not open under this
+ * master is a real error state (thrown, never silently degraded). Caches the
+ * unwrapped key like `ensureWorkspaceKey`, so later opens and the asset path
+ * reuse it without another GET.
+ */
+export async function readWorkspaceKey(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+  master: MasterKeyHandle,
+): Promise<Uint8Array | null> {
+  const cached = workspaceKeyCache.get(workspaceId);
+  if (cached !== undefined) return exportWorkspaceKey(cached);
+  const wrapped = await fetchWorkspaceKey(serverUrl, token, workspaceId);
+  if (wrapped === undefined) return null;
+  const workspaceKey = await unwrapOrWrongMaster(master, wrapped);
+  workspaceKeyCache.set(workspaceId, workspaceKey);
+  return exportWorkspaceKey(workspaceKey);
+}
+
 async function ensureWorkspaceKeyFlight(
   serverUrl: string,
   token: string,

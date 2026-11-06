@@ -23,6 +23,7 @@ import {
   clearCryptoCustody,
   deriveMasterKey,
   ensureWorkspaceKey,
+  readWorkspaceKey,
 } from "../src/core/crypto-custody.js";
 
 const SERVER = "https://notees.example.com";
@@ -262,6 +263,83 @@ describe("ensureWorkspaceKey first-write-wins race", () => {
     );
 
     await expect(ensureWorkspaceKey(SERVER, TOKEN, WS, masterHandle)).rejects.toThrow(
+      /wrong master key for this workspace/i,
+    );
+  });
+});
+
+describe("readWorkspaceKey (the read-only open path)", () => {
+  it("GET 404 → null (plaintext), with NO generate and NO PUT", async () => {
+    const { master, kdf } = await makeMaster();
+    const masterHandle = await deriveMasterKey(PASSWORD, kdf);
+
+    let putCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "GET") {
+          return Response.json({ error: { message: "not found" } }, { status: 404 });
+        }
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "PUT") {
+          putCount += 1;
+          return new Response(null, { status: 204 });
+        }
+        throw new Error(`unexpected fetch: ${method} ${url}`);
+      }),
+    );
+
+    await expect(readWorkspaceKey(SERVER, TOKEN, WS, masterHandle)).resolves.toBeNull();
+    expect(putCount).toBe(0);
+  });
+
+  it("GET 200 → unwraps to the stored key and caches it (the second read is fetch-free)", async () => {
+    const { master, kdf } = await makeMaster();
+    const masterHandle = await deriveMasterKey(PASSWORD, kdf);
+    const workspaceKey = await generateWorkspaceKey();
+    const wrapped = await wrapWorkspaceKey(master, workspaceKey);
+    const expectedRaw = await exportWorkspaceKey(workspaceKey);
+
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && (init?.method ?? "GET") === "GET") {
+          getCount += 1;
+          return Response.json({ wrappedKey: wrapped });
+        }
+        throw new Error(`unexpected fetch: ${init?.method ?? "GET"} ${url}`);
+      }),
+    );
+
+    const first = await readWorkspaceKey(SERVER, TOKEN, WS, masterHandle);
+    expect(first !== null && [...first]).toEqual([...expectedRaw]);
+    const second = await readWorkspaceKey(SERVER, TOKEN, WS, masterHandle);
+    expect(second !== null && [...second]).toEqual([...expectedRaw]);
+    expect(getCount).toBe(1);
+  });
+
+  it("a stored key wrapped for a DIFFERENT master throws the wrong-master error", async () => {
+    const { master, kdf } = await makeMaster();
+    const masterHandle = await deriveMasterKey(PASSWORD, kdf);
+    const otherMaster = await generateMasterKey();
+    const workspaceKey = await generateWorkspaceKey();
+    const wrapped = await wrapWorkspaceKey(otherMaster, workspaceKey);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && (init?.method ?? "GET") === "GET") {
+          return Response.json({ wrappedKey: wrapped });
+        }
+        throw new Error(`unexpected fetch: ${init?.method ?? "GET"} ${url}`);
+      }),
+    );
+
+    await expect(readWorkspaceKey(SERVER, TOKEN, WS, masterHandle)).rejects.toThrow(
       /wrong master key for this workspace/i,
     );
   });

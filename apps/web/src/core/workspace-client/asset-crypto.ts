@@ -23,7 +23,7 @@ import {
   importWorkspaceKey,
 } from "@notees/protocol";
 
-import { currentMasterKey, ensureWorkspaceKey, getCachedWorkspaceKey } from "../crypto-custody.js";
+import { currentMasterKey, getCachedWorkspaceKey, readWorkspaceKey } from "../crypto-custody.js";
 
 /** A sealed asset download with no key available: callers show the fallback. */
 export class AssetSealedLockedError extends Error {
@@ -40,8 +40,10 @@ export interface SealedAssetUpload {
 }
 
 /**
- * Encrypt at upload when the workspace key resolves; otherwise today's
- * plaintext path (bytes unchanged, no fields). Key-resolution failure also
+ * Encrypt at upload when the workspace key resolves — "resolves" READ-ONLY: a
+ * keyed workspace seals its assets; a PLAINTEXT workspace (key route 404)
+ * stays plaintext and is never auto-keyed as an upload side effect (keying
+ * is deliberate: creation + the banner action). Key-resolution failure also
  * degrades to plaintext — a keyless upload is legal, a failed one must not
  * lose the user's file.
  */
@@ -55,7 +57,9 @@ export async function sealAssetIfKeyed(
   const master = currentMasterKey();
   if (master === null) return { bytes, fields: null };
   try {
-    const key = await importWorkspaceKey(await ensureWorkspaceKey(serverUrl, token, workspaceId, master));
+    const raw = await readWorkspaceKey(serverUrl, token, workspaceId, master);
+    if (raw === null) return { bytes, fields: null };
+    const key = await importWorkspaceKey(raw);
     const { iv, blob } = await encryptAssetBytes(key, bytes);
     return { bytes: blob, fields: { encrypted: "1", mimeType, iv: b64uEncode(iv) } };
   } catch {

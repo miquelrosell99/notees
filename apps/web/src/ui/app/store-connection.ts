@@ -16,7 +16,7 @@ import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import {
   clearWorkspaceKeys,
   currentMasterKey,
-  ensureWorkspaceKey,
+  readWorkspaceKey,
 } from "@/core/crypto-custody.js";
 import { AuthRequestError, fetchWorkspaceKey, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
 import { WorkerClient } from "@/core/worker-client.js";
@@ -69,10 +69,13 @@ export class EncryptedWorkspaceLockedError extends Error {
 }
 
 /**
- * E2EE custody, unconditional: hand the workspace key to the client whenever
- * this session can unwrap one. The `window.NOTEES_CONFIG.e2ee` kill switch
- * retired — keying no longer gates on a flag (the typed flag stays for
- * container compat, inert).
+ * E2EE custody, unconditional and READ-ONLY on the open path. The
+ * `window.NOTEES_CONFIG.e2ee` kill switch retired — keying no longer gates on
+ * a flag (the typed flag stays for container compat, inert). Keying itself is
+ * DELIBERATE: opening fetches the wrapped key and unwraps it — a plaintext
+ * workspace (GET 404) opens with no key and the client NEVER lazy-stores one.
+ * The only writers are creation (the bundle rides the create payload) and the
+ * banner action (Task 10 calls `ensureWorkspaceKey` directly).
  *
  * Offline workspaces are keyless by design (no server → no keys →
  * plaintext). With a session but NO master key in memory (a reload restored
@@ -89,6 +92,13 @@ export interface WorkspaceKeyResolution {
   key: Uint8Array | undefined;
   /** The workspace IS encrypted and this session cannot supply the key. */
   locked: boolean;
+  /**
+   * The workspace carries NO wrapped key — it is plaintext and opens without
+   * one. Set only on positive knowledge (the key route answered 404, or an
+   * API-key session's listing row reports `encrypted: false`); never guessed,
+   * so the Task-10 keying banner can trust it.
+   */
+  plaintext: boolean;
 }
 
 export async function resolveWorkspaceKey(
@@ -97,11 +107,16 @@ export async function resolveWorkspaceKey(
   workspaceId: string,
   options: ConnectOptions,
 ): Promise<WorkspaceKeyResolution> {
-  if (options.isOffline) return { key: undefined, locked: false };
+  if (options.isOffline) return { key: undefined, locked: false, plaintext: false };
   const master = currentMasterKey();
   if (master !== null) {
     try {
-      return { key: await ensureWorkspaceKey(url, credential, workspaceId, master), locked: false };
+      const raw = await readWorkspaceKey(url, credential, workspaceId, master);
+      // 404: a plaintext workspace — keying is deliberate (creation carries
+      // the bundle; the banner action calls ensureWorkspaceKey), never a
+      // lazy side effect of opening.
+      if (raw === null) return { key: undefined, locked: false, plaintext: true };
+      return { key: raw, locked: false, plaintext: false };
     } catch (error) {
       console.warn(
         `[notees-web] workspace key unavailable for ${workspaceId}; refusing the open (fail loud):`,
@@ -113,25 +128,26 @@ export async function resolveWorkspaceKey(
       // and the probe cannot settle it, default to locked so the open never
       // degrades silently without the unlock re-prompt.
       const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
-      if (wrapped !== undefined) return { key: undefined, locked: true };
+      if (wrapped !== undefined) return { key: undefined, locked: true, plaintext: false };
       const locked = !(error instanceof AuthRequestError);
-      return { key: undefined, locked };
+      return { key: undefined, locked, plaintext: false };
     }
   }
   if (options.credentialType === "session") {
     // Distinguish "keyed but locked" from "keyless" for the unlock modal: the
     // wrapped-key row needs only membership, not the master key.
     const wrapped = await fetchWorkspaceKey(url, credential, workspaceId).catch(() => undefined);
-    if (wrapped !== undefined) return { key: undefined, locked: true };
-    return { key: undefined, locked: false };
+    if (wrapped !== undefined) return { key: undefined, locked: true, plaintext: false };
+    return { key: undefined, locked: false, plaintext: true };
   }
   // API-key session: no password path and the key route is user custody (the
   // operator key gets 403) — the workspaces listing carries the encrypted
   // flag instead. A keyed workspace refuses the open; the modal copy directs
   // to signing in with email + password.
   const listing = await listWorkspaces(url, credential).catch(() => ({ workspaces: [] as WorkspaceEntry[] }));
-  const encrypted = listing.workspaces.find((entry) => entry.id === workspaceId)?.encrypted === true;
-  return { key: undefined, locked: encrypted };
+  const entry = listing.workspaces.find((item) => item.id === workspaceId);
+  const encrypted = entry?.encrypted === true;
+  return { key: undefined, locked: encrypted, plaintext: entry !== undefined && !encrypted };
 }
 
 /**
