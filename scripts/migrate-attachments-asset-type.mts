@@ -39,12 +39,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  envelopeSchema,
-  newEnvelope,
-  payloadSchemaFor,
-  type Envelope,
-} from "../packages/protocol/src/index.ts";
+import { envelopeSchema, payloadSchemaFor } from "../packages/protocol/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
@@ -61,14 +56,30 @@ import {
  */
 export const CONTENT_CLASS: MigrationContentClass = "content";
 
-const ACTOR = "01920000-0000-7000-8000-0000000000a5";
-const DEVICE = "system-asset-type-migration";
-const CLIENT = "migrate-attachments-asset-type";
-const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
-/** The attachments schema id — hardcoded on purpose: fixed seed vocabulary
- *  (SYSTEM_PROPERTY_UUIDS.attachments in @notees/domain). */
-export const ATTACHMENTS_SCHEMA_ID = "00000000-0000-0000-0000-000000000011";
+// The migration's planning core is NODE-FREE (scripts/lib/migrations/ — the
+// client-side executor pattern): the pending probe, the planner, the op
+// builder, and the envelope builder all live there, importable verbatim by
+// a keyed client through the vendor pin. This script keeps the CLI shape by
+// delegating; the web repo's vendor-pinned rehearsal suite imports the
+// planner/builder through the re-export below.
+import {
+  ATTACHMENTS_SCHEMA_ID,
+  buildEnvelopes,
+  MIGRATION_IDENTITY,
+  planAssetType,
+  validateEnvelopes,
+} from "./lib/migrations/attachments-asset-type.ts";
+
+export {
+  ATTACHMENTS_SCHEMA_ID,
+  buildEnvelopes,
+  planAssetType,
+  validateEnvelopes,
+  type AssetTypePlan,
+  type AttachmentsSchemaRow,
+} from "./lib/migrations/attachments-asset-type.ts";
+
 
 // --- CLI ----------------------------------------------------------------------
 
@@ -105,131 +116,19 @@ function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
   });
 }
 
-// --- planning -------------------------------------------------------------------
 
-export interface AttachmentsSchemaRow {
-  name: string;
-  type: string;
-  multi: number;
-  /** The v24 locality column (JSON class-id list; NULL = global) — the
-   *  retired `scope` enum column was rebuilt away at store v24; the list rides the retype envelope verbatim. */
-  scopeClassIds: string | null;
-  options: string;
-  display: string | null;
-  hideWhenEmpty: number | null;
-}
-
-export interface AssetTypePlan {
-  /** The schema row is absent (never authored here — the web self-heal does it). */
-  schemaAbsent: boolean;
-  /** The retype envelope is needed (row exists, type not yet "asset"). */
-  retypeNeeded: boolean;
-  row: AttachmentsSchemaRow | null;
-}
-
-/**
- * Plan the retype from a converged derived store. Structural over the Store
- * class (the src/dist split under the dev-condition exports makes the class
- * itself import-fragile; only `database` is read).
- */
-export function planAssetType(store: Pick<Store, "database">): AssetTypePlan {
-  const row = store.database
-    .prepare(
-      `SELECT name, type, multi, scope_class_ids AS scopeClassIds, options, display, hide_when_empty AS hideWhenEmpty
-       FROM property_schema WHERE id = ?`,
-    )
-    .get(ATTACHMENTS_SCHEMA_ID) as AttachmentsSchemaRow | undefined;
-  if (row === undefined) return { schemaAbsent: true, retypeNeeded: false, row: null };
-  return {
-    schemaAbsent: false,
-    retypeNeeded: row.type !== "asset",
-    row,
-  };
-}
-
-// --- envelopes ----------------------------------------------------------------
-
-export function buildEnvelopes(workspaceId: string, plan: AssetTypePlan): Envelope[] {
-  if (!plan.retypeNeeded || plan.row === null) return [];
-  const row = plan.row;
-  let options: unknown = [];
-  try {
-    const parsed: unknown = JSON.parse(row.options);
-    if (Array.isArray(parsed)) options = parsed;
-  } catch {
-    options = [];
-  }
-  let scopeClassIds: string[] | null = null;
-  try {
-    const parsed: unknown = row.scopeClassIds === null ? null : JSON.parse(row.scopeClassIds);
-    scopeClassIds = Array.isArray(parsed)
-      ? parsed.filter((v): v is string => typeof v === "string")
-      : null;
-  } catch {
-    scopeClassIds = null;
-  }
-  return [
-    newEnvelope({
-      workspaceId,
-      actorId: ACTOR,
-      deviceId: DEVICE,
-      client: CLIENT,
-      hlc: { physical: Date.now(), logical: 0 },
-      affectedNodeIds: [],
-      opType: "propertySchema.create",
-      payload: {
-        propertySchemaId: ATTACHMENTS_SCHEMA_ID,
-        name: row.name,
-        type: "asset",
-        multi: row.multi === 1,
-        // The scope list rides verbatim (absent = global) — the retired
-        // `scope` enum is rejected outright by the strict schema.
-        ...(scopeClassIds !== null ? { scopeClassIds } : {}),
-        options: options as Array<{ id: string; label: string }>,
-        // No targetClassFilter: the asset type carries the filter implicitly
-        // now — the explicit column retires (NULL on the upsert).
-        ...(row.display !== null ? { display: row.display as "panel" | "bullet" | "inline" } : {}),
-        ...(row.hideWhenEmpty !== null ? { hideWhenEmpty: row.hideWhenEmpty === 1 } : {}),
-      },
-    }),
-  ];
-}
-
-/**
- * The protocol gate: every envelope must satisfy the envelope schema AND its
- * per-op payload schema. Anything invalid aborts BEFORE anything is inserted.
- */
-export function validateEnvelopes(envelopes: Envelope[]): void {
-  const failures: string[] = [];
-  for (const envelope of envelopes) {
-    const envResult = envelopeSchema.safeParse(envelope);
-    if (!envResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: envelope invalid — ${envResult.error.message}`);
-      continue;
-    }
-    const schema = payloadSchemaFor(envelope.opType);
-    if (schema === undefined) {
-      failures.push(`${envelope.opType} ${envelope.id}: no payload schema registered`);
-      continue;
-    }
-    const payloadResult = schema.safeParse(envelope.payload);
-    if (!payloadResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: payload invalid — ${payloadResult.error.message}`);
-    }
-  }
-  if (failures.length > 0) {
-    throw new Error(
-      `refusing to insert: ${failures.length} invalid envelope(s):\n  ${failures.join("\n  ")}`,
-    );
-  }
-}
+// --- planning + envelopes -------------------------------------------------------
+// planAssetType / buildEnvelopes / validateEnvelopes live in the node-free core,
+// re-exported above. The op-triple primitive behind the envelope builder is the
+// shape a client-side executor stamps with its session constants through the
+// normal write path.
 
 // --- verification -------------------------------------------------------------
 
 function verify(relay: RelayStorage, workspaceId: string, expectedCount: number): void {
   const rows = relay
     .allEnvelopes(workspaceId)
-    .filter((envelope) => envelope.deviceId === DEVICE);
+    .filter((envelope) => envelope.deviceId === MIGRATION_IDENTITY.deviceId);
   if (rows.length !== expectedCount) {
     throw new Error(`read-back mismatch: expected ${expectedCount} new envelopes, found ${rows.length}`);
   }

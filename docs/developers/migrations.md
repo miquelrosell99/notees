@@ -112,9 +112,19 @@ client stamps with its session constants through the normal write path — the
 sync engine seals and pushes it on a keyed workspace, no new crypto, no wire
 change), and the CLI envelope builder. The script keeps its CLI shape by
 delegating; its rehearsal suite is the pin (the core's output byte-identical
-to the pre-extraction script's). First extracted: meeting-date retirement —
-the proving pattern the web client's migrations runner consumes through the
-vendor pin.
+to the pre-extraction script's). Extracted so far (2026-11-06): meeting-date
+retirement (the proving pattern the web client's migrations runner consumes
+through the vendor pin), authors-to-text, pmid-property, zotero-full-
+alignment, url-source-binding, cover-banner-alias, attachments-asset-type.
+NOT extractable to this pattern — by architecture, not by neglect: the §B
+in-place rewrites (migrate-url-type-to-text, migrate-retire-external-link,
+migrate-mention-custom-label, migrate-unified-datetime, migrate-color-tokens)
+edit the STORED LOG's envelopes directly and explicitly forbid compensation
+envelopes, so no client write path can ever run them (they are also pre-
+keying-era history a keyed workspace never carries); migrate-cover-to-asset
+converges through the server's object REST API, not envelope planning; and
+migrate-date-pages-main is a non-import-safe top-level script with no
+rehearsal suite (extraction would be a redesign, which the ruling forbids).
 
 ### B. In-place rewrite (retired keys / moved fields)
 

@@ -59,13 +59,7 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  envelopeSchema,
-  newEnvelope,
-  payloadSchemaFor,
-  type Envelope,
-} from "../packages/protocol/src/index.ts";
-import { SYSTEM_PROPERTY_UUIDS } from "../packages/domain/src/index.ts";
+import { envelopeSchema, payloadSchemaFor } from "../packages/protocol/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
@@ -82,22 +76,29 @@ import {
  */
 export const CONTENT_CLASS: MigrationContentClass = "content";
 
-const ACTOR = "01920000-0000-7000-8000-0000000000a3";
-const DEVICE = "system-wire-fields-migration";
-const CLIENT = "migrate-cover-banner-alias";
-const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
-/** The retired schema → wire field mapping (the whole migration in one table). */
-const MOVES: ReadonlyArray<{
-  schemaKey: "cover" | "banner" | "aliasOf";
-  field: "coverAssetId" | "bannerAssetId" | "aliasedNodeId";
-}> = [
-  { schemaKey: "cover", field: "coverAssetId" },
-  { schemaKey: "banner", field: "bannerAssetId" },
-  { schemaKey: "aliasOf", field: "aliasedNodeId" },
-];
+// The migration's planning core is NODE-FREE (scripts/lib/migrations/ — the
+// client-side executor pattern): the pending probe, the planner, the op
+// builder, and the envelope builder all live there, importable verbatim by
+// a keyed client through the vendor pin. This script keeps the CLI shape by
+// delegating; the web repo's vendor-pinned rehearsal suite imports the
+// planner/builder through the re-export below.
+import {
+  buildEnvelopes,
+  MIGRATION_IDENTITY,
+  planMoves,
+  validateEnvelopes,
+} from "./lib/migrations/cover-banner-alias.ts";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export {
+  buildEnvelopes,
+  planMoves,
+  validateEnvelopes,
+  type PlannedMove,
+  type SkippedMove,
+  type VisibleRow,
+} from "./lib/migrations/cover-banner-alias.ts";
+
 
 // --- CLI ----------------------------------------------------------------------
 
@@ -134,236 +135,12 @@ function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
   });
 }
 
-// --- planning -------------------------------------------------------------------
 
-export interface VisibleRow {
-  /** The element id (== the row id; the positional rows' deterministic id). */
-  id: string;
-  nodeId: string;
-  schemaId: string;
-  value: unknown;
-  idx: number;
-  hlcPhysical: number;
-  hlcLogical: number;
-  actorId: string | null;
-}
-
-export interface PlannedMove {
-  nodeId: string;
-  schemaId: string;
-  field: "coverAssetId" | "bannerAssetId" | "aliasedNodeId";
-  /** The wire-field target (the winning visible row's resolution). */
-  targetId: string;
-  /** One unset per visible row of the (node, schema) pair: an ELEMENT
-   * remove for element-authored rows (uuid row id), a SLOT unset for the
-   * legacy positional rows (the deterministic `node:schema:idx` id is not a
-   * uuid, so it cannot ride elementId — the positional unset tombstones the
-   * whole idx slot, which the visible-set derivation honors). */
-  unsets: ReadonlyArray<{ elementId: string } | { idx: number }>;
-  /** Human-readable row count for the dry-run print. */
-  rows: number;
-}
-
-export interface SkippedMove {
-  nodeId: string;
-  schemaId: string;
-  reason: string;
-}
-
-/**
- * The PG5 visible-set suppression (effective.ts/compiler parity): no winning
- * slot tombstone, no strictly-newer element tombstone.
- */
-const VISIBLE_PREDICATE = `
-  NOT EXISTS (
-    SELECT 1 FROM property_value_tombstone t
-    WHERE t.node_id = pv.node_id AND t.property_schema_id = pv.property_schema_id
-      AND t.idx = pv.idx
-      AND (t.hlc_physical, t.hlc_logical, COALESCE(t.actor_id, '')) >=
-          (pv.hlc_physical, pv.hlc_logical, COALESCE(pv.actor_id, ''))
-  )
-  AND NOT EXISTS (
-    SELECT 1 FROM property_value_element_tombstone et
-    WHERE et.element_id = pv.id
-      AND (et.hlc_physical, et.hlc_logical) >
-          (pv.hlc_physical, pv.hlc_logical)
-  )`;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * Resolve a retired-schema value to a node id. Canonical: { nodeId };
- * defensive: a bare uuid string; v1-migrated cover/banner: { hash } resolved
- * through the derived node_asset table. Returns the skip reason when nothing
- * resolves.
- */
-export function resolveTarget(
-  value: unknown,
-  resolveAssetByHash: (hash: string) => string | undefined,
-): { id: string } | { skip: string } {
-  if (isRecord(value) && typeof value.nodeId === "string" && UUID_PATTERN.test(value.nodeId)) {
-    return { id: value.nodeId };
-  }
-  if (typeof value === "string" && UUID_PATTERN.test(value)) {
-    return { id: value };
-  }
-  if (isRecord(value) && typeof value.hash === "string") {
-    const nodeId = resolveAssetByHash(value.hash);
-    if (nodeId !== undefined) return { id: nodeId };
-    return { skip: `v1 asset hash ${value.hash} has no asset node in the derived store` };
-  }
-  return { skip: `unrecognized value shape ${JSON.stringify(value)}` };
-}
-
-/**
- * Plan the moves from a converged derived store. Structural over the Store
- * class (the src/dist split under the dev-condition exports makes the class
- * itself import-fragile; only `database` is read).
- */
-export function planMoves(
-  store: Pick<Store, "database">,
-): { moves: PlannedMove[]; skipped: SkippedMove[] } {
-  const db = store.database;
-  const schemaIds = MOVES.map((move) => SYSTEM_PROPERTY_UUIDS[move.schemaKey]);
-  const fieldBySchema = new Map<string, "coverAssetId" | "bannerAssetId" | "aliasedNodeId">(
-    MOVES.map((move) => [SYSTEM_PROPERTY_UUIDS[move.schemaKey], move.field]),
-  );
-  const rows = db
-    .prepare(
-      `SELECT pv.id, pv.node_id, pv.property_schema_id, pv.value, pv.idx,
-              pv.hlc_physical, pv.hlc_logical, pv.actor_id
-       FROM property_value pv
-       WHERE pv.property_schema_id IN (?, ?, ?)
-         AND ${VISIBLE_PREDICATE}
-       ORDER BY pv.node_id, pv.property_schema_id,
-                pv.hlc_physical, pv.hlc_logical, COALESCE(pv.actor_id, '')`,
-    )
-    .all(schemaIds[0], schemaIds[1], schemaIds[2]) as Array<Record<string, unknown>>;
-
-  const assetNodeByHash = db.prepare(
-    "SELECT node_id FROM node_asset WHERE hash = ? ORDER BY uploaded_at DESC LIMIT 1",
-  );
-  const resolveAssetByHash = (hash: string): string | undefined => {
-    const row = assetNodeByHash.get(hash) as { node_id: string } | undefined;
-    return row?.node_id;
-  };
-
-  // Group the visible rows per (node, schema): the field takes the LAST
-  // row's resolution (the (hlc, actor) winner — the query orders ascending),
-  // and every visible row gets its own unset.
-  const groups = new Map<string, VisibleRow[]>();
-  for (const raw of rows) {
-    const row: VisibleRow = {
-      id: String(raw.id),
-      nodeId: String(raw.node_id),
-      schemaId: String(raw.property_schema_id),
-      value: JSON.parse(String(raw.value)) as unknown,
-      idx: Number(raw.idx),
-      hlcPhysical: Number(raw.hlc_physical),
-      hlcLogical: Number(raw.hlc_logical),
-      actorId: raw.actor_id === null || raw.actor_id === undefined ? null : String(raw.actor_id),
-    };
-    const key = `${row.nodeId}|${row.schemaId}`;
-    const list = groups.get(key);
-    if (list) list.push(row);
-    else groups.set(key, [row]);
-  }
-
-  const moves: PlannedMove[] = [];
-  const skipped: SkippedMove[] = [];
-  for (const [key, group] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    const [nodeId, schemaId] = key.split("|") as [string, string];
-    const field = fieldBySchema.get(schemaId)!;
-    const winner = group[group.length - 1]!;
-    const resolved = resolveTarget(winner.value, resolveAssetByHash);
-    if ("skip" in resolved) {
-      skipped.push({ nodeId, schemaId, reason: resolved.skip });
-      continue;
-    }
-    moves.push({
-      nodeId,
-      schemaId,
-      field,
-      targetId: resolved.id,
-      unsets: group.map((row) =>
-        UUID_PATTERN.test(row.id) ? { elementId: row.id } : { idx: row.idx },
-      ),
-      rows: group.length,
-    });
-  }
-  return { moves, skipped };
-}
-
-// --- envelopes ----------------------------------------------------------------
-
-export function buildEnvelopes(workspaceId: string, moves: PlannedMove[]): Envelope[] {
-  const physical = Date.now();
-  const envelopes: Envelope[] = [];
-  for (const move of moves) {
-    envelopes.push(
-      newEnvelope({
-        workspaceId,
-        actorId: ACTOR,
-        deviceId: DEVICE,
-        client: CLIENT,
-        hlc: { physical, logical: envelopes.length },
-        affectedNodeIds: [move.nodeId],
-        opType: "object.update",
-        payload: { objectId: move.nodeId, [move.field]: move.targetId },
-      }),
-    );
-    for (const unset of move.unsets) {
-      envelopes.push(
-        newEnvelope({
-          workspaceId,
-          actorId: ACTOR,
-          deviceId: DEVICE,
-          client: CLIENT,
-          hlc: { physical, logical: envelopes.length },
-          affectedNodeIds: [move.nodeId],
-          opType: "property.unset",
-          payload: {
-            objectId: move.nodeId,
-            propertySchemaId: move.schemaId,
-            ...unset,
-          },
-        }),
-      );
-    }
-  }
-  return envelopes;
-}
-
-/**
- * The protocol gate: every envelope must satisfy the envelope schema AND its
- * per-op payload schema. Anything invalid aborts BEFORE anything is inserted.
- */
-export function validateEnvelopes(envelopes: Envelope[]): void {
-  const failures: string[] = [];
-  for (const envelope of envelopes) {
-    const envResult = envelopeSchema.safeParse(envelope);
-    if (!envResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: envelope invalid — ${envResult.error.message}`);
-      continue;
-    }
-    const schema = payloadSchemaFor(envelope.opType);
-    if (schema === undefined) {
-      failures.push(`${envelope.opType} ${envelope.id}: no payload schema registered`);
-      continue;
-    }
-    const payloadResult = schema.safeParse(envelope.payload);
-    if (!payloadResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: payload invalid — ${payloadResult.error.message}`);
-    }
-  }
-  if (failures.length > 0) {
-    throw new Error(
-      `refusing to insert: ${failures.length} invalid envelope(s):\n  ${failures.join("\n  ")}`,
-    );
-  }
-}
+// --- planning + envelopes -------------------------------------------------------
+// planMoves / buildEnvelopes / validateEnvelopes live in the node-free core,
+// re-exported above. The op-triple primitive behind the envelope builder is the
+// shape a client-side executor stamps with its session constants through the
+// normal write path.
 
 // --- verification -------------------------------------------------------------
 
@@ -375,7 +152,7 @@ function verify(
 ): void {
   const rows = relay
     .allEnvelopes(workspaceId)
-    .filter((envelope) => envelope.deviceId === DEVICE);
+    .filter((envelope) => envelope.deviceId === MIGRATION_IDENTITY.deviceId);
   if (rows.length !== expectedCount) {
     throw new Error(`read-back mismatch: expected ${expectedCount} new envelopes, found ${rows.length}`);
   }

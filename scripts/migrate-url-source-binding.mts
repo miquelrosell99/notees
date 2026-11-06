@@ -37,14 +37,11 @@
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  envelopeSchema,
-  newEnvelope,
-  payloadSchemaFor,
-  type Envelope,
-} from "../packages/protocol/src/index.ts";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "../packages/domain/src/index.ts";
+import { envelopeSchema, payloadSchemaFor } from "../packages/protocol/src/index.ts";
+import { SYSTEM_PROPERTY_UUIDS } from "../packages/domain/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
+
+const URL_ID = SYSTEM_PROPERTY_UUIDS.url;
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
 
@@ -60,13 +57,26 @@ import {
  */
 export const CONTENT_CLASS: MigrationContentClass = "content";
 
-const ACTOR = "01920000-0000-7000-8000-0000000000a3";
-const DEVICE = "migrate-url-source-binding";
-const CLIENT = "migrate-url-source-binding";
-const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
-const SOURCE_ID = SYSTEM_CLASS_UUIDS.source;
-const URL_ID = SYSTEM_PROPERTY_UUIDS.url;
+// The migration's planning core is NODE-FREE (scripts/lib/migrations/ — the
+// client-side executor pattern): the pending probe, the planner, the op
+// builder, and the envelope builder all live there, importable verbatim by
+// a keyed client through the vendor pin. This script keeps the CLI shape by
+// delegating.
+import {
+  buildEnvelopes,
+  MIGRATION_IDENTITY,
+  planBinding,
+  validateEnvelopes,
+  type BindingPlan,
+} from "./lib/migrations/url-source-binding.ts";
+
+export {
+  buildEnvelopes,
+  planBinding,
+  type BindingPlan,
+} from "./lib/migrations/url-source-binding.ts";
+
 
 // --- CLI ----------------------------------------------------------------------
 
@@ -113,104 +123,12 @@ function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
   });
 }
 
-// --- planning -----------------------------------------------------------------
 
-interface BindingPlan {
-  /** The url schema row is absent from this workspace entirely. */
-  schemaMissing: boolean;
-  /** A source↔url binding row already exists — nothing to do. */
-  sourceBound: boolean;
-  /** The web_page↔url row exists (reported, never touched). */
-  webPageBound: boolean;
-  /** The converged scope list (non-null = drifted from the global seed). */
-  currentScope: string[] | null;
-}
-
-function planBinding(store: Store): BindingPlan {
-  const schema = store.database
-    .prepare("SELECT scope_class_ids FROM property_schema WHERE id = ?")
-    .get(URL_ID) as { scope_class_ids: string | null } | undefined;
-  const binding = (classId: string): boolean =>
-    store.database
-      .prepare("SELECT 1 FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-      .get(classId, URL_ID) !== undefined;
-  return {
-    schemaMissing: schema === undefined,
-    sourceBound: binding(SOURCE_ID),
-    webPageBound: binding(SYSTEM_CLASS_UUIDS.web_page),
-    currentScope:
-      schema === undefined || schema.scope_class_ids === null
-        ? null
-        : (JSON.parse(schema.scope_class_ids) as string[]),
-  };
-}
-
-// --- envelopes ----------------------------------------------------------------
-
-function buildEnvelopes(workspaceId: string, plan: BindingPlan): Envelope[] {
-  const physical = Date.now();
-  const envelopes: Envelope[] = [];
-  let logical = 0;
-  if (plan.currentScope !== null) {
-    // R5 dead-config guard: the source binding is only legal on a schema
-    // whose scope reaches source — the drifted local scope clears FIRST,
-    // same ingest, ordered before the binding.
-    envelopes.push(
-      newEnvelope({
-        workspaceId,
-        actorId: ACTOR,
-        deviceId: DEVICE,
-        client: CLIENT,
-        hlc: { physical, logical: logical++ },
-        affectedNodeIds: [],
-        opType: "propertySchema.update",
-        payload: { propertySchemaId: URL_ID, scopeClassIds: null },
-      }),
-    );
-  }
-  envelopes.push(
-    newEnvelope({
-      workspaceId,
-      actorId: ACTOR,
-      deviceId: DEVICE,
-      client: CLIENT,
-      hlc: { physical, logical: logical++ },
-      affectedNodeIds: [SOURCE_ID],
-      opType: "class.property.set",
-      payload: { classId: SOURCE_ID, propertySchemaId: URL_ID },
-    }),
-  );
-  return envelopes;
-}
-
-/**
- * The protocol gate: every envelope must satisfy the envelope schema AND its
- * per-op payload schema. Anything invalid aborts BEFORE anything is inserted.
- */
-function validateEnvelopes(envelopes: Envelope[]): void {
-  const failures: string[] = [];
-  for (const envelope of envelopes) {
-    const envResult = envelopeSchema.safeParse(envelope);
-    if (!envResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: envelope invalid — ${envResult.error.message}`);
-      continue;
-    }
-    const schema = payloadSchemaFor(envelope.opType);
-    if (schema === undefined) {
-      failures.push(`${envelope.opType} ${envelope.id}: no payload schema registered`);
-      continue;
-    }
-    const payloadResult = schema.safeParse(envelope.payload);
-    if (!payloadResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: payload invalid — ${payloadResult.error.message}`);
-    }
-  }
-  if (failures.length > 0) {
-    throw new Error(
-      `refusing to insert: ${failures.length} invalid envelope(s):\n  ${failures.join("\n  ")}`,
-    );
-  }
-}
+// --- planning + envelopes -------------------------------------------------------
+// planBinding / buildEnvelopes / validateEnvelopes live in the node-free core,
+// re-exported above. The op-triple primitive behind the envelope builder is the
+// shape a client-side executor stamps with its session constants through the
+// normal write path.
 
 // --- verification -------------------------------------------------------------
 
@@ -231,7 +149,7 @@ function verify(
 ): void {
   const rows = relay
     .allEnvelopes(workspaceId)
-    .filter((envelope) => envelope.deviceId === DEVICE);
+    .filter((envelope) => envelope.deviceId === MIGRATION_IDENTITY.deviceId);
   if (rows.length !== expectedCount) {
     throw new Error(`read-back mismatch: expected ${expectedCount} new envelopes, found ${rows.length}`);
   }
@@ -307,7 +225,7 @@ function migrateWorkspace(relay: RelayStorage, workspaceId: string, apply: boole
     );
   }
 
-  const envelopes = buildEnvelopes(workspaceId, plan);
+  const envelopes = buildEnvelopes(workspaceId, plan, Date.now());
   validateEnvelopes(envelopes);
   console.log(`${envelopes.length} envelope(s) built and protocol-validated.`);
 
