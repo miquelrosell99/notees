@@ -15,6 +15,7 @@ export type ErrorCode =
   | "forbidden"
   | "scope_denied"
   | "validation_failed"
+  | "keying_required"
   | "not_found"
   | "rate_limited"
   | "conflict"
@@ -71,6 +72,10 @@ export const ERROR_TAXONOMY: Readonly<
     aliases: [400, 416],
     description: "body/query/payload failed schema validation (fail loud, never half-applied)",
   },
+  // the creation gate (NOTEES_REQUIRE_KEYED, default on): POST /workspaces
+  // and the clone route refuse to mint a workspace without a wrappedKey
+  // bundle — the 422 names the missing bundle and precedes the mint.
+  keying_required: { status: 422, description: "workspace creation requires a wrappedKey bundle (NOTEES_REQUIRE_KEYED)" },
   not_found: { status: 404, description: "the addressed object/class/asset/workspace/snapshot does not exist" },
   rate_limited: { status: 429, description: "a fixed-window limiter refused the call (global IP, relay batch, login)" },
   conflict: { status: 409, description: "write rejected: id already exists, stale base revision, or conflicting state" },

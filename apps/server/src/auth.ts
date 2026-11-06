@@ -25,6 +25,8 @@ import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { uuidv7 } from "uuidv7";
 
+import type { ServerConfig } from "./config.js";
+
 const scrypt = promisify(scryptCb) as unknown as (
   password: string,
   salt: Buffer,
@@ -55,6 +57,29 @@ const KDF_P = 1;
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
+/**
+ * The mandatory-keying fixture exemption: the seeded demo workspaces the
+ * smoke and test harnesses use. The server never holds keys, so it cannot
+ * key them at seed time — harnesses mint them via direct log ingest (the
+ * relay's first-ingest mint passes the allowlist explicitly, see
+ * routes-relay.ts). Every other workspace id answers to the keying
+ * requirement.
+ */
+export const KEYING_EXEMPT_WORKSPACE_IDS: readonly string[] = [
+  "11111111-2222-4333-8444-555555555555",
+  "4b7d1a00-2222-4000-8000-0000000000099",
+];
+
+/**
+ * The keying gate predicate (NOTEES_REQUIRE_KEYED): true when the config
+ * hatch is on AND the workspace id is not one of the seeded demo fixtures.
+ * `workspaceId === null` is the creation case — the id does not exist yet,
+ * so nothing can exempt it.
+ */
+export function keyingRequiredFor(config: Pick<ServerConfig, "requireKeyed">, workspaceId: string | null): boolean {
+  return config.requireKeyed && (workspaceId === null || !KEYING_EXEMPT_WORKSPACE_IDS.includes(workspaceId));
+}
 
 export interface UserRow {
   id: string;
@@ -670,8 +695,29 @@ export class AuthStorage {
 
   // --- workspaces & membership ------------------------------------------------------
 
-  createWorkspace(input: { id?: string; name?: string | null; createdBy?: string | null }): string {
+  /**
+   * Mint a workspace row. When `input.id` is explicit AND names a seeded
+   * demo fixture (KEYING_EXEMPT_WORKSPACE_IDS), the caller must pass the
+   * allowlist as `opts.fixtureAllowlist` — only the direct log-ingest path
+   * (relay first-ingest mint) may claim those ids; any other creation path
+   * would mint a workspace the keying requirement can never touch. Without
+   * an explicit id the allowlist plays no role (a fresh uuidv7 is never
+   * exempt).
+   */
+  createWorkspace(
+    input: { id?: string; name?: string | null; createdBy?: string | null },
+    opts?: { fixtureAllowlist?: readonly string[] },
+  ): string {
     const id = input.id ?? uuidv7();
+    if (
+      input.id !== undefined &&
+      KEYING_EXEMPT_WORKSPACE_IDS.includes(input.id) &&
+      opts?.fixtureAllowlist !== KEYING_EXEMPT_WORKSPACE_IDS
+    ) {
+      throw new Error(
+        `workspace id ${input.id} is a seeded demo fixture — it is minted only via direct log ingest`,
+      );
+    }
     this.db
       .prepare(
         "INSERT INTO workspace (id, name, created_by, created_at) VALUES (?, ?, ?, ?)",

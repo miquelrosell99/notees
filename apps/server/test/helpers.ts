@@ -32,6 +32,11 @@ export function makeConfig(dataDir: string, overrides: Partial<ServerConfig> = {
     maxDocumentBytes: 100 * 1024 * 1024,
     loginPerMinute: 10,
     signupEnabled: false,
+    // The keying gate (NOTEES_REQUIRE_KEYED, default ON) postdates this suite:
+    // default the hatch OFF here (the =0 env value) so the ~20 suites that
+    // POST /api/workspaces without a bundle stay green. The gate itself is
+    // pinned in keying-gate.test.ts, which overrides this to true.
+    requireKeyed: false,
     corsOrigins: [],
     resolverTimeoutMs: 10_000,
     ...overrides,

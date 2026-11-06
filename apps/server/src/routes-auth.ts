@@ -41,7 +41,7 @@ import { uuidv7 } from "uuidv7";
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { actorIdForUser, type Principal } from "./identity.js";
-import { hashPassword, verifyPassword } from "./auth.js";
+import { hashPassword, keyingRequiredFor, verifyPassword } from "./auth.js";
 import { parseApiScopes } from "./scopes.js";
 import { WorkspaceImageError } from "./workspace-store.js";
 
@@ -146,8 +146,15 @@ const signupBodySchema = z
   })
   .strict();
 
+// The creation body (POST /workspaces + the clone route): an optional
+// wrappedKey bundle — the E2EE custody string (same bounds as
+// workspaceKeySchema). NOTEES_REQUIRE_KEYED (default on) makes it mandatory:
+// without it the creation answers 422 keying_required.
 const createWorkspaceSchema = z
-  .object({ name: z.string().trim().max(120).optional() })
+  .object({
+    name: z.string().trim().max(120).optional(),
+    wrappedKey: z.string().min(1).max(4096).optional(),
+  })
   .strict();
 
 const renameWorkspaceSchema = z
@@ -720,11 +727,22 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid workspace request");
     }
+    // The keying gate precedes the mint: nothing is created to clean up.
+    if (keyingRequiredFor(ctx.config, null) && parsed.data.wrappedKey === undefined) {
+      throw new AppError(
+        422,
+        "keying_required",
+        "workspace keying is required — create the workspace with a wrappedKey bundle (sign in with your email and password to create one)",
+      );
+    }
     const id = ctx.auth.createWorkspace({
       name: parsed.data.name ?? null,
       createdBy: principal.userId,
     });
     ctx.auth.addMember(id, principal.userId, "owner");
+    if (parsed.data.wrappedKey !== undefined) {
+      ctx.auth.putWorkspaceKey(id, parsed.data.wrappedKey);
+    }
     reply.code(201);
     return { id, name: parsed.data.name ?? null, role: "owner" };
   });
@@ -789,6 +807,15 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid clone request");
     }
+    // The keying gate precedes the mint (and the snapshot read): the clone
+    // may reuse NOTHING of the source's key — a fresh bundle or the 422.
+    if (keyingRequiredFor(ctx.config, null) && parsed.data.wrappedKey === undefined) {
+      throw new AppError(
+        422,
+        "keying_required",
+        "workspace keying is required — create the workspace with a wrappedKey bundle (sign in with your email and password to create one)",
+      );
+    }
     let bytes: Buffer;
     try {
       bytes = await ctx.workspaces.snapshotImage(sourceId);
@@ -822,6 +849,11 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
         // Cleanup is best-effort.
       }
       rethrowImageError(error);
+    }
+    // The install succeeded — now the custody row (never before: a failed
+    // clone's rollback does not touch workspace_key).
+    if (parsed.data.wrappedKey !== undefined) {
+      ctx.auth.putWorkspaceKey(id, parsed.data.wrappedKey);
     }
     reply.code(201);
     return { id, name, nodeCount };

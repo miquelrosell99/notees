@@ -17,6 +17,11 @@
  *    deployments only, there is no cookie/credential surface to protect.
  *  - NOTEES_RESOLVER_TIMEOUT_MS (default 10000): the metadata resolver's
  *    (GET /api/resolve) per-request upstream timeout.
+ *  - NOTEES_REQUIRE_KEYED (default on): workspace creation (POST /workspaces
+ *    and the clone route) requires a wrappedKey bundle — creation without
+ *    one answers 422 keying_required. Off restores the legacy unkeyed
+ *    creation path for dev/test fleets; the seeded demo fixtures carry an
+ *    explicit exemption allowlist (KEYING_EXEMPT_WORKSPACE_IDS, auth.ts).
  */
 
 import { randomBytes } from "node:crypto";
@@ -46,6 +51,13 @@ export interface ServerConfig {
    * creates non-admin accounts. Default false — the route 404s when off.
    */
   signupEnabled: boolean;
+  /**
+   * Workspace keying requirement (NOTEES_REQUIRE_KEYED, default true): the
+   * creation routes reject a workspace without a wrappedKey bundle (422
+   * keying_required). The seeded demo fixtures are exempt via
+   * KEYING_EXEMPT_WORKSPACE_IDS (auth.ts).
+   */
+  requireKeyed: boolean;
   /**
    * Browser origins allowed to call the API cross-origin (parsed from
    * NOTEES_CORS_ORIGIN). Empty means no CORS headers are sent at all.
@@ -146,6 +158,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig &
     maxDocumentBytes: intFromEnv(env, "NOTEES_MAX_DOCUMENT_BYTES", 100 * 1024 * 1024),
     loginPerMinute: intFromEnv(env, "NOTEES_LOGIN_PER_MINUTE", 10),
     signupEnabled: boolFromEnv(env, "NOTEES_SIGNUP_ENABLED", false),
+    requireKeyed: boolFromEnv(env, "NOTEES_REQUIRE_KEYED", true),
     corsOrigins: parseCorsOrigins(env.NOTEES_CORS_ORIGIN),
     resolverTimeoutMs: intFromEnv(env, "NOTEES_RESOLVER_TIMEOUT_MS", 10_000),
   };
