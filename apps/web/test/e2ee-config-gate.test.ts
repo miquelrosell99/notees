@@ -186,9 +186,6 @@ describe("keying is unconditional (the NOTEES_CONFIG.e2ee flag is inert)", () =>
       async delete() {
         record = null;
       },
-      async clear() {
-        record = null;
-      },
     });
     const deviceKey = await ensureOfflineWorkspaceKey(WS);
     const fetchMock = vi.fn(async () => {

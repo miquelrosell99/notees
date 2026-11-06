@@ -66,7 +66,6 @@ describe("keying without a secure context", () => {
         return null;
       },
       async delete() {},
-      async clear() {},
     });
     withholdSubtle();
 

@@ -24,12 +24,13 @@
  * A SECOND store, `workspaceKeys` (added Task 9, DB version 2), holds the
  * device-local keys of offline workspaces — one record per workspace id,
  * `{ id: <workspaceId>, key?: CryptoKey, keyBytes?: Uint8Array }`, same
- * preferred/fallback shapes. These records are NOT session state while the
- * workspace lives (the offline workspace has no account), but they must not
- * leak forever either (F1): workspace removal deletes the workspace's record
- * (`deleteOfflineWorkspaceKey`) and session end empties the whole store
- * (`clearOfflineWorkspaceKeys`). A workspace re-created or reopened after
- * either mints a FRESH key. See
+ * preferred/fallback shapes. These records are NOT session state: the
+ * offline workspace has no account, and each key protects content sealed
+ * under it (wire/outbox envelopes), so session end (sign-out) must NOT
+ * delete them — a fresh key would orphan that content (data-availability
+ * ruling). They must not leak forever either, though: workspace removal
+ * deletes the workspace's record (`deleteOfflineWorkspaceKey`, F1), and a
+ * workspace re-created after the removal mints a FRESH key. See
  * `getOfflineWorkspaceKey`/`persistOfflineWorkspaceKey` below.
  *
  * The storage is behind a narrow interface so tests inject an in-memory fake
@@ -213,11 +214,12 @@ export async function deleteMasterKey(): Promise<void> {
 // The "Work offline" local-only workspace is keyed at creation; its key is
 // device-local custody in the SAME database, store `workspaceKeys`, one
 // record per workspace id (`{ id, key?|keyBytes? }` — the identical
-// Chromium-handle / Firefox-bytes shapes). While the workspace lives these
-// records survive session end is NO LONGER the ruling (F1): custody records
-// must not leak forever, so session end (`clearCryptoCustody`) empties the
-// store and workspace removal deletes the one record. A re-create / reopen
-// mints a fresh key.
+// Chromium-handle / Firefox-bytes shapes). Unlike the master record these
+// SURVIVE session end: sign-out must not orphan the sealed offline content
+// (the T9 data-availability ruling — the key protects wire/outbox envelopes
+// sealed under it). F1 adds the cleanup seam the other way: workspace
+// removal deletes the one record, so a custody record never outlives its
+// workspace; a re-create mints a fresh key.
 
 export interface WorkspaceKeyRecord {
   key?: CryptoKey;
@@ -231,8 +233,6 @@ export interface WorkspaceKeyStore {
   load(id: string): Promise<unknown>;
   /** Delete the record. Never rejects. */
   delete(id: string): Promise<void>;
-  /** Empty the whole store. Never rejects. */
-  clear(): Promise<void>;
 }
 
 class IdbWorkspaceKeyStore implements WorkspaceKeyStore {
@@ -282,22 +282,6 @@ class IdbWorkspaceKeyStore implements WorkspaceKeyStore {
       try {
         const tx = db.transaction(WORKSPACE_STORE_NAME, "readwrite");
         tx.objectStore(WORKSPACE_STORE_NAME).delete(id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => resolve();
-        tx.onabort = () => resolve();
-      } catch {
-        resolve();
-      }
-    });
-  }
-
-  async clear(): Promise<void> {
-    const db = await this.open();
-    if (db === null) return;
-    await new Promise<void>((resolve) => {
-      try {
-        const tx = db.transaction(WORKSPACE_STORE_NAME, "readwrite");
-        tx.objectStore(WORKSPACE_STORE_NAME).clear();
         tx.oncomplete = () => resolve();
         tx.onerror = () => resolve();
         tx.onabort = () => resolve();
@@ -374,18 +358,6 @@ export async function deleteOfflineWorkspaceKey(workspaceId: string): Promise<vo
   try {
     const store = resolveWorkspaceStore();
     if (store !== null) await store.delete(workspaceId);
-  } catch {
-    // Deletion is best-effort by design.
-  }
-}
-
-/**
- * Empty the whole `workspaceKeys` store (session end). Never rejects.
- */
-export async function clearOfflineWorkspaceKeys(): Promise<void> {
-  try {
-    const store = resolveWorkspaceStore();
-    if (store !== null) await store.clear();
   } catch {
     // Deletion is best-effort by design.
   }

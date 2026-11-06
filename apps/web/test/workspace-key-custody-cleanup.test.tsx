@@ -1,11 +1,12 @@
 /**
  * Custody-record cleanup (F1): `notees-custody`'s `workspaceKeys` records
  * must not leak forever. A workspace's device-local key is deleted WITH the
- * workspace (every removal surface), session end (sign-out / forget-server /
- * rejected credential via `clearCryptoCustody`) empties the whole store, and
- * deleting a missing record is a silent no-op — a workspace re-created later
- * (or reopened after a session end) mints a FRESH key, never resurrecting
- * the old record.
+ * workspace (every removal surface) — deleting a missing record is a silent
+ * no-op, and a workspace re-created later mints a FRESH key, never
+ * resurrecting the old record. Sign-out is NOT a cleanup trigger: custody
+ * records survive session end by design (the T9 data-availability ruling —
+ * each key protects content sealed under it); the preserved-records pin
+ * lives in `offline-keying.test.ts`.
  *
  * fake-indexeddb is not a devDep: the store seam takes an in-memory fake
  * (record-shaped, so the key↔bytes logic is exercised through it).
@@ -14,15 +15,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { createKdfRecord, generateMasterKey, importWorkspaceKey } from "@notees/protocol";
+import { importWorkspaceKey } from "@notees/protocol";
 
 import {
   clearCryptoCustody,
-  deriveMasterKey,
   ensureOfflineWorkspaceKey,
 } from "../src/core/crypto-custody.js";
 import {
-  clearOfflineWorkspaceKeys,
   deleteOfflineWorkspaceKey,
   getOfflineWorkspaceKey,
   persistOfflineWorkspaceKey,
@@ -36,7 +35,6 @@ const SERVER = "https://notees.example.com";
 const TOKEN = "session-token";
 const WS = "0192a000-0000-7000-8000-000000000001";
 const OTHER_WS = "0192a000-0000-7000-8000-000000000002";
-const PASSWORD = "correct horse battery staple";
 
 /** In-memory fake standing in for the IndexedDB workspace-key store (per-id). */
 function fakeStore(): WorkspaceKeyStore & { records: Map<string, WorkspaceKeyRecord> } {
@@ -52,9 +50,6 @@ function fakeStore(): WorkspaceKeyStore & { records: Map<string, WorkspaceKeyRec
     },
     async delete(id) {
       records.delete(id);
-    },
-    async clear() {
-      records.clear();
     },
   };
 }
@@ -104,33 +99,6 @@ describe("deleteOfflineWorkspaceKey (workspace removal)", () => {
     setWorkspaceKeyStoreForTests(store);
 
     await expect(deleteOfflineWorkspaceKey("never-existed")).resolves.toBeUndefined();
-    expect(store.records.size).toBe(0);
-  });
-});
-
-describe("clearOfflineWorkspaceKeys (session end)", () => {
-  it("clearCryptoCustody empties the whole workspaceKeys store (every shape) — and still clears the master key", async () => {
-    const store = fakeStore();
-    setWorkspaceKeyStoreForTests(store);
-    await persistOfflineWorkspaceKey(WS, await importWorkspaceKey(crypto.getRandomValues(new Uint8Array(32))));
-    await persistOfflineWorkspaceKey(
-      OTHER_WS,
-      await importWorkspaceKey(crypto.getRandomValues(new Uint8Array(32))),
-    );
-    const master = await generateMasterKey();
-    await deriveMasterKey(PASSWORD, await createKdfRecord(master, PASSWORD));
-
-    await clearCryptoCustody();
-
-    expect(store.records.size).toBe(0);
-    expect(await getOfflineWorkspaceKey(WS)).toBeNull();
-  });
-
-  it("clearOfflineWorkspaceKeys on an already-empty store resolves without throwing", async () => {
-    const store = fakeStore();
-    setWorkspaceKeyStoreForTests(store);
-
-    await expect(clearOfflineWorkspaceKeys()).resolves.toBeUndefined();
     expect(store.records.size).toBe(0);
   });
 });
