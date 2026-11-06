@@ -34,6 +34,7 @@ import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
 import { SourcesSettingsSection } from "../settings/SourcesSettingsSection.js";
+import { MigrationsSection } from "../settings/MigrationsSection.js";
 import { WorkflowRulesSection } from "../settings/WorkflowRulesSection.js";
 import { WorkflowsSettingsSection } from "../workflows/WorkflowsSettingsSection.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
@@ -558,6 +559,8 @@ export function WorkspaceSettingsModal({
                 />
                 <span className="settings-unavailable">Not available in this build.</span>
               </div>
+
+              {clientMatches && <MigrationsSection client={client!} />}
             </div>
           )}
         </div>

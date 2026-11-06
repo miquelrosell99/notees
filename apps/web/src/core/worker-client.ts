@@ -67,6 +67,7 @@ import {
   writeDevicePrefScalar,
 } from "./workspace-client/prefs.js";
 import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
+import type { MigrationPlanReport } from "./migrations/registry.js";
 import { isReadUnchanged } from "./workspace-client/read-revisions.js";
 import type {
   WorkerInitMessage,
@@ -1150,6 +1151,34 @@ export class WorkerClient {
 
   async mergeNodes(sourceId: string, targetId: string): Promise<MergePlanSummary> {
     return (await this.call("mergeNodes", [sourceId, targetId])) as MergePlanSummary;
+  }
+
+  // --- content migrations (the keyed-side runner — F3; uncached RPCs) -------------
+
+  /** True when the workspace is keyed — the engine seals every write (the surface's hint copy). */
+  async isKeyedWorkspace(): Promise<boolean> {
+    return (await this.call("isKeyedWorkspace", [])) as boolean;
+  }
+
+  /** The content-class migrations pending on this workspace (each core's `isPending` probe). */
+  async listPendingMigrations(): Promise<MigrationPlanReport[]> {
+    return (await this.call("listPendingMigrations", [])) as MigrationPlanReport[];
+  }
+
+  /** The dry-run report for one migration — counts + conflict rows, zero writes. */
+  async planMigration(id: string): Promise<MigrationPlanReport> {
+    return (await this.call("planMigration", [id])) as MigrationPlanReport;
+  }
+
+  /**
+   * Run one migration client-side: plan against the local UNSEALED store,
+   * payload-validate, commit as ONE undo batch through the single enqueue
+   * seam — the engine seals + pushes the ops on a keyed workspace like any
+   * write. Uncached: the pending list is derived state that flips with the
+   * run itself.
+   */
+  async runMigration(id: string): Promise<MigrationPlanReport> {
+    return (await this.call("runMigration", [id])) as MigrationPlanReport;
   }
 
   /** Download an asset's bytes (workspace key); the export engine's include-assets read. */

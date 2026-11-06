@@ -1086,6 +1086,14 @@ export class WorkerCore {
         return this.client.planMergeSummary(args[0] as string, args[1] as string);
       case "mergeNodes":
         return this.client.mergeNodes(args[0] as string, args[1] as string);
+      case "isKeyedWorkspace":
+        return this.client.isKeyedWorkspace();
+      case "listPendingMigrations":
+        return this.client.listPendingMigrations();
+      case "planMigration":
+        return this.client.planMigration(args[0] as string);
+      case "runMigration":
+        return this.client.runMigration(args[0] as string);
       case "syncOnce":
         return this.syncOnce();
       case "push":

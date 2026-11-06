@@ -185,6 +185,15 @@ function featureClient(overrides: {
     setFeatureEnabled: overrides.setFeatureEnabled ?? (() => Promise.resolve()),
     setFeatureSettings: () => Promise.resolve(),
     setArchived: () => Promise.resolve(),
+    // The General tab's Migrations block (F3) probes the client on open.
+    isKeyedWorkspace: () => false,
+    listPendingMigrations: () => [],
+    planMigration: () => {
+      throw new Error("not used by these pins");
+    },
+    runMigration: () => {
+      throw new Error("not used by these pins");
+    },
   } as unknown as AnyClient;
 }
 

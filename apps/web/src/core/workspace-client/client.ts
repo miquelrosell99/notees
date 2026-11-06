@@ -59,6 +59,8 @@ import { WorkspaceClientServer } from "./client-server.js";
 import { WorkspaceClientUndo, buildUndoCaptureSource } from "./client-undo.js";
 import { WorkspaceClientWrites } from "./client-writes.js";
 import { WorkspaceClientDates } from "./client-dates.js";
+import { WorkspaceClientMigrations } from "./client-migrations.js";
+import type { MigrationPlanReport } from "../migrations/registry.js";
 import {
   applyWorkflowStep,
   stepConverged,
@@ -76,6 +78,7 @@ export class WorkspaceClient {
   private readonly undoDomain: WorkspaceClientUndo;
   private readonly writes: WorkspaceClientWrites;
   private readonly dates: WorkspaceClientDates;
+  private readonly migrations: WorkspaceClientMigrations;
 
   readonly store: Store;
 
@@ -90,6 +93,7 @@ export class WorkspaceClient {
     this.undoDomain = new WorkspaceClientUndo(this.ctx);
     this.writes = new WorkspaceClientWrites(this.ctx, this.reads, this.readsProps);
     this.dates = new WorkspaceClientDates(this.reads, this.readsProps, this.writes);
+    this.migrations = new WorkspaceClientMigrations(this.ctx);
   }
 
   /** Open a Store over the sql.js backend and wrap it in a client. */
@@ -655,6 +659,37 @@ export class WorkspaceClient {
 
   planMergeSummary(sourceId: string, targetId: string) {
     return this.writes.planMergeSummary(sourceId, targetId);
+  }
+
+  // --- content migrations (the keyed-side runner — F3) ----------------------------
+
+  /**
+   * True when this client holds a workspace key — the workspace is keyed,
+   * so the sync engine seals every write (the migrations surface's hint
+   * copy reads this).
+   */
+  isKeyedWorkspace(): boolean {
+    return this.ctx.workspaceKey !== null;
+  }
+
+  /** The content-class migrations pending on THIS workspace (each core's `isPending` probe). */
+  listPendingMigrations(): MigrationPlanReport[] {
+    return this.migrations.listPendingMigrations();
+  }
+
+  /** The dry-run report for one migration — counts + conflict rows, zero writes. */
+  planMigration(id: string): MigrationPlanReport {
+    return this.migrations.planMigration(id);
+  }
+
+  /**
+   * Run one migration client-side: plan against the local UNSEALED store,
+   * payload-validate, commit as ONE undo batch through the single enqueue
+   * seam — the sync engine seals + pushes the ops on a keyed workspace
+   * like any write (no new crypto, no wire change).
+   */
+  runMigration(id: string): MigrationPlanReport {
+    return this.migrations.runMigration(id);
   }
 
   assignClass(id: string, classId: string) {
