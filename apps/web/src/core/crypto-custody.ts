@@ -146,6 +146,21 @@ export function currentMasterKey(): MasterKeyHandle | null {
 }
 
 /**
+ * Non-secure contexts (plain-http LAN access) withhold Web Crypto's `subtle`
+ * surface, so any keying arm would die on a raw "cannot read properties of
+ * undefined". Both keying entries assert the surface first and throw this
+ * honest cause instead — the boot form and the creation surfaces surface it
+ * through their existing error channels.
+ */
+export const SECURE_CONTEXT_KEYING_COPY =
+  "This browser context has no Web Crypto — use HTTPS or localhost to key a workspace.";
+
+/** Web Crypto's `subtle` surface exists only in secure contexts. */
+function assertKeyingAvailable(): void {
+  if (globalThis.crypto?.subtle === undefined) throw new Error(SECURE_CONTEXT_KEYING_COPY);
+}
+
+/**
  * The wrapped key bundle a new workspace carries, or null when the session
  * is keyless (API-key sign-in) — the caller then fires the create WITHOUT a
  * bundle and the SERVER decides: the hatch on → the pinned 422
@@ -162,6 +177,9 @@ export function currentMasterKey(): MasterKeyHandle | null {
 export async function keyBundleForCreate(): Promise<{ wrappedKey: string } | null> {
   const master = currentMasterKey();
   if (master === null) return null;
+  // Minting needs Web Crypto: outside a secure context (plain-http LAN) the
+  // honest no-Web-Crypto error names the cause — never a raw TypeError.
+  assertKeyingAvailable();
   const workspaceKey = await generateWorkspaceKey();
   return { wrappedKey: await wrapWorkspaceKey(master.key, workspaceKey) };
 }
@@ -288,6 +306,9 @@ export async function getCachedWorkspaceKey(workspaceId: string): Promise<Uint8A
 export async function ensureOfflineWorkspaceKey(workspaceId: string): Promise<Uint8Array> {
   const existing = await getOfflineWorkspaceKey(workspaceId);
   if (existing !== null) return exportWorkspaceKey(existing);
+  // Minting needs Web Crypto: outside a secure context (plain-http LAN) the
+  // honest no-Web-Crypto error names the cause — never a raw TypeError.
+  assertKeyingAvailable();
   const key = await generateWorkspaceKey();
   try {
     await persistOfflineWorkspaceKey(workspaceId, key);

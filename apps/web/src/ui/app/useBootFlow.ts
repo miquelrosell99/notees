@@ -168,7 +168,9 @@ export function useBootFlow(
     // time keying, deliberate like the create bundle, not the forbidden open-
     // time keying. Custody restores the same key on every later open; a later
     // online open of this id publishes the wrap under the master on the first
-    // password-session sync (store-connection).
+    // password-session sync (store-connection). A non-secure context (plain-
+    // http LAN) rejects with the honest no-Web-Crypto message — BootForm's
+    // catch lands it on the form's error surface.
     await ensureOfflineWorkspaceKey(localId);
     await connect(readStored(STORAGE_KEYS.serverUrl), "", localId, {
       isOffline: true,

@@ -10,6 +10,15 @@
  * so the engine seals from here on), and the post-keying state stays honest
  * about history: only content written before keying stays plaintext, because
  * the operation log is immutable. Session-local dismiss, never persisted.
+ *
+ * Props: `onKey` (the deliberate keying action — the caller ensures and
+ * reconnects), `keyDisabled` (an API-key session holds no master key:
+ * keying is impossible, the Key action rests disabled), `keyDisabledHint?`
+ * (the directional copy rendered beside the disabled action —
+ * `WORKSPACE_KEYING_COPY`), `keyed?` (the keying landed — the honest
+ * post-keying variant replaces the warning, no Key action) and
+ * `onDismissKeyed?` (clears the caller's keyed notice; absent, the keyed
+ * variant's Dismiss falls back to the session-local dismissal).
  */
 
 import { useState } from "react";
