@@ -156,7 +156,7 @@ describe("migrate-pmid-property.mts", () => {
     expect(plan.scopeBlocksBinding).toBe(false);
     expect(plan.attributeDrift).toEqual([]);
 
-    const envelopes = buildEnvelopes(WORKSPACE, plan);
+    const envelopes = buildEnvelopes(WORKSPACE, plan, 1729000000000);
     expect(envelopes).toHaveLength(2);
     expect(envelopes[0]!.opType).toBe("propertySchema.create");
     expect(envelopes[0]!.payload).toEqual({

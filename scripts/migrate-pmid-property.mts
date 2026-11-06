@@ -60,18 +60,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  envelopeSchema,
-  newEnvelope,
-  payloadSchemaFor,
-  type Envelope,
-} from "../packages/protocol/src/index.ts";
-import {
-  SYSTEM_CLASS_UUIDS,
-  SYSTEM_PROPERTY_DISPLAY_NAMES,
-  SYSTEM_PROPERTY_UUIDS,
-} from "../packages/domain/src/index.ts";
+import { envelopeSchema, payloadSchemaFor } from "../packages/protocol/src/index.ts";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "../packages/domain/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
+
+const SOURCE_ID = SYSTEM_CLASS_UUIDS.source;
+const PMID_ID = SYSTEM_PROPERTY_UUIDS.pmid;
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
 
@@ -87,13 +81,26 @@ import {
  */
 export const CONTENT_CLASS: MigrationContentClass = "content";
 
-const ACTOR = "01920000-0000-7000-8000-0000000000a7";
-const DEVICE = "migrate-pmid-property";
-const CLIENT = "migrate-pmid-property";
-const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
-const SOURCE_ID = SYSTEM_CLASS_UUIDS.source;
-const PMID_ID = SYSTEM_PROPERTY_UUIDS.pmid;
+// The migration's planning core is NODE-FREE (scripts/lib/migrations/ — the
+// client-side executor pattern): the pending probe, the planner, the op
+// builder, and the envelope builder all live there, importable verbatim by
+// a keyed client through the vendor pin. This script keeps the CLI shape by
+// delegating; its rehearsal suite is the pin (it imports the planner and
+// builder through the re-export below).
+import {
+  buildEnvelopes,
+  MIGRATION_IDENTITY,
+  planPmid,
+  validateEnvelopes,
+} from "./lib/migrations/pmid-property.ts";
+
+export {
+  buildEnvelopes,
+  planPmid,
+  type PmidPlan,
+} from "./lib/migrations/pmid-property.ts";
+
 
 // --- CLI ----------------------------------------------------------------------
 
@@ -182,135 +189,12 @@ function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
   });
 }
 
-// --- planning -----------------------------------------------------------------
 
-interface PmidPlan {
-  /** The source class NODE is absent — the citation ensure self-heals. */
-  sourceClassMissing: boolean;
-  /** The pmid schema row is absent from this workspace entirely. */
-  schemaMissing: boolean;
-  /** A source↔pmid binding row already exists (pinned or not). */
-  sourceBound: boolean;
-  /** The existing binding row's pinned tier flag (meaningful when bound). */
-  boundPinned: boolean;
-  /** The converged scope list; null = global (wider than the seed, legal). */
-  currentScope: string[] | null;
-  /** True when the stored scope is a class-local list excluding source. */
-  scopeBlocksBinding: boolean;
-  /** Attribute drift on an existing schema — reported, never touched. */
-  attributeDrift: string[];
-}
-
-function planPmid(store: Store): PmidPlan {
-  const sourceNode = store.database
-    .prepare("SELECT id FROM node WHERE id = ? AND is_class = 1")
-    .get(SOURCE_ID);
-  const schema = store.database
-    .prepare("SELECT name, type, scope_class_ids FROM property_schema WHERE id = ?")
-    .get(PMID_ID) as
-    | { name: string; type: string; scope_class_ids: string | null }
-    | undefined;
-  const binding = store.database
-    .prepare("SELECT pinned FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-    .get(SOURCE_ID, PMID_ID) as { pinned: number } | undefined;
-
-  const attributeDrift: string[] = [];
-  if (schema !== undefined) {
-    if (schema.type !== "text") attributeDrift.push(`type=${schema.type} (seed: text)`);
-    if (schema.name !== SYSTEM_PROPERTY_DISPLAY_NAMES.pmid) {
-      attributeDrift.push(`name=${schema.name} (seed: ${SYSTEM_PROPERTY_DISPLAY_NAMES.pmid})`);
-    }
-  }
-  const currentScope =
-    schema === undefined || schema.scope_class_ids === null
-      ? null
-      : (JSON.parse(schema.scope_class_ids) as string[]);
-  return {
-    sourceClassMissing: sourceNode === undefined,
-    schemaMissing: schema === undefined,
-    sourceBound: binding !== undefined,
-    boundPinned: binding?.pinned === 1,
-    currentScope,
-    scopeBlocksBinding:
-      currentScope !== null && !currentScope.includes(SOURCE_ID),
-    attributeDrift,
-  };
-}
-
-// --- envelopes ----------------------------------------------------------------
-
-function buildEnvelopes(workspaceId: string, plan: PmidPlan): Envelope[] {
-  const physical = Date.now();
-  const envelopes: Envelope[] = [];
-  let logical = 0;
-  const stamp = (opType: string, payload: Record<string, unknown>, affected: string[]): Envelope =>
-    newEnvelope({
-      workspaceId,
-      actorId: ACTOR,
-      deviceId: DEVICE,
-      client: CLIENT,
-      hlc: { physical, logical: logical++ },
-      affectedNodeIds: affected,
-      opType,
-      payload,
-    });
-
-  if (plan.schemaMissing) {
-    // The seed shape at the reserved id: text, scoped [source] (the spec's
-    // bindTo — the schema is local to the source family like citekey).
-    envelopes.push(
-      stamp("propertySchema.create", {
-        propertySchemaId: PMID_ID,
-        name: SYSTEM_PROPERTY_DISPLAY_NAMES.pmid,
-        type: "text",
-        scopeClassIds: [SOURCE_ID],
-      }, []),
-    );
-  } else if (plan.scopeBlocksBinding) {
-    // R5 dead-config guard: the source binding is only legal on a schema
-    // whose scope reaches source — the drifted class-local scope converges
-    // to the seed's [source] FIRST, same ingest, ordered before the binding.
-    envelopes.push(
-      stamp("propertySchema.update", { propertySchemaId: PMID_ID, scopeClassIds: [SOURCE_ID] }, []),
-    );
-  }
-  if (plan.schemaMissing || !plan.sourceBound || !plan.boundPinned) {
-    // The binding row with the seed's PIN tier (creates or patches the pin).
-    envelopes.push(
-      stamp("class.property.set", { classId: SOURCE_ID, propertySchemaId: PMID_ID, pinned: true }, [SOURCE_ID]),
-    );
-  }
-  return envelopes;
-}
-
-/**
- * The protocol gate: every envelope must satisfy the envelope schema AND its
- * per-op payload schema. Anything invalid aborts BEFORE anything is inserted.
- */
-function validateEnvelopes(envelopes: Envelope[]): void {
-  const failures: string[] = [];
-  for (const envelope of envelopes) {
-    const envResult = envelopeSchema.safeParse(envelope);
-    if (!envResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: envelope invalid — ${envResult.error.message}`);
-      continue;
-    }
-    const schema = payloadSchemaFor(envelope.opType);
-    if (schema === undefined) {
-      failures.push(`${envelope.opType} ${envelope.id}: no payload schema registered`);
-      continue;
-    }
-    const payloadResult = schema.safeParse(envelope.payload);
-    if (!payloadResult.success) {
-      failures.push(`${envelope.opType} ${envelope.id}: payload invalid — ${payloadResult.error.message}`);
-    }
-  }
-  if (failures.length > 0) {
-    throw new Error(
-      `refusing to insert: ${failures.length} invalid envelope(s):\n  ${failures.join("\n  ")}`,
-    );
-  }
-}
+// --- planning + envelopes -------------------------------------------------------
+// planPmid / buildEnvelopes / validateEnvelopes live in the node-free core,
+// re-exported above. The op-triple primitive behind the envelope builder is
+// the shape a client-side executor stamps with its session constants through
+// the normal write path.
 
 // --- verification -------------------------------------------------------------
 
@@ -330,7 +214,7 @@ function verify(
 ): void {
   const rows = relay
     .allEnvelopes(workspaceId)
-    .filter((envelope) => envelope.deviceId === DEVICE);
+    .filter((envelope) => envelope.deviceId === MIGRATION_IDENTITY.deviceId);
   if (rows.length !== expectedCount) {
     throw new Error(`read-back mismatch: expected ${expectedCount} new envelopes, found ${rows.length}`);
   }
@@ -418,7 +302,7 @@ async function migrateWorkspace(relay: RelayStorage, options: CliOptions, worksp
     console.log(`  reported drift (NOT touched): ${drift}`);
   }
 
-  const envelopes = buildEnvelopes(workspaceId, plan);
+  const envelopes = buildEnvelopes(workspaceId, plan, Date.now());
   validateEnvelopes(envelopes);
   console.log(`${envelopes.length} envelope(s) built and protocol-validated.`);
 
@@ -479,8 +363,6 @@ async function main(): Promise<void> {
     relay.close();
   }
 }
-
-export { buildEnvelopes, planPmid, type PmidPlan };
 
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
