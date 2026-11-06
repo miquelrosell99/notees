@@ -3106,6 +3106,18 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
        VALUES (?, ?, ?, 0, 0, NULL)`,
     ).run(classId, schemaId, entry.pinned === true ? 1 : 0);
   }
+  // The `repeat` recurrence binding (2026-11-06): the repeat SCHEMA and
+  // the EVENT-side binding ride the seed envelopes (new workspaces) and
+  // the live-workspace migration — only the task side self-heals here, so
+  // every tasks-enabled store binds repeat on task. Seeds UNPINNED (lands
+  // in no declared pin set); HLC zeroed like the family rows above (a
+  // deterministic function of the enable op).
+  db.prepare(
+    `INSERT OR IGNORE INTO class_property
+       (class_id, property_schema_id, pinned,
+        hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, 0, 0, 0, NULL)`,
+  ).run(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.repeat);
   reindexNode(db, classId);
 }
 

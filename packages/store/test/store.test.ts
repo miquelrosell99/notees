@@ -4048,9 +4048,11 @@ for (const adapter of adapters) {
         ["mdiCheckCircle", "green"],
         ["mdiCloseCircle", "red"],
       ]);
-      // The six binding rows carry no order (sequence retired 2026-10-21,
-      // store v26 — panels sort alphabetically at read time); the id order
-      // asserts the full family is bound.
+      // The six family binding rows carry no order (sequence retired
+      // 2026-10-21, store v26 — panels sort alphabetically at read time);
+      // the id order asserts the full family is bound. The repeat
+      // recurrence binding (…0013, unpinned) rides alongside — pinned in
+      // its own spec below.
       const bindings = store.database
         .prepare("SELECT property_schema_id FROM class_property WHERE class_id = ? ORDER BY property_schema_id")
         .all(TASK_CLASS) as Array<{ property_schema_id: string }>;
@@ -4061,7 +4063,12 @@ for (const adapter of adapters) {
         "00000000-0000-0000-0003-000000000004",
         "00000000-0000-0000-0003-000000000005",
         "00000000-0000-0000-0003-000000000006",
+        "00000000-0000-0000-0003-000000000013",
       ]);
+      const repeatBinding = store.database
+        .prepare("SELECT pinned FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(TASK_CLASS, "00000000-0000-0000-0003-000000000013") as { pinned: number };
+      expect(repeatBinding.pinned).toBe(0);
       // The Status SCHEMA carries display 'bullet' (property-level);
       // the binding rows stay flag-free (active only — the rebuilds dropped
       // the render contracts (v14), required/default_value (v25) and
@@ -4093,6 +4100,31 @@ for (const adapter of adapters) {
       const result = store.apply(stale);
       expect(result.ignored).toBe(true);
       expect(dumpDb(store)).toEqual(before);
+      store.close();
+    });
+
+    it("the tasks enable self-heals the repeat binding on task (…0013, unpinned)", () => {
+      const store = Store.open(adapter.makeBackend());
+      const enableOp = env("workspace.feature.set", { feature: "tasks", enabled: true }, 1727200012000);
+      store.apply(enableOp);
+      // A pre-recurrence tasks-enabled store lacks the repeat row; the
+      // ensure authors it (the repeat SCHEMA and the event-side binding
+      // ride the seed envelopes on new workspaces and the live-workspace
+      // migration — only the task side self-heals here).
+      const binding = store.database
+        .prepare(
+          "SELECT pinned, hlc_physical, hlc_logical, actor_id FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+        )
+        .get(TASK_CLASS, "00000000-0000-0000-0003-000000000013") as
+        | { pinned: number; hlc_physical: number; hlc_logical: number; actor_id: string | null }
+        | undefined;
+      expect(binding).toEqual({ pinned: 0, hlc_physical: 0, hlc_logical: 0, actor_id: null });
+      // INSERT OR IGNORE: replaying the enable never duplicates the row.
+      store.apply(enableOp);
+      const count = store.database
+        .prepare("SELECT COUNT(*) AS n FROM class_property WHERE property_schema_id = ?")
+        .get("00000000-0000-0000-0003-000000000013") as { n: number };
+      expect(count.n).toBe(1);
       store.close();
     });
 
