@@ -16,12 +16,21 @@ import { useState } from "react";
 import { Icon } from "../../../ui/Icon.js";
 import "./NotEncryptedBanner.css";
 
+/**
+ * Directional copy for the banner's keyless arm: an API-key session has no
+ * master key to wrap with, so the Key action is disabled behind this — the
+ * keying-context sibling of the creation flow's directional sentence (that
+ * one names creating; this one names keying).
+ */
+export const WORKSPACE_KEYING_COPY =
+  "Sign in with your email and password to key this workspace.";
+
 export interface NotEncryptedBannerProps {
   /** The deliberate keying action — the caller ensures + reconnects. */
   onKey: () => void | Promise<void>;
   /** True when this session holds no master key (API-key sign-in): keying is impossible, the hint says why. */
   keyDisabled: boolean;
-  /** The directional copy shown with a disabled Key action (the established sentence). */
+  /** The directional copy shown with a disabled Key action (`WORKSPACE_KEYING_COPY`). */
   keyDisabledHint?: string | undefined;
   /** The keying landed: the honest post-keying copy replaces the warning (no Key action). */
   keyed?: boolean | undefined;

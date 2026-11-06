@@ -9,12 +9,12 @@ import type { Dispatch, SetStateAction } from "react";
 
 import type { SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import { rememberWorkspaceName, rememberedWorkspaceList } from "@/core/workspace-registry.js";
-import { currentMasterKey, WORKSPACE_CREATE_KEYING_COPY } from "@/core/crypto-custody.js";
+import { currentMasterKey } from "@/core/crypto-custody.js";
 import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";
 import type { StoreMode } from "./storeMode.js";
 import { InProcessStoreBanner } from "../../components/ui/kit/InProcessStoreBanner.js";
-import { NotEncryptedBanner } from "../../components/ui/kit/NotEncryptedBanner.js";
+import { NotEncryptedBanner, WORKSPACE_KEYING_COPY } from "../../components/ui/kit/NotEncryptedBanner.js";
 import { SyncDetailsModal } from "../../features/modals/SyncDetailsModal.js";
 import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
 import { WorkspaceSettingsHost } from "../../features/workspaces/WorkspaceSettingsHost.js";
@@ -80,7 +80,7 @@ export function AppOverlays(props: AppOverlaysProps) {
           keyed={keyedNotice}
           onKey={onKeyWorkspace}
           keyDisabled={keylessSession}
-          {...(keylessSession ? { keyDisabledHint: WORKSPACE_CREATE_KEYING_COPY } : {})}
+          {...(keylessSession ? { keyDisabledHint: WORKSPACE_KEYING_COPY } : {})}
           onDismissKeyed={onDismissKeyedNotice}
         />
       )}

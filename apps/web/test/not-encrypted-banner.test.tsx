@@ -31,8 +31,10 @@ import {
 } from "@notees/protocol";
 
 import { App } from "../src/ui/App.js";
-import { NotEncryptedBanner } from "../src/components/ui/kit/NotEncryptedBanner.js";
-import { WORKSPACE_CREATE_KEYING_COPY } from "../src/core/crypto-custody.js";
+import {
+  NotEncryptedBanner,
+  WORKSPACE_KEYING_COPY,
+} from "../src/components/ui/kit/NotEncryptedBanner.js";
 import { clearCryptoCustody } from "../src/core/crypto-custody.js";
 
 // The in-process store boots sql.js under jsdom (process defined): point the
@@ -89,18 +91,21 @@ describe("NotEncryptedBanner (kit)", () => {
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
   });
 
-  it("a keyless session disables the Key action with the directional copy", () => {
+  it("a keyless session disables the Key action with the keying directional copy", () => {
     render(
       <NotEncryptedBanner
         onKey={() => Promise.resolve()}
         keyDisabled
-        keyDisabledHint={WORKSPACE_CREATE_KEYING_COPY}
+        keyDisabledHint={WORKSPACE_KEYING_COPY}
       />,
     );
     const keyButton = screen.getByRole("button", { name: "Key this workspace" });
     expect(keyButton).toBeDisabled();
-    // The established directional sentence (verbatim, the Task-8 copy).
-    expect(screen.getByText(WORKSPACE_CREATE_KEYING_COPY)).toBeInTheDocument();
+    // The keying-specific directional sentence (names keying, not creation).
+    expect(screen.getByText(WORKSPACE_KEYING_COPY)).toBeInTheDocument();
+    expect(screen.getByText(WORKSPACE_KEYING_COPY)).toHaveTextContent(
+      "Sign in with your email and password to key this workspace.",
+    );
   });
 
   it("dismissal is session-local state — the banner unmounts, nothing persists", () => {
