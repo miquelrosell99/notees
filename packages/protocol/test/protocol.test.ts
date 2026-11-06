@@ -100,6 +100,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "property-validation-rules.json",
       "property-value-elements.json",
       "query-ast-v2.json",
+      "recurrence-property.json",
       "tag-membership.json",
       "trash-empty.json",
       "typed-link-mark-deleted.json",
