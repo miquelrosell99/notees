@@ -119,10 +119,13 @@ describe("parseRecurrenceRule / formatRecurrenceRule (RR5)", () => {
       "RRULE:FREQ=DAILY;UNTIL=20260230",
       "RRULE:FREQ=DAILY;UNTIL=20261301",
       "RRULE:FREQ=DAILY;UNTIL=2026-01-01",
-      // unknown keys / malformed segments
+      // unknown keys / malformed segments / non-canonical key order
       "RRULE:FREQ=DAILY;BYSETPOS=1",
       "RRULE:FREQ=DAILY;FREQ=WEEKLY",
       "RRULE:FREQ=DAILY;",
+      "RRULE:BYDAY=MO;FREQ=WEEKLY",
+      "RRULE:FREQ=WEEKLY;COUNT=3;INTERVAL=2",
+      "RRULE:FREQ=WEEKLY;UNTIL=20261231;BYDAY=MO",
       // FREQ missing
       "RRULE:INTERVAL=2",
       "RRULE:",
@@ -473,6 +476,55 @@ describe("occurrenceIsosOf (RR5 expansion)", () => {
         "2026-12-31",
       ),
     ).toEqual(["2026-01-31", "2026-03-31", "2026-05-31"]);
+  });
+
+  it("weekly COUNT pre-counts a block-0 BYDAY weekday preceding the anchor's", () => {
+    // Anchor Wednesday 2026-10-07; BYDAY=MO,WE ⇒ #1 Wed 10-07, #2 Mon 10-12,
+    // #3 Wed 10-14, #4 Mon 10-19. The window starts after #2, so the
+    // pre-count must account for both block-0 occurrences — 10-19 is #4,
+    // past COUNT=3.
+    expect(
+      occurrenceIsosOf(
+        {
+          rule: { freq: "weekly", interval: 1, byday: ["MO", "WE"], count: 3 },
+          anchorIso: "2026-10-07",
+        },
+        "2026-10-13",
+        "2026-10-31",
+      ),
+    ).toEqual(["2026-10-14"]);
+  });
+
+  it("weekly INTERVAL=2 + COUNT: block 0 counts exactly, skipped weeks give no index", () => {
+    // Anchor Tuesday 2026-10-20; BYDAY=MO,WE ⇒ block 0: Wed 10-21 (#1),
+    // Mon 10-26 (#2); block 2: Wed 11-04 (#3), Mon 11-09 (#4). COUNT=4 ends
+    // the series — Wed 12-02 (block 4) is #5 and must not appear.
+    expect(
+      occurrenceIsosOf(
+        {
+          rule: { freq: "weekly", interval: 2, byday: ["MO", "WE"], count: 4 },
+          anchorIso: "2026-10-20",
+        },
+        "2026-11-01",
+        "2026-12-31",
+      ),
+    ).toEqual(["2026-11-04", "2026-11-09"]);
+  });
+
+  it("an in-window occurrence of the anchor-weekday-preceding BYDAY still consumes its COUNT index", () => {
+    // Same series with COUNT=3: #3 = Wed 11-04, so Mon 11-09 — the in-window
+    // occurrence of the weekday preceding the anchor's — is #4 and is
+    // dropped even though the walk sees it.
+    expect(
+      occurrenceIsosOf(
+        {
+          rule: { freq: "weekly", interval: 2, byday: ["MO", "WE"], count: 3 },
+          anchorIso: "2026-10-20",
+        },
+        "2026-10-27",
+        "2026-12-31",
+      ),
+    ).toEqual(["2026-11-04"]);
   });
 
   it("truncates at the cap and honors an explicit cap", () => {

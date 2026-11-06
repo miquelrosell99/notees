@@ -24,9 +24,11 @@
  *   COUNT        = integer ≥ 1 — end after N generated occurrences
  *   UNTIL        = YYYYMMDD — inclusive last occurrence day
  *
- *   COUNT and UNTIL are mutually exclusive. One canonical order; parse
- *   normalizes (BYDAY into weekday order, BYMONTHDAY ascending) and format
- *   emits it, so format→parse round-trips byte-identically.
+ *   COUNT and UNTIL are mutually exclusive. One canonical key order (FREQ
+ *   first; INTERVAL; BYDAY; BYMONTHDAY; COUNT|UNTIL) — parse rejects any
+ *   other order and normalizes the list values (BYDAY into weekday order,
+ *   BYMONTHDAY ascending); format emits the canonical form, so format→parse
+ *   round-trips byte-identically.
  *
  * Semantics (pinned by the test suite):
  *   - occurrence #1 is the anchor day itself — a day d ≥ anchor occurs iff:
@@ -130,6 +132,15 @@ const FREQ_BY_RRULE: Record<string, RecurrenceFreq> = {
 };
 
 const RRULE_KEYS = ["FREQ", "INTERVAL", "BYDAY", "BYMONTHDAY", "COUNT", "UNTIL"];
+/** Canonical key order — FREQ first, then INTERVAL, BYDAY, BYMONTHDAY, COUNT|UNTIL. */
+const KEY_ORDER: Record<string, number> = {
+  FREQ: 0,
+  INTERVAL: 1,
+  BYDAY: 2,
+  BYMONTHDAY: 3,
+  COUNT: 4,
+  UNTIL: 4,
+};
 const WEEKDAY_SET: ReadonlySet<string> = new Set(RECURRENCE_WEEKDAYS);
 
 function weekdayOrder(a: RecurrenceWeekday, b: RecurrenceWeekday): number {
@@ -202,8 +213,10 @@ function parseUntil(value: string): string {
 }
 
 /**
- * Parse a canonical `RRULE:` string. Throws RecurrenceParseError on anything
- * else — legacy `<freq>[/<n>]` forms, unknown keys, invalid values, and
+ * Parse a canonical `RRULE:` string — keys in the canonical order (FREQ
+ * first, then INTERVAL, BYDAY, BYMONTHDAY, COUNT|UNTIL), uppercase, each at
+ * most once. Throws RecurrenceParseError on anything else — legacy
+ * `<freq>[/<n>]` forms, unknown keys, keys out of order, invalid values, and
  * COUNT+UNTIL together — with the supported vocabulary in the message.
  */
 export function parseRecurrenceRule(text: unknown): RecurrenceRule {
@@ -224,13 +237,13 @@ export function parseRecurrenceRule(text: unknown): RecurrenceRule {
     throw new RecurrenceParseError(`invalid recurrence rule: ${JSON.stringify(text)} (FREQ required)`);
   }
 
-  const seen = new Set<string>();
   let freq: RecurrenceFreq | undefined;
   let interval = 1;
   let byday: RecurrenceWeekday[] | undefined;
   let bymonthday: number[] | undefined;
   let count: number | undefined;
   let until: string | undefined;
+  let lastOrder = -1;
 
   for (const segment of body.split(";")) {
     const eq = segment.indexOf("=");
@@ -241,12 +254,22 @@ export function parseRecurrenceRule(text: unknown): RecurrenceRule {
     }
     const key = segment.slice(0, eq);
     const value = segment.slice(eq + 1);
-    if (seen.has(key)) {
+    const order = KEY_ORDER[key];
+    if (order === undefined) {
       throw new RecurrenceParseError(
-        `invalid recurrence rule: duplicate key ${JSON.stringify(key)} in ${JSON.stringify(text)}`,
+        `invalid recurrence rule: unknown key ${JSON.stringify(key)} ` +
+          `(supported: ${RRULE_KEYS.join(", ")})`,
       );
     }
-    seen.add(key);
+    // Strictly increasing canonical order — this also rejects duplicates
+    // (COUNT and UNTIL share a slot and are mutually exclusive below).
+    if (order <= lastOrder) {
+      throw new RecurrenceParseError(
+        `invalid recurrence rule: keys out of canonical order in ${JSON.stringify(text)} ` +
+          `(expected FREQ first, then ${RRULE_KEYS.slice(1, 4).join(", ")}, then COUNT|UNTIL)`,
+      );
+    }
+    lastOrder = order;
     switch (key) {
       case "FREQ": {
         const parsed = FREQ_BY_RRULE[value];
@@ -274,11 +297,6 @@ export function parseRecurrenceRule(text: unknown): RecurrenceRule {
       case "UNTIL":
         until = parseUntil(value);
         break;
-      default:
-        throw new RecurrenceParseError(
-          `invalid recurrence rule: unknown key ${JSON.stringify(key)} ` +
-            `(supported: ${RRULE_KEYS.join(", ")})`,
-        );
     }
   }
 
@@ -765,14 +783,19 @@ function countGeneratedBefore(
       const lastWeek = Math.floor((diff - 1) / 7);
       const weekCount = Math.floor(lastWeek / rule.interval) + 1;
       const anchorPos = RECURRENCE_WEEKDAYS.indexOf(anchorWeekday);
-      // Days of `days` in matching week m (n = m·interval) land on
-      // anchor + 7·m·interval + (weekday position offset); only weeks with
-      // n % interval === 0 generate, so count the first and last matching
-      // weeks day-exact and the full weeks in between at |days| each.
+      // Days of `days` in matching week m (n = m·interval) land inside the
+      // 7-day block that starts at anchor + 7·m·interval — indexed exactly
+      // like occursOn: a BYDAY weekday preceding the anchor's sits AFTER the
+      // anchor in block 0 ((pos − anchorPos + 7) % 7), never before it.
+      // Only weeks with n % interval === 0 generate, so count the first and
+      // last matching weeks day-exact and the full weeks in between at
+      // |days| each.
       const countInWeek = (m: number): number => {
         let count = 0;
         for (const b of days) {
-          const offset = 7 * m * rule.interval + (RECURRENCE_WEEKDAYS.indexOf(b) - anchorPos);
+          const offset =
+            7 * m * rule.interval +
+            ((RECURRENCE_WEEKDAYS.indexOf(b) - anchorPos + 7) % 7);
           const iso = partsIso(addDays(anchor, offset));
           if (iso >= anchorIso && iso < startIso) count += 1;
         }
