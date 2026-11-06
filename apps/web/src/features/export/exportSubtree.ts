@@ -75,6 +75,7 @@ import { resolveCssColor } from "../../components/ui/kit/colorPresets.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 
 import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";
+import type { WebExportFormatId } from "./registerExportFormats.js";
 import { blobBytes } from "../../core/workspace-client/asset-transport.js";
 
 import type {
@@ -378,9 +379,11 @@ export function exportSubtreeJsonArchive(
   const archive = buildJsonArchive(ordered, ctx);
   const firstRoot = client.getNode(rootIds[0]!);
   const title = firstRoot === undefined ? "" : titleOfNode(firstRoot).trim();
+  const text = renderJsonArchive(archive);
   return {
-    blob: new Blob([renderJsonArchive(archive)], { type: "application/json" }),
+    blob: new Blob([text], { type: "application/json" }),
     filename: exportFileSlugName(title, rootIds[0]!, "json"),
+    text,
   };
 }
 
@@ -569,6 +572,7 @@ export function exportSubtreeBibliography(
   return {
     blob: new Blob([content], { type: delivery.mimeType }),
     filename: exportFileSlugName(title, rootIds[0]!, delivery.extension),
+    text: content,
   };
 }
 
@@ -659,6 +663,13 @@ export interface ExportSubtreeFileOptions extends ExportSubtreeOptions {
 export interface SubtreeFileExport {
   blob: Blob;
   filename: string;
+  /**
+   * The UTF-8 source when the format serializes to text (markdown/html/latex/
+   * the JSON archive/bibliography) — the very bytes behind `blob`. The export
+   * modal's live preview and Copy ride this instead of re-rendering; binary
+   * formats (docx, the client-PDF engine's result) leave it undefined.
+   */
+  text?: string;
 }
 
 /**
@@ -684,26 +695,32 @@ export async function exportSubtreeFile(
   }
   if (options.format === "markdown") {
     const exported = exportSubtreeMarkdown(client, rootId, options);
-    return { blob: new Blob([exported.markdown], { type: delivery.mimeType }), filename: exported.filename };
+    return {
+      blob: new Blob([exported.markdown], { type: delivery.mimeType }),
+      filename: exported.filename,
+      text: exported.markdown,
+    };
   }
   const root = client.getNode(rootId);
   if (root === undefined) throw new Error("exportSubtreeFile: node not found");
   const { document, resolved } = buildSubtreeDocument(client, rootId, options);
   const filename = exportFileSlugName(titleOfNode(root).trim(), rootId, delivery.extension);
   switch (options.format) {
-    case "html":
+    case "html": {
+      const text = renderExportDocumentToHtml(document, resolved);
+      return { blob: new Blob([text], { type: delivery.mimeType }), filename, text };
+    }
+    case "latex": {
+      const text = renderExportDocumentToLatex(document, resolved);
       return {
-        blob: new Blob([renderExportDocumentToHtml(document, resolved)], { type: delivery.mimeType }),
-        filename,
-      };
-    case "latex":
-      return {
-        blob: new Blob([renderExportDocumentToLatex(document, resolved)], { type: delivery.mimeType }),
+        blob: new Blob([text], { type: delivery.mimeType }),
         // LaTeX ships as application/x-latex (the registry's delivery table);
         // the .tex extension is what a TeX toolchain keys off, so the mime
         // needs no text/plain fallback.
         filename,
+        text,
       };
+    }
     case "docx": {
       const bytes = await renderExportDocumentToDocx(document, resolved);
       // Copy into a fresh ArrayBuffer-backed array: the packer types its
@@ -715,6 +732,58 @@ export async function exportSubtreeFile(
       // ui/export-pdf) — routing it here is a programmer error, so fail
       // loud like the package registry does.
       throw new Error(`${options.format} export must route through the client-side PDF engine (ui/export-pdf)`);
+  }
+}
+
+/**
+ * The plaintext projection behind the export modal's live preview — the
+ * selected format card's OWN text (never a foreign format's bytes), so the
+ * preview textarea and the Copy button show exactly what downloads:
+ *  - markdown / html / latex: one rendered document per selected root,
+ *    concatenated the markdown convention (`\n\n---\n\n`) for a batch;
+ *  - json / bib / csl-json: ONE node-set document over the whole selection
+ *    (their delivery convention — the archive and bibliography engines take
+ *    every root at once).
+ * Only registry cards with `preview: "text"` route here; pdf rides its own
+ * iframe and docx shows the static note (binary formats have no plaintext).
+ */
+export function exportSubtreeTextPreview(
+  client: ExportClient,
+  rootIds: readonly string[],
+  format: WebExportFormatId,
+  options: ExportSubtreeOptions = {},
+): string {
+  switch (format) {
+    case "markdown":
+      return rootIds
+        .map((id) => exportSubtreeMarkdown(client, id, options).markdown)
+        .join("\n\n---\n\n");
+    case "json":
+      return exportSubtreeJsonArchive(client, rootIds, options).text ?? "";
+    case "bib":
+    case "csl-json":
+      return (
+        exportSubtreeBibliography(client, rootIds, {
+          format,
+          ...(options.includeChildPages !== undefined
+            ? { includeChildPages: options.includeChildPages }
+            : {}),
+        }).text ?? ""
+      );
+    case "html":
+    case "latex":
+      return rootIds
+        .map((id) => {
+          const { document, resolved } = buildSubtreeDocument(client, id, options);
+          return format === "html"
+            ? renderExportDocumentToHtml(document, resolved)
+            : renderExportDocumentToLatex(document, resolved);
+        })
+        .join("\n\n---\n\n");
+    default:
+      throw new Error(
+        `exportSubtreeTextPreview: "${format}" has no plaintext projection (pdf rides the client engine, docx is binary)`,
+      );
   }
 }
 

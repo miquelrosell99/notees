@@ -357,19 +357,20 @@ describe("ExportPageModal", () => {
     click.mockRestore();
   }, 10000);
 
-  it("shows a static note instead of the live preview for non-markdown formats", async () => {
+  it("shows a static note instead of the live preview for the Word card (binary docx)", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
-    fireEvent.click(screen.getByRole("radio", { name: /html/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /word/i }));
 
-    // The markdown textarea is replaced by an honest static note — the
-    // preview is the engine's markdown projection only (task W).
+    // The markdown textarea is replaced by an honest static note — a .docx
+    // is a binary OOXML package; every TEXT-serializable card previews its
+    // own plaintext instead.
     expect(screen.queryByLabelText("markdown preview")).toBeNull();
-    expect(screen.getByText(/preview is available for markdown/i)).toBeInTheDocument();
+    expect(screen.getByText(/preview is available for the text formats/i)).toBeInTheDocument();
   }, 10000);
 
   it("downloads an HTML document when the HTML card is selected", async () => {
@@ -387,7 +388,12 @@ describe("ExportPageModal", () => {
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
     fireEvent.click(screen.getByRole("radio", { name: /html/i }));
-    await screen.findByText(/preview is available for markdown/i);
+    // The live preview is the card's OWN bytes now — the rendered HTML source
+    // in the read-only textarea (copyable like markdown).
+    const htmlPreview = (await screen.findByLabelText("html preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(htmlPreview.value).toContain("<h1>Trip</h1>"), { timeout: 2000 });
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
@@ -416,7 +422,12 @@ describe("ExportPageModal", () => {
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
     fireEvent.click(screen.getByRole("radio", { name: /latex/i }));
-    await screen.findByText(/preview is available for markdown/i);
+    const latexPreview = (await screen.findByLabelText("latex preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(latexPreview.value).toContain("\\documentclass"), {
+      timeout: 2000,
+    });
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
@@ -440,7 +451,7 @@ describe("ExportPageModal", () => {
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
     fireEvent.click(screen.getByRole("radio", { name: /word/i }));
-    await screen.findByText(/preview is available for markdown/i);
+    await screen.findByText(/preview is available for the text formats/i);
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     // The docx packer assembles the OOXML zip off the call stack.
@@ -575,7 +586,18 @@ describe("ExportPageModal", () => {
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
     fireEvent.click(screen.getByRole("radio", { name: /html/i }));
-    await screen.findByText(/preview is available for markdown/i);
+    // A batch previews the concatenated per-root documents (the markdown
+    // join convention) before the zip downloads.
+    const htmlPreview = (await screen.findByLabelText("html preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(
+      () => {
+        expect(htmlPreview.value).toContain("<h1>Trip</h1>");
+        expect(htmlPreview.value).toContain("<h1>Packing</h1>");
+      },
+      { timeout: 2000 },
+    );
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
@@ -623,7 +645,17 @@ describe("ExportPageModal", () => {
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
     fireEvent.click(screen.getByRole("radio", { name: /^json$/i }));
-    await screen.findByText(/preview is available for markdown/i);
+    // The archive card previews the very document that downloads.
+    const jsonPreview = (await screen.findByLabelText("json preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(
+      () => {
+        expect(() => JSON.parse(jsonPreview.value)).not.toThrow();
+        expect(jsonPreview.value).toContain('"format": "notees-json-archive"');
+      },
+      { timeout: 2000 },
+    );
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());

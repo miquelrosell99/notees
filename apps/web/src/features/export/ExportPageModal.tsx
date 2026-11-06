@@ -23,9 +23,14 @@
  * Format routing (task W): the other available cards (html/latex/docx) no
  * longer download markdown bytes under a foreign extension — the Export
  * button dispatches on the selected card and delivers that format's own
- * bytes (single node) or one zip of per-root rendered files (batch). The
- * live preview is the engine's markdown projection, so it stays markdown-
- * only; the other text formats show a short static note instead.
+ * bytes (single node) or one zip of per-root rendered files (batch).
+ *
+ * The live preview is the selected card's OWN plaintext projection
+ * (exportSubtreeTextPreview) for every text-serializable format
+ * (markdown/html/latex, the JSON archive, BibTeX, CSL JSON) — the textarea
+ * doubles as the Copy source, so what you see is exactly what downloads.
+ * PDF keeps its blob-URL iframe; docx (a binary OOXML package) shows a
+ * short static note.
  *
  * JSON archive: the registry's sixth card — a node-set format
  * (verbatim contentAst/classIds/properties/child ids/edges in the
@@ -70,12 +75,12 @@ import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { Icon } from "../../ui/Icon.js";
 import { downloadBlob } from "../modals/download.js";
 import {
-  exportSubtreeMarkdown,
   exportSubtreeBundle,
   exportSubtreeFile,
   exportSubtreeBatchFile,
   exportSubtreeJsonArchive,
   exportSubtreeBibliography,
+  exportSubtreeTextPreview,
   exportZipFileName,
   zipExportBundle,
   collectSubtreeAssetRefIds,
@@ -209,14 +214,15 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
   // re-rendering the world per keystroke. `dataVersion` rides the deps so a
   // client notification (the worker's cached reads landing — the first open
   // can race the children cache) re-runs the preview instead of leaving it
-  // stale until the next toggle. The preview is the engine's markdown
-  // projection — it only runs for the markdown card; every other format
-  // shows a static note instead of misleading markdown bytes.
+  // stale until the next toggle. The preview is the selected card's own
+  // plaintext projection (exportSubtreeTextPreview) for every text-
+  // serializable format; pdf rides its own iframe effect below and docx
+  // shows the static note.
   useEffect(() => {
     if (!isOpen || effectiveNodeUuids.length === 0) {
       return;
     }
-    if (formatId !== "markdown") {
+    if (format === undefined || format.preview !== "text") {
       setPreviewContent("");
       setLoading(false);
       return;
@@ -228,10 +234,11 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       setLoading(true);
       setError(null);
       try {
-        const parts = effectiveNodeUuids.map((id) =>
-          exportSubtreeMarkdown(client, id, engineOptions).markdown,
-        );
-        if (!cancelled) setPreviewContent(parts.join("\n\n---\n\n"));
+        if (!cancelled) {
+          setPreviewContent(
+            exportSubtreeTextPreview(client, effectiveNodeUuids, formatId, engineOptions),
+          );
+        }
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load preview");
       } finally {
@@ -243,7 +250,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       cancelled = true;
       window.clearTimeout(debounceTimer);
     };
-  }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId, dataVersion]);
+  }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId, format, dataVersion]);
 
   // PDF preview (P1): render the selected subtree to a blob and show it in
   // an iframe. The engine module is lazily imported (the first import pays
@@ -549,24 +556,25 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
           )}
         </div>
 
-        {/* Live preview — the engine's markdown projection (read-only). Other
-            formats download their own bytes (task W); showing markdown here
-            would be misleading, so they get an honest static note. */}
+        {/* Live preview — the selected card's own plaintext projection in a
+            read-only textarea (markdown/html/latex/json/bib/csl-json); the
+            Copy button rides the same string. PDF renders its blob URL in an
+            iframe; docx (binary) gets the honest static note. */}
         <div className="export-modal__preview-wrap">
           {error && (
             <div className="export-modal__error" role="alert">
               {error}
             </div>
           )}
-          {format.id === "markdown" ? (
+          {format.preview === "text" ? (
             <textarea
               className={`export-modal__preview${loading ? " export-modal__preview--loading" : ""}`}
               readOnly
               value={previewContent}
               spellCheck={false}
-              aria-label="markdown preview"
+              aria-label={`${format.label.toLowerCase()} preview`}
             />
-          ) : format.id === "pdf" && pdfPreviewUrl !== null ? (
+          ) : format.preview === "pdf" && pdfPreviewUrl !== null ? (
             <iframe
               title="pdf preview"
               src={pdfPreviewUrl}
@@ -574,8 +582,9 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
             />
           ) : (
             <p className="export-modal__preview-note">
-              Preview is available for Markdown. The {format.label} export renders the whole
-              subtree in the selected format.
+              Preview is available for the text formats (Markdown, HTML, LaTeX, JSON, BibTeX,
+              CSL&nbsp;JSON) and PDF. The {format.label} export renders the whole subtree in the
+              selected format — download it to view.
             </p>
           )}
         </div>

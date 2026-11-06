@@ -88,6 +88,14 @@ export interface WebExportFormatDefinition {
   /** How the bytes are produced: the local engine inline, or the lazily
    *  imported client-side PDF engine. */
   delivery: "file" | "client-pdf";
+  /**
+   * The modal's live preview kind: `"text"` renders the format's own
+   * plaintext projection in the copyable read-only textarea (markdown +
+   * every other text-serializable card), `"pdf"` renders the lazily
+   * imported engine's blob URL in an iframe, `"none"` shows the honest
+   * static note (docx — a binary OOXML package has no plaintext).
+   */
+  preview: "text" | "pdf" | "none";
   /** Checkbox options the modal renders for this format, in display order. */
   options: readonly WebExportOptionSpec[];
 }
@@ -95,17 +103,24 @@ export interface WebExportFormatDefinition {
 /** Web delivery metadata per format id — the only web-side addition. */
 const WEB_DELIVERY: Record<
   ExportFormatId,
-  { mimeType: string; extension: string; icon: string; delivery?: "client-pdf" }
+  { mimeType: string; extension: string; icon: string; delivery?: "client-pdf"; preview: "text" | "pdf" | "none" }
 > = {
-  markdown: { mimeType: "text/markdown", extension: "md", icon: "language-markdown-outline" },
-  html: { mimeType: "text/html", extension: "html", icon: "language-html5" },
-  pdf: { mimeType: "application/pdf", extension: "pdf", icon: "file-pdf-box", delivery: "client-pdf" },
+  markdown: { mimeType: "text/markdown", extension: "md", icon: "language-markdown-outline", preview: "text" },
+  html: { mimeType: "text/html", extension: "html", icon: "language-html5", preview: "text" },
+  pdf: {
+    mimeType: "application/pdf",
+    extension: "pdf",
+    icon: "file-pdf-box",
+    delivery: "client-pdf",
+    preview: "pdf",
+  },
   docx: {
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     extension: "docx",
     icon: "file-word-outline",
+    preview: "none",
   },
-  latex: { mimeType: "application/x-latex", extension: "tex", icon: "code-tags" },
+  latex: { mimeType: "application/x-latex", extension: "tex", icon: "code-tags", preview: "text" },
 };
 
 function toWebDefinition(definition: ExportFormatDefinition): WebExportFormatDefinition {
@@ -129,6 +144,7 @@ function toWebDefinition(definition: ExportFormatDefinition): WebExportFormatDef
     mimeType: delivery.mimeType,
     extension: delivery.extension,
     delivery: delivery.delivery ?? "file",
+    preview: delivery.preview,
     options,
   };
 }
@@ -148,6 +164,7 @@ function jsonArchiveWebDefinition(): WebExportFormatDefinition {
     mimeType: "application/json",
     extension: "json",
     delivery: "file",
+    preview: "text",
     options: [{ key: INCLUDE_CHILD_PAGES_KEY, label: "Include child pages", defaultValue: true }],
   };
 }
@@ -191,6 +208,7 @@ function bibliographyWebDefinitions(): WebExportFormatDefinition[] {
       mimeType: delivery.mimeType,
       extension: delivery.extension,
       delivery: "file",
+      preview: "text",
       options: [{ key: INCLUDE_CHILD_PAGES_KEY, label: "Include child pages", defaultValue: true }],
     };
   });

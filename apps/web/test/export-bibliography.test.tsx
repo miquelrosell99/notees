@@ -126,6 +126,62 @@ describe("ExportPageModal bibliography cards", () => {
     expect(screen.getByRole("radio", { name: /csl json/i })).not.toHaveAttribute("aria-disabled");
   }, 10000);
 
+  it("previews the BibTeX document as plain text — the same bytes that download", async () => {
+    const client = await makeClient();
+    const sourceId = await seedJournalSource(client);
+
+    render(
+      <ExportPageModal
+        isOpen={true}
+        onClose={() => {}}
+        client={client}
+        nodeUuid={sourceId}
+        nodeName="A Study of Things"
+      />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /bibtex/i }));
+    const preview = (await screen.findByLabelText("bibtex preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(preview.value).toContain("@article{curie2024,"), {
+      timeout: 2000,
+    });
+    expect(preview.value).toContain("Curie, Marie and Sklodowska, Pierre");
+    // The preview IS the download: one entry, body blocks never entries.
+    expect(preview.value).not.toContain("Draft notes paragraph");
+    expect(parseBibtex(preview.value).map((entry) => entry.citeKey)).toEqual(["curie2024"]);
+    // Copy rides the same string — enabled exactly when a preview is in hand.
+    expect(screen.getByRole("button", { name: /^copy$/i })).toBeEnabled();
+  }, 10000);
+
+  it("previews the CSL JSON item array as plain text", async () => {
+    const client = await makeClient();
+    const sourceId = await seedJournalSource(client);
+
+    render(
+      <ExportPageModal
+        isOpen={true}
+        onClose={() => {}}
+        client={client}
+        nodeUuid={sourceId}
+        nodeName="A Study of Things"
+      />,
+    );
+    await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
+
+    fireEvent.click(screen.getByRole("radio", { name: /csl json/i }));
+    const preview = (await screen.findByLabelText("csl json preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(preview.value).toContain('"id": "curie2024"'), {
+      timeout: 2000,
+    });
+    const items = JSON.parse(preview.value) as Array<{ id: string }>;
+    expect(items.map((item) => item.id)).toEqual(["curie2024"]);
+  }, 10000);
+
   it("downloads ONE .bib over the batch selection — every source an entry, body blocks none", async () => {
     const client = await makeClient();
     const sourceA = await seedJournalSource(client);
