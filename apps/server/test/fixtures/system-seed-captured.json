@@ -2162,6 +2162,40 @@
     {
       "opType": "propertySchema.create",
       "payload": {
+        "propertySchemaId": "00000000-0000-0000-0003-000000000013",
+        "name": "Repeat",
+        "type": "text",
+        "multi": false,
+        "scopeClassIds": [
+          "00000000-0000-0000-0001-000000000040",
+          "00000000-0000-0000-0001-000000000012"
+        ]
+      },
+      "affectedNodeIds": []
+    },
+    {
+      "opType": "class.property.set",
+      "payload": {
+        "classId": "00000000-0000-0000-0001-000000000040",
+        "propertySchemaId": "00000000-0000-0000-0003-000000000013"
+      },
+      "affectedNodeIds": [
+        "00000000-0000-0000-0001-000000000040"
+      ]
+    },
+    {
+      "opType": "class.property.set",
+      "payload": {
+        "classId": "00000000-0000-0000-0001-000000000012",
+        "propertySchemaId": "00000000-0000-0000-0003-000000000013"
+      },
+      "affectedNodeIds": [
+        "00000000-0000-0000-0001-000000000012"
+      ]
+    },
+    {
+      "opType": "propertySchema.create",
+      "payload": {
         "propertySchemaId": "00000000-0000-0000-0004-000000000001",
         "name": "Card due",
         "type": "datetime",

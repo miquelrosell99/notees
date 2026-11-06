@@ -105,11 +105,18 @@ export function buildSystemSeedEnvelopes(stamp: SeedStamp): Envelope[] {
     // the spec is marked `global` (the seed-scope audit: genuinely reusable
     // properties — the task family, the global url seed (bound to `source`
     // since) — are global; family-identity fields like citekey stay local).
+    // A LIST-valued bindTo (the multi-class bind, 2026-11-06 — `repeat`) is
+    // normalized here: the schema's scope is the UNION of the named classes
+    // and the binding-row loop below lands one row per class. Single-class
+    // specs normalize to a one-element list — byte-identical envelopes to
+    // the historical single-bind shape.
     // The binding row below lands either way — bindings are per-class config.
+    const classes =
+      spec.bindTo === undefined ? [] : Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
     const scopeClassIds =
-      spec.bindTo === undefined || spec.global === true
+      classes.length === 0 || spec.global === true
         ? null
-        : [SYSTEM_CLASS_UUIDS[spec.bindTo]];
+        : classes.map((c) => SYSTEM_CLASS_UUIDS[c]);
     envelopes.push(
       stamp(
         "propertySchema.create",
@@ -145,18 +152,22 @@ export function buildSystemSeedEnvelopes(stamp: SeedStamp): Envelope[] {
     // from rows; panels sort in pin tiers; the default rides the schema).
     // The spec's pinned flag rides verbatim — the seed pin sets slice
     // (2026-10-27) declared the pinned roster in the domain manifests.
-    const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
-    envelopes.push(
-      stamp(
-        "class.property.set",
-        {
-          classId,
-          propertySchemaId,
-          ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
-        },
-        [classId],
-      ),
-    );
+    // One row per normalized bound class (the multi-class bind lands a row
+    // on every class in the union).
+    for (const cls of classes) {
+      const classId = SYSTEM_CLASS_UUIDS[cls];
+      envelopes.push(
+        stamp(
+          "class.property.set",
+          {
+            classId,
+            propertySchemaId,
+            ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
+          },
+          [classId],
+        ),
+      );
+    }
   }
   // The manifest's extra binding rows (SYSTEM_EXTRA_CLASS_BINDINGS): an
   // extends-child re-binding an inherited schema so class-local binding reads

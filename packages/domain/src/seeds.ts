@@ -577,6 +577,11 @@ export const SYSTEM_PROPERTY_UUIDS = {
   taskScheduled: "00000000-0000-0000-0003-000000000003",
   taskPriority: "00000000-0000-0000-0003-000000000004",
   taskClosedDate: "00000000-0000-0000-0003-000000000005",
+  // WITHDRAWN 2026-11-06 (`taskRecurrence`) — the optionless placeholder
+  // select never carried an executable grammar; superseded by the dedicated
+  // `repeat` RRULE-text property (…0003-…0013 below). The entry stays — seed
+  // ids are never removed or reused (TASK_FAMILY_SEED still authors the
+  // schema at this id for migrated workspaces).
   taskRecurrence: "00000000-0000-0000-0003-000000000006",
   // Meeting family — the workflow-properties block continues (task
   // family …001–…006; meeting family …007–…009). …007 WITHDRAWN 2026-10-30
@@ -597,9 +602,18 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // The task→project membership relation: object-typed ({nodeId} refs),
   // MULTI, filter ["project"], GLOBAL scope with the class-local BINDING ROW
   // on `task` (the url→source precedent; see the spec comment). The next
-  // genuinely-free slot in the workflow-properties block (…001–…011 used;
-  // no withdrawal markers in this block).
+  // genuinely-free slot in the workflow-properties block at seeding time
+  // (…001–…011 used; taskRecurrence's WITHDRAWN marker came 2026-11-06,
+  // after this slot was taken).
   project: "00000000-0000-0000-0003-000000000012",
+  // The dedicated recurrence property (2026-11-06): single-value text
+  // carrying the RR5 RRULE (packages/domain/src/recurrence.ts), bound to the
+  // event+task calendar/task families (the multi-class bind — union scope,
+  // one binding row per class; `meeting` inherits the scope through the
+  // extends chain). Supersedes the withdrawn `taskRecurrence` placeholder
+  // (…0003-…0006 — never reused); live workspaces converge by the follow-up
+  // migration slice.
+  repeat: "00000000-0000-0000-0003-000000000013",
   // The card family (memorization cards slice): the six SRS schedule schemas,
   // class-bound to `card`, at the …0004- property block (…0003- is the
   // task/meeting/event family). The select-OPTION ids (assetRole …0001–…0007,
@@ -815,11 +829,18 @@ export interface SystemPropertySpec {
     | "image"
     | "asset";
   multi?: boolean;
-  bindTo?: SystemClassName;
+  /**
+   * The bound class — or, for the multi-class bind (2026-11-06, the `repeat`
+   * seed), a class LIST: the schema's scopeClassIds is the UNION of the named
+   * classes and the binding-row loop lands one `class.property.set` per
+   * class. A single-class spec keeps the historical shape (scope [bindTo],
+   * one binding row).
+   */
+  bindTo?: SystemClassName | SystemClassName[];
   /**
    * binding-row emission on `bindTo`. Default true —
    * a bound spec seeds the schema scoped to `bindTo` AND a class_property row
-   * on it. `bind: false` keeps the schema seeding with its `bindTo` scope
+   * per bound class. `bind: false` keeps the schema seeding with its `bindTo` scope
    * (scope is the locality/eligibility authority) but SKIPS the binding row
    * (bindings are visibility): the property is eligible on the class family
    * yet renders bound only where a class-local row exists — the source
@@ -986,6 +1007,20 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
     targetClassFilter: ["project"],
     hideWhenEmpty: true,
   },
+  // The dedicated recurrence property (2026-11-06): single-value text
+  // carrying the RR5 RRULE (packages/domain/src/recurrence.ts — the parsed
+  // grammar, not free text by convention). The FIRST multi-class bind:
+  // `bindTo` names the class LIST [event, task] — the schema seeds scoped to
+  // the UNION (scopeClassIds [event, task]; meeting inherits the eligibility
+  // through the extends chain) and the binding-row loop lands one bare
+  // class.property.set per class. LOCAL scope, not global, per the
+  // 2026-10-20 seed-scope audit: an RRULE is family-identity shape, not a
+  // generically reusable value. Seeds UNPINNED (lands in no declared pin
+  // set). Supersedes the withdrawn taskRecurrence placeholder
+  // (…0003-…0006 — the UUID stays burned); the task-family ensure keeps
+  // authoring the old schema for migrated workspaces until the follow-up
+  // migration slice converges live logs.
+  repeat: { type: "text", bindTo: ["event", "task"] },
   // The card family (memorization cards slice): the six SRS schedule schemas,
   // class-bound to `card` at the …0004- block (see the UUID map comment). All
   // scalar (datetime/number), all seed UNPINNED — the 2026-10-27 pinned roster
@@ -1198,6 +1233,8 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   eventDate: "Event date",
   birthdayPerson: "Birthday person",
   project: "Project",
+  // The dedicated recurrence property (2026-11-06) — the RRULE-text carrier.
+  repeat: "Repeat",
   // The card family — the names mirror CARD_FAMILY_SEED verbatim (the
   // completeness pin below requires one entry per SYSTEM_PROPERTY_UUIDS key).
   cardDue: "Card due",

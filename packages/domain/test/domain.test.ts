@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSystemSeedEnvelopes,
   DEFAULT_CLASS_ICON,
   DEFAULT_PAGE_ICON,
   defaultIconFor,
@@ -33,7 +34,7 @@ import {
   validateDisplayTemplate,
   type SystemPropertyName,
 } from "../src/index.js";
-import type { ContentAst } from "@notees/protocol";
+import type { ContentAst, Envelope } from "@notees/protocol";
 
 describe("system seeds (ported)", () => {
   it("has unique class UUIDs and icons for every class", () => {
@@ -72,8 +73,13 @@ describe("system seeds (ported)", () => {
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       // PG10 (2026-10-04): bindTo-less specs seed the schema at global scope
       // with no class binding (the alias property — "page" is not a class).
+      // The multi-class bind (2026-11-06, `repeat`): bindTo may name a class
+      // LIST — the schema's scope is the union, one binding row per class.
       if (spec.bindTo !== undefined) {
-        expect(SYSTEM_CLASS_UUIDS).toHaveProperty(spec.bindTo);
+        const boundClasses = Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
+        for (const boundClass of boundClasses) {
+          expect(SYSTEM_CLASS_UUIDS).toHaveProperty(boundClass);
+        }
       }
       expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(name);
       if (spec.options) {
@@ -771,6 +777,64 @@ describe("system seeds (ported)", () => {
     // The withdrawn markers never reappear.
     expect(ids).not.toContain("00000000-0000-0000-0000-000000000018");
     expect(ids).not.toContain("00000000-0000-0000-0000-000000000025");
+  });
+
+  it("repeat property seed (2026-11-06): the dedicated recurrence property — text RRULE schema, union scope over event+task, one binding row per class", () => {
+    // The next genuinely-free slot in the workflow-properties block after
+    // project (…012): …013. The superseded taskRecurrence placeholder
+    // (…0003-…0006) stays in the UUID map WITHDRAWN — seed ids are never
+    // removed or reused (the WITHDRAWN comment itself is review-checked).
+    expect(SYSTEM_PROPERTY_UUIDS.repeat).toBe("00000000-0000-0000-0003-000000000013");
+    expect(SYSTEM_PROPERTY_UUIDS.taskRecurrence).toBe("00000000-0000-0000-0003-000000000006");
+    // The spec: single-value text carrying the RR5 RRULE (the bindTo union —
+    // scope is the event+task class list, not one class).
+    expect(SYSTEM_PROPERTY_SPECS.repeat).toEqual({ type: "text", bindTo: ["event", "task"] });
+    expect(SYSTEM_PROPERTY_DISPLAY_NAMES.repeat).toBe("Repeat");
+    // The withdrawn placeholder never had a SPECS entry and stays without one
+    // (it is authored through TASK_FAMILY_SEED's applier ensure instead).
+    expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("taskRecurrence");
+    // Uniqueness against the whole seed block.
+    const ids = Object.values(SYSTEM_PROPERTY_UUIDS);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    // The seed envelopes: one propertySchema.create scoped EXACTLY to
+    // [event, task] + one class.property.set binding row per bound class.
+    const envelopes = buildSystemSeedEnvelopes(
+      (opType, payload, affectedNodeIds) =>
+        ({ opType, payload, affectedNodeIds: affectedNodeIds ?? [] }) as unknown as Envelope,
+    );
+    const create = envelopes.find(
+      (envelope) =>
+        envelope.opType === "propertySchema.create" &&
+        (envelope.payload as { propertySchemaId: string }).propertySchemaId ===
+          SYSTEM_PROPERTY_UUIDS.repeat,
+    );
+    expect(create).toBeDefined();
+    expect(create!.payload).toEqual({
+      propertySchemaId: SYSTEM_PROPERTY_UUIDS.repeat,
+      name: "Repeat",
+      type: "text",
+      multi: false,
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.event, SYSTEM_CLASS_UUIDS.task],
+    });
+    const bindings = envelopes.filter(
+      (envelope) =>
+        envelope.opType === "class.property.set" &&
+        (envelope.payload as { propertySchemaId: string }).propertySchemaId ===
+          SYSTEM_PROPERTY_UUIDS.repeat,
+    );
+    // One row per bound class, in spec order, bare payloads (no pin — repeat
+    // lands in no declared pin set).
+    expect(bindings.map((binding) => (binding.payload as { classId: string }).classId)).toEqual([
+      SYSTEM_CLASS_UUIDS.event,
+      SYSTEM_CLASS_UUIDS.task,
+    ]);
+    for (const binding of bindings) {
+      expect(binding.payload).toEqual({
+        classId: (binding.payload as { classId: string }).classId,
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS.repeat,
+      });
+    }
   });
 
   it("parentlessRole block seed pins the flagged roster verbatim", () => {
