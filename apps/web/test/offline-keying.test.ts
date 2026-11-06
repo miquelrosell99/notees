@@ -6,10 +6,11 @@
  * record (DB `notees-custody`, store `workspaceKeys`, `{ id: <workspaceId>,
  * key?|keyBytes? }` — the same Chromium-non-extractable-handle /
  * Firefox-raw-bytes pattern), so a second offline open restores the SAME key
- * and content sealed with it still opens. On the FIRST password-session sync
- * (the offline workspace later opened online with the master key in memory)
- * the client uploads the wrap under the master — publishing the EXISTING
- * key's wrap, never generating one on open.
+ * and content sealed with it still opens. Opened ONLINE against a server that
+ * has never seen it (the key route 404s), the open pauses on the F2 adoption
+ * OFFER — publish under the existing id, wrapping THE device key (publish,
+ * not mint) — instead of a bare refusal or a silent auto-publish (see
+ * `adoption-offer.test.tsx` for the confirm/fallback pins).
  *
  * Custody records survive sign-out: the offline workspace has no account,
  * and each key protects content sealed under it (wire/outbox envelopes), so
@@ -30,7 +31,6 @@ import {
 
 import {
   clearCryptoCustody,
-  currentMasterKey,
   deriveMasterKey,
   ensureOfflineWorkspaceKey,
 } from "../src/core/crypto-custody.js";
@@ -41,7 +41,12 @@ import {
   type WorkspaceKeyRecord,
   type WorkspaceKeyStore,
 } from "../src/core/master-key-storage.js";
-import { resolveWorkspaceKey } from "../src/ui/app/store-connection.js";
+import { setLocalStoreContentProbeForTests } from "../src/ui/app/local-store-content.js";
+import {
+  AdoptionOfferError,
+  confirmWorkspaceAdoption,
+  resolveWorkspaceKey,
+} from "../src/ui/app/store-connection.js";
 
 const SERVER = "https://notees.example.com";
 const TOKEN = "session-token";
@@ -99,7 +104,7 @@ function firefoxStore(): {
 
 /** Fetch router over a stateful key route: GET 404 while no wrap is stored, PUT stores one. */
 function keyRouteWithPut() {
-  const state = { wrapped: undefined as string | undefined, gets: 0, puts: 0, bodies: [] as unknown[] };
+  const state = { wrapped: undefined as string | undefined, gets: 0, puts: 0, posts: 0, bodies: [] as unknown[], postBodies: [] as Array<{ id?: string; wrappedKey?: string }> };
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
@@ -116,6 +121,13 @@ function keyRouteWithPut() {
       state.wrapped = (state.bodies[0] as { wrappedKey: string }).wrappedKey;
       return Response.json({ ok: true });
     }
+    if (url === `${SERVER}/api/workspaces` && method === "POST") {
+      state.posts += 1;
+      state.postBodies.push(JSON.parse(String(init?.body)));
+      const body = state.postBodies.at(-1)!;
+      state.wrapped = body.wrappedKey;
+      return Response.json({ id: body.id ?? WS }, { status: 201 });
+    }
     throw new Error(`unexpected fetch: ${method} ${url}`);
   });
   return { state, fetchMock };
@@ -124,6 +136,7 @@ function keyRouteWithPut() {
 afterEach(async () => {
   await clearCryptoCustody();
   setWorkspaceKeyStoreForTests(undefined);
+  setLocalStoreContentProbeForTests(undefined);
   vi.unstubAllGlobals();
   delete window.NOTEES_CONFIG;
 });
@@ -255,15 +268,39 @@ describe("offline open restores the custody key (resolveWorkspaceKey offline arm
   });
 });
 
-describe("first password-session sync uploads the wrap under the master", () => {
-  it("online 404 + a custody device key → exactly one PUT wrapping THE device key; the open is sealed with it", async () => {
+describe("online open of an offline-created workspace (the F2 adoption offer)", () => {
+  it("404 + custody + NON-EMPTY → the open pauses on the offer: no PUT, no POST, no key", async () => {
     const store = fakeStore();
     setWorkspaceKeyStoreForTests(store);
     const master = await generateMasterKey();
     await deriveMasterKey(PASSWORD, await createKdfRecord(master, PASSWORD));
-    const deviceKey = await ensureOfflineWorkspaceKey(WS);
+    await ensureOfflineWorkspaceKey(WS);
     const { state, fetchMock } = keyRouteWithPut();
     vi.stubGlobal("fetch", fetchMock);
+    setLocalStoreContentProbeForTests(async () => true);
+
+    const failure = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
+      isOffline: false,
+      credentialType: "session",
+      label: "Workspace",
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AdoptionOfferError);
+    // Detection is read-only: exactly the key GET — no write of any kind.
+    expect(state.gets).toBe(1);
+    expect(state.puts).toBe(0);
+    expect(state.posts).toBe(0);
+  });
+
+  it("empty local store → no offer: plaintext keyless open (nothing to publish)", async () => {
+    const store = fakeStore();
+    setWorkspaceKeyStoreForTests(store);
+    const master = await generateMasterKey();
+    await deriveMasterKey(PASSWORD, await createKdfRecord(master, PASSWORD));
+    await ensureOfflineWorkspaceKey(WS);
+    const { state, fetchMock } = keyRouteWithPut();
+    vi.stubGlobal("fetch", fetchMock);
+    setLocalStoreContentProbeForTests(async () => false);
 
     const resolution = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
       isOffline: false,
@@ -271,20 +308,34 @@ describe("first password-session sync uploads the wrap under the master", () => 
       label: "Workspace",
     });
 
-    // The open rides the device key — the local sealed content stays readable.
-    expect(resolution.key).toEqual(deviceKey);
-    expect(resolution.locked).toBe(false);
-    expect(resolution.plaintext).toBe(false);
-    // Exactly one wrap upload on the first sync.
-    expect(state.gets).toBe(1);
-    expect(state.puts).toBe(1);
-    // The wrap opens under the master to THE DEVICE KEY (publish, not mint).
-    const wrapped = (state.bodies[0] as { wrappedKey: string }).wrappedKey;
-    const unwrapped = await unwrapWorkspaceKey(currentMasterKey()!.key, wrapped);
-    expect(await exportWorkspaceKey(unwrapped)).toEqual(deviceKey);
+    expect(resolution).toEqual({ key: undefined, locked: false, plaintext: true });
+    expect(state.puts).toBe(0);
+    expect(state.posts).toBe(0);
   });
 
-  it("the second online open rides the server flow (GET 200, unwrap, NO second PUT)", async () => {
+  it("declinedAdoption → plaintext open, zero writes", async () => {
+    const store = fakeStore();
+    setWorkspaceKeyStoreForTests(store);
+    const master = await generateMasterKey();
+    await deriveMasterKey(PASSWORD, await createKdfRecord(master, PASSWORD));
+    await ensureOfflineWorkspaceKey(WS);
+    const { state, fetchMock } = keyRouteWithPut();
+    vi.stubGlobal("fetch", fetchMock);
+    setLocalStoreContentProbeForTests(async () => true);
+
+    const resolution = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
+      isOffline: false,
+      credentialType: "session",
+      label: "Workspace",
+      declinedAdoption: true,
+    });
+
+    expect(resolution).toEqual({ key: undefined, locked: false, plaintext: true });
+    expect(state.puts).toBe(0);
+    expect(state.posts).toBe(0);
+  });
+
+  it("confirm publishes via POST (existing id, THE device key's wrap); the second open rides GET 200 — no second offer, no PUT", async () => {
     const store = fakeStore();
     setWorkspaceKeyStoreForTests(store);
     const master = await generateMasterKey();
@@ -292,15 +343,27 @@ describe("first password-session sync uploads the wrap under the master", () => 
     const deviceKey = await ensureOfflineWorkspaceKey(WS);
     const { state, fetchMock } = keyRouteWithPut();
     vi.stubGlobal("fetch", fetchMock);
+    setLocalStoreContentProbeForTests(async () => true);
 
-    await resolveWorkspaceKey(SERVER, TOKEN, WS, {
-      isOffline: false,
-      credentialType: "session",
-      label: "Workspace",
-    });
-    expect(state.puts).toBe(1);
+    await expect(
+      resolveWorkspaceKey(SERVER, TOKEN, WS, {
+        isOffline: false,
+        credentialType: "session",
+        label: "Workspace",
+      }),
+    ).rejects.toBeInstanceOf(AdoptionOfferError);
 
-    // Next session: the server holds the wrap — the plain read path serves it.
+    await confirmWorkspaceAdoption(SERVER, TOKEN, WS, "Workspace");
+    expect(state.posts).toBe(1);
+    expect(state.puts).toBe(0);
+    // The wrap opens under the master to THE DEVICE KEY (publish, not mint).
+    const posted = state.postBodies[0]!;
+    expect(posted.id).toBe(WS);
+    const unwrapped = await unwrapWorkspaceKey(handle.key, posted.wrappedKey!);
+    expect(await exportWorkspaceKey(unwrapped)).toEqual(deviceKey);
+
+    // Next open: the server holds the wrap — the plain read path serves it;
+    // no second offer, no second upload.
     const second = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
       isOffline: false,
       credentialType: "session",
@@ -308,39 +371,8 @@ describe("first password-session sync uploads the wrap under the master", () => 
     });
     expect(second.key).toEqual(deviceKey);
     expect(second.locked).toBe(false);
-    expect(state.puts).toBe(1); // no second upload
-    // The stored wrap really is openable under this master (server flow).
-    const unwrapped = await unwrapWorkspaceKey(handle.key, state.wrapped!);
-    expect(await exportWorkspaceKey(unwrapped)).toEqual(deviceKey);
-  });
-
-  it("a failed wrap upload does not block the open: local-first, the upload retries next session", async () => {
-    const store = fakeStore();
-    setWorkspaceKeyStoreForTests(store);
-    const master = await generateMasterKey();
-    await deriveMasterKey(PASSWORD, await createKdfRecord(master, PASSWORD));
-    const deviceKey = await ensureOfflineWorkspaceKey(WS);
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      const method = init?.method ?? "GET";
-      if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "GET") {
-        return Response.json({ error: { message: "not found" } }, { status: 404 });
-      }
-      if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "PUT") {
-        return Response.json({ error: { message: "relay busy" } }, { status: 500 });
-      }
-      throw new Error(`unexpected fetch: ${method} ${url}`);
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const resolution = await resolveWorkspaceKey(SERVER, TOKEN, WS, {
-      isOffline: false,
-      credentialType: "session",
-      label: "Workspace",
-    });
-
-    expect(resolution.key).toEqual(deviceKey);
-    expect(resolution.locked).toBe(false);
+    expect(state.posts).toBe(1);
+    expect(state.puts).toBe(0);
   });
 
   it("no custody device key + online 404 → plaintext, keyless, NO PUT (the no-auto-key ruling holds)", async () => {
@@ -359,5 +391,6 @@ describe("first password-session sync uploads the wrap under the master", () => 
 
     expect(resolution).toEqual({ key: undefined, locked: false, plaintext: true });
     expect(state.puts).toBe(0);
+    expect(state.posts).toBe(0);
   });
 });

@@ -80,6 +80,8 @@ import {
 } from "../features/sources/sourcesQuery.js";
 import { useCondensedPreference } from "./viewPrefs.js";
 import { UnlockWorkspaceModal } from "../features/modals/UnlockWorkspaceModal.js";
+import { AdoptionOfferModal } from "../features/modals/AdoptionOfferModal.js";
+import { confirmWorkspaceAdoption } from "./app/store-connection.js";
 import {
   AppBody,
   AppModals,
@@ -188,6 +190,8 @@ export function App() {
     storeReason,
     unlockRequest,
     setUnlockRequest,
+    adoptionRequest,
+    setAdoptionRequest,
     connectProgress,
     connectProgressFraction,
     sessionSignedIn,
@@ -868,6 +872,48 @@ export function App() {
     />
   );
 
+  /**
+   * The F2 adoption offer: an offline-created workspace met a server that has
+   * never seen it (the open paused before any client existed). Publishing
+   * confirms the create-with-id (the custody device key's wrap rides it) and
+   * reconnects — the second open is a normal keyed open. Keeping it local
+   * re-opens with declinedAdoption: plaintext, zero writes.
+   */
+  const adoptionModal = (
+    <AdoptionOfferModal
+      isOpen={adoptionRequest !== null}
+      workspaceName={adoptionRequest?.name ?? "Workspace"}
+      apiKeySession={adoptionRequest?.credentialType === "apikey"}
+      onKeepLocal={() => {
+        const request = adoptionRequest;
+        if (request === null) return;
+        setAdoptionRequest(null);
+        void connect(request.url, request.credential, request.workspaceId, {
+          isOffline: false,
+          credentialType: request.credentialType,
+          label: request.name,
+          declinedAdoption: true,
+        });
+      }}
+      onPublish={async () => {
+        const request = adoptionRequest;
+        if (request === null) return;
+        await confirmWorkspaceAdoption(
+          request.url,
+          request.credential,
+          request.workspaceId,
+          request.name,
+        );
+        setAdoptionRequest(null);
+        await connect(request.url, request.credential, request.workspaceId, {
+          isOffline: false,
+          credentialType: request.credentialType,
+          label: request.name,
+        });
+      }}
+    />
+  );
+
   if (
     phase.name === "server" ||
     phase.name === "setup" ||
@@ -926,6 +972,7 @@ export function App() {
         onClose={enteringFromApp ? () => setManagerOpen(false) : undefined}
       />
         {unlockModal}
+        {adoptionModal}
       </>
     );
   }
@@ -939,6 +986,7 @@ export function App() {
           error={error}
         />
         {unlockModal}
+        {adoptionModal}
       </>
     );
   }

@@ -306,11 +306,18 @@ export function listWorkspaces(serverUrl: string, token: string): Promise<{ work
 }
 
 
+/**
+ * Create a workspace. `id` is the F2 adoption path only: an offline-created
+ * workspace publishes under its EXISTING id (the local store is keyed by it);
+ * absent, the server mints a fresh one. The keying gate reads the explicit id
+ * server-side; a taken id answers 409 and nothing is created.
+ */
 export function createWorkspace(
   serverUrl: string,
   token: string,
   name?: string,
   wrappedKey?: string,
+  id?: string,
 ): Promise<{ id: string }> {
   return request<{ id: string }>(
     serverUrl,
@@ -318,6 +325,7 @@ export function createWorkspace(
     {
       method: "POST",
       body: JSON.stringify({
+        ...(id !== undefined ? { id } : {}),
         ...(name ? { name } : {}),
         ...(wrappedKey !== undefined ? { wrappedKey } : {}),
       }),
