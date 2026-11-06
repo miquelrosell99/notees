@@ -74,6 +74,12 @@ export interface WorkspaceConnection {
   setSessionSignedIn: Dispatch<SetStateAction<boolean>>;
   workspaceName: string;
   setWorkspaceName: Dispatch<SetStateAction<string>>;
+  /**
+   * Positive knowledge that the open workspace carries no wrapped key (from
+   * the connect's key resolution) — the not-encrypted banner's gate. Cleared
+   * on close; false means keyed, offline, or indeterminate (no banner).
+   */
+  workspacePlaintext: boolean;
   phase: Phase;
   setPhase: Dispatch<SetStateAction<Phase>>;
   error: string | null;
@@ -104,6 +110,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
+  const [workspacePlaintext, setWorkspacePlaintext] = useState(false);
   const [phase, setPhase] = useState<Phase>({ name: "server" });
   const [error, setError] = useState<string | null>(null);
 
@@ -128,6 +135,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     setError(null);
     setConnectProgress(null);
     setConnectProgressFraction(null);
+    setWorkspacePlaintext(false);
     const previous = clientRef.current;
     clientRef.current = null;
     previous?.close();
@@ -155,6 +163,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
       setStoreReason(outcome.mode === "in-process" ? inProcessReason() : undefined);
       setSessionSignedIn(outcome.sessionSignedIn);
       setWorkspaceName(outcome.workspaceName);
+      setWorkspacePlaintext(outcome.workspacePlaintext);
       setPhase({ name: "ready" });
       // Realtime acceleration is best-effort: sync already works without it.
       try {
@@ -188,6 +197,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     clientRef.current = null;
     live?.close();
     setClient(null);
+    setWorkspacePlaintext(false);
   }
 
   return {
@@ -204,6 +214,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     setSessionSignedIn,
     workspaceName,
     setWorkspaceName,
+    workspacePlaintext,
     phase,
     setPhase,
     error,

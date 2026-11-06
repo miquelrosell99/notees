@@ -9,10 +9,12 @@ import type { Dispatch, SetStateAction } from "react";
 
 import type { SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import { rememberWorkspaceName, rememberedWorkspaceList } from "@/core/workspace-registry.js";
+import { currentMasterKey, WORKSPACE_CREATE_KEYING_COPY } from "@/core/crypto-custody.js";
 import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";
 import type { StoreMode } from "./storeMode.js";
 import { InProcessStoreBanner } from "../../components/ui/kit/InProcessStoreBanner.js";
+import { NotEncryptedBanner } from "../../components/ui/kit/NotEncryptedBanner.js";
 import { SyncDetailsModal } from "../../features/modals/SyncDetailsModal.js";
 import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
 import { WorkspaceSettingsHost } from "../../features/workspaces/WorkspaceSettingsHost.js";
@@ -33,6 +35,17 @@ export interface AppOverlaysProps {
   token: string;
   workspaceName: string;
   setWorkspaceName: Dispatch<SetStateAction<string>>;
+  /**
+   * Positive knowledge that the open workspace carries no wrapped key — the
+   * not-encrypted banner's gate (false: keyed, offline, or indeterminate).
+   */
+  workspacePlaintext: boolean;
+  /** The workspace id the post-keying honest notice names (null = no notice). */
+  keyedNoticeFor: string | null;
+  /** The banner's deliberate keying action (ensure + reconnect). */
+  onKeyWorkspace: () => Promise<void>;
+  /** Clears the post-keying notice. */
+  onDismissKeyedNotice: () => void;
 }
 
 export function AppOverlays(props: AppOverlaysProps) {
@@ -49,10 +62,28 @@ export function AppOverlays(props: AppOverlaysProps) {
     token,
     workspaceName,
     setWorkspaceName,
+    workspacePlaintext,
+    keyedNoticeFor,
+    onKeyWorkspace,
+    onDismissKeyedNotice,
   } = props;
+  const activeWorkspaceId = readStored(STORAGE_KEYS.workspaceId);
+  // The post-keying notice only names the workspace it keying'd — a switch
+  // must not carry it onto another workspace.
+  const keyedNotice = keyedNoticeFor !== null && keyedNoticeFor === activeWorkspaceId;
+  const keylessSession = currentMasterKey() === null;
   return (
     <>
       {storeMode === "in-process" && <InProcessStoreBanner reason={storeReason} />}
+      {(keyedNotice || workspacePlaintext) && (
+        <NotEncryptedBanner
+          keyed={keyedNotice}
+          onKey={onKeyWorkspace}
+          keyDisabled={keylessSession}
+          {...(keylessSession ? { keyDisabledHint: WORKSPACE_CREATE_KEYING_COPY } : {})}
+          onDismissKeyed={onDismissKeyedNotice}
+        />
+      )}
       <SyncDetailsModal
         client={client}
         snapshot={syncStatus}
@@ -68,10 +99,10 @@ export function AppOverlays(props: AppOverlaysProps) {
           onClose={() => setAdminSettingsOpen(false)}
           serverUrl={serverUrl}
           credential={token}
-          workspaceId={readStored(STORAGE_KEYS.workspaceId)}
+          workspaceId={activeWorkspaceId}
           workspaceName={workspaceName}
           workspaceRole={
-            rememberedWorkspaceList().find((ws) => ws.id === readStored(STORAGE_KEYS.workspaceId))?.role ?? "owner"
+            rememberedWorkspaceList().find((ws) => ws.id === activeWorkspaceId)?.role ?? "owner"
           }
           initialTab="plugins"
           client={client}

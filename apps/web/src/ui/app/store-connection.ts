@@ -56,6 +56,13 @@ export interface ConnectOutcome {
   /** True when the live credential is a session (API-key management needs one). */
   sessionSignedIn: boolean;
   workspaceName: string;
+  /**
+   * Positive knowledge that the opened workspace carries no wrapped key (the
+   * key route 404'd, or an API-key session's listing row reports
+   * `encrypted: false`). Drives the not-encrypted banner — never guessed, so
+   * a false here (keyed, offline, or indeterminate) means NO banner.
+   */
+  workspacePlaintext: boolean;
 }
 
 /**
@@ -312,5 +319,6 @@ export async function openStoreConnection(
     mode,
     sessionSignedIn,
     workspaceName: options.label ?? "Workspace",
+    workspacePlaintext: resolution.plaintext,
   };
 }

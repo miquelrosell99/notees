@@ -50,7 +50,11 @@ import {
 } from "@/core/workspace-registry.js";
 import { logout, unlock } from "@/core/auth-api.js";
 import { deriveMasterKey } from "@/core/crypto-custody.js";
-import { clearCryptoCustody } from "@/core/crypto-custody.js";
+import {
+  clearCryptoCustody,
+  currentMasterKey,
+  ensureWorkspaceKey,
+} from "@/core/crypto-custody.js";
 
 import { titleOfNode } from "./dateDisplay.js";
 import { parentlessBlockResolverOf } from "./renderStateLabel.js";
@@ -190,6 +194,7 @@ export function App() {
     setSessionSignedIn,
     workspaceName,
     setWorkspaceName,
+    workspacePlaintext,
     phase,
     setPhase,
     error,
@@ -203,6 +208,12 @@ export function App() {
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
+  /**
+   * The post-keying honest notice: the workspace id the banner's Key action
+   * just keyed (null = none). Session state only — the notice names its
+   * workspace, so a switch can never carry it elsewhere; dismiss clears it.
+   */
+  const [keyedNoticeFor, setKeyedNoticeFor] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     // Default: open on desktop, closed on narrow screens. jsdom lacks
     // matchMedia — default open there.
@@ -746,6 +757,7 @@ export function App() {
     clearCryptoCustody();
     setToken("");
     setUser(null);
+    setKeyedNoticeFor(null);
     closeClient();
     pushNav("/login", { view: "login" });
     setPhase({ name: "server" });
@@ -764,6 +776,7 @@ export function App() {
     setToken("");
     setUser(null);
     setSessionSignedIn(false);
+    setKeyedNoticeFor(null);
     closeClient();
     setServerUrl(initialServerUrl());
     setError(null);
@@ -789,6 +802,28 @@ export function App() {
     if (client === null) return;
     const id = await client.createObject({ isEmbedded: false, name: title ?? "Untitled" });
     setSelectedPageId(id);
+  }
+
+  /**
+   * The banner's "Key this workspace" — the ONE deliberate open-time keying
+   * path besides creation (the no-auto-key ruling: opening a plaintext
+   * workspace never keys it as a side effect). `ensureWorkspaceKey` generates
+   * + wraps + PUTs the key, the reconnect re-resolves it so the engine seals
+   * from here on, and the keyed notice carries the honest post-keying copy
+   * across the reconnect. Only reachable with the master key in memory (the
+   * banner disables the action otherwise).
+   */
+  async function handleKeyWorkspace(): Promise<void> {
+    const master = currentMasterKey();
+    const workspaceId = readStored(STORAGE_KEYS.workspaceId);
+    if (master === null || workspaceId === "") return;
+    await ensureWorkspaceKey(serverUrl, token, workspaceId, master);
+    setKeyedNoticeFor(workspaceId);
+    await connect(serverUrl, token, workspaceId, {
+      isOffline: false,
+      credentialType: sessionSignedIn ? "session" : "apikey",
+      label: workspaceName,
+    });
   }
 
   /**
@@ -1058,6 +1093,10 @@ export function App() {
         token={token}
         workspaceName={workspaceName}
         setWorkspaceName={setWorkspaceName}
+        workspacePlaintext={workspacePlaintext}
+        keyedNoticeFor={keyedNoticeFor}
+        onKeyWorkspace={handleKeyWorkspace}
+        onDismissKeyedNotice={() => setKeyedNoticeFor(null)}
       />
     </div>
   );
