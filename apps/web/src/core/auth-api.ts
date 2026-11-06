@@ -306,11 +306,22 @@ export function listWorkspaces(serverUrl: string, token: string): Promise<{ work
 }
 
 
-export function createWorkspace(serverUrl: string, token: string, name?: string): Promise<{ id: string }> {
+export function createWorkspace(
+  serverUrl: string,
+  token: string,
+  name?: string,
+  wrappedKey?: string,
+): Promise<{ id: string }> {
   return request<{ id: string }>(
     serverUrl,
     "/workspaces",
-    { method: "POST", body: JSON.stringify(name ? { name } : {}) },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        ...(name ? { name } : {}),
+        ...(wrappedKey !== undefined ? { wrappedKey } : {}),
+      }),
+    },
     token,
   );
 }

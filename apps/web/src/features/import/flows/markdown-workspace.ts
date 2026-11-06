@@ -15,6 +15,10 @@ import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import { parseLogseqMd, type LogseqMdBlock } from "@notees/export";
 
 import { createWorkspace } from "@/core/auth-api.js";
+import {
+  keyBundleForCreate,
+  WORKSPACE_CREATE_KEYING_COPY,
+} from "@/core/crypto-custody.js";
 import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { createNodeWithId } from "../import-writes.js";
 
@@ -45,8 +49,12 @@ export async function importMarkdownWorkspace(
   options: ImportMarkdownWorkspaceOptions,
 ): Promise<MarkdownWorkspaceReport> {
   const { serverUrl, credential, name } = options;
-  const workspaceId =
-    options.workspaceId ?? (await createWorkspace(serverUrl, credential, name)).id;
+  let workspaceId = options.workspaceId;
+  if (workspaceId === undefined) {
+    const bundle = await keyBundleForCreate(serverUrl, credential);
+    if ("directionalCopy" in bundle) throw new Error(WORKSPACE_CREATE_KEYING_COPY);
+    workspaceId = (await createWorkspace(serverUrl, credential, name, bundle.wrappedKey)).id;
+  }
 
   // The side client rides the ordinary HTTP sync path, exactly like the
   // app's own in-process connect branch (store-connection.ts).

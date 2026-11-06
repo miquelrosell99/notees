@@ -32,6 +32,10 @@ import { Store } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 
 import { createWorkspace } from "@/core/auth-api.js";
+import {
+  keyBundleForCreate,
+  WORKSPACE_CREATE_KEYING_COPY,
+} from "@/core/crypto-custody.js";
 
 export interface NoteesDumpArchive {
   archive: JsonArchive;
@@ -272,7 +276,14 @@ export async function importNoteesDump(
 ): Promise<NoteesDumpResult> {
   const { archive, assetCount } = parseNoteesDump(options.fileName, options.bytes);
 
-  const { id: workspaceId } = await createWorkspace(options.serverUrl, options.credential, options.name);
+  const bundle = await keyBundleForCreate(options.serverUrl, options.credential);
+  if ("directionalCopy" in bundle) throw new Error(WORKSPACE_CREATE_KEYING_COPY);
+  const { id: workspaceId } = await createWorkspace(
+    options.serverUrl,
+    options.credential,
+    options.name,
+    bundle.wrappedKey,
+  );
 
   const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl });
   const store = new Store(sqljsBackend(SQL));

@@ -136,6 +136,35 @@ export function currentMasterKey(): MasterKeyHandle | null {
 }
 
 /**
+ * Directional copy for the creation flow's keyless arm: an API-key session
+ * has no master key to wrap with, so creation cannot key the workspace —
+ * every call site surfaces this verbatim in its existing error channel.
+ */
+export const WORKSPACE_CREATE_KEYING_COPY =
+  "Sign in with your email and password to create a workspace.";
+
+/**
+ * The key bundle every new workspace carries, or the directional arm when
+ * the session is keyless (API-key sign-in). With the master key in memory:
+ * a fresh workspace key, wrapped under the master — the same generate + wrap
+ * `ensureWorkspaceKey` performs on its 404 arm, minus the pre-flight PUT
+ * (the bundle rides the creation payload itself; the server stores it with
+ * the mint). There is no 409 to adopt against: a creation either stores its
+ * bundle or the workspace does not exist.
+ */
+export type WorkspaceKeyBundle = { wrappedKey: string } | { directionalCopy: true };
+
+export async function keyBundleForCreate(
+  serverUrl: string,
+  token: string,
+): Promise<WorkspaceKeyBundle> {
+  const master = currentMasterKey();
+  if (master === null) return { directionalCopy: true };
+  const workspaceKey = await generateWorkspaceKey();
+  return { wrappedKey: await wrapWorkspaceKey(master.key, workspaceKey) };
+}
+
+/**
  * The workspace's raw 32-byte key: fetch + unwrap when the server holds a
  * wrapped key; generate + wrap + store when keyless (404). Concurrent calls
  * for the same workspace share one flight. A PUT rejected with 409 (first

@@ -3,8 +3,10 @@
 # NOTEES_E2EE before nginx starts. Runs via the stock nginx
 # /docker-entrypoint.d mechanism. Both values are JSON-escaped minimally
 # (backslash, double quote); leave config.js untouched when BOTH variables
-# are empty so the baked placeholder keeps its meaning. NOTEES_E2EE is the
-# E2EE kill switch: only the exact value "on" turns workspace keying on.
+# are empty so the baked placeholder keeps its meaning. NOTEES_E2EE is INERT
+# since the kill switch retired: workspace keying is unconditional and
+# nothing reads the flag; it is still written, when set, so existing
+# containers keep a stable /config.js shape.
 # A variable that is empty contributes NO key — in particular an empty
 # NOTEES_SERVER_URL never emits `serverUrl: ""` (absent key = "no prefill",
 # same as the baked placeholder).

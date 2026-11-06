@@ -69,21 +69,20 @@ export class EncryptedWorkspaceLockedError extends Error {
 }
 
 /**
- * E2EE custody, behind the opt-in kill switch: hand the workspace key to the
- * client when `window.NOTEES_CONFIG.e2ee === "on"` AND this session can unwrap
- * one. Any other flag state (absent included) = off = plaintext behavior —
- * and makes NO key-route call at all (the lockstep debt: no workspace gets
- * encrypted before the sibling clients can decrypt).
+ * E2EE custody, unconditional: hand the workspace key to the client whenever
+ * this session can unwrap one. The `window.NOTEES_CONFIG.e2ee` kill switch
+ * retired — keying no longer gates on a flag (the typed flag stays for
+ * container compat, inert).
  *
- * When the switch is on: offline workspaces are keyless by design (no server
- * → no keys → plaintext). With a session but NO master key in memory (a
- * reload restored the session without it — custody is memory-only), a keyed
- * workspace reports `locked` and the OPEN FAILS LOUDLY (fail-loud ruling:
- * never open keyless) — the UI shows the unlock re-prompt instead; a session
- * WITH the master key whose stored key fails to unwrap under it (e.g. the
- * account password changed on another device) fails loud the same way.
- * API-key sessions cannot unwrap (the key route is user custody) — the
- * workspaces listing's `encrypted` flag decides there.
+ * Offline workspaces are keyless by design (no server → no keys →
+ * plaintext). With a session but NO master key in memory (a reload restored
+ * the session without it — custody is memory-only), a keyed workspace
+ * reports `locked` and the OPEN FAILS LOUDLY (fail-loud ruling: never open
+ * keyless) — the UI shows the unlock re-prompt instead; a session WITH the
+ * master key whose stored key fails to unwrap under it (e.g. the account
+ * password changed on another device) fails loud the same way. API-key
+ * sessions cannot unwrap (the key route is user custody) — the workspaces
+ * listing's `encrypted` flag decides there.
  */
 export interface WorkspaceKeyResolution {
   /** The raw 32-byte workspace key, when this open is sealed. */
@@ -98,7 +97,6 @@ export async function resolveWorkspaceKey(
   workspaceId: string,
   options: ConnectOptions,
 ): Promise<WorkspaceKeyResolution> {
-  if (window.NOTEES_CONFIG?.e2ee !== "on") return { key: undefined, locked: false };
   if (options.isOffline) return { key: undefined, locked: false };
   const master = currentMasterKey();
   if (master !== null) {

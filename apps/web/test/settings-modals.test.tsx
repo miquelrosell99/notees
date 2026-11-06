@@ -14,6 +14,9 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createKdfRecord, generateMasterKey } from "@notees/protocol";
+
+import { clearCryptoCustody, deriveMasterKey } from "../src/core/crypto-custody.js";
 
 import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
 import { SystemSettingsModal } from "../src/features/settings/SystemSettingsModal.js";
@@ -54,6 +57,7 @@ afterEach(() => {
   document.documentElement.dataset.oled = "false";
   delete document.documentElement.dataset.accent;
   delete document.documentElement.dataset.focus;
+  clearCryptoCustody();
 });
 
 const USER: AccountUser = {
@@ -75,6 +79,12 @@ const WS2: WorkspaceEntry = {
   envelopeCount: 0,
   latestSeq: 0,
 };
+
+/** Creation is keyed unconditionally: creation tests seed the master key. */
+async function seedMasterKey(): Promise<void> {
+  const master = await generateMasterKey();
+  await deriveMasterKey("correct horse battery staple", await createKdfRecord(master, "correct horse battery staple"));
+}
 
 /** fetch stub: routes by URL suffix, recording calls for assertions. */
 function stubFetch(routes: Record<string, () => unknown>) {
@@ -361,6 +371,7 @@ describe("entry points", () => {
   });
 
   it("offers creating a workspace when the search matches nothing", async () => {
+    await seedMasterKey();
     const calls: { url: string; method: string; body: string | null }[] = [];
     vi.stubGlobal(
       "fetch",
@@ -396,7 +407,9 @@ describe("entry points", () => {
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith("ws9", "Orchard"));
     const post = calls.find((c) => c.method === "POST");
     expect(post?.url).toBe("https://notees.example.com/api/workspaces");
-    expect(JSON.parse(post!.body!)).toEqual({ name: "Orchard" });
+    expect(JSON.parse(post!.body!)).toEqual(
+      expect.objectContaining({ name: "Orchard", wrappedKey: expect.any(String) }),
+    );
     // The popup closed after the create+switch.
     expect(screen.queryByRole("listbox")).toBeNull();
   });
@@ -620,6 +633,7 @@ describe("ManageWorkspacesModal", () => {
   });
 
   it("creates a workspace and switches to it", async () => {
+    await seedMasterKey();
     const calls: { url: string; method: string; body: string | null }[] = [];
     vi.stubGlobal(
       "fetch",
@@ -652,7 +666,9 @@ describe("ManageWorkspacesModal", () => {
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith("ws9", "New plots"));
     const post = calls.find((c) => c.method === "POST");
     expect(post?.url).toBe("https://notees.example.com/api/workspaces");
-    expect(JSON.parse(post!.body!)).toEqual({ name: "New plots" });
+    expect(JSON.parse(post!.body!)).toEqual(
+      expect.objectContaining({ name: "New plots", wrappedKey: expect.any(String) }),
+    );
   });
 
   it("omits actions with no backend (share, duplicate, import)", async () => {

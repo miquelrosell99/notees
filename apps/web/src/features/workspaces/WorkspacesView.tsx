@@ -16,6 +16,10 @@ import {
   type AccountUser,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
+import {
+  keyBundleForCreate,
+  WORKSPACE_CREATE_KEYING_COPY,
+} from "@/core/crypto-custody.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -152,12 +156,21 @@ export function WorkspacesView({
     setNameError(null);
     setSubmitting(true);
     if (nameModal.mode === "create") {
-      createWorkspace(serverUrl, credential, name)
-        .then(({ id }) => {
+      keyBundleForCreate(serverUrl, credential)
+        .then((bundle) => {
+          if ("directionalCopy" in bundle) {
+            setSubmitting(false);
+            setNameError(WORKSPACE_CREATE_KEYING_COPY);
+            return null;
+          }
+          return createWorkspace(serverUrl, credential, name, bundle.wrappedKey);
+        })
+        .then((created) => {
+          if (created === null) return;
           setSubmitting(false);
           setNameModal(null);
           setSwitching(true);
-          onEnter(id, name);
+          onEnter(created.id, name);
         })
         .catch((err: unknown) => {
           setSubmitting(false);
