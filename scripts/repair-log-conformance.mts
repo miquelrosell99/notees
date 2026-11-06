@@ -62,8 +62,19 @@ const Database = require("better-sqlite3") as typeof import("better-sqlite3");
 import { payloadSchemaFor } from "../packages/protocol/src/index.ts";
 import { SYSTEM_CLASS_EXTENDS_IDS } from "../packages/domain/src/seeds.ts";
 import { Store } from "../packages/store/src/index.ts";
-import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
+
+import {
+  buildScratchStore as scratchStoreBuild,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "content" plans against the object graph — refused server-side on a keyed workspace (run it through a keyed client).
+ */
+export const CONTENT_CLASS: MigrationContentClass = "content";
 
 // --- CLI ----------------------------------------------------------------------
 
@@ -108,38 +119,26 @@ interface Violation {
 /** seq lookup — envelopes on the wire do not carry the server seq. */
 let seqById: Map<string, number> = new Map();
 
+/**
+ * The shared scratch build (scripts/lib/scratch-store.ts) plus this repair's
+ * violation classification: every per-envelope apply failure feeds `classify`
+ * (the onApplyError hook rides the lib's ScratchHooks bag) and the build
+ * continues — a failed op is never applied, so the as-of state stays
+ * consistent for classifying the NEXT violation. The seq side table the
+ * classifier reads stays here (the lib owns the replay, not the diagnosis).
+ */
 function buildScratchStore(relay: RelayStorage, workspaceId: string, ctx: ResolveContext): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
   const db = (relay as unknown as { db: import("better-sqlite3").Database }).db;
   seqById = new Map(
     (db.prepare("SELECT id, seq FROM envelope WHERE workspace_id = ?").all(workspaceId) as Array<{ id: string; seq: number }>).map(
       (r) => [r.id, r.seq],
     ),
   );
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) {
-      try {
-        store.apply(envelope);
-      } catch (error) {
-        // Record and continue: a failed op is never applied, so the as-of
-        // state stays consistent for classifying the NEXT violation.
-        pending.push(classify(workspaceId, envelope, error, ctx));
-      }
-    }
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  return store;
+  return scratchStoreBuild(relay, workspaceId, {
+    onApplyError: (envelope, error) => {
+      pending.push(classify(workspaceId, envelope, error, ctx));
+    },
+  });
 }
 
 const pending: Violation[] = [];
@@ -308,6 +307,12 @@ function main(): void {
     : workspaceRows
   ).map((r) => r.workspace_id);
   if (workspaceIds.length === 0) throw new Error("no workspaces matched");
+
+  // The content-class guard: a keyed workspace's sealed content is invisible
+  // to the diagnosis, so the repair refuses before touching anything.
+  for (const workspaceId of workspaceIds) {
+    refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "repair-log-conformance.mts");
+  }
 
   // Reference lookups for the V3 strategies, built in ONE pass over the
   // workspace's envelopes (per-violation SQL LIKE scans are O(n²) — 50k

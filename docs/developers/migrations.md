@@ -86,6 +86,21 @@ The immutable log gains envelopes; every replica applies them in order.
   verify by read-back + a fresh scratch replay. Idempotent: a second run
   plans nothing.
 
+**The shared scratch build + the keyed-workspace guard (2026-11-06, the
+mandatory-keying slice).** Every migration script rides ONE copy of the
+scratch builder — `scripts/lib/scratch-store.ts`'s `buildScratchStore` (the
+sealed-snapshot gate: a `sealed=1` latest snapshot never restores, encrypted
+payloads skip the apply, StoreError skips count as pending and are reported
+through the caller's `onSkip` house line — a keyed workspace's sealed content
+is invisible to a server-side plan BY DESIGN). Each script also declares its
+`CONTENT_CLASS` (`"content"` — plans against the object graph — or
+`"scaffolding"` — the schema/binding rows every replica derives identically)
+and calls `refuseIfContentOnKeyed(dataDir, workspaceId, CONTENT_CLASS,
+name)` in its per-workspace loop BEFORE planning: a `"content"`-class run
+refuses server-side against a keyed workspace (the sealed prefix would be
+missing from the plan) with the run-it-through-a-keyed-client remedy, while
+`"scaffolding"` runs and unkeyed workspaces pass silent.
+
 ### B. In-place rewrite (retired keys / moved fields)
 
 `migrate-node-type.mts` set the precedent; `migrate-color-tokens.mts` and

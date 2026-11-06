@@ -74,6 +74,18 @@ import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqli
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
 
+import {
+  buildScratchStore as scratchStoreBuild,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "content" plans against the object graph — refused server-side on a keyed workspace (run it through a keyed client).
+ */
+export const CONTENT_CLASS: MigrationContentClass = "content";
+
 const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 const RETIRED_TYPES = ["date", "date_range"] as const;
 
@@ -144,25 +156,17 @@ function readAuthoredCounts(
   }
 }
 
-/** Restore snapshot+tail into a scratch store (the sync-server hydration shape). */
+/**
+ * The shared scratch build (scripts/lib/scratch-store.ts — the sealed gate +
+ * the skip accounting) plus this migration's house skip line.
+ */
 function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) store.apply(envelope);
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  return store;
+  return scratchStoreBuild(relay, workspaceId, ({ encrypted, pending }) => {
+    console.log(
+      `  (scratch: ${encrypted} encrypted + ${pending} pending envelope(s) skipped — ` +
+        "a keyed workspace's sealed content is invisible to a server-side plan)",
+    );
+  });
 }
 
 /**
@@ -219,6 +223,7 @@ function main(): void {
   );
 
   try {
+    refuseIfContentOnKeyed(options.dataDir, options.workspace, CONTENT_CLASS, "migrate-unified-datetime.mts");
     const snapshot = relay.latestSnapshot(options.workspace);
     const snapshotSeq = snapshot?.up_to_seq ?? 0;
     const latestSeq = relay.latestSeq(options.workspace);

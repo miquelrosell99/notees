@@ -93,6 +93,18 @@ import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqli
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
 
+import {
+  buildScratchStore as scratchStoreBuild,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "scaffolding" touches the schema/binding rows every replica derives identically.
+ */
+export const CONTENT_CLASS: MigrationContentClass = "scaffolding";
+
 const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 const HEALTH_URL = "http://127.0.0.1:8377/healthz";
 
@@ -333,32 +345,17 @@ function topoSortWindow(windowRows: StoredRow[], scan: ScanResult): StoredRow[] 
 
 // --- scratch replay (the strict gate) -------------------------------------------
 
+/**
+ * The shared scratch build (scripts/lib/scratch-store.ts — the sealed gate +
+ * the skip accounting) plus this migration's house skip line.
+ */
 function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) {
-      try {
-        store.apply(envelope);
-      } catch (error) {
-        store.close();
-        const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`strict replay failed at seq > ${cursor}: ${detail}`);
-      }
-    }
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  return store;
+  return scratchStoreBuild(relay, workspaceId, ({ encrypted, pending }) => {
+    console.log(
+      `  (scratch: ${encrypted} encrypted + ${pending} pending envelope(s) skipped — ` +
+        "a keyed workspace's sealed content is invisible to a server-side plan)",
+    );
+  });
 }
 
 // --- conformance quarantine ------------------------------------------------------
@@ -927,6 +924,7 @@ async function main(): Promise<void> {
     let windowEnd = 0;
     for (const workspaceId of workspaces) {
       const outcome = resequenceWorkspace(relay, options.dataDir, workspaceId, options.apply);
+      refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "migrate-resequence-parent-order.mts");
       if (outcome.changed) {
         windowStart = Math.min(windowStart, outcome.windowStart);
         windowEnd = Math.max(windowEnd, outcome.windowEnd);

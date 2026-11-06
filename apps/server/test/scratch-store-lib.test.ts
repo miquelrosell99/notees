@@ -30,9 +30,11 @@
  * keyed workspace and a content-class run on an unkeyed one pass silent.
  */
 
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -55,6 +57,10 @@ const WORKSPACE = "4b7d1a00-3333-4000-8000-0000000000a1";
 const OTHER_WORKSPACE = "4b7d1a00-3333-4000-8000-0000000000a2";
 const ACTOR = "51000000-0000-4000-8000-000000000099";
 const DEVICE = "scratch-store-lib-test";
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const TSX = join(REPO_ROOT, "apps", "server", "node_modules", ".bin", "tsx");
+const MEETING_SCRIPT = "../../scripts/migrate-meeting-date-retirement.mts";
 
 const EVENT_ID = SYSTEM_CLASS_UUIDS.event;
 const EVENT_DATE_ID = SYSTEM_PROPERTY_UUIDS.eventDate;
@@ -287,6 +293,68 @@ describe("scripts/lib/scratch-store.ts", () => {
       expect(() =>
         refuseIfContentOnKeyed(dataDir, WORKSPACE, "content", "migrate-example"),
       ).not.toThrow();
+    });
+  });
+
+  describe("the refusal pin: a content-class script spawned against a keyed workspace", () => {
+    /** Spawn the script exactly as the runbook documents (the migrate-test idiom). */
+    const runScript = (args: string[]): { stdout: string; status: number } => {
+      try {
+        const stdout = execFileSync(TSX, args, {
+          cwd: join(REPO_ROOT, "apps", "server"),
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        return { stdout, status: 0 };
+      } catch (error) {
+        const failed = error as { status?: number; stdout?: string; stderr?: string };
+        return {
+          stdout: `${failed.stdout ?? ""}${failed.stderr ?? ""}`,
+          status: failed.status ?? 1,
+        };
+      }
+    };
+
+    it("refuses BEFORE planning: non-zero exit, the house refusal, ZERO envelopes appended", () => {
+      // Stage the keyed custody row (the keyedWorkspaceIds idiom above).
+      const auth = new AuthStorage(join(dataDir, "relay.db"));
+      try {
+        auth.putWorkspaceKey(WORKSPACE, "wrapped-key-one");
+      } finally {
+        auth.close();
+      }
+      const seqBefore = relay.latestSeq(WORKSPACE);
+
+      const result = runScript([
+        MEETING_SCRIPT,
+        "--data-dir",
+        dataDir,
+        "--workspace",
+        WORKSPACE,
+      ]);
+
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toContain(
+        'migrate-meeting-date-retirement.mts: "content"-class migration refuses to run ' +
+          `server-side against keyed workspace ${WORKSPACE}`,
+      );
+      expect(result.stdout).toContain("run it through a keyed client");
+      // The dry run appended NOTHING — the log is byte-for-byte untouched.
+      expect(relay.latestSeq(WORKSPACE)).toBe(seqBefore);
+    });
+
+    it("the same spawned dry run passes the guard on an UNKEYED workspace (plans, writes nothing)", () => {
+      const seqBefore = relay.latestSeq(WORKSPACE);
+      const result = runScript([
+        MEETING_SCRIPT,
+        "--data-dir",
+        dataDir,
+        "--workspace",
+        WORKSPACE,
+      ]);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("nothing to migrate");
+      expect(relay.latestSeq(WORKSPACE)).toBe(seqBefore);
     });
   });
 });

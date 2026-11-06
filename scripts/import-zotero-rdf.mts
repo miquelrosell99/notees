@@ -108,9 +108,20 @@ import {
   type ZoteroItemType,
 } from "../packages/domain/src/index.ts";
 import { Store, visiblePropertyValueRows } from "../packages/store/src/index.ts";
-import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
+
+import {
+  buildScratchStore as scratchStoreBuild,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "content" plans against the object graph — refused server-side on a keyed workspace (run it through a keyed client).
+ */
+export const CONTENT_CLASS: MigrationContentClass = "content";
 
 import {
   parseZoteroRdf,
@@ -395,37 +406,16 @@ async function appendViaServer(
 // --- scratch derived store ----------------------------------------------------
 
 /**
- * Restore the workspace's latest snapshot into a fresh in-memory store and
- * apply every log envelope after it (the hydration shape the sync server
- * uses). Throws on any StoreError — a tail that cannot apply must block the
- * import, not be planned against.
+ * The shared scratch build (scripts/lib/scratch-store.ts — the sealed gate +
+ * the skip accounting) plus this migration's house skip line.
  */
 function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) {
-      try {
-        store.apply(envelope);
-      } catch (error) {
-        store.close();
-        const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`tail apply failed at seq > ${cursor}: ${detail}`);
-      }
-    }
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  return store;
+  return scratchStoreBuild(relay, workspaceId, ({ encrypted, pending }) => {
+    console.log(
+      `  (scratch: ${encrypted} encrypted + ${pending} pending envelope(s) skipped — ` +
+        "a keyed workspace's sealed content is invisible to a server-side plan)",
+    );
+  });
 }
 
 // --- the reader adapter ---------------------------------------------------------
@@ -1186,6 +1176,7 @@ async function main(): Promise<void> {
       `\nworkspace ${options.workspace}: log seq ${relay.latestSeq(options.workspace)} ` +
         `— import ${options.file}`,
     );
+    refuseIfContentOnKeyed(options.dataDir, options.workspace, CONTENT_CLASS, "import-zotero-rdf.mts");
     const store = buildScratchStore(relay, options.workspace);
     let reader: ImportStateReader;
     let plan: ImportPlanEntry[];

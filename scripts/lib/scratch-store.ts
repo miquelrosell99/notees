@@ -37,7 +37,7 @@ import { join } from "node:path";
 // resolve from scripts/) — the local Db alias below is the typed surface.
 import Database from "../../apps/server/node_modules/better-sqlite3/lib/index.js";
 
-import { isEncryptedPayload } from "../../packages/protocol/src/envelope.ts";
+import { isEncryptedPayload, type Envelope } from "../../packages/protocol/src/envelope.ts";
 import { Store } from "../../packages/store/src/index.ts";
 import { StoreError } from "../../packages/store/src/errors.ts";
 import { betterSqlite3Backend } from "../../packages/store/src/adapters/better-sqlite3.ts";
@@ -46,10 +46,25 @@ import type { RelayStorage } from "../../apps/server/src/relay-storage.ts";
 
 type Db = InstanceType<typeof Database>;
 
-/** The scratch build's skip accounting: sealed envelopes the server cannot open. */
+/**
+ * The scratch build's skip accounting: sealed envelopes the server cannot open.
+ */
 export interface ScratchCounts {
   encrypted: number;
   pending: number;
+}
+
+/**
+ * The third-parameter bag: `onSkip` prints the house skip line; `onApplyError`
+ * is the repair-script idiom — called per envelope whose apply throws INSTEAD
+ * of the default (StoreError counting as pending, anything else throwing), so
+ * the caller classifies the failure and the build continues. Encrypted
+ * payloads never reach either hook — they skip the apply by the sealed rule
+ * and count toward `onSkip`.
+ */
+export interface ScratchHooks {
+  onSkip?: (counts: ScratchCounts) => void;
+  onApplyError?: (envelope: Envelope, error: unknown) => void;
 }
 
 /**
@@ -67,12 +82,17 @@ export interface ScratchCounts {
  *
  * When skips occurred and `onSkip` is given, it is called ONCE with the
  * counts — the caller prints the house skip line.
+ *
+ * The third parameter is the callback or the {@link ScratchHooks} bag (the
+ * repair-script idiom: a per-envelope apply-failure hook that classifies
+ * instead of the default skip/throw).
  */
 export function buildScratchStore(
   relay: RelayStorage,
   workspaceId: string,
-  onSkip?: (counts: ScratchCounts) => void,
+  onSkip?: ((counts: ScratchCounts) => void) | ScratchHooks,
 ): Store {
+  const hooks: ScratchHooks = typeof onSkip === "function" ? { onSkip } : (onSkip ?? {});
   const store = Store.open(betterSqlite3Backend(":memory:"));
   const snapshot = relay.latestSnapshot(workspaceId);
   let afterSeq = 0;
@@ -95,6 +115,13 @@ export function buildScratchStore(
       try {
         store.apply(envelope);
       } catch (error) {
+        if (hooks.onApplyError !== undefined) {
+          // The repair idiom: the caller classifies the failure, the build
+          // continues (a failed op is never applied, so the as-of state
+          // stays consistent for the NEXT envelope).
+          hooks.onApplyError(envelope, error);
+          continue;
+        }
         if (error instanceof StoreError) {
           skippedPending += 1;
           continue;
@@ -107,8 +134,8 @@ export function buildScratchStore(
     if (!page.hasMore || page.nextAfterSeq === null) break;
     cursor = page.nextAfterSeq;
   }
-  if (skippedEncrypted + skippedPending > 0 && onSkip !== undefined) {
-    onSkip({ encrypted: skippedEncrypted, pending: skippedPending });
+  if (skippedEncrypted + skippedPending > 0 && hooks.onSkip !== undefined) {
+    hooks.onSkip({ encrypted: skippedEncrypted, pending: skippedPending });
   }
   return store;
 }

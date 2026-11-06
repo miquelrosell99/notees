@@ -51,8 +51,19 @@ import {
   SYSTEM_PROPERTY_UUIDS,
 } from "../packages/domain/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
-import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
+
+import {
+  buildScratchStore as scratchStoreBuild,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "content" plans against the object graph — refused server-side on a keyed workspace (run it through a keyed client).
+ */
+export const CONTENT_CLASS: MigrationContentClass = "content";
 import {
   compileCitekeyPattern,
   DEFAULT_CITEKEY_PATTERN,
@@ -92,33 +103,17 @@ function parseArgs(argv: string[]): CliOptions {
 
 // --- scratch derived store ----------------------------------------------------
 
-/** Snapshot + full tail into a fresh in-memory store (the sync server's hydration shape). */
+/**
+ * The shared scratch build (scripts/lib/scratch-store.ts — the sealed gate +
+ * the skip accounting) plus this migration's house skip line.
+ */
 function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) {
-      try {
-        store.apply(envelope);
-      } catch (error) {
-        store.close();
-        const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`tail apply failed at seq > ${cursor}: ${detail}`);
-      }
-    }
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  return store;
+  return scratchStoreBuild(relay, workspaceId, ({ encrypted, pending }) => {
+    console.log(
+      `  (scratch: ${encrypted} encrypted + ${pending} pending envelope(s) skipped — ` +
+        "a keyed workspace's sealed content is invisible to a server-side plan)",
+    );
+  });
 }
 
 // --- reads (the citekeyValue/citekeyEntryOf contract, one-shot form) ----------
@@ -446,6 +441,7 @@ function main(): void {
     const plans: WorkspacePlan[] = [];
     let totalAppends = 0;
     for (const workspaceId of workspaceIds) {
+      refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "backfill-citekeys.mts");
       const plan = planWorkspace(relay, workspaceId);
       plans.push(plan);
       totalAppends += plan.appends.length;
