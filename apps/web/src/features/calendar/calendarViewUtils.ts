@@ -13,6 +13,8 @@ import {
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
 
+import { repeatSummaryOf } from "./repeatProperty.js";
+
 // Re-exported for callers that want the canonical import site alongside the
 // other calendar helpers.
 export { dayNodeId, recurrenceRuleOf } from "@notees/domain";
@@ -163,13 +165,13 @@ export interface OpenTaskRow {
   /** True when the status label is a TASK_CLOSED_STATUSES name. */
   closed: boolean;
   /**
-   * The taskScheduled value's recurrence rule (metadata.repeat),
-   * null for plain tasks. A repeating task OCCURS on every expanded day;
+   * The task's recurrence rule (the Repeat property's value), null for
+   * plain tasks. A repeating task OCCURS on every expanded day;
    * it is never "overdue" (missed days roll forward to the next occurrence).
    */
   repeat: RecurrenceRule | null;
   /**
-   * The taskScheduled value's completed occurrence days
+   * The Repeat value's completed occurrence days
    * (metadata.completedOccurrences; [] for plain tasks). Per-occurrence
    * completion: the day-context done-toggle on a recurring task records the
    * DATE here instead of the node-level status, so one occurrence closes
@@ -533,18 +535,7 @@ export function occursOnDay(rule: RecurrenceRule, anchorIso: string, iso: string
   return occurrenceIsosOf({ rule, anchorIso }, iso, iso, 1).length === 1;
 }
 
-/** Display label for the repeat picker and the day-view marker. */
-export function repeatLabelOf(rule: RecurrenceRule): string {
-  switch (rule.freq) {
-    case "daily":
-      return rule.interval >= 2 ? `Every ${rule.interval} days` : "Daily";
-    case "weekly":
-      return rule.interval >= 2 ? `Every ${rule.interval} weeks` : "Weekly";
-    case "weekdays":
-      return "Weekdays";
-    case "monthly":
-      return rule.interval >= 2 ? `Every ${rule.interval} months` : "Monthly";
-    case "yearly":
-      return rule.interval >= 2 ? `Every ${rule.interval} years` : "Yearly";
-  }
+/** Display label for the repeat control and the day-view marker. */
+export function repeatLabelOf(rule: RecurrenceRule, anchorIso: string): string {
+  return repeatSummaryOf(rule, anchorIso);
 }

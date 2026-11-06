@@ -315,8 +315,10 @@ export function stagedBindingsOf(client: AnyClient, classId: string): StagedProp
     const lineage = collectSelfAndAncestors(client, classId);
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       if (spec === undefined || spec.bindTo === undefined || spec.bind === false) continue;
-      const bindClassId = SYSTEM_CLASS_UUIDS[spec.bindTo];
-      if (!lineage.has(bindClassId)) continue;
+      // A list-valued bindTo (the multi-class bind — `repeat`) binds when ANY
+      // bound class is in the lineage.
+      const bindTargets = Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
+      if (!bindTargets.some((className) => lineage.has(SYSTEM_CLASS_UUIDS[className]))) continue;
       const id = SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS];
       if (byId.has(id)) continue;
       const schema = schemaOf(id);
@@ -775,7 +777,14 @@ export async function ensureCitationFamily(
       continue;
     }
     if (spec === undefined) continue;
-    const bindTo = spec.bindTo !== undefined ? SYSTEM_CLASS_UUIDS[spec.bindTo] : undefined;
+    // A list-valued bindTo (the multi-class bind — `repeat`) scopes the
+    // schema to every bound class.
+    const bindToIds =
+      spec.bindTo === undefined
+        ? []
+        : (Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo]).map(
+            (className) => SYSTEM_CLASS_UUIDS[className],
+          );
     await client.createPropertySchema({
       id,
       name: SYSTEM_PROPERTY_DISPLAY_NAMES[key],
@@ -783,7 +792,7 @@ export async function ensureCitationFamily(
       ...(spec.multi === true ? { multi: true } : {}),
       // Scoped to the bound class (the sole locality authority) unless the seed declares the schema global (url is the
       // precedent — global schema, binding row on the family base).
-      ...(spec.global === true || bindTo === undefined ? {} : { scopeClassIds: [bindTo] }),
+      ...(spec.global === true || bindToIds.length === 0 ? {} : { scopeClassIds: bindToIds }),
       ...(spec.targetClassFilter !== undefined
         ? {
             targetClassFilter: spec.targetClassFilter.map(
@@ -801,8 +810,12 @@ export async function ensureCitationFamily(
       // A carried venue field binds class-locally (the pool's bind: false
       // contract — visibility rides the picked class, not the family base).
       await client.setClassProperty(bindVenueToClassId, id, {});
-    } else if (bindTo !== undefined && spec.bind !== false) {
-      await client.setClassProperty(bindTo, id, {});
+    } else if (spec.bind !== false) {
+      // A bound spec seeds a class_property row per bound class (the
+      // multi-class bind — `repeat` — lands on every list member).
+      for (const bindClassId of bindToIds) {
+        await client.setClassProperty(bindClassId, id, {});
+      }
     }
   }
 }

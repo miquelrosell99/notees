@@ -16,7 +16,7 @@ import { parseRecurrenceRule, formatRecurrenceRule } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
 import { Dropdown, type DropdownOption } from "../../components/ui/kit/Dropdown.js";
-import { repeatLabelOf } from "../calendar/calendarViewUtils.js";
+import { repeatLabelOf, todayIsoLocal } from "../calendar/calendarViewUtils.js";
 import "./RepeatPicker.css";
 
 const OPTIONS: DropdownOption<string>[] = [
@@ -43,7 +43,11 @@ export function repeatValueOfPick(pick: string): string | null {
 export function repeatLabelOfValue(value: string | null): string {
   if (value === null) return "Does not repeat";
   try {
-    return repeatLabelOf(parseRecurrenceRule(value));
+    // The summary needs the series anchor for what the rule leaves implicit
+    // (the weekly weekday, the monthly day); the legacy control has no real
+    // anchor in scope, so today's day stands in (Task 10 deletes this
+    // picker; the panel control resolves the true anchor).
+    return repeatLabelOf(parseRecurrenceRule(value), todayIsoLocal());
   } catch {
     return value;
   }

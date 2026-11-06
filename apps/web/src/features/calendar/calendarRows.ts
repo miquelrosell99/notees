@@ -19,7 +19,6 @@ import {
   completedOccurrencesOf,
   dayNodeId,
   parseDateNodeId,
-  recurrenceRuleOf,
   recurrenceSeriesOf,
   spanEndOf,
   withCompletedOccurrence,
@@ -32,6 +31,11 @@ import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/w
 
 import { titleOf } from "../../ui/dateDisplay.js";
 import { nearestDocumentChromeAncestor } from "../../ui/renderStateLabel.js";
+import {
+  drivingDateRow,
+  repeatFactsOfNode,
+  setRepeatMetadata,
+} from "./repeatProperty.js";
 import {
   isEventFamilyClass,
   minutesOfTime,
@@ -60,8 +64,10 @@ export function taskRowFacts(
   id: string,
 ): TaskBucketRow {
   // The shells read: taskStatus is a select, taskScheduled/taskDeadline are
-  // datetimes — all LIGHT, values present; the recurrence metadata rides
-  // along. The full read would ship every heavy property value of the task.
+  // datetimes — all LIGHT, values present. The recurrence facts (repeat +
+  // completedOccurrences) ride the dedicated Repeat property; a plain task
+  // reads null/[].
+  const facts = repeatFactsOfNode(client, id);
   const props = client.getPropertyRowShells(id);
   const scheduledRow = props.find(
     (prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled,
@@ -80,13 +86,13 @@ export function taskRowFacts(
     deadlineIso,
     drivingIso: null,
     closed: statusLabel !== null && TASK_CLOSED_STATUSES.has(statusLabel as "Done" | "Cancelled"),
-    // Recurrence rides the taskScheduled value's metadata (null for
-    // plain tasks; corrupt metadata throws — fail loud, never reads as plain).
-    repeat: scheduledRow === undefined ? null : recurrenceRuleOf(scheduledRow.metadata),
-    // Per-occurrence completion days (metadata.completedOccurrences;
+    // The rule rides the Repeat property's value (null for plain tasks;
+    // a present-but-corrupt value throws — fail loud, never reads as plain).
+    repeat: facts?.rule ?? null,
+    // Per-occurrence completion days (the Repeat value's metadata;
     // [] for plain tasks — corrupt metadata throws, the fail-loud idiom).
     completedOccurrences:
-      scheduledRow === undefined ? [] : completedOccurrencesOf(scheduledRow.metadata),
+      facts === null ? [] : completedOccurrencesOf(facts.row.metadata),
     occurrenceDone: false, // partitionOpenTasks sets the viewed-day flag.
   };
 }
@@ -111,7 +117,7 @@ export function taskRowsOf(
  *
  * A RECURRING task: the node-level status is never touched —
  * completing the series' status would close every occurrence at once.
- * Instead the occurrence is recorded in the taskScheduled value's metadata
+ * Instead the occurrence is recorded in the Repeat value's metadata
  * (`completedOccurrences`, ISO dates): `iso` joins the list (done) or
  * leaves it (reopen), the value and the `repeat` rule ride through
  * untouched, and no node is materialized — occurrences stay virtual. A
@@ -127,21 +133,11 @@ export async function setTaskDone(
   iso?: string,
 ): Promise<void> {
   if (iso !== undefined) {
-    const scheduledRow = client
-      .getPropertyRowShells(id)
-      .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled);
-    const repeats = scheduledRow !== undefined && recurrenceRuleOf(scheduledRow.metadata) !== null;
-    if (repeats) {
-      const metadata = withCompletedOccurrence(scheduledRow!.metadata, iso, done);
-      // The value re-commits verbatim (metadata-only change); PG5 multi-value
-      // slots are element-addressed by idx, so a non-zero idx is preserved.
-      await client.setProperty(
-        id,
-        SYSTEM_PROPERTY_UUIDS.taskScheduled,
-        scheduledRow!.value,
-        scheduledRow!.idx ?? 0,
-        metadata,
-      );
+    const facts = repeatFactsOfNode(client, id);
+    if (facts !== null) {
+      // The value re-commits verbatim (metadata-only change) at the repeat
+      // row's idx — PG5 multi-value slots are element-addressed.
+      await setRepeatMetadata(client, id, withCompletedOccurrence(facts.row.metadata, iso, done));
       return;
     }
   }
@@ -193,8 +189,9 @@ export function datedRowNodes(client: AnyClient, dayId: string): ClientNode[] {
  * recurrence exceptions — exdates/until) and the anchor
  * value's clock time (virtual occurrences inherit it — a 14:30 standup
  * blocks at 14:30 on every occurrence day). The rule
- * lives on a date value's metadata (`repeat`); the anchor is that value's
- * own day; occurrences derive at read time, never as nodes.
+ * lives on the node's Repeat property (a canonical RRULE value); the anchor
+ * is the driving date value's own day; occurrences derive at read time,
+ * never as nodes.
  */
 export interface RecurringRow {
   node: ClientNode;
@@ -205,30 +202,39 @@ export interface RecurringRow {
 }
 
 /**
- * Every recurring series in the workspace: a scan of the document-chrome
- * nodes' effective date values for an authored `repeat` (the only materialized
- * hook recurrence has — occurrences are virtual, so the month dots and the
- * day sections both start from this list). One node contributes at most one
- * series (its first repeating date value wins). Date-chain nodes are skipped;
- * a rule on a value without a day-precision anchor is ignored (the picker
- * only writes day-anchored rules); a present-but-corrupt rule, exdates, or
- * until THROWS (the series readers are fail loud — corrupt metadata never
- * reads as plain).
+ * Every recurring series in the workspace: a two-pass scan of the
+ * document-chrome nodes — the shells read finds candidates (an authored
+ * Repeat row with valueCount ≥ 1; text defers the value, so the cheap read
+ * only proves candidacy), then {@link repeatFactsOfNode} resolves each (one
+ * full read per candidate). One node contributes at most one series (its
+ * authored Repeat value wins). Date-chain nodes are skipped; a repeat value
+ * without a resolvable driving-date anchor is skipped (the series occurs
+ * nowhere); a present-but-corrupt rule, exdates, or until THROWS (the
+ * readers are fail loud — corrupt never reads as plain).
  */
 export function recurringRowsOf(client: AnyClient): RecurringRow[] {
   const rows: RecurringRow[] = [];
   for (const node of client.listPages()) {
     if (parseDateNodeId(node.id) !== null) continue;
-    for (const prop of client.getPropertyRowShells(node.id)) {
-      if (prop.source !== "authored") continue;
-      if (prop.schema?.type !== "datetime") continue;
-      const anchorIso = scheduledIsoOf(prop.value);
-      if (anchorIso === null) continue;
-      const series = recurrenceSeriesOf(prop.metadata, anchorIso);
-      if (series === null) continue;
-      rows.push({ node, series, time: timeOfValue(prop.value) });
-      break;
-    }
+    const candidate = client
+      .getPropertyRowShells(node.id)
+      .find(
+        (prop) =>
+          prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat &&
+          prop.source === "authored" &&
+          prop.valueCount >= 1,
+      );
+    if (candidate === undefined) continue;
+    const facts = repeatFactsOfNode(client, node.id);
+    if (facts === null) continue; // no resolvable anchor — occurs nowhere
+    const driving = drivingDateRow(client, node.id);
+    // facts non-null ⇒ the rule parsed (never null here).
+    const series = recurrenceSeriesOf(facts.rule, facts.row.metadata, facts.anchorIso)!;
+    rows.push({
+      node,
+      series,
+      time: driving === null ? null : timeOfValue(driving.row.value),
+    });
   }
   rows.sort(
     (a, b) =>

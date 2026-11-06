@@ -582,33 +582,6 @@ describe("datetime (SCHEMA.md)", () => {
     expect(within(dialog).queryByLabelText("Time")).toBeNull();
   });
 
-  it("the popup's Repeat row authors the recurrence rule (metadata.repeat)", async () => {
-    const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
-    const classId = await client.createClass("Event");
-    await client.setClassProperty(classId, schemaId, {});
-    const pageId = await client.createObject({ isEmbedded: false, name: "Review" });
-    await client.assignClass(pageId, classId);
-    await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-10-11" });
-    render(<PageView client={client} pageId={pageId} />);
-    expandProperties();
-
-    fireEvent.click(screen.getByRole("button", { name: "Set When" }));
-    const dialog = screen.getByRole("dialog", { name: "Date picker" });
-    // The Repeat row rides the popup beside the switches.
-    fireEvent.click(within(dialog).getByText("Does not repeat"));
-    fireEvent.click(await screen.findByText("Weekly"));
-    await flushWrites();
-
-    expect(valueOf(client, pageId, schemaId)).toEqual({
-      nodeId: chainNodeIds("2026-10-11").day,
-    });
-    expect(
-      client.getEffectiveProperties(pageId).find((row) => row.propertySchemaId === schemaId)
-        ?.metadata?.repeat,
-    ).toBe("weekly");
-  });
-
   it("the popup's Remove unsets a single-value row (the cell empties)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "published", type: "datetime" });

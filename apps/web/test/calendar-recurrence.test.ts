@@ -1,9 +1,9 @@
 /**
  * calendarRecurrence ops tests — the Google-calendar semantics: deleting/editing ONE occurrence of a recurring event per
- * the scope ("one" / "following" / "all"). The exception state is additive
- * date-value metadata (exdates / until); the calendar read model
- * (eventRowsForDays) honors it, so the specs assert through both the raw
- * metadata and the read model.
+ * the scope ("one" / "following" / "all"). The exception state (exdates /
+ * until) is additive metadata on the node's Repeat property VALUE; the
+ * calendar read model (eventRowsForDays) honors it, so the specs assert
+ * through both the raw value + metadata and the read model.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { newEnvelope, type Envelope } from "@notees/protocol";
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import {
@@ -90,19 +90,26 @@ async function createWeekly(
     classIds: [SYSTEM_CLASS_UUIDS.event],
   });
   // The date value references the day node — the chain must exist first
-  // (the date-ref contract property.set enforces).
+  // (the date-ref contract property.set enforces). The rule itself lives on
+  // the dedicated Repeat property (a canonical RRULE string).
   await client.ensureDateChain(anchorIso);
-  await client.setProperty(id, schemaId, { nodeId: `00000000-0000-0000-00dd-${anchorIso.replace(/-/g, "")}0000` }, 0, {
-    repeat: "weekly",
-  });
+  await client.setProperty(id, schemaId, { nodeId: `00000000-0000-0000-00dd-${anchorIso.replace(/-/g, "")}0000` }, 0);
+  await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.repeat, "RRULE:FREQ=WEEKLY", 0);
   return id;
 }
 
-/** The driving date row of a node (the series carrier). */
+/** The driving date row of a node (the anchor carrier). */
 function dateRowOf(client: WorkspaceClient, nodeId: string) {
   return client
     .getEffectiveProperties(nodeId)
     .find((prop) => prop.schema?.type === "datetime" && prop.source === "authored");
+}
+
+/** The node's authored Repeat row (the series' rule + exception metadata). */
+function repeatRowOf(client: WorkspaceClient, nodeId: string) {
+  return client
+    .getEffectiveProperties(nodeId)
+    .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat);
 }
 
 /** The event row ids for one scope day (recurring + span union included). */
@@ -124,7 +131,8 @@ describe("deleteOccurrence", () => {
     expect(eventIdsOf(client, d2)).not.toContain(id);
     expect(eventIdsOf(client, "2026-10-19")).toContain(id);
     expect(client.getNode(id)).toBeDefined(); // trash never touched
-    expect(dateRowOf(client, id)?.metadata).toMatchObject({ repeat: "weekly", exdates: [d2] });
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY");
+    expect(repeatRowOf(client, id)?.metadata).toMatchObject({ exdates: [d2] });
   });
 
   it("'following' truncates at the previous occurrence; earlier ones live", async () => {
@@ -138,7 +146,8 @@ describe("deleteOccurrence", () => {
     expect(eventIdsOf(client, "2026-10-12")).toContain(id);
     expect(eventIdsOf(client, d3)).not.toContain(id);
     expect(eventIdsOf(client, "2026-10-26")).not.toContain(id);
-    expect(dateRowOf(client, id)?.metadata).toMatchObject({ repeat: "weekly", until: "2026-10-12" });
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY");
+    expect(repeatRowOf(client, id)?.metadata).toMatchObject({ until: "2026-10-12" });
   });
 
   it("'following' on the anchor degenerates to 'all' (the node trashes)", async () => {
@@ -171,7 +180,8 @@ describe("editOccurrence", () => {
     expect(created).toBeNull();
     const row = dateRowOf(client, id);
     expect(row?.value).toEqual({ nodeId: "00000000-0000-0000-00dd-202611020000" });
-    expect(row?.metadata).toMatchObject({ repeat: "weekly" });
+    // The rule rides the Repeat property, untouched by the anchor move.
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY");
     // The series moved wholesale: the old anchor day no longer occurs.
     expect(eventIdsOf(client, "2026-10-05")).not.toContain(id);
     expect(eventIdsOf(client, "2026-11-02")).toContain(id);
@@ -189,14 +199,16 @@ describe("editOccurrence", () => {
     expect(exceptionId).not.toBe(id);
     const exception = client.getNode(exceptionId)!;
     expect(exception.classIds).toContain(SYSTEM_CLASS_UUIDS.event);
-    // The exception is plain (no rule): its own edits never re-open the dialog.
+    // The exception is plain (no rule): no Repeat property at all, so its
+    // own edits never re-open the dialog.
+    expect(repeatRowOf(client, exceptionId)).toBeUndefined();
     expect(dateRowOf(client, exceptionId)?.metadata ?? null).toBeNull();
     expect(dateRowOf(client, exceptionId)?.value).toEqual({
       nodeId: "00000000-0000-0000-00dd-202610140000",
     });
     // The series skips the edited day and keeps the surrounding occurrences.
-    expect(dateRowOf(client, id)?.metadata).toMatchObject({
-      repeat: "weekly",
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY");
+    expect(repeatRowOf(client, id)?.metadata).toMatchObject({
       exdates: ["2026-10-12"],
     });
     expect(eventIdsOf(client, "2026-10-05")).toContain(id);
@@ -215,14 +227,16 @@ describe("editOccurrence", () => {
 
     expect(continuationId).not.toBe(id);
     // Original: bounded at the last occurrence before the split day.
-    expect(dateRowOf(client, id)?.metadata).toMatchObject({ repeat: "weekly", until: "2026-10-12" });
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY");
+    expect(repeatRowOf(client, id)?.metadata).toMatchObject({ until: "2026-10-12" });
     expect(eventIdsOf(client, "2026-10-05")).toContain(id);
     expect(eventIdsOf(client, "2026-10-19")).not.toContain(id);
-    // Continuation: same rule, new anchor, occurrences from the new day.
-    const continuation = dateRowOf(client, continuationId);
-    expect(continuation?.metadata).toMatchObject({ repeat: "weekly" });
-    expect("until" in (continuation?.metadata ?? {})).toBe(false);
-    expect(continuation?.value).toEqual({
+    // Continuation: the rule re-minted canonically, new anchor, occurrences
+    // from the new day.
+    const continuationRepeat = repeatRowOf(client, continuationId);
+    expect(continuationRepeat?.value).toBe("RRULE:FREQ=WEEKLY");
+    expect("until" in (continuationRepeat?.metadata ?? {})).toBe(false);
+    expect(dateRowOf(client, continuationId)?.value).toEqual({
       nodeId: "00000000-0000-0000-00dd-202610210000",
     });
     expect(eventIdsOf(client, "2026-10-19")).toEqual([]);
@@ -241,7 +255,7 @@ describe("editOccurrence", () => {
     expect(created).toBeNull();
     const row = dateRowOf(client, id);
     expect(row?.value).toEqual({ nodeId: "00000000-0000-0000-00dd-202610060000" });
-    expect(row?.metadata).toMatchObject({ repeat: "weekly" });
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY");
   });
 
   it("a single deleted occurrence and an edited exception compose on the read model", async () => {
@@ -258,8 +272,8 @@ describe("editOccurrence", () => {
     expect(eventIdsOf(client, "2026-10-19")).toEqual([]);
     expect(eventIdsOf(client, "2026-10-20")).toContain(exceptionId);
     expect(eventIdsOf(client, "2026-10-26")).toContain(id);
-    expect(dateRowOf(client, id)?.metadata).toMatchObject({
-      repeat: "weekly",
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY");
+    expect(repeatRowOf(client, id)?.metadata).toMatchObject({
       exdates: ["2026-10-12", "2026-10-19"],
     });
   });
