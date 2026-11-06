@@ -338,6 +338,33 @@ describe("incremental cache invalidation", () => {
     }
   });
 
+  it("a structural change carrying its affected set still refetches every cached key", async () => {
+    // The payload now carries the ancestor-expanded affected set on
+    // structural batches (row-level render scoping), but cache invalidation
+    // stays FULL: a move's vacated side is not reconstructible post-apply,
+    // so scoped key dirtying would serve stale listings.
+    const { client, pushChanged, calls } = await makeControlled(seedHandler);
+    try {
+      client.search("q");
+      client.roots();
+      client.listPages();
+      client.getNode("n1");
+      client.listClasses();
+      await vi.waitFor(() => expect(calls.get("multiRead")).toBeGreaterThanOrEqual(1));
+      calls.clear();
+
+      pushChanged({ revision: 7, affectedNodeIds: ["n9", "page-1"], structural: true });
+      await vi.waitFor(() => expect(calls.get("multiRead")).toBe(1));
+      expect(calls.get("getNode")).toBe(1);
+      expect(calls.has("search")).toBe(true);
+      expect(calls.has("roots")).toBe(true);
+      expect(calls.has("listPages")).toBe(true);
+      expect(calls.has("listClasses")).toBe(true);
+    } finally {
+      client.close();
+    }
+  });
+
   it("a scope-unknown change (no payload fields) refetches everything", async () => {
     const { client, pushChanged, calls } = await makeControlled(seedHandler);
     try {

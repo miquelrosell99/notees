@@ -75,9 +75,12 @@ import type {
 } from "../worker/worker-core.js";
 
 /**
- * Invalidation class for a cached read key, consulted only for
- * content-only changes with a known affected set (`structural` or unknown
- * scope invalidates everything and never reaches this table):
+ * Invalidation class for a cached read key, consulted only for content-only
+ * changes with a known affected set (`structural === true` — with or without
+ * an affected set — and unknown scope invalidate every key and never reach
+ * this table; a structural payload's affected set scopes ROW re-renders,
+ * not cache keys, because a move's vacated side is not reconstructible
+ * post-apply):
  *
  *  - "change": read embeds titles/link marks from anywhere with no
  *    scope parameter (search) — any content edit may alter it.

@@ -708,7 +708,11 @@ export function App() {
   useEffect(() => {
     if (client === null) return;
     return client.subscribe((change) => {
-      if (change.affectedNodeIds === undefined) return;
+      // Structural batches keep their scope conservative here even though
+      // the payload now carries the affected set: the watcher mends citekeys
+      // on content edits of source-lineage nodes, and a structural gesture's
+      // own writes re-notify through the scoped path.
+      if (change.affectedNodeIds === undefined || change.structural === true) return;
       for (const nodeId of change.affectedNodeIds) {
         void syncSourceCitekey(client, nodeId).catch(() => {});
       }

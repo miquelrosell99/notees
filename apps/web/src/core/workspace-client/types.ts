@@ -72,12 +72,24 @@ export const CONFLICT_LOG_CAP = 100;
  * so the main-thread read cache refetches only impacted keys instead of the
  * whole cache. Semantics for subscribers:
  *
- *  - `structural === true` OR both fields absent → the change set is unknown
- *    or listing-scale: invalidate EVERY cached read.
- *  - otherwise → a content-only edit of `affectedNodeIds` (already
- *    ancestor-expanded): invalidate reads scoped to those ids plus
- *    content-global reads (search/reference listings embed titles and link
- *    marks from anywhere).
+ *  - both fields absent → the change set is unknown (bootstrap, status
+ *    flips): treat everything as stale.
+ *  - `structural === true`, no `affectedNodeIds` → a listing-scale change
+ *    whose affected set is unknown or oversized: invalidate EVERY cached
+ *    read and force conservative re-renders.
+ *  - `structural === true` WITH `affectedNodeIds` → a listing-scale change
+ *    (create/move/delete/…) whose touched set IS known (ancestor-expanded):
+ *    cache invalidation stays full (a create can move listings anywhere —
+ *    e.g. a move's vacated side is not reconstructible post-apply), but
+ *    row-level subscribers MAY scope re-renders to rows naming one of these
+ *    ids — data outside them cannot have moved.
+ *  - `structural === false` with a non-empty `affectedNodeIds` → a
+ *    content-only edit of those ids (already ancestor-expanded): invalidate
+ *    reads scoped to those ids plus content-global reads (search/reference
+ *    listings embed titles and link marks from anywhere).
+ *  - `structural === false` with an EMPTY `affectedNodeIds` → "nothing is
+ *    stale" (status flips, no-op cycles): run the notify cycle, dirty no
+ *    cache keys.
  *
  * `revision` is a per-session monotonic counter — informational (diagnostics,
  * tests); coalesced notifications carry the merged max.
