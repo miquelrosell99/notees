@@ -17,7 +17,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { newEnvelope, type Envelope } from "@notees/protocol";
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { TimeGrid } from "../src/features/calendar/TimeGrid.js";
@@ -208,6 +208,13 @@ describe("TimeGrid click-to-create ghost", () => {
       start: { nodeId: dayNodeOf(today), time: "09:00" },
       end: { nodeId: dayNodeOf(today), time: "10:00" },
     });
+    // The deliberate-surface ruling: the Enter quick create authors NO
+    // repeat — a series is authored only from the creation modal.
+    expect(
+      client
+        .getEffectiveProperties(id)
+        .some((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat),
+    ).toBe(false);
     // The ghost is gone (the card paints on the host's next subscription
     // tick — CalendarView subscribes; this direct render does not).
     expect(column.querySelector(".cal-timegrid__ghost")).toBeNull();

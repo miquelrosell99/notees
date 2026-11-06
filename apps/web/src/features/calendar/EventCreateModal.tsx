@@ -1,6 +1,9 @@
 /**
  * EventCreateModal — the dblclick-to-create event dialog (* the google-calendar register): a name, a start day (prefilled with the
- * dblclicked day), an optional start time, and an optional end day/time.
+ * dblclicked day), an optional start time, an optional end day/time, and an
+ * optional Repeat rule — recurrence is authored deliberately here only (the
+ * kit RepeatControl, anchored on the start day); the ghost's Enter quick
+ * create authors none.
  * The write mirrors the drag-create register (CalendarGrid.commitCreate):
  * an `event`-classed standalone node named by its content, the system event
  * class's first datetime binding as the driving schema, and the unified
@@ -16,11 +19,18 @@
 
 import { useEffect, useState } from "react";
 
-import { SYSTEM_CLASS_UUIDS, dayNodeId } from "@notees/domain";
+import {
+  formatRecurrenceRule,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  dayNodeId,
+  type RecurrenceRule,
+} from "@notees/domain";
 
 import { Modal } from "../../components/ui/kit/Modal.js";
 import { TextField } from "../../components/ui/kit/TextField.js";
 import { Button } from "../../components/ui/kit/Button.js";
+import { RepeatControl } from "../../components/ui/kit/RepeatControl.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./EventCreateModal.css";
 
@@ -63,6 +73,7 @@ export function EventCreateModal({
   const [startTime, setStartTime] = useState("");
   const [endDay, setEndDay] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [repeat, setRepeat] = useState<RecurrenceRule | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [startTimeError, setStartTimeError] = useState<string | null>(null);
   const [endDayError, setEndDayError] = useState<string | null>(null);
@@ -78,6 +89,7 @@ export function EventCreateModal({
       setStartTime(prefillStartTime);
       setEndDay("");
       setEndTime(prefillEndTime);
+      setRepeat(null);
       setNameError(null);
       setStartTimeError(null);
       setEndDayError(null);
@@ -175,6 +187,17 @@ export function EventCreateModal({
               };
         await client.setProperty(id, schemaId, value, 0);
       }
+      // The deliberate recurrence surface: a committed rule lands as the
+      // canonical RRULE on the system Repeat property; the toggle's off
+      // state authors nothing.
+      if (repeat !== null) {
+        await client.setProperty(
+          id,
+          SYSTEM_PROPERTY_UUIDS.repeat,
+          formatRecurrenceRule(repeat),
+          0,
+        );
+      }
       onCreated(id);
       onClose();
     } catch (err: unknown) {
@@ -252,6 +275,7 @@ export function EventCreateModal({
             autoComplete="off"
           />
         </div>
+        <RepeatControl value={repeat} anchorIso={startIso} onChange={setRepeat} />
         <p className="event-create-modal__hint">
           Leave the times empty for a full-day event; set an end day (or an
           end time) for a range.

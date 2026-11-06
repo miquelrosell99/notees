@@ -202,6 +202,51 @@ describe("EventCreateModal", () => {
     });
   });
 
+  it("authors the repeat RRULE when the Repeat toggle is on — every 2 weeks on Mon", async () => {
+    const { client, schemaId } = await seedClient();
+    const onCreated = vi.fn();
+    renderModal(client, { onCreated });
+    const dialog = await screen.findByRole("dialog", { name: "New event" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Standup" } });
+
+    // The deliberate recurrence surface: Repeat on → weekly, every 2 weeks,
+    // on Mon (the anchor's Saturday preselects; swap it for Mon).
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+    fireEvent.change(within(dialog).getByRole("spinbutton", { name: "Repeat interval" }), {
+      target: { value: "2" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Repeat unit" }));
+    // The unit menu portals outside the dialog (kit Dropdown popper).
+    fireEvent.click(screen.getByRole("option", { name: "weeks" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Sat" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Mon" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const id = onCreated.mock.calls[0]![0] as string;
+    // The event carries BOTH the driving date and the series rule.
+    expect(authoredValue(client, id, schemaId)).toEqual({ nodeId: dayNodeOf(START) });
+    expect(authoredValue(client, id, SYSTEM_PROPERTY_UUIDS.repeat)).toBe(
+      "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO",
+    );
+  });
+
+  it("authors no repeat value when the toggle is switched back off", async () => {
+    const { client, schemaId } = await seedClient();
+    const onCreated = vi.fn();
+    renderModal(client, { onCreated });
+    const dialog = await screen.findByRole("dialog", { name: "New event" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "One-off" } });
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const id = onCreated.mock.calls[0]![0] as string;
+    expect(authoredValue(client, id, schemaId)).toEqual({ nodeId: dayNodeOf(START) });
+    expect(authoredValue(client, id, SYSTEM_PROPERTY_UUIDS.repeat)).toBeUndefined();
+  });
+
   it("fails loud inline on a malformed time — nothing is written", async () => {
     const { client } = await seedClient();
     const before = client.listPages().length;
