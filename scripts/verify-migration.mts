@@ -23,6 +23,14 @@
  * per-page `envelopes` maps merged before the accounting. Batches of ≤100
  * ids issue exactly one request, byte-identical to the unpaged shape.
  *
+ * The report line carries the sealed boundary, never silent (the
+ * mandatory-keying dev-ops contract): `sealed-invisible: S` counts the
+ * encrypted payloads in the device's filtered set — a keyed workspace's
+ * sealed tail is invisible to a keyless server BY DESIGN (the derived apply
+ * skips sealed payloads), so those envelopes can never read "applied". S is
+ * a REPORT, never a fail criterion: PASS stays "every filtered envelope
+ * applied + pending === 0", exactly the set the check always covered.
+ *
  * Usage (from the repo root; the tsx binary lives in apps/server):
  *   pnpm --filter @notees/server exec tsx ../../scripts/verify-migration.mts \
  *     --data-dir /etc/periphery/stacks/notees/config/notees/sync \
@@ -35,6 +43,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
+import { isEncryptedPayload } from "../packages/protocol/src/envelope.ts";
 
 interface CliOptions {
   dataDir: string;
@@ -179,11 +188,15 @@ async function main(): Promise<void> {
         mine.map((envelope) => envelope.id),
       );
       const unapplied = mine.filter((envelope) => convergence.envelopes[envelope.id] !== true);
+      // The sealed boundary (header ruling): encrypted payloads are invisible
+      // to a keyless server by design — reported, never a fail criterion.
+      const sealedInvisible = mine.filter((envelope) => isEncryptedPayload(envelope.payload)).length;
       const status = unapplied.length === 0 && convergence.pending === 0 ? "PASS" : "FAIL";
       if (status === "FAIL") failures += 1;
       console.log(
         `  ${status} ${workspaceId}: ${mine.length - unapplied.length}/${mine.length} envelopes ` +
-          `applied (pending skips: ${convergence.pending}, handle lastSeq ${convergence.lastSeq}/${convergence.latestSeq})` +
+          `applied (pending skips: ${convergence.pending}, sealed-invisible: ${sealedInvisible}, ` +
+          `handle lastSeq ${convergence.lastSeq}/${convergence.latestSeq})` +
           (unapplied.length > 0 ? ` — unapplied: ${unapplied.map((e) => `${e.opType} ${e.id}`).join(", ")}` : ""),
       );
     }
