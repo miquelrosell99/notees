@@ -17,6 +17,7 @@
  */
 
 import {
+  SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   formatRecurrenceRule,
   parseRecurrenceRule,
@@ -90,23 +91,79 @@ export function repeatTextOf(client: AnyClient, value: unknown): string | null {
 }
 
 /**
- * The node's driving datetime row — the FIRST authored datetime value with a
- * resolvable day — plus that day (the series anchor source every recurrence
- * read shares; datetime is a LIGHT type so the shells read carries the
- * value).
+ * The node's driving datetime row — the schema-prioritized authored
+ * datetime value (DESIGN.md "Anchor": taskScheduled for the task family —
+ * taskRowFacts buckets by it, the anchor must not diverge from the bucket;
+ * eventDate for the event family — the binding every creation surface
+ * writes) plus that day (the series anchor source every recurrence read
+ * shares; datetime is a LIGHT type so the shells read carries the value).
+ * The store's row read has no authorial ORDER BY (its presentation sort is
+ * pin-tier + name), so "first row" is NOT "first authored" — a second
+ * datetime property sorting ahead of the driving one would silently steal
+ * the anchor. A node whose family carries no preferred schema (or whose
+ * preferred row is absent/unresolvable) falls back to the first
+ * presentation-ordered row.
  */
 export function drivingDateRow(
   client: AnyClient,
   nodeId: string,
 ): { row: PropertyRowShell; anchorIso: string } | null {
+  const candidates: Array<{ row: PropertyRowShell; anchorIso: string }> = [];
   for (const prop of client.getPropertyRowShells(nodeId)) {
     if (prop.source !== "authored") continue;
     if (prop.schema?.type !== "datetime") continue;
     const anchorIso = scheduledIsoOf(prop.value);
     if (anchorIso === null) continue;
-    return { row: prop, anchorIso };
+    candidates.push({ row: prop, anchorIso });
+  }
+  if (candidates.length === 0) return null;
+  const preferred = preferredDrivingSchemaId(client, nodeId);
+  if (preferred !== null) {
+    const hit = candidates.find((candidate) => candidate.row.propertySchemaId === preferred);
+    if (hit !== undefined) return hit;
+  }
+  return candidates[0]!;
+}
+
+/**
+ * The node's family-preferred driving date schema (DESIGN.md "Anchor"):
+ * taskScheduled when any of the node's classes reaches the task family,
+ * eventDate when any reaches the event family (the extends-DAG walk, the
+ * isEventFamilyClass register); null otherwise — those nodes keep the
+ * first-row fallback.
+ */
+function preferredDrivingSchemaId(client: AnyClient, nodeId: string): string | null {
+  const node = client.getNode(nodeId);
+  if (node === undefined) return null;
+  for (const classId of node.classIds) {
+    if (familyReaches(client, classId, SYSTEM_CLASS_UUIDS.task)) {
+      return SYSTEM_PROPERTY_UUIDS.taskScheduled;
+    }
+  }
+  for (const classId of node.classIds) {
+    if (familyReaches(client, classId, SYSTEM_CLASS_UUIDS.event)) {
+      return SYSTEM_PROPERTY_UUIDS.eventDate;
+    }
   }
   return null;
+}
+
+/** True when `classId` IS `rootClassId` or reaches it through the extends DAG (cycle-guarded). */
+function familyReaches(client: AnyClient, classId: string, rootClassId: string): boolean {
+  if (classId === rootClassId) return true;
+  const seen = new Set<string>([classId]);
+  const queue = [classId];
+  while (queue.length > 0) {
+    const current = queue.pop()!;
+    for (const parent of client.getClassParents(current)) {
+      if (parent === rootClassId) return true;
+      if (!seen.has(parent)) {
+        seen.add(parent);
+        queue.push(parent);
+      }
+    }
+  }
+  return false;
 }
 
 /** The authored Repeat shell (the cheap candidacy probe), null when absent. */

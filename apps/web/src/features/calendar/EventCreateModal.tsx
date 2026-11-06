@@ -19,6 +19,8 @@
 
 import { useEffect, useState } from "react";
 
+import { uuidv7 } from "uuidv7";
+
 import {
   formatRecurrenceRule,
   SYSTEM_CLASS_UUIDS,
@@ -32,6 +34,7 @@ import { TextField } from "../../components/ui/kit/TextField.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { RepeatControl } from "../../components/ui/kit/RepeatControl.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
+import type { ClientWriteOp } from "../../core/workspace-client/index.js";
 import "./EventCreateModal.css";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -154,12 +157,25 @@ export function EventCreateModal({
       const endIso = endDayTrimmed === "" || endDayTrimmed === startDay ? null : endDayTrimmed;
       if (endIso !== null) await client.ensureDateChain(endIso);
 
-      const id = await client.createObject({
-        isEmbedded: false,
-        classIds: [SYSTEM_CLASS_UUIDS.event],
-        // Title-is-content: the name IS the node's initial text content.
-        name: trimmedName,
-      });
+      // The create + both property writes ride ONE applyOps batch (the
+      // copyEventNode idiom): the create's id is caller-assigned so the
+      // property ops anchor to it, and a failed write — a rejected repeat
+      // op included — leaves NO node at all, so the error report is never
+      // "the event was not created" over a node that exists, and retrying
+      // mints no duplicate.
+      const id = uuidv7();
+      const ops: ClientWriteOp[] = [
+        {
+          kind: "create",
+          input: {
+            id,
+            isEmbedded: false,
+            classIds: [SYSTEM_CLASS_UUIDS.event],
+            // Title-is-content: the name IS the node's initial text content.
+            name: trimmedName,
+          },
+        },
+      ];
 
       // The driving date schema: the system event class's first binding
       // (the drag-create register — CalendarGrid.commitCreate).
@@ -185,19 +201,21 @@ export function EventCreateModal({
                 start: slot(startDay, start),
                 end: slot(endIso ?? startDay, end),
               };
-        await client.setProperty(id, schemaId, value, 0);
+        ops.push({ kind: "setProperty", objectId: id, propertySchemaId: schemaId, value, idx: 0 });
       }
       // The deliberate recurrence surface: a committed rule lands as the
       // canonical RRULE on the system Repeat property; the toggle's off
       // state authors nothing.
       if (repeat !== null) {
-        await client.setProperty(
-          id,
-          SYSTEM_PROPERTY_UUIDS.repeat,
-          formatRecurrenceRule(repeat),
-          0,
-        );
+        ops.push({
+          kind: "setProperty",
+          objectId: id,
+          propertySchemaId: SYSTEM_PROPERTY_UUIDS.repeat,
+          value: formatRecurrenceRule(repeat),
+          idx: 0,
+        });
       }
+      await client.applyOps(ops, { verb: "create event" });
       onCreated(id);
       onClose();
     } catch (err: unknown) {
@@ -275,7 +293,11 @@ export function EventCreateModal({
             autoComplete="off"
           />
         </div>
-        <RepeatControl value={repeat} anchorIso={startIso} onChange={setRepeat} />
+        <RepeatControl
+          value={repeat}
+          anchorIso={DAY_PATTERN.test(startDay) ? startDay : startIso}
+          onChange={setRepeat}
+        />
         <p className="event-create-modal__hint">
           Leave the times empty for a full-day event; set an end day (or an
           end time) for a range.

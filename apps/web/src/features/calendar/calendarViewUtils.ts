@@ -17,7 +17,7 @@ import { repeatSummaryOf } from "../../components/ui/kit/repeatSummary.js";
 
 // Re-exported for callers that want the canonical import site alongside the
 // other calendar helpers.
-export { dayNodeId, recurrenceRuleOf } from "@notees/domain";
+export { dayNodeId } from "@notees/domain";
 
 /** Local `YYYY-MM-DD` for today — always local midnight, never UTC .slice. */
 export function todayIsoLocal(): string {

@@ -23,6 +23,10 @@ import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import { PageView } from "../src/ui/PageView.js";
 import { addDaysIso, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
 import { recurringRowsOf, setTaskDone, taskRowFacts } from "../src/features/calendar/calendarRows.js";
+import {
+  drivingDateRow,
+  repeatFactsOfNode,
+} from "../src/features/calendar/repeatProperty.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
@@ -336,6 +340,59 @@ describe("CalendarView recurrence", () => {
     // The series expands from the NEW anchor (the old day no longer occurs).
     const series = recurringRowsOf(client).find((row) => row.node.id === id);
     expect(series?.series.anchorIso).toBe(newAnchor);
+  });
+
+  it("a task's series anchors on Scheduled even when Deadline was authored first", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const today = todayIsoLocal();
+    const deadlineIso = addDaysIso(today, -10);
+    const scheduledIso = addDaysIso(today, -14);
+    const id = await client.createObject({
+      isEmbedded: false,
+      name: "Water plants",
+      classIds: [SYSTEM_CLASS_UUIDS.task],
+    });
+    // Deadline authored FIRST: insertion order alone would anchor the series
+    // on the deadline day while taskRowFacts buckets by taskScheduled — the
+    // schema preference (DESIGN.md "Anchor") keeps the two on one day.
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskDeadline, { iso: deadlineIso }, 0);
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: scheduledIso }, 0);
+    await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.repeat, WEEKLY_RRULE, 0);
+
+    expect(drivingDateRow(client, id)?.row.propertySchemaId).toBe(
+      SYSTEM_PROPERTY_UUIDS.taskScheduled,
+    );
+    expect(repeatFactsOfNode(client, id)?.anchorIso).toBe(scheduledIso);
+    const series = recurringRowsOf(client).find((row) => row.node.id === id);
+    expect(series?.series.anchorIso).toBe(scheduledIso);
+  });
+
+  it("an event-family node's series anchors on eventDate even when a second datetime was authored first", async () => {
+    const client = await seedClient();
+    // The meeting family: the date rides the inherited eventDate
+    // (meetingDate retired — ensureMeetingFamily materializes the family).
+    // A user-added second datetime ("Doors" — name-sorted BEFORE "Event
+    // date", so the store's presentation-ordered row read surfaces it
+    // first) authored first takes the naive first-row anchor.
+    const { ensureMeetingFamily } = await import("../src/features/classview/meetingFamily.js");
+    await ensureMeetingFamily(client);
+    const doorsId = await client.createPropertySchema({ name: "Doors", type: "datetime" });
+    const id = await client.createObject({
+      isEmbedded: false,
+      name: "Standup",
+      classIds: [SYSTEM_CLASS_UUIDS.meeting],
+    });
+    await client.setDatetimeProperty(id, doorsId, { iso: "2026-03-04" }, 0);
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, { iso: "2026-03-06" }, 0);
+    await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.repeat, WEEKLY_RRULE, 0);
+
+    expect(drivingDateRow(client, id)?.row.propertySchemaId).toBe(
+      SYSTEM_PROPERTY_UUIDS.eventDate,
+    );
+    expect(repeatFactsOfNode(client, id)?.anchorIso).toBe("2026-03-06");
+    const series = recurringRowsOf(client).find((row) => row.node.id === id);
+    expect(series?.series.anchorIso).toBe("2026-03-06");
   });
 
   it("non-recurring events stay plain: anchor day only, no extra dots", async () => {
