@@ -87,7 +87,6 @@ import {
   payloadSchemaFor,
   type Envelope,
 } from "../packages/protocol/src/index.ts";
-import { isEncryptedPayload } from "../packages/protocol/src/envelope.ts";
 import {
   completedOccurrencesOf,
   exdatesOf,
@@ -99,10 +98,10 @@ import {
   untilOf,
 } from "../packages/domain/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
-import { StoreError } from "../packages/store/src/errors.ts";
-import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
+
+import { buildScratchStore } from "./lib/scratch-store.ts";
 
 const ACTOR = "01920000-0000-7000-8000-0000000000c1";
 const DEVICE = "migrate-repeat-property";
@@ -192,60 +191,16 @@ async function appendViaServer(
 // --- scratch derived store ----------------------------------------------------
 
 /**
- * Restore the workspace's latest snapshot into a fresh in-memory store and
- * apply every log envelope after it (the hydration shape the sync server
- * uses). A SEALED latest snapshot (an E2EE-keyed client's checkpoint) is
- * never restored — the blob cannot open into a plaintext projection
- * (workspace-store.ts hydration, the 2026-11-05 ruling), so the tail replay
- * rebuilds the plaintext prefix from the log instead. Encrypted payloads
- * skip the apply and StoreError skips count as pending — a keyed workspace's
- * sealed content is invisible to a server-side plan BY DESIGN (reported via
- * the skip-count line, never silently). Anything else that fails still
- * throws: a plaintext tail that cannot apply must block the migration, not
- * be planned against.
+ * The shared scratch build (scripts/lib/scratch-store.ts — the sealed gate +
+ * the skip accounting) plus this migration's house skip line.
  */
-function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null && snapshot.sealed !== 1) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  let skippedEncrypted = 0;
-  let skippedPending = 0;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) {
-      if (isEncryptedPayload(envelope.payload)) {
-        skippedEncrypted += 1;
-        continue;
-      }
-      try {
-        store.apply(envelope);
-      } catch (error) {
-        if (error instanceof StoreError) {
-          skippedPending += 1;
-          continue;
-        }
-        store.close();
-        const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`tail apply failed at seq > ${cursor}: ${detail}`);
-      }
-    }
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  if (skippedEncrypted + skippedPending > 0) {
+function scratchStoreFor(relay: RelayStorage, workspaceId: string): Store {
+  return buildScratchStore(relay, workspaceId, ({ encrypted, pending }) => {
     console.log(
-      `  (scratch: ${skippedEncrypted} encrypted + ${skippedPending} pending envelope(s) skipped — ` +
+      `  (scratch: ${encrypted} encrypted + ${pending} pending envelope(s) skipped — ` +
         "a keyed workspace's sealed content is invisible to a server-side plan)",
     );
-  }
-  return store;
+  });
 }
 
 // --- planning -----------------------------------------------------------------
@@ -655,7 +610,7 @@ export function simulateRepeatPropertyEnvelopes(
   workspaceId: string,
   envelopes: Envelope[],
 ): { envelopes: Envelope[]; rejected: RepeatReport[] } {
-  const store = buildScratchStore(relay, workspaceId);
+  const store = scratchStoreFor(relay, workspaceId);
   const rejected: RepeatReport[] = [];
   const blockedNodes = new Set<string>();
   const surviving: Envelope[] = [];
@@ -716,7 +671,7 @@ function verify(
 
   const blocked = new Set([...plan.conflicts, ...rejected].map((report) => report.nodeId));
 
-  const store = buildScratchStore(relay, workspaceId);
+  const store = scratchStoreFor(relay, workspaceId);
   try {
     const db = store.database;
 
@@ -847,7 +802,7 @@ async function migrateWorkspace(
     `\nworkspace ${workspaceId}: log seq ${latestSeq}, snapshot ${snapshot?.id ?? "(none)"} at seq ${snapshotSeq}`,
   );
 
-  const store = buildScratchStore(relay, workspaceId);
+  const store = scratchStoreFor(relay, workspaceId);
   const plan = planRepeatPropertyMigration(store);
   store.close();
 
