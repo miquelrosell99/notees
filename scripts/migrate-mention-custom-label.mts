@@ -240,8 +240,8 @@ function main(): void {
 
     const plans = new Map<string, { planned: PlannedRewrite[]; latestSeq: number }>();
     for (const workspaceId of workspaceIds) {
-      plans.set(workspaceId, planWorkspace(relay, workspaceId));
       refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "migrate-mention-custom-label.mts");
+      plans.set(workspaceId, planWorkspace(relay, workspaceId));
     }
 
     let totalPlanned = 0;

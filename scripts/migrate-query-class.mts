@@ -221,8 +221,8 @@ async function main(): Promise<void> {
     console.log(`query-class migration — ${workspaces.length} workspace(s), ${options.apply ? "APPLY" : "DRY RUN"}`);
 
     for (const workspaceId of workspaces) {
-      const store = buildScratchStore(relay, workspaceId);
       refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "migrate-query-class.mts");
+      const store = buildScratchStore(relay, workspaceId);
       let verify: Store | null = null;
       try {
         const { planned, skipped } = planAssignments(store);

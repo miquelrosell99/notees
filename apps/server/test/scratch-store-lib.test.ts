@@ -46,7 +46,7 @@ import { betterSqlite3Backend } from "../../../packages/store/src/adapters/bette
 import { AuthStorage } from "../src/auth.js";
 import { RelayStorage } from "../src/relay-storage.js";
 
-import { planRepeatPropertyMigration } from "../../../scripts/migrate-repeat-property.mts";
+import { planRepeatPropertyMigration, CONTENT_CLASS as REPEAT_CONTENT_CLASS } from "../../../scripts/migrate-repeat-property.mts";
 import {
   buildScratchStore,
   keyedWorkspaceIds,
@@ -355,6 +355,10 @@ describe("scripts/lib/scratch-store.ts", () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("nothing to migrate");
       expect(relay.latestSeq(WORKSPACE)).toBe(seqBefore);
+    });
+
+    it("migrate-repeat-property declares its content class — CONTENT_CLASS is \"scaffolding\"", () => {
+      expect(REPEAT_CONTENT_CLASS).toBe("scaffolding");
     });
   });
 });

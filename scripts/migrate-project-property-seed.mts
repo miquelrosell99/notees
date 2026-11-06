@@ -397,8 +397,8 @@ function main(): void {
         `(${options.apply ? "--apply" : "dry run"})`,
     );
     for (const workspaceId of workspaces) {
-      migrateWorkspace(relay, workspaceId, options.apply);
       refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "migrate-project-property-seed.mts");
+      migrateWorkspace(relay, workspaceId, options.apply);
     }
     if (options.apply) {
       console.log(

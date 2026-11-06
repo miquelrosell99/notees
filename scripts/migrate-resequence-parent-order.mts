@@ -923,8 +923,8 @@ async function main(): Promise<void> {
     let windowStart = Infinity;
     let windowEnd = 0;
     for (const workspaceId of workspaces) {
-      const outcome = resequenceWorkspace(relay, options.dataDir, workspaceId, options.apply);
       refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "migrate-resequence-parent-order.mts");
+      const outcome = resequenceWorkspace(relay, options.dataDir, workspaceId, options.apply);
       if (outcome.changed) {
         windowStart = Math.min(windowStart, outcome.windowStart);
         windowEnd = Math.max(windowEnd, outcome.windowEnd);

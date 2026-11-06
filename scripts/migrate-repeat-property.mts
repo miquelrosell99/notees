@@ -101,7 +101,18 @@ import { Store } from "../packages/store/src/index.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
 
-import { buildScratchStore } from "./lib/scratch-store.ts";
+import {
+  buildScratchStore,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "scaffolding" — the moves are metadata conversions planned from plaintext-visible
+ * state (the scope law already gates eligibility), and the guard keeps the contract uniform.
+ */
+export const CONTENT_CLASS: MigrationContentClass = "scaffolding";
 
 const ACTOR = "01920000-0000-7000-8000-0000000000c1";
 const DEVICE = "migrate-repeat-property";
@@ -903,6 +914,7 @@ async function main(): Promise<void> {
         `(${options.apply ? "--apply" : "dry run"}${options.server !== null ? ` via ${options.server}` : ""})`,
     );
     for (const workspaceId of workspaces) {
+      refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "migrate-repeat-property");
       await migrateWorkspace(relay, options, workspaceId);
     }
     if (options.apply && options.server === null) {

@@ -464,8 +464,8 @@ async function main(): Promise<void> {
         `(${options.apply ? "--apply" : "dry run"}${options.server !== null ? ` via ${options.server}` : ""})`,
     );
     for (const workspaceId of workspaces) {
-      await migrateWorkspace(relay, options, workspaceId);
       refuseIfContentOnKeyed(options.dataDir, workspaceId, CONTENT_CLASS, "migrate-pmid-property.mts");
+      await migrateWorkspace(relay, options, workspaceId);
     }
     if (options.apply && options.server === null) {
       console.log(
