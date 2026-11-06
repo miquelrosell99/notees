@@ -166,11 +166,16 @@ export function deriveSeedPinTargets(): SeedPinTarget[] {
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
     if (spec === undefined) continue;
     if (spec.bindTo === undefined || spec.bind === false || spec.pinned !== true) continue;
-    targets.push({
-      classId: SYSTEM_CLASS_UUIDS[spec.bindTo],
-      propertySchemaId: SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName],
-      origin: "spec",
-    });
+    // The multi-class bind (2026-11-06, the `repeat` seed) names a class LIST
+    // — one pin target per bound class.
+    const bindTo = Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
+    for (const className of bindTo) {
+      targets.push({
+        classId: SYSTEM_CLASS_UUIDS[className],
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName],
+        origin: "spec",
+      });
+    }
   }
   for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
     if (extra.pinned !== true) continue;
