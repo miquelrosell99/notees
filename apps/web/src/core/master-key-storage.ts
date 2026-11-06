@@ -3,7 +3,7 @@
  * 2026-11-04, replacing the plan-02 memory-only ruling for UX): a reload
  * within a signed-in session must NOT require re-unlocking.
  *
- * - Database `notees-custody`, one object store, ONE record:
+ * - Database `notees-custody`, object store `keys`, ONE record:
  *   `{ id: "masterKey", key?: CryptoKey, keyBytes?: Uint8Array }`.
  * - Preferred shape: the UNWRAPPED master key, which `@notees/protocol`'s
  *   `unwrapMasterKey` produces `extractable: false` BY CONSTRUCTION — the
@@ -15,19 +15,27 @@
  *   Threat model: the raw bytes are same-origin readable — exactly like the
  *   session token the app already keeps in localStorage; Chromium keeps the
  *   stronger non-extractable handle.
- * - Workspace raw keys stay memory-only (unchanged); this store holds the
- *   master handle only.
  * - Cleared at every session end via `clearCryptoCustody` (sign-out,
  *   forget-server, API-key sign-in, rejected credential) — session end
  *   reverts to the password. `delete` drops the whole record, either shape.
  * - Failure modes (no IndexedDB, no record, corrupt read) are SILENT: the
  *   memory-only fallback and the locked banner cover them.
  *
+ * A SECOND store, `workspaceKeys` (added Task 9, DB version 2), holds the
+ * device-local keys of offline workspaces — one record per workspace id,
+ * `{ id: <workspaceId>, key?: CryptoKey, keyBytes?: Uint8Array }`, same
+ * preferred/fallback shapes. These records are NOT session state: the
+ * offline workspace has no account, so sign-out must NOT delete them (the
+ * sealed local content would be orphaned). See
+ * `getOfflineWorkspaceKey`/`persistOfflineWorkspaceKey` below.
+ *
  * The storage is behind a narrow interface so tests inject an in-memory fake
  * (`fake-indexeddb` is not a devDep). The seam stores and returns the RAW
  * RECORD (shape-agnostic) so the module-level functions own the key↔bytes
  * logic and tests exercise it through the fake.
  */
+
+import { exportWorkspaceKey } from "@notees/protocol";
 
 export interface MasterKeyRecord {
   key?: CryptoKey;
@@ -49,27 +57,37 @@ export interface MasterKeyStore {
 
 const DB_NAME = "notees-custody";
 const STORE_NAME = "keys";
+const WORKSPACE_STORE_NAME = "workspaceKeys";
+/** Version 2 adds the `workspaceKeys` store (Task 9); v1 databases upgrade in place. */
+const DB_VERSION = 2;
 const RECORD_ID = "masterKey";
+
+function openCustodyDb(): Promise<IDBDatabase | null> {
+  return new Promise<IDBDatabase | null>((resolve) => {
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+          request.result.createObjectStore(STORE_NAME);
+        }
+        if (!request.result.objectStoreNames.contains(WORKSPACE_STORE_NAME)) {
+          request.result.createObjectStore(WORKSPACE_STORE_NAME);
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+      request.onblocked = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
 
 class IdbMasterKeyStore implements MasterKeyStore {
   private dbPromise: Promise<IDBDatabase | null> | null = null;
 
   private open(): Promise<IDBDatabase | null> {
-    this.dbPromise ??= new Promise<IDBDatabase | null>((resolve) => {
-      try {
-        const request = indexedDB.open(DB_NAME, 1);
-        request.onupgradeneeded = () => {
-          if (!request.result.objectStoreNames.contains(STORE_NAME)) {
-            request.result.createObjectStore(STORE_NAME);
-          }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => resolve(null);
-        request.onblocked = () => resolve(null);
-      } catch {
-        resolve(null);
-      }
-    });
+    this.dbPromise ??= openCustodyDb();
     return this.dbPromise;
   }
 
@@ -184,5 +202,142 @@ export async function deleteMasterKey(): Promise<void> {
     if (store !== null) await store.delete();
   } catch {
     // Deletion is best-effort by design.
+  }
+}
+
+// --- offline workspace keys (Task 9) ------------------------------------------------
+//
+// The "Work offline" local-only workspace is keyed at creation; its key is
+// device-local custody in the SAME database, store `workspaceKeys`, one
+// record per workspace id (`{ id, key?|keyBytes? }` — the identical
+// Chromium-handle / Firefox-bytes shapes). Unlike the master record these
+// survive session end: sign-out must not orphan the sealed offline content.
+
+export interface WorkspaceKeyRecord {
+  key?: CryptoKey;
+  keyBytes?: Uint8Array;
+}
+
+export interface WorkspaceKeyStore {
+  /** Put the record under the workspace id. Rejects on failure (incl. the Firefox CryptoKey clone refusal). */
+  store(id: string, record: WorkspaceKeyRecord): Promise<void>;
+  /** The raw record (id-stamped), or null when absent/unavailable. Never rejects. */
+  load(id: string): Promise<unknown>;
+  /** Delete the record. Never rejects. */
+  delete(id: string): Promise<void>;
+}
+
+class IdbWorkspaceKeyStore implements WorkspaceKeyStore {
+  private dbPromise: Promise<IDBDatabase | null> | null = null;
+
+  private open(): Promise<IDBDatabase | null> {
+    this.dbPromise ??= openCustodyDb();
+    return this.dbPromise;
+  }
+
+  async store(id: string, record: WorkspaceKeyRecord): Promise<void> {
+    const db = await this.open();
+    if (db === null) throw new Error("IndexedDB unavailable");
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(WORKSPACE_STORE_NAME, "readwrite");
+      // The explicit key is required: Firefox rejects a keyless put on an
+      // out-of-line store, same as the master record above.
+      tx.objectStore(WORKSPACE_STORE_NAME).put({ id, ...record }, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error("custody store failed"));
+      tx.onabort = () => reject(tx.error ?? new Error("custody store aborted"));
+    });
+  }
+
+  async load(id: string): Promise<unknown> {
+    const db = await this.open();
+    if (db === null) return null;
+    return new Promise<unknown>((resolve) => {
+      try {
+        const tx = db.transaction(WORKSPACE_STORE_NAME, "readonly");
+        const request = tx.objectStore(WORKSPACE_STORE_NAME).get(id);
+        request.onsuccess = () => {
+          const record = request.result as { id?: unknown } | undefined;
+          resolve(record !== undefined && record !== null && record.id === id ? record : null);
+        };
+        request.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    const db = await this.open();
+    if (db === null) return;
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction(WORKSPACE_STORE_NAME, "readwrite");
+        tx.objectStore(WORKSPACE_STORE_NAME).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+}
+
+let injectedWorkspaceStore: WorkspaceKeyStore | null | undefined;
+
+function resolveWorkspaceStore(): WorkspaceKeyStore | null {
+  if (injectedWorkspaceStore !== undefined) return injectedWorkspaceStore;
+  return typeof indexedDB !== "undefined" ? new IdbWorkspaceKeyStore() : null;
+}
+
+/** Test seam: inject a fake workspace-key store (null = force the no-IDB fallback, undefined = reset). */
+export function setWorkspaceKeyStoreForTests(store: WorkspaceKeyStore | null | undefined): void {
+  injectedWorkspaceStore = store;
+}
+
+/**
+ * Persist a device-local offline workspace key. Tries the CryptoKey handle
+ * first; on the Firefox structured-clone refusal falls back to the raw-bytes
+ * record (the workspace key is extractable by construction, so the bytes are
+ * always obtainable). Rejects only when BOTH shapes fail.
+ */
+export async function persistOfflineWorkspaceKey(workspaceId: string, key: CryptoKey): Promise<void> {
+  const store = resolveWorkspaceStore();
+  if (store === null) throw new Error("IndexedDB unavailable");
+  try {
+    await store.store(workspaceId, { key });
+  } catch {
+    await store.store(workspaceId, { keyBytes: await exportWorkspaceKey(key) });
+  }
+}
+
+/**
+ * The persisted device-local key for an offline workspace, or null (absent /
+ * unavailable / corrupt). The bytes fallback re-imports EXTRACTABLE with the
+ * workspace-key usages: the restored handle must both seal content and be
+ * exportable/wrappable when the wrap publishes on the first password-session
+ * sync. Never rejects.
+ */
+export async function getOfflineWorkspaceKey(workspaceId: string): Promise<CryptoKey | null> {
+  try {
+    const store = resolveWorkspaceStore();
+    if (store === null) return null;
+    const raw = await store.load(workspaceId);
+    if (raw === null || typeof raw !== "object") return null;
+    const record = raw as WorkspaceKeyRecord;
+    if (record.key instanceof CryptoKey) return record.key;
+    if (record.keyBytes instanceof Uint8Array) {
+      return await globalThis.crypto.subtle.importKey(
+        "raw",
+        record.keyBytes as BufferSource,
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"],
+      );
+    }
+    return null;
+  } catch {
+    return null;
   }
 }

@@ -8,7 +8,13 @@
  * client NEVER lazy-PUTs one; the 404 → generate + wrap + PUT sequence lives
  * only at creation (the bundle rides the create payload) and in the
  * deliberate keying call (`ensureWorkspaceKey`, the Task-10 banner action).
- * Offline still short-circuits keyless (no server → no keys → plaintext).
+ * The ONE open-path PUT the ruling sanctions is Task 9's wrap PUBLISH: an
+ * offline-created workspace (device-local custody key) opened online with a
+ * password session uploads the EXISTING key's wrap under the master — a
+ * publish, never a mint (see offline-keying.test.ts).
+ *
+ * Offline (Task 9): the open restores the device-local key from custody;
+ * empty custody opens keyless (indeterminate), never locked.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,8 +29,10 @@ import {
 import {
   clearCryptoCustody,
   deriveMasterKey,
+  ensureOfflineWorkspaceKey,
   type MasterKeyHandle,
 } from "../src/core/crypto-custody.js";
+import { setWorkspaceKeyStoreForTests } from "../src/core/master-key-storage.js";
 import { resolveWorkspaceKey } from "../src/ui/app/store-connection.js";
 
 const SERVER = "https://notees.example.com";
@@ -54,6 +62,7 @@ function keyRouteStub(wrapped: string | undefined) {
 
 afterEach(() => {
   clearCryptoCustody();
+  setWorkspaceKeyStoreForTests(undefined);
   vi.unstubAllGlobals();
   delete window.NOTEES_CONFIG;
 });
@@ -136,8 +145,49 @@ describe("keying is unconditional (the NOTEES_CONFIG.e2ee flag is inert)", () =>
     }
   });
 
-  it("offline still short-circuits keyless (no server → no keys), flag regardless", async () => {
+  it.each([
+    ["absent", undefined],
+    ["off", "off"],
+    ["on", "on"],
+  ])(
+    "flag %s + offline + EMPTY custody → keyless (indeterminate), never locked, no network",
+    async (_label, flag) => {
+      if (flag !== undefined) window.NOTEES_CONFIG = { serverUrl: SERVER, e2ee: flag };
+      await masterInMemory();
+      const fetchMock = vi.fn(async () => {
+        throw new Error("offline connect must not touch the network");
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const resolution = await resolveWorkspaceKey(SERVER, "", WS, {
+        isOffline: true,
+        credentialType: "session",
+        label: "Workspace",
+      });
+
+      expect(resolution).toEqual({ key: undefined, locked: false, plaintext: false });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it("flag on + offline + custody holds a device key → restores it (keyed at rest), no network", async () => {
+    window.NOTEES_CONFIG = { serverUrl: SERVER, e2ee: "on" };
     await masterInMemory();
+    // fake-indexeddb is not a devDep: an in-memory store seam stands in.
+    let record: { key?: CryptoKey; keyBytes?: Uint8Array } | null = null;
+    setWorkspaceKeyStoreForTests({
+      async store(id, value) {
+        record = value;
+        void id;
+      },
+      async load() {
+        return record === null ? null : { id: WS, ...record };
+      },
+      async delete() {
+        record = null;
+      },
+    });
+    const deviceKey = await ensureOfflineWorkspaceKey(WS);
     const fetchMock = vi.fn(async () => {
       throw new Error("offline connect must not touch the network");
     });
@@ -149,7 +199,9 @@ describe("keying is unconditional (the NOTEES_CONFIG.e2ee flag is inert)", () =>
       label: "Workspace",
     });
 
-    expect(resolution).toEqual({ key: undefined, locked: false, plaintext: false });
+    expect(resolution.key).toEqual(deviceKey);
+    expect(resolution.locked).toBe(false);
+    expect(resolution.plaintext).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

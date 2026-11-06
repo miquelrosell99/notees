@@ -4,9 +4,12 @@
  * The account master key lives in a module-level single slot (one account
  * per session), unwrapped from the login response's kdf record at auth time.
  * Raw workspace keys live ONLY in this module's in-memory cache (never
- * localStorage — Review Focus 4) and are cleared on sign-out. `ensureWorkspaceKey`
- * fetches the wrapped key (unwrap) or generates + wraps + stores one (404),
- * returning the raw 32-byte key for the worker init message.
+ * localStorage — Review Focus 4) and are cleared on sign-out — EXCEPT the
+ * device-local keys of offline workspaces, which live in IndexedDB custody
+ * (Task 9, `master-key-storage.ts`) and survive sign-out by design.
+ * `ensureWorkspaceKey` fetches the wrapped key (unwrap) or generates + wraps
+ * + stores one (404), returning the raw 32-byte key for the worker init
+ * message.
  */
 
 import {
@@ -19,7 +22,14 @@ import {
 } from "@notees/protocol";
 
 import { fetchWorkspaceKey, storeWorkspaceKey, AuthRequestError } from "./auth-api.js";
-import { deleteMasterKey, loadMasterKey, storeMasterKey, storeMasterKeyBytes } from "./master-key-storage.js";
+import {
+  deleteMasterKey,
+  getOfflineWorkspaceKey,
+  loadMasterKey,
+  persistOfflineWorkspaceKey,
+  storeMasterKey,
+  storeMasterKeyBytes,
+} from "./master-key-storage.js";
 
 /** Opaque handle on the account master key (one per session). */
 export interface MasterKeyHandle {
@@ -270,6 +280,32 @@ export async function getCachedWorkspaceKey(workspaceId: string): Promise<Uint8A
   const cached = workspaceKeyCache.get(workspaceId);
   if (cached === undefined) return null;
   return exportWorkspaceKey(cached);
+}
+
+/**
+ * The device-local key of an offline workspace, restoring it from custody or
+ * GENERATING + persisting one when custody is empty (Task 9). This is
+ * CREATION-time keying — the "Work offline" workspace is born keyed — not
+ * the open-time keying the no-auto-key ruling forbids. Deliberately does NOT
+ * touch `workspaceKeyCache`: the cache belongs to the server read path (a
+ * cached device key would suppress the first-sync wrap publish), and custody
+ * itself is the offline cache. A persist failure warns and still returns the
+ * session key — the content seals for this session; the next open retries.
+ * Records survive sign-out by design (no account owns them).
+ */
+export async function ensureOfflineWorkspaceKey(workspaceId: string): Promise<Uint8Array> {
+  const existing = await getOfflineWorkspaceKey(workspaceId);
+  if (existing !== null) return exportWorkspaceKey(existing);
+  const key = await generateWorkspaceKey();
+  try {
+    await persistOfflineWorkspaceKey(workspaceId, key);
+  } catch (error) {
+    console.warn(
+      "[notees-web] offline workspace key not persisted — reloads will open this workspace keyless:",
+      error,
+    );
+  }
+  return exportWorkspaceKey(key);
 }
 
 /** Drop the raw workspace keys (keeps the master key — a per-workspace refresh). */

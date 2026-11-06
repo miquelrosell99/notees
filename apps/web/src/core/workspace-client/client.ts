@@ -140,17 +140,22 @@ export class WorkspaceClient {
    * Offline-first factory: no server, no account. Edits apply locally and
    * are recorded in the durable local op log; when the user later connects
    * this workspace to a server (login), the backlog pushes through the
-   * normal outbox path.
+   * normal outbox path. Offline workspaces are keyed at rest (Task 9): the
+   * device-local key seals the engine's wire/snapshot boundary like the
+   * online path, so the backlog drains sealed on the first sync.
    */
   static async createOffline(options: {
     workspaceId: string;
     sqlJs?: SqlJsStatic;
     sqlJsConfig?: Parameters<typeof initSqlJs>[0];
+    /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+    workspaceKey?: Uint8Array;
   }): Promise<WorkspaceClient> {
     return WorkspaceClient.create({
       transport: new OfflineTransport(),
       ...(options.sqlJs !== undefined ? { sqlJs: options.sqlJs } : {}),
       ...(options.sqlJsConfig !== undefined ? { sqlJsConfig: options.sqlJsConfig } : {}),
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
     });
   }
 

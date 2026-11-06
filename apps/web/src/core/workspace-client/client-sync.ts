@@ -46,8 +46,9 @@ export class WorkspaceClientSync {
     this.ctx.undoJournal.clear();
     // E2EE: with a workspace key the engine seals the wire (encrypt at push,
     // decrypt before apply) and seals/opens snapshots; keyless → plaintext
-    // passthrough (offline/keyless workspaces — a keyed workspace never
-    // connects without its key since the fail-loud ruling, so the keyed-
+    // passthrough (keyless workspaces only — online keyed workspaces hold
+    // their server-wrapped key since the fail-loud ruling, and offline
+    // workspaces hold their device-local key since Task 9, so the keyed-
     // but-locked shape survives only as this runtime safety net).
     const crypto =
       this.ctx.workspaceKey !== null
@@ -145,7 +146,18 @@ export class WorkspaceClientSync {
         this.ctx.engine.enqueue(env as Envelope);
       }
     }
-    await this.ctx.engine.sync();
+    // The sync cycle may reject (offline transport, unreachable relay). The
+    // client-seed gate below must still run: a keyed OFFLINE workspace (Task
+    // 9 — keyed at creation, device-local custody) has no server shim to
+    // seed it, and its empty store would stay seedless forever. The gate is
+    // empty-store-only, so a mid-sync snapshot restore still suppresses
+    // reseeding; the error re-throws below exactly as before.
+    let syncError: unknown = null;
+    try {
+      await this.ctx.engine.sync();
+    } catch (error) {
+      syncError = error;
+    }
     // Client-side seeding of an EMPTY KEYED workspace: the server shim
     // deliberately skips keyed workspaces (they are client-seeded), so the
     // first keyed device stamps the system seeds itself — local-first via
@@ -170,6 +182,7 @@ export class WorkspaceClientSync {
         this.ctx.engine.enqueue(envelope);
       }
     }
+    if (syncError !== null) throw syncError;
     // Bootstrap notifies unconditionally (the engine callbacks above also
     // fired): sync failures reject before the onPull callback runs, and the
     // initial UI seed must refresh either way.

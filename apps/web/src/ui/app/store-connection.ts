@@ -12,13 +12,16 @@
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import sqliteWasmUrl from "@sqlite.org/sqlite-wasm/sqlite3.wasm?url";
 
+import { exportWorkspaceKey, wrapWorkspaceKey } from "@notees/protocol";
+
 import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import {
   clearWorkspaceKeys,
   currentMasterKey,
   readWorkspaceKey,
 } from "@/core/crypto-custody.js";
-import { AuthRequestError, fetchWorkspaceKey, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
+import { AuthRequestError, fetchWorkspaceKey, listWorkspaces, storeWorkspaceKey, type WorkspaceEntry } from "@/core/auth-api.js";
+import { getOfflineWorkspaceKey } from "@/core/master-key-storage.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import { markLocalWorkspaceCopy } from "@/core/workspace-registry.js";
 import { settingsSectionFromPath } from "../../features/settings/SettingsPage.js";
@@ -77,15 +80,25 @@ export class EncryptedWorkspaceLockedError extends Error {
  * The only writers are creation (the bundle rides the create payload) and the
  * banner action (Task 10 calls `ensureWorkspaceKey` directly).
  *
- * Offline workspaces are keyless by design (no server → no keys →
- * plaintext). With a session but NO master key in memory (a reload restored
- * the session without it — custody is memory-only), a keyed workspace
- * reports `locked` and the OPEN FAILS LOUDLY (fail-loud ruling: never open
- * keyless) — the UI shows the unlock re-prompt instead; a session WITH the
- * master key whose stored key fails to unwrap under it (e.g. the account
- * password changed on another device) fails loud the same way. API-key
- * sessions cannot unwrap (the key route is user custody) — the workspaces
- * listing's `encrypted` flag decides there.
+ * Offline workspaces (Task 9) are keyed at CREATION: the "Work offline"
+ * bootstrap generates a device-local key and persists it in IndexedDB custody
+ * (`master-key-storage.ts`, store `workspaceKeys`) before connecting, so the
+ * open here RESTORES that key — locked is impossible (the key is
+ * device-local, there is nothing to unwrap). Empty custody opens keyless,
+ * indeterminate (never locked, never plaintext). The ONE open-path PUT the
+ * read-only ruling sanctions rides the online 404 arm below: an
+ * offline-created workspace opened online with a password session PUBLISHES
+ * the existing device key's wrap under the master — first password-session
+ * sync — so every device can unwrap it. Nothing is generated on open.
+ *
+ * With a session but NO master key in memory (a reload restored the session
+ * without it — custody is memory-only), a keyed workspace reports `locked`
+ * and the OPEN FAILS LOUDLY (fail-loud ruling: never open keyless) — the UI
+ * shows the unlock re-prompt instead; a session WITH the master key whose
+ * stored key fails to unwrap under it (e.g. the account password changed on
+ * another device) fails loud the same way. API-key sessions cannot unwrap
+ * (the key route is user custody) — the workspaces listing's `encrypted`
+ * flag decides there.
  */
 export interface WorkspaceKeyResolution {
   /** The raw 32-byte workspace key, when this open is sealed. */
@@ -107,15 +120,46 @@ export async function resolveWorkspaceKey(
   workspaceId: string,
   options: ConnectOptions,
 ): Promise<WorkspaceKeyResolution> {
-  if (options.isOffline) return { key: undefined, locked: false, plaintext: false };
+  if (options.isOffline) {
+    // Device-local custody (Task 9): the offline workspace's key was
+    // generated at creation and lives in IndexedDB beside the master record.
+    // Locked is impossible — nothing to unwrap. Empty custody (persist
+    // failed at creation, or a pre-Task-9 workspace) opens keyless,
+    // indeterminate.
+    const restored = await getOfflineWorkspaceKey(workspaceId);
+    if (restored === null) return { key: undefined, locked: false, plaintext: false };
+    return { key: await exportWorkspaceKey(restored), locked: false, plaintext: false };
+  }
   const master = currentMasterKey();
   if (master !== null) {
     try {
       const raw = await readWorkspaceKey(url, credential, workspaceId, master);
-      // 404: a plaintext workspace — keying is deliberate (creation carries
-      // the bundle; the banner action calls ensureWorkspaceKey), never a
-      // lazy side effect of opening.
-      if (raw === null) return { key: undefined, locked: false, plaintext: true };
+      // 404: the server holds no wrap. If THIS DEVICE created the workspace
+      // offline, its content is sealed with the device-local key — the first
+      // password-session sync PUBLISHES that key's wrap under the master (the
+      // key already exists; nothing is generated on open) and the open rides
+      // the device key, before any backlog pushes sealed.
+      if (raw === null) {
+        const deviceKey = await getOfflineWorkspaceKey(workspaceId);
+        if (deviceKey === null) return { key: undefined, locked: false, plaintext: true };
+        try {
+          await storeWorkspaceKey(
+            url,
+            credential,
+            workspaceId,
+            await wrapWorkspaceKey(master.key, deviceKey),
+          );
+        } catch (error) {
+          // Local-first: a failed publish must not block the open — the local
+          // content seals with the device key either way, and the PUT retries
+          // on the next session (the server still 404s until one lands).
+          console.warn(
+            `[notees-web] workspace ${workspaceId}: wrap upload failed; retrying on the next sync:`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        return { key: await exportWorkspaceKey(deviceKey), locked: false, plaintext: false };
+      }
       return { key: raw, locked: false, plaintext: false };
     } catch (error) {
       console.warn(
@@ -185,7 +229,18 @@ export async function openStoreConnection(
   if (mode === "worker") {
     nextClient = await WorkerClient.create(
       options.isOffline
-        ? { serverUrl: "", apiKey: "", workspaceId, sqlWasmUrl, sqliteWasmUrl, offline: true }
+        ? {
+            serverUrl: "",
+            apiKey: "",
+            workspaceId,
+            sqlWasmUrl,
+            sqliteWasmUrl,
+            offline: true,
+            // Offline workspaces are keyed at rest (Task 9): the restored
+            // device-local key rides the init message exactly like the
+            // online path.
+            ...(workspaceKey !== undefined ? { workspaceKey } : {}),
+          }
         : {
             serverUrl: url,
             apiKey: credential,
@@ -199,7 +254,14 @@ export async function openStoreConnection(
     );
   } else {
     nextClient = options.isOffline
-      ? await WorkspaceClient.createOffline({ workspaceId, sqlJsConfig: { locateFile: () => sqlWasmUrl } })
+      ? await WorkspaceClient.createOffline({
+          workspaceId,
+          sqlJsConfig: { locateFile: () => sqlWasmUrl },
+          // Offline workspaces are keyed at rest (Task 9): the restored
+          // device-local key threads into the engine's crypto provider
+          // exactly like the online path.
+          ...(workspaceKey !== undefined ? { workspaceKey } : {}),
+        })
       : await WorkspaceClient.createHttp({
           serverUrl: url,
           apiKey: credential,
