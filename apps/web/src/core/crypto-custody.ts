@@ -146,30 +146,22 @@ export function currentMasterKey(): MasterKeyHandle | null {
 }
 
 /**
- * Directional copy for the creation flow's keyless arm: an API-key session
- * has no master key to wrap with, so creation cannot key the workspace —
- * every call site surfaces this verbatim in its existing error channel.
- */
-export const WORKSPACE_CREATE_KEYING_COPY =
-  "Sign in with your email and password to create a workspace.";
-
-/**
- * The key bundle every new workspace carries, or the directional arm when
- * the session is keyless (API-key sign-in). With the master key in memory:
- * a fresh workspace key, wrapped under the master — the same generate + wrap
+ * The wrapped key bundle a new workspace carries, or null when the session
+ * is keyless (API-key sign-in) — the caller then fires the create WITHOUT a
+ * bundle and the SERVER decides: the hatch on → the pinned 422
+ * `keying_required` body (its own directional sentence) surfaces through the
+ * caller's existing error channel; the hatch off (`NOTEES_REQUIRE_KEYED=0`)
+ * → the legacy unkeyed 201. The client never pre-flights: the documented
+ * escape hatch stays server-side. With the master key in memory: a fresh
+ * workspace key wrapped under the master — the same generate + wrap
  * `ensureWorkspaceKey` performs on its 404 arm, minus the pre-flight PUT
  * (the bundle rides the creation payload itself; the server stores it with
  * the mint). There is no 409 to adopt against: a creation either stores its
  * bundle or the workspace does not exist.
  */
-export type WorkspaceKeyBundle = { wrappedKey: string } | { directionalCopy: true };
-
-export async function keyBundleForCreate(
-  serverUrl: string,
-  token: string,
-): Promise<WorkspaceKeyBundle> {
+export async function keyBundleForCreate(): Promise<{ wrappedKey: string } | null> {
   const master = currentMasterKey();
-  if (master === null) return { directionalCopy: true };
+  if (master === null) return null;
   const workspaceKey = await generateWorkspaceKey();
   return { wrappedKey: await wrapWorkspaceKey(master.key, workspaceKey) };
 }

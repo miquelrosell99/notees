@@ -1,13 +1,17 @@
 /**
- * Creation keying: every new workspace carries a key bundle.
+ * Creation keying: every new workspace carries a key bundle when the session
+ * can mint one — the keyless arm defers to the server.
  *
  * - keyBundleForCreate: a session WITH the master key mints a fresh workspace
  *   key, wraps it under the master, and returns the bundle for the create
- *   payload; a keyless session (API-key sign-in) takes the directional arm.
+ *   payload; a keyless session (API-key sign-in) gets null and the caller
+ *   fires the create WITHOUT a wrappedKey — the server decides:
+ *   NOTEES_REQUIRE_KEYED on → the pinned 422 `keying_required` body (its own
+ *   directional sentence) surfaces verbatim through the surface's existing
+ *   error channel; the hatch off (`=0`) → the legacy unkeyed 201.
  * - WorkspacesView create: the POST /api/workspaces body rides a wrappedKey
- *   (a b64u string); a keyless session surfaces the directional copy and NO
- *   create request fires; a server 422 `keying_required` message surfaces
- *   verbatim through the modal's error channel.
+ *   (a b64u string) under a password session; a keyless session POSTs with
+ *   no wrappedKey and the server's answer stands.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,7 +27,6 @@ import {
   clearCryptoCustody,
   deriveMasterKey,
   keyBundleForCreate,
-  WORKSPACE_CREATE_KEYING_COPY,
 } from "../src/core/crypto-custody.js";
 import { WorkspacesView } from "../src/features/workspaces/WorkspacesView.js";
 
@@ -46,10 +49,10 @@ describe("keyBundleForCreate", () => {
   it("master key in memory → a wrappedKey bundle openable under the master", async () => {
     const { handle } = await masterInMemory();
 
-    const bundle = await keyBundleForCreate(SERVER, TOKEN);
+    const bundle = await keyBundleForCreate();
 
-    expect(bundle).toHaveProperty("wrappedKey");
-    if (!("wrappedKey" in bundle)) throw new Error("expected the bundle arm");
+    expect(bundle).not.toBeNull();
+    if (bundle === null) throw new Error("expected the bundle arm");
     expect(bundle.wrappedKey).toMatch(/^[A-Za-z0-9_-]+$/);
     // iv(12) + tag(16) + ct(32), base64url — no pre-flight PUT: creation
     // payloads carry the bundle.
@@ -57,9 +60,9 @@ describe("keyBundleForCreate", () => {
     await expect(unwrapWorkspaceKey(handle.key, bundle.wrappedKey)).resolves.toBeDefined();
   });
 
-  it("keyless session (API-key sign-in) → the directional arm, no bundle", async () => {
-    const bundle = await keyBundleForCreate(SERVER, TOKEN);
-    expect(bundle).toEqual({ directionalCopy: true });
+  it("keyless session (API-key sign-in) → null — no bundle, the server decides", async () => {
+    const bundle = await keyBundleForCreate();
+    expect(bundle).toBeNull();
   });
 });
 
@@ -120,22 +123,44 @@ describe("WorkspacesView create keying", () => {
     expect(parsed.wrappedKey!).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
-  it("API-key session → the directional copy surfaces and NO create request fires", async () => {
-    const fetchMock = workspacesFetchMock(() => Response.json({ id: "ws9" }));
-    renderCreate(fetchMock);
+  it("API-key session → the create POST fires WITHOUT a wrappedKey; a keyed-required server answers 422 and the SERVER's copy surfaces verbatim", async () => {
+    const serverCopy =
+      "workspace keying is required — create the workspace with a wrappedKey bundle (sign in with your email and password to create one)";
+    let postBody: string | null = null;
+    const fetchMock = workspacesFetchMock((body) => {
+      postBody = body;
+      return Response.json({ error: { code: "keying_required", message: serverCopy } }, { status: 422 });
+    });
+    const onEnter = renderCreate(fetchMock);
 
     await submitCreate("New plots");
 
-    expect(await screen.findByText(WORKSPACE_CREATE_KEYING_COPY)).toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.filter(
-        ([input, init]) =>
-          String(input).endsWith("/api/workspaces") && (init as RequestInit | undefined)?.method === "POST",
-      ),
-    ).toHaveLength(0);
+    expect(await screen.findByText(serverCopy)).toBeInTheDocument();
+    expect(onEnter).not.toHaveBeenCalled();
+    // The client did NOT pre-flight: the POST fired without a bundle and
+    // the server decided (hatch on) — the escape hatch stays server-side.
+    const parsed = JSON.parse(postBody!) as { wrappedKey?: string };
+    expect(parsed.wrappedKey).toBeUndefined();
   });
 
-  it("server 422 keying_required → the server message surfaces verbatim", async () => {
+  it("keyless session + a legacy server (NOTEES_REQUIRE_KEYED=0) → the unkeyed 201 stands — the escape hatch works", async () => {
+    let postBody: string | null = null;
+    const onEnter = renderCreate(
+      workspacesFetchMock((body) => {
+        postBody = body;
+        return Response.json({ id: "ws9" });
+      }),
+    );
+
+    await submitCreate("New plots");
+
+    await waitFor(() => expect(onEnter).toHaveBeenCalledWith("ws9", "New plots"));
+    const parsed = JSON.parse(postBody!) as { name?: string; wrappedKey?: string };
+    expect(parsed.name).toBe("New plots");
+    expect(parsed.wrappedKey).toBeUndefined();
+  });
+
+  it("server 422 keying_required (a password session against a flipped-hatch server) → the server message surfaces verbatim", async () => {
     await masterInMemory();
     const message =
       "workspace keying is required — create the workspace with a wrappedKey bundle (sign in with your email and password to create one)";

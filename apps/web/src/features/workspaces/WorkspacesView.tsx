@@ -16,10 +16,7 @@ import {
   type AccountUser,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
-import {
-  keyBundleForCreate,
-  WORKSPACE_CREATE_KEYING_COPY,
-} from "@/core/crypto-custody.js";
+import { keyBundleForCreate } from "@/core/crypto-custody.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -156,17 +153,13 @@ export function WorkspacesView({
     setNameError(null);
     setSubmitting(true);
     if (nameModal.mode === "create") {
-      keyBundleForCreate(serverUrl, credential)
-        .then((bundle) => {
-          if ("directionalCopy" in bundle) {
-            setSubmitting(false);
-            setNameError(WORKSPACE_CREATE_KEYING_COPY);
-            return null;
-          }
-          return createWorkspace(serverUrl, credential, name, bundle.wrappedKey);
-        })
+      // Keyless (API-key session): null bundle → the POST fires WITHOUT a
+      // wrappedKey and the server decides — hatch on: the 422's own
+      // directional sentence surfaces through the name error; hatch off:
+      // the legacy 201 (NOTEES_REQUIRE_KEYED=0 stays a server-side hatch).
+      keyBundleForCreate()
+        .then((bundle) => createWorkspace(serverUrl, credential, name, bundle?.wrappedKey))
         .then((created) => {
-          if (created === null) return;
           setSubmitting(false);
           setNameModal(null);
           setSwitching(true);

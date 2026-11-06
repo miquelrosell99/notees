@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { createWorkspace, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
-import {
-  keyBundleForCreate,
-  WORKSPACE_CREATE_KEYING_COPY,
-} from "@/core/crypto-custody.js";
+import { keyBundleForCreate } from "@/core/crypto-custody.js";
 import { localWorkspaceCopies, rememberedWorkspaceList } from "@/core/workspace-registry.js";
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
@@ -111,12 +108,11 @@ export function WorkspaceSwitcher({
     if (name === "") return;
     setError(null);
     try {
-      const bundle = await keyBundleForCreate(serverUrl, credential);
-      if ("directionalCopy" in bundle) {
-        setError(WORKSPACE_CREATE_KEYING_COPY);
-        return;
-      }
-      const { id } = await createWorkspace(serverUrl, credential, name, bundle.wrappedKey);
+      // Keyless (API-key session): null bundle → the POST fires WITHOUT a
+      // wrappedKey and the server decides (hatch on → the 422's own
+      // directional sentence surfaces below; hatch off → the legacy 201).
+      const bundle = await keyBundleForCreate();
+      const { id } = await createWorkspace(serverUrl, credential, name, bundle?.wrappedKey);
       setQuery("");
       setOpen(false);
       onSwitch(id, name);
