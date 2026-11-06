@@ -103,7 +103,7 @@ Their wounds, our rules:
 | Logseq's 2-year rewrite split its community | Greenfield once, deliberately; the sync core is ported, proven machinery |
 | Logseq users felt betrayed by DB-as-truth | State the storage truth in the header of every doc: log is truth, export is projection |
 | Logseq sync arrived late and alpha | The ported fixture/convergence corpus is a blocking exit gate, not a nice-to-have |
-| Tana community: "vendor lock-in with my second brain" | Local-first op log, E2EE slot, first-class export |
+| Tana community: "vendor lock-in with my second brain" | Local-first op log, E2EE (every workspace keyed), first-class export |
 | Obsidian's plugin tax | Core flows never depend on plugins; plugins are capability-brokered |
 | Obsidian Bases can't reach block granularity | Block identity from day one |
 | Capacities' curated catalog as team bottleneck | User-defined classes and property schemas as runtime registry data |
