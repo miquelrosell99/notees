@@ -568,14 +568,19 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
   ["post", "/api/workspaces", {
     summary: "Create a workspace (the creator becomes owner; session required)",
+    description:
+      "The body MAY carry a client-chosen `id` (uuid): an offline-created workspace publishes under its EXISTING id (its local store is keyed by it). A taken id answers 409 and nothing is minted; the keying gate reads the explicit id (KEYING_EXEMPT_WORKSPACE_IDS semantics unchanged), and the seeded fixture ids themselves stay mint-only-via-ingest (422).",
     tags: ["Workspaces"],
     requestBody: {
       type: "object",
       additionalProperties: false,
-      properties: { name: { type: "string" } },
+      properties: {
+        id: { type: "string", format: "uuid" },
+        name: { type: "string" },
+      },
     },
     success: { status: 201, description: "the new workspace id" },
-    errors: ["validation_failed"],
+    errors: ["validation_failed", "keying_required", "conflict"],
   }],
   ["patch", "/api/workspaces/:id", {
     summary: "Rename a workspace (owner-only; non-members get 404)",

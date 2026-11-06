@@ -146,6 +146,103 @@ describe("keying gate — POST /api/workspaces", () => {
   });
 });
 
+describe("client-chosen id — POST /api/workspaces (offline adoption)", () => {
+  it("hatch ON + a fresh explicit id + a bundle → 201, listed under THAT id", async () => {
+    server = await makeTestServer({ requireKeyed: true });
+    const { token } = await setupUser();
+    const chosenId = "3f8c9d2e-1111-4222-8333-444455556666";
+
+    const created = await createWorkspace(token, {
+      id: chosenId,
+      name: "adopted",
+      wrappedKey: "YWRvcHQ",
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json()).toMatchObject({ id: chosenId, name: "adopted", role: "owner" });
+
+    const ids = await listWorkspaceIds(token);
+    expect(ids).toContain(chosenId);
+    const list = await server.app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: sessionHeaders(token),
+    });
+    const entry = (list.json().workspaces as Array<{ id: string; encrypted: boolean }>).find(
+      (workspace) => workspace.id === chosenId,
+    );
+    expect(entry?.encrypted).toBe(true);
+  });
+
+  it("hatch ON + a CONFLICTING explicit id → 409, nothing minted or overwritten", async () => {
+    server = await makeTestServer({ requireKeyed: true });
+    const { token } = await setupUser();
+    const existing = await createWorkspace(token, { name: " incumbent ", wrappedKey: "aW5jdW1iZW50" });
+    expect(existing.statusCode).toBe(201);
+    const existingId = (existing.json() as { id: string }).id;
+    const before = await listWorkspaceIds(token);
+
+    const response = await createWorkspace(token, {
+      id: existingId,
+      name: "squatter",
+      wrappedKey: "cXVhdHRlcg",
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe("conflict");
+
+    // The incumbent is untouched: same directory, same key row.
+    const after = await listWorkspaceIds(token);
+    expect(after).toEqual(before);
+    const key = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${existingId}/key`,
+      headers: sessionHeaders(token),
+    });
+    expect(key.statusCode).toBe(200);
+    expect(key.json()).toEqual({ wrappedKey: "aW5jdW1iZW50" });
+  });
+
+  it("hatch ON + a non-exempt explicit id + no bundle → 422 keying_required (the gate reads the id)", async () => {
+    server = await makeTestServer({ requireKeyed: true });
+    const { token } = await setupUser();
+    const before = await listWorkspaceIds(token);
+
+    const response = await createWorkspace(token, {
+      id: "5a1b2c3d-2222-4333-8444-555566667777",
+      name: "gated-adoption",
+    });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe("keying_required");
+
+    const after = await listWorkspaceIds(token);
+    expect(after).toEqual(before);
+  });
+
+  it("hatch ON + an allowlisted fixture id + no bundle → exempt from the gate (the mint still refuses: fixture ids are ingest-only)", async () => {
+    server = await makeTestServer({ requireKeyed: true });
+    const { token } = await setupUser();
+
+    const response = await createWorkspace(token, {
+      id: KEYING_EXEMPT_WORKSPACE_IDS[0],
+      name: "fixture-squatter",
+    });
+    // NOT the keying gate: the allowlist exempts the id, and the store law
+    // refuses the mint loud (seeded demo fixtures are minted only via
+    // direct log ingest).
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe("validation_failed");
+    expect(response.json().error.message).toContain("direct log ingest");
+  });
+
+  it("a malformed explicit id → 422 validation_failed (the uuid bound holds)", async () => {
+    server = await makeTestServer({ requireKeyed: true });
+    const { token } = await setupUser();
+
+    const response = await createWorkspace(token, { id: "not-a-uuid", wrappedKey: "dGVzdA" });
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe("validation_failed");
+  });
+});
+
 describe("keying gate — POST /api/workspaces/:id/clone", () => {
   async function keyedSourceWithPage(token: string): Promise<string> {
     const created = await createWorkspace(token, { name: "source", wrappedKey: "c291cmNl" });

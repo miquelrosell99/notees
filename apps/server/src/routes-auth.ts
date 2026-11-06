@@ -41,7 +41,7 @@ import { uuidv7 } from "uuidv7";
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { actorIdForUser, type Principal } from "./identity.js";
-import { hashPassword, keyingRequiredFor, verifyPassword } from "./auth.js";
+import { hashPassword, keyingRequiredFor, verifyPassword, KEYING_EXEMPT_WORKSPACE_IDS } from "./auth.js";
 import { parseApiScopes } from "./scopes.js";
 import { WorkspaceImageError } from "./workspace-store.js";
 
@@ -149,9 +149,14 @@ const signupBodySchema = z
 // The creation body (POST /workspaces + the clone route): an optional
 // wrappedKey bundle — the E2EE custody string (same bounds as
 // workspaceKeySchema). NOTEES_REQUIRE_KEYED (default on) makes it mandatory:
-// without it the creation answers 422 keying_required.
+// without it the creation answers 422 keying_required. POST /workspaces
+// additionally accepts an optional client-chosen `id` (uuid) — an
+// offline-created workspace publishes under its EXISTING id (its local store
+// is keyed by it); a taken id answers 409 and nothing is minted. The clone
+// route ignores `id` (the clone is always a FRESH workspace).
 const createWorkspaceSchema = z
   .object({
+    id: z.string().uuid().optional(),
     name: z.string().trim().max(120).optional(),
     wrappedKey: z.string().min(1).max(4096).optional(),
   })
@@ -721,21 +726,43 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     };
   });
 
+  // POST /workspaces — the account's own creation. An optional client-chosen
+  // `id` lets an offline-created workspace publish under its EXISTING id
+  // (its local store is keyed by it): a taken id (workspace row or relay
+  // log) answers 409 conflict and nothing is minted. The keying gate reads
+  // the explicit id, so KEYING_EXEMPT_WORKSPACE_IDS semantics apply
+  // unchanged; the seeded fixture ids themselves stay mint-only-via-ingest
+  // (the store layer refuses them loud — mapped to 422 here, not a 500).
   app.post("/workspaces", async (request, reply) => {
     const { principal } = requireAccount(ctx, request);
     const parsed = createWorkspaceSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid workspace request");
     }
+    const chosenId = parsed.data.id ?? null;
     // The keying gate precedes the mint: nothing is created to clean up.
-    if (keyingRequiredFor(ctx.config, null) && parsed.data.wrappedKey === undefined) {
+    if (keyingRequiredFor(ctx.config, chosenId) && parsed.data.wrappedKey === undefined) {
       throw new AppError(
         422,
         "keying_required",
         "workspace keying is required — create the workspace with a wrappedKey bundle (sign in with your email and password to create one)",
       );
     }
+    if (
+      chosenId !== null &&
+      KEYING_EXEMPT_WORKSPACE_IDS.includes(chosenId)
+    ) {
+      throw new AppError(
+        422,
+        "validation_failed",
+        "this workspace id is a seeded demo fixture — it is minted only via direct log ingest",
+      );
+    }
+    if (chosenId !== null && ctx.auth.listAllWorkspaceIds().includes(chosenId)) {
+      throw new AppError(409, "conflict", "a workspace with this id already exists");
+    }
     const id = ctx.auth.createWorkspace({
+      ...(parsed.data.id !== undefined ? { id: parsed.data.id } : {}),
       name: parsed.data.name ?? null,
       createdBy: principal.userId,
     });
