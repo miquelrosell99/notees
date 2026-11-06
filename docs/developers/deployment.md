@@ -7,9 +7,18 @@ embedded SQLite relay log and per-workspace derived databases. Companion docs:
 
 **Security posture.** The server carries accounts and sessions (the web app signs in;
 the initial setup creates the admin account), an operator API key for headless access,
-and per-user coordination state — but transport and storage are still plaintext: no
-E2EE. The server operator can read all workspace contents. Everything below was verified
-against `apps/server/src/config.ts`, `relay-storage.ts`, `assets.ts`, and
+and per-user coordination state. Workspace content is end-to-end encrypted, and
+**workspace keying is required**: `NOTEES_REQUIRE_KEYED` (default on) makes
+`POST /workspaces` and the clone route answer 422 `keying_required` without a
+`wrappedKey` bundle — `=0` restores the legacy unkeyed creation path for dev/test
+fleets, and the seeded demo fixtures carry an explicit exemption
+(`KEYING_EXEMPT_WORKSPACE_IDS`, `auth.ts`). Clients seal envelopes and snapshots
+under the workspace key before upload (the `{"$e": …}` envelope slot), and the server
+stores only the opaque wrapped key: server-side content reads of keyed workspaces
+answer 404, so the operator can never read keyed content. History written before
+keying stays plaintext — the operation log is immutable, and keying applies from a
+workspace's creation, never retroactively. Everything below was verified against
+`apps/server/src/config.ts`, `auth.ts`, `relay-storage.ts`, `assets.ts`, and
 `workspace-store.ts`.
 
 ## 1. Requirements
@@ -73,6 +82,7 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_MAX_DOCUMENT_BYTES` | `104857600` (100 MB) | Upload cap, documents (pdf/epub) |
 | `NOTEES_CORS_ORIGIN` | — (no CORS headers) | Comma-separated browser origins allowed to call the API cross-origin (web client served from another origin/port). `*` allows any origin — LAN-trusted deployments only. Absent → no CORS headers: same-origin and CLI clients unaffected, browsers denied |
 | `NOTEES_SIGNUP_ENABLED` | off | Open registration: `POST /api/auth/signup` creates non-admin accounts and the login screen shows "Create one". Accepts `1`/`true`/`yes`/`on`. Off → the route answers 404 and the client hides the link |
+| `NOTEES_REQUIRE_KEYED` | on | Workspace keying is mandatory: `POST /workspaces` and the clone route require a `wrappedKey` bundle — a creation without one answers 422 `keying_required` before anything is minted. `0`/`false` restores the legacy unkeyed creation for dev/test fleets; the seeded demo fixtures are exempt (`KEYING_EXEMPT_WORKSPACE_IDS`, `auth.ts`) |
 
 CLI environment (for clients, `notees-cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
@@ -208,10 +218,13 @@ there is no `notees export`.
 - **No secrets in the log.** Envelopes carry actor/device/client provenance, not the key.
   `api_key.txt` is written `0600`; keep `NOTEES_DATA_DIR` permissions tight for the same
   reason.
-- **Designed, not present:** E2EE (the `{"$e": …}` envelope slot is defined and passes
-  through the relay unvalidated, but no client encrypts), JWT sessions and
-  multi-user authorization, scoped keys. For now, "whoever holds the key" is the
-  entire threat-model boundary.
+- **E2EE shipped (2026-11), keying mandatory.** Workspace keying is required at
+  creation (`NOTEES_REQUIRE_KEYED`, default on; §3): clients seal envelopes and
+  snapshots under the workspace key before upload, the server stores only the opaque
+  wrapped key, and server-side content reads of keyed workspaces answer 404 — the
+  operator can never read keyed content. History written before keying stays
+  plaintext (the log is immutable). Still designed, not present: JWT sessions and
+  multi-user authorization.
 
 ## 9. Docker + Compose (shipped 2026-09-26; plain-Docker deploy since 2026-10-04)
 
