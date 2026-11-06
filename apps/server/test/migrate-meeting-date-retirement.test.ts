@@ -44,6 +44,14 @@ import {
   MEETING_DATE_ID,
   planMeetingDateRetirement,
 } from "../../../scripts/migrate-meeting-date-retirement.mts";
+import {
+  buildRetirementEnvelopes as coreBuildRetirementEnvelopes,
+  buildRetirementOps,
+  isPending as coreIsPending,
+  MIGRATION_IDENTITY,
+  planIsEmpty,
+  planMeetingDateRetirement as corePlanMeetingDateRetirement,
+} from "../../../scripts/lib/migrations/meeting-date-retirement.ts";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const TSX = join(REPO_ROOT, "apps", "server", "node_modules", ".bin", "tsx");
@@ -248,7 +256,7 @@ describe("migrate-meeting-date-retirement.mts", () => {
     expect(plan.schemaDelete).toBe(true);
 
     // The built envelopes are protocol-valid…
-    const envelopes = buildRetirementEnvelopes(WORKSPACE, plan);
+    const envelopes = buildRetirementEnvelopes(WORKSPACE, plan, 1729000000000);
     const opTypes = envelopes.map((envelope) => envelope.opType);
     expect(opTypes).toEqual([
       "property.set",
@@ -271,6 +279,52 @@ describe("migrate-meeting-date-retirement.mts", () => {
     expect(after.schemaDelete).toBe(false);
     // The conflicted node still reports (deterministically).
     expect(after.conflicts.map((conflict) => conflict.nodeId)).toEqual([NODE_CONFLICT]);
+  });
+
+  it("the node-free core is the proving pattern: the script delegates to it, and its plan/build output is byte-identical", () => {
+    // The script's planner/builder ARE the core's functions (the delegation pin).
+    expect(planMeetingDateRetirement).toBe(corePlanMeetingDateRetirement);
+    expect(buildRetirementEnvelopes).toBe(coreBuildRetirementEnvelopes);
+
+    // The core plans byte-identical to the script path against the same store.
+    const plan = planMeetingDateRetirement(store);
+    const corePlan = corePlanMeetingDateRetirement(store);
+    expect(corePlan).toEqual(plan);
+
+    // The core's envelope builder with the default identity + one stamp is
+    // byte-identical to what the pre-extraction script built with that stamp
+    // (same actor/device/client constants, one shared physical clock, a
+    // 0-based logical sequence). `id` (uuidv7) and `timestamp` are per-call
+    // mints in both paths — the stamp comparison covers them below.
+    const stamp = 1729000000123;
+    const envelopes = buildRetirementEnvelopes(WORKSPACE, plan, stamp);
+    const coreEnvelopes = coreBuildRetirementEnvelopes(WORKSPACE, corePlan, stamp);
+    const stripMints = (list: Envelope[]) =>
+      list.map(({ id: _id, timestamp: _timestamp, ...rest }) => rest);
+    expect(stripMints(coreEnvelopes)).toEqual(stripMints(envelopes));
+    envelopes.forEach((envelope, index) => {
+      expect(envelope.actorId).toBe(MIGRATION_IDENTITY.actorId);
+      expect(envelope.deviceId).toBe(MIGRATION_IDENTITY.deviceId);
+      expect(envelope.client).toBe(MIGRATION_IDENTITY.client);
+      expect(envelope.hlc).toEqual({ physical: stamp, logical: index });
+    });
+
+    // The op-triple primitive behind the envelope builder is the shape a
+    // client-side executor stamps with ITS session constants: same opTypes,
+    // same payloads, same affected sets, envelope-free.
+    const ops = buildRetirementOps(plan);
+    expect(ops.map((op) => op.opType)).toEqual(envelopes.map((envelope) => envelope.opType));
+    expect(ops.map((op) => op.payload)).toEqual(envelopes.map((envelope) => envelope.payload));
+    expect(ops.map((op) => op.affected)).toEqual(
+      envelopes.map((envelope) => envelope.affectedNodeIds),
+    );
+
+    // isPending is exactly !planIsEmpty(plan) — the surface's listing probe.
+    expect(coreIsPending(store)).toBe(true);
+    expect(planIsEmpty(plan)).toBe(false);
+    for (const envelope of envelopes) store.apply(envelope);
+    expect(coreIsPending(store)).toBe(false);
+    expect(planIsEmpty(corePlanMeetingDateRetirement(store))).toBe(true);
   });
 
   it("dry run prints the plan (with the KEEP line) and writes nothing", () => {

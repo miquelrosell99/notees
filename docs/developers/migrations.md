@@ -101,6 +101,21 @@ refuses server-side against a keyed workspace (the sealed prefix would be
 missing from the plan) with the run-it-through-a-keyed-client remedy, while
 `"scaffolding"` runs and unkeyed workspaces pass silent.
 
+**The node-free planning core (2026-11-06, the client-side executor
+pattern).** A `"content"`-class migration's remedy is a keyed client running
+the migration itself, so the planning logic must load in a browser: each
+content-class migration's pure core lives at
+`scripts/lib/migrations/<name>.ts` — NODE-DEP-FREE by contract (imports only
+`packages/protocol/src` + `packages/domain/src` + a type-only `Store`), exporting
+`isPending(store)`, the planner, a wire-neutral op-triple builder (the shape a
+client stamps with its session constants through the normal write path — the
+sync engine seals and pushes it on a keyed workspace, no new crypto, no wire
+change), and the CLI envelope builder. The script keeps its CLI shape by
+delegating; its rehearsal suite is the pin (the core's output byte-identical
+to the pre-extraction script's). First extracted: meeting-date retirement —
+the proving pattern the web client's migrations runner consumes through the
+vendor pin.
+
 ### B. In-place rewrite (retired keys / moved fields)
 
 `migrate-node-type.mts` set the precedent; `migrate-color-tokens.mts` and
