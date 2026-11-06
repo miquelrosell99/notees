@@ -21,9 +21,7 @@ import {
   formatRecurrenceRule,
   parseRecurrenceRule,
   plainTextExcerpt,
-  weekdayOfIso,
   type RecurrenceRule,
-  type RecurrenceWeekday,
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -122,72 +120,11 @@ function repeatShellOf(client: AnyClient, nodeId: string): PropertyRowShell | nu
   return null;
 }
 
-const WEEKDAY_SHORT: Record<RecurrenceWeekday, string> = {
-  MO: "Mon",
-  TU: "Tue",
-  WE: "Wed",
-  TH: "Thu",
-  FR: "Fri",
-  SA: "Sat",
-  SU: "Sun",
-};
-
-const MONTH_SHORT = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
 /**
- * The human summary of a series (the repeat control's option labels and the
- * calendar labels): "Every 2 weeks on Mon, Fri", "Monthly on day 3",
- * "Yearly on 29 Feb". The anchor supplies what the rule leaves implicit
- * (the weekly weekday, the monthly day-of-month, the yearly month+day). The
- * end rides as a suffix: " · ends after 10 occurrences" / " · ends 31 Dec
- * 2026"; an unbounded rule omits the suffix.
+ * The human summary of a series — canonical in the kit (Task 11
+ * relocation); re-exported here for the existing feature importers.
  */
-export function repeatSummaryOf(rule: RecurrenceRule, anchorIso: string): string {
-  const [, m, d] = anchorIso.split("-").map(Number);
-  const anchorWeekday = weekdayOfIso(anchorIso);
-  const every = (unit: string): string => `Every ${rule.interval} ${unit}s`;
-  let base: string;
-  switch (rule.freq) {
-    case "daily":
-      base = rule.interval === 1 ? "Daily" : every("day");
-      break;
-    case "weekly": {
-      const days = (rule.byday ?? [anchorWeekday]).map((day) => WEEKDAY_SHORT[day]);
-      base = `${rule.interval === 1 ? "Weekly" : every("week")} on ${days.join(", ")}`;
-      break;
-    }
-    case "monthly": {
-      const days = rule.bymonthday ?? [d!];
-      base = `${rule.interval === 1 ? "Monthly" : every("month")} on day ${days.join(", ")}`;
-      break;
-    }
-    case "yearly":
-      base = `${rule.interval === 1 ? "Yearly" : every("year")} on ${d} ${MONTH_SHORT[m! - 1]}`;
-      break;
-  }
-  if (rule.count !== undefined) {
-    const plural = rule.count === 1 ? "occurrence" : "occurrences";
-    return `${base} · ends after ${rule.count} ${plural}`;
-  }
-  if (rule.until !== undefined) {
-    const [uy, um, ud] = rule.until.split("-").map(Number);
-    return `${base} · ends ${ud} ${MONTH_SHORT[um! - 1]} ${uy}`;
-  }
-  return base;
-}
+export { repeatSummaryOf } from "../../components/ui/kit/repeatSummary.js";
 
 /**
  * Author (or clear, null) the node's Repeat rule: the canonical RRULE string

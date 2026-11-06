@@ -13,7 +13,7 @@ import {
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
 
-import { repeatSummaryOf } from "./repeatProperty.js";
+import { repeatSummaryOf } from "../../components/ui/kit/repeatSummary.js";
 
 // Re-exported for callers that want the canonical import site alongside the
 // other calendar helpers.

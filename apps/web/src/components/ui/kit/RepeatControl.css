@@ -1,0 +1,121 @@
+/* RepeatControl — the deliberate recurrence authoring surface (toggle +
+ * panel). Token-only: every value resolves to a custom property from
+ * variables.css; the metrics ride the type scale (em/ch) and the spacing
+ * tokens. */
+
+.nt-repeat-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-inline-size: min(100%, 24ch);
+}
+
+.nt-repeat-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.nt-repeat-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.25;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-repeat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface-variant);
+}
+
+.nt-repeat-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+/* The number fields size to their content's digit count — adaptive ch,
+   not a fixed px width. The min block size rides the button floor token
+   (48px — the M3 touch floor; replaced elements can't carry the ::after
+   slop overlay the kit buttons use). */
+.nt-repeat-number {
+  inline-size: 6ch;
+  min-block-size: var(--button-min-height);
+  padding: 0 var(--spacing-2);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  line-height: 1.25;
+  text-align: end;
+}
+
+.nt-repeat-date {
+  min-block-size: var(--button-min-height);
+  padding: 0 var(--spacing-2);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  line-height: 1.25;
+}
+
+.nt-repeat-number:focus-visible,
+.nt-repeat-date:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* The invalid draft flags the offending field (the aria-live summary
+   line carries the message). */
+.nt-repeat-number[aria-invalid='true'],
+.nt-repeat-date[aria-invalid='true'],
+.nt-repeat-chips[aria-invalid='true'] .chip {
+  border-color: var(--md-sys-color-error);
+}
+
+.nt-repeat-label {
+  font-size: var(--font-size-sm);
+  line-height: 1.25;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-repeat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.nt-repeat-ends {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-repeat-end-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-block-size: var(--height-xs);
+}
+
+/* The live summary line: the committed rule's human form, or the
+   validation message while the draft does not commit. */
+.nt-repeat-summary {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.25;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-repeat-summary--error {
+  color: var(--md-sys-color-error);
+}
