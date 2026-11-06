@@ -367,6 +367,185 @@ describe("CalendarView recurrence", () => {
   });
 });
 
+describe("the Properties panel Repeat row", () => {
+  /** Flush the microtasks a fireEvent-triggered async write runs on. */
+  async function flushWrites(): Promise<void> {
+    const { act } = await import("@testing-library/react");
+    await act(async () => {});
+  }
+
+  /**
+   * The Repeat property's sidebar block — the panelled layout's Properties
+   * surface (the main layout renders the properties here; the in-flow
+   * section is the compact layouts'). The name row carries the label, the
+   * from-class hint and the right-click menu; the value cell hosts the
+   * dedicated row component's li.
+   */
+  function repeatPropEl(container: HTMLElement): HTMLElement {
+    const name = Array.from(
+      container.querySelectorAll<HTMLElement>(".nt-props-sidebar__name"),
+    ).find((el) => el.dataset.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat);
+    expect(name, "the Repeat row's name").not.toBeNull();
+    const prop = name!.closest(".nt-props-sidebar__prop");
+    expect(prop, "the Repeat row's block").not.toBeNull();
+    return prop as HTMLElement;
+  }
+
+  /** The authored Repeat row in the effective read, undefined when absent. */
+  function repeatRowOf(client: WorkspaceClient, nodeId: string) {
+    return client
+      .getEffectiveProperties(nodeId)
+      .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat);
+  }
+
+  /** Seed the dedicated Repeat text property the way the domain seed authors it. */
+  async function seedRepeatSchema(client: WorkspaceClient): Promise<void> {
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.repeat,
+      name: "Repeat",
+      type: "text",
+    });
+  }
+
+  it("renders the bound-empty virtual row on an event-classed node; toggling on authors the rule; the panel chrome and a date re-pick leave the rule intact", async () => {
+    const client = await seedClient();
+    await seedRepeatSchema(client);
+    // The gathering family: a user class on the event family with a day
+    // precision date + the dedicated Repeat property bound (the bound-empty
+    // virtual row's source).
+    const whenId = await client.createPropertySchema({ name: "When", type: "datetime" });
+    const gatheringId = await client.createClass("gathering");
+    await client.setClassExtends(gatheringId, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(gatheringId, whenId, {});
+    await client.setClassProperty(gatheringId, SYSTEM_PROPERTY_UUIDS.repeat, {});
+
+    const id = await client.createObject({
+      isEmbedded: false,
+      name: "Standup",
+      classIds: [gatheringId],
+    });
+    // A Friday anchor: the weekly preselect + the monthly prefill are
+    // deterministic (2026-03-06 is a Friday, the 6th).
+    await client.setDatetimeProperty(id, whenId, { iso: "2026-03-06" });
+
+    const { container } = render(<PageView client={client} pageId={id} onOpenPage={vi.fn()} />);
+    expandProperties();
+
+    // The bound-empty virtual row: the class binding renders the Repeat row
+    // with the toggle off, dimmed into the panel's muted register, and the
+    // from-class hint.
+    const prop = (): HTMLElement => repeatPropEl(container);
+    const toggle = () => within(prop()).getByRole("switch", { name: "Repeat" });
+    expect(toggle().getAttribute("aria-checked")).toBe("false");
+    expect(within(prop()).getByTitle("From a class")).not.toBeNull();
+
+    // Switch the toggle on: the deliberate default (every day) authors the
+    // property value at the dedicated Repeat schema.
+    fireEvent.click(toggle());
+    await flushWrites();
+    expect(repeatRowOf(client, id)?.source).toBe("authored");
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=DAILY");
+
+    // Every 2 weeks on the anchor's weekday: the interval field + the unit
+    // Dropdown commit through the same onChange.
+    fireEvent.change(within(prop()).getByRole("spinbutton", { name: "Repeat interval" }), {
+      target: { value: "2" },
+    });
+    await flushWrites();
+    fireEvent.click(within(prop()).getByRole("button", { name: "Repeat unit" }));
+    fireEvent.click(screen.getByRole("option", { name: "weeks" }));
+    await flushWrites();
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=FR");
+    expect(within(prop()).getByText("Every 2 weeks on Fri")).not.toBeNull();
+    expect(within(prop()).getByRole("button", { name: "Fri" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // Monthly: the anchor day prefills the day-of-month field and rides the
+    // committed rule — after the commit the control re-syncs its draft from
+    // the value, so the field and the summary agree (the empty-monthday
+    // mismatch ruling).
+    fireEvent.click(within(prop()).getByRole("button", { name: "Repeat unit" }));
+    fireEvent.click(screen.getByRole("option", { name: "months" }));
+    await flushWrites();
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=6");
+    expect(within(prop()).getByRole("spinbutton", { name: "Day of month" })).toHaveValue(6);
+    expect(within(prop()).getByText("Every 2 months on day 6")).not.toBeNull();
+
+    // The panel's ordinary chrome rides the same row: right-click the name
+    // row → Value history… opens the property's history modal.
+    const name = prop().querySelector(".nt-props-sidebar__name") as HTMLElement;
+    fireEvent.contextMenu(name);
+    fireEvent.click(await screen.findByText("Value history…"));
+    expect(await screen.findByText("Value history — Repeat")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    await flushWrites();
+
+    // Re-picking the When day moves the anchor, never the rule: the repeat
+    // value rides verbatim (and the explicit day-of-month field keeps the
+    // committed day — the value wins over the new anchor).
+    fireEvent.click(screen.getByRole("button", { name: "Set When" }));
+    const dialog = screen.getByRole("dialog", { name: "Date picker" });
+    fireEvent.change(within(dialog).getByLabelText("Type a date"), {
+      target: { value: "2026-03-10" },
+    });
+    fireEvent.keyDown(within(dialog).getByLabelText("Type a date"), { key: "Enter" });
+    await flushWrites();
+    expect(repeatRowOf(client, id)?.value).toBe("RRULE:FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=6");
+    expect(
+      within(repeatPropEl(container)).getByRole("spinbutton", { name: "Day of month" }),
+    ).toHaveValue(6);
+  });
+
+  it("Remove from node drops an authored unbound Repeat declaration — the generic text row never renders for repeat", async () => {
+    const client = await seedClient();
+    await seedRepeatSchema(client);
+    // A session class on the event family with ONLY the date bound: a Repeat
+    // value authored directly on the node is an unbound authored row.
+    const whenId = await client.createPropertySchema({ name: "When", type: "datetime" });
+    const sessionId = await client.createClass("session");
+    await client.setClassExtends(sessionId, [SYSTEM_CLASS_UUIDS.event]);
+    await client.setClassProperty(sessionId, whenId, {});
+
+    const id = await client.createObject({
+      isEmbedded: false,
+      name: "Workshop",
+      classIds: [sessionId],
+    });
+    await client.setDatetimeProperty(id, whenId, { iso: "2026-03-06" });
+    await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.repeat, WEEKLY_RRULE, 0);
+
+    const { container } = render(<PageView client={client} pageId={id} onOpenPage={vi.fn()} />);
+    expandProperties();
+
+    // The authored rule renders as the Repeat control (toggle on), not the
+    // generic text row (no carrier block, no bare-string text editor).
+    const prop = repeatPropEl(container);
+    expect(within(prop).getByRole("switch", { name: "Repeat" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(prop.querySelector(".nt-property-textcell")).toBeNull();
+    expect(within(prop).queryByRole("textbox")).toBeNull();
+    // Unbound: no from-class hint.
+    expect(within(prop).queryByTitle("From a class")).toBeNull();
+
+    // Right-click → Remove from node drops the declaration: the row and the
+    // authored value are gone.
+    const name = prop.querySelector(".nt-props-sidebar__name") as HTMLElement;
+    fireEvent.contextMenu(name);
+    fireEvent.click(await screen.findByText("Remove from node"));
+    await flushWrites();
+    expect(repeatRowOf(client, id)).toBeUndefined();
+    expect(
+      Array.from(container.querySelectorAll(".nt-props-sidebar__name")).some(
+        (el) => el.getAttribute("data-property-schema-id") === SYSTEM_PROPERTY_UUIDS.repeat,
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("recurrence is deliberate or absent on generic date surfaces", () => {
   it("a source-classed publicationDate row offers no repeat control — in the row or the opened date-picker popup", async () => {
     const client = await seedClient();
