@@ -46,9 +46,14 @@
  * left untouched and reported for manual review.
  *
  * The plan is read from a SCRATCH derived store (latest snapshot + log tail —
- * the hydration shape the sync server uses), so the compared rows are the
- * converged log state. Every envelope is validated through the protocol zod
- * schemas BEFORE anything is inserted, then replayed on a throwaway scratch
+ * the hydration shape the sync server uses). A SEALED latest snapshot — an
+ * E2EE-keyed workspace's checkpoint — is never restored (the blob cannot
+ * open into a plaintext projection): the tail replay rebuilds the plaintext
+ * prefix, and encrypted/pending envelopes skip the apply by the server's
+ * hydration rule — a keyed workspace's sealed content is invisible to a
+ * server-side plan by design, so the migration converges what the server
+ * can see (pre-keying plaintext state) and reports the rest. Every envelope
+ * is validated through the protocol zod schemas BEFORE anything is inserted, then replayed on a throwaway scratch
  * store (the applier gate — an applier-rejected envelope drops WITH its
  * node's whole arm, nothing is half-migrated). Idempotent: a second run
  * plans nothing (the schemas/bindings exist, the metadata keys are gone).
@@ -82,6 +87,7 @@ import {
   payloadSchemaFor,
   type Envelope,
 } from "../packages/protocol/src/index.ts";
+import { isEncryptedPayload } from "../packages/protocol/src/envelope.ts";
 import {
   completedOccurrencesOf,
   exdatesOf,
@@ -93,6 +99,7 @@ import {
   untilOf,
 } from "../packages/domain/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
+import { StoreError } from "../packages/store/src/errors.ts";
 import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
@@ -187,26 +194,43 @@ async function appendViaServer(
 /**
  * Restore the workspace's latest snapshot into a fresh in-memory store and
  * apply every log envelope after it (the hydration shape the sync server
- * uses). Throws on any StoreError — a tail that cannot apply must block the
- * migration, not be planned against.
+ * uses). A SEALED latest snapshot (an E2EE-keyed client's checkpoint) is
+ * never restored — the blob cannot open into a plaintext projection
+ * (workspace-store.ts hydration, the 2026-11-05 ruling), so the tail replay
+ * rebuilds the plaintext prefix from the log instead. Encrypted payloads
+ * skip the apply and StoreError skips count as pending — a keyed workspace's
+ * sealed content is invisible to a server-side plan BY DESIGN (reported via
+ * the skip-count line, never silently). Anything else that fails still
+ * throws: a plaintext tail that cannot apply must block the migration, not
+ * be planned against.
  */
 function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
   const store = Store.open(betterSqlite3Backend(":memory:"));
   const snapshot = relay.latestSnapshot(workspaceId);
   let afterSeq = 0;
-  if (snapshot !== null) {
+  if (snapshot !== null && snapshot.sealed !== 1) {
     const bytes = relay.readSnapshotData(snapshot.id);
     if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
     store.restore(new Uint8Array(bytes));
     afterSeq = snapshot.up_to_seq;
   }
   let cursor = afterSeq;
+  let skippedEncrypted = 0;
+  let skippedPending = 0;
   for (;;) {
     const page = relay.catchUp(workspaceId, cursor, 10_000);
     for (const envelope of page.envelopes) {
+      if (isEncryptedPayload(envelope.payload)) {
+        skippedEncrypted += 1;
+        continue;
+      }
       try {
         store.apply(envelope);
       } catch (error) {
+        if (error instanceof StoreError) {
+          skippedPending += 1;
+          continue;
+        }
         store.close();
         const detail = error instanceof Error ? error.message : String(error);
         throw new Error(`tail apply failed at seq > ${cursor}: ${detail}`);
@@ -214,6 +238,12 @@ function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
     }
     if (!page.hasMore || page.nextAfterSeq === null) break;
     cursor = page.nextAfterSeq;
+  }
+  if (skippedEncrypted + skippedPending > 0) {
+    console.log(
+      `  (scratch: ${skippedEncrypted} encrypted + ${skippedPending} pending envelope(s) skipped — ` +
+        "a keyed workspace's sealed content is invisible to a server-side plan)",
+    );
   }
   return store;
 }

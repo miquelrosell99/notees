@@ -465,6 +465,27 @@ describe("migrate-repeat-property.mts", () => {
     expect(relay.latestSeq(WORKSPACE)).toBe(seqBefore);
   });
 
+  it("a SEALED latest snapshot is never restored — the plan reads the plaintext tail replay", () => {
+    // An E2EE-keyed workspace's latest checkpoint is a sealed blob the
+    // server cannot open ("file is not a database" on restore). The scratch
+    // build must skip the restore and rebuild the plaintext prefix from the
+    // log — planning the same moves the plaintext rehearsal plans.
+    relay.saveSnapshot(
+      WORKSPACE,
+      "01920000-0000-7000-8000-0000000000d1",
+      relay.maxHlc(WORKSPACE),
+      relay.latestSeq(WORKSPACE),
+      Buffer.from("sealed-garbage-not-a-database"),
+      true,
+    );
+    const result = runScript(["--data-dir", dataDir, "--workspace", WORKSPACE]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toContain("file is not a database");
+    expect(result.stdout).toContain(`repeat   ${NODE_EVENT}`);
+    expect(result.stdout).toContain(`repeat   ${NODE_TASK}`);
+    expect(result.stdout).toContain("dry run");
+  });
+
   it("--apply converges the workspace; a second run plans nothing", () => {
     const apply = runScript(["--data-dir", dataDir, "--workspace", WORKSPACE, "--apply"]);
     expect(apply.status).toBe(0);
