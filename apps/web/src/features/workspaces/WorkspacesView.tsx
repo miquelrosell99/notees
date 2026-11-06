@@ -17,6 +17,7 @@ import {
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
 import { keyBundleForCreate } from "@/core/crypto-custody.js";
+import { deleteOfflineWorkspaceKey } from "@/core/master-key-storage.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -506,6 +507,10 @@ export function WorkspacesView({
           onConfirm={async () => {
             const target = deleteTarget;
             await deleteWorkspace(serverUrl, credential, target.id);
+            // The custody record must not outlive the workspace (F1): drop
+            // the device-local key record too. Best-effort, never throws —
+            // a workspace the device never keyed has no record to delete.
+            await deleteOfflineWorkspaceKey(target.id);
             setDeleteTarget(null);
             refresh();
             if (target.id === activeWorkspaceId) onClose?.();

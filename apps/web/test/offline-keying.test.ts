@@ -11,8 +11,9 @@
  * the client uploads the wrap under the master — publishing the EXISTING
  * key's wrap, never generating one on open.
  *
- * Custody records survive sign-out: the offline workspace has no account, so
- * `clearCryptoCustody` (session end) must NOT orphan its sealed content.
+ * Custody records do NOT outlive their workspace or session (F1): workspace
+ * removal deletes the record, and `clearCryptoCustody` (session end) empties
+ * the whole store — a reopen after either mints a FRESH key.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -62,6 +63,9 @@ function fakeStore(): WorkspaceKeyStore & { record: WorkspaceKeyRecord | null } 
     async delete() {
       state.record = null;
     },
+    async clear() {
+      state.record = null;
+    },
   };
 }
 
@@ -88,6 +92,9 @@ function firefoxStore(): {
       return state.record === null ? null : { id: WS, ...state.record };
     },
     async delete() {
+      state.record = null;
+    },
+    async clear() {
       state.record = null;
     },
   };
@@ -181,6 +188,7 @@ describe("offline workspace-key custody (device-local, no account)", () => {
         return null;
       },
       async delete() {},
+      async clear() {},
     };
     setWorkspaceKeyStoreForTests(store);
     const warnings: unknown[][] = [];
@@ -197,17 +205,18 @@ describe("offline workspace-key custody (device-local, no account)", () => {
     expect(String(warnings[0]![0])).toContain("offline workspace key");
   });
 
-  it("sign-out (clearCryptoCustody) does NOT orphan the offline workspace key", async () => {
+  it("sign-out (clearCryptoCustody) empties the custody store — the next open mints a FRESH key", async () => {
     const store = fakeStore();
     setWorkspaceKeyStoreForTests(store);
     const master = await generateMasterKey();
     await deriveMasterKey(PASSWORD, await createKdfRecord(master, PASSWORD));
     const first = await ensureOfflineWorkspaceKey(WS);
 
-    await clearCryptoCustody(); // session end: master record deleted
+    await clearCryptoCustody(); // session end: master record AND workspace keys deleted
 
-    expect(store.record?.key).toBeInstanceOf(CryptoKey); // the workspace key survives
-    expect(await ensureOfflineWorkspaceKey(WS)).toEqual(first);
+    expect(store.record).toBeNull();
+    const fresh = await ensureOfflineWorkspaceKey(WS);
+    expect(fresh).not.toEqual(first);
   });
 });
 

@@ -4,9 +4,11 @@
  * The account master key lives in a module-level single slot (one account
  * per session), unwrapped from the login response's kdf record at auth time.
  * Raw workspace keys live ONLY in this module's in-memory cache (never
- * localStorage — Review Focus 4) and are cleared on sign-out — EXCEPT the
- * device-local keys of offline workspaces, which live in IndexedDB custody
- * (Task 9, `master-key-storage.ts`) and survive sign-out by design.
+ * localStorage — Review Focus 4) and are cleared on sign-out. The
+ * device-local keys of offline workspaces live in IndexedDB custody
+ * (Task 9, `master-key-storage.ts`): while the workspace lives they persist
+ * across reloads, but they must not leak forever (F1) — workspace removal
+ * deletes the workspace's record and session end empties the whole store.
  * `ensureWorkspaceKey` fetches the wrapped key (unwrap) or generates + wraps
  * + stores one (404), returning the raw 32-byte key for the worker init
  * message.
@@ -23,6 +25,7 @@ import {
 
 import { fetchWorkspaceKey, storeWorkspaceKey, AuthRequestError } from "./auth-api.js";
 import {
+  clearOfflineWorkspaceKeys,
   deleteMasterKey,
   getOfflineWorkspaceKey,
   loadMasterKey,
@@ -301,7 +304,8 @@ export async function getCachedWorkspaceKey(workspaceId: string): Promise<Uint8A
  * cached device key would suppress the first-sync wrap publish), and custody
  * itself is the offline cache. A persist failure warns and still returns the
  * session key — the content seals for this session; the next open retries.
- * Records survive sign-out by design (no account owns them).
+ * Records are deleted with their workspace and emptied at session end (F1) —
+ * a reopen after either mints a fresh key.
  */
 export async function ensureOfflineWorkspaceKey(workspaceId: string): Promise<Uint8Array> {
   const existing = await getOfflineWorkspaceKey(workspaceId);
@@ -327,12 +331,14 @@ export function clearWorkspaceKeys(): void {
 }
 
 /** Full custody reset: master key + every raw workspace key + the persisted
- * handle. Called on sign-out (and every other session end) — the persisted
- * record is deleted too, so the next session reverts to the password. */
+ * handle + every offline workspace-key record. Called on sign-out (and every
+ * other session end) — the persisted records are deleted too, so the next
+ * session reverts to the password and the next offline open mints a fresh
+ * workspace key (no custody record outlives its session, F1). */
 export function clearCryptoCustody(): Promise<void> {
   masterKeySlot = null;
   workspaceKeyCache.clear();
-  return deleteMasterKey();
+  return Promise.all([deleteMasterKey(), clearOfflineWorkspaceKeys()]).then(() => undefined);
 }
 
 /** Test seam: clear the in-memory slot only (simulates a reload with the
