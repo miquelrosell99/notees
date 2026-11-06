@@ -13,9 +13,7 @@
  *
  * The popup rides reduced chrome (no range, no time, no Remove — the ×
  * affordance owns clearing), so the qualifier write path keeps its bare-ISO
- * semantics. An optional RepeatPicker rides the slot: the caller passes the
- * stored `metadata.repeat` grammar string plus an `onRepeatChange` and owns
- * the write, exactly like `onCommit`.
+ * semantics.
  */
 
 import { useMemo, useRef, useState } from "react";
@@ -27,7 +25,6 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { DatePickerPopup } from "./DatePickerPopup.js";
-import { RepeatPicker } from "./RepeatPicker.js";
 import "./DateSlotControl.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -62,11 +59,6 @@ export interface DateSlotControlProps {
   clearable?: boolean;
   clearLabel?: string;
   onCommit: (iso: string | null) => void;
-  /** The stored recurrence grammar string (null = does not repeat). */
-  repeat?: string | null;
-  /** With onRepeatChange, a RepeatPicker rides the slot; the caller writes. */
-  onRepeatChange?: ((rule: string | null) => void) | undefined;
-  repeatLabel?: string;
 }
 
 export function DateSlotControl({
@@ -78,9 +70,6 @@ export function DateSlotControl({
   clearable = true,
   clearLabel,
   onCommit,
-  repeat = null,
-  onRepeatChange,
-  repeatLabel,
 }: DateSlotControlProps) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
@@ -109,22 +98,12 @@ export function DateSlotControl({
           <Icon path="mdi-close" size={0.7} />
         </button>
       )}
-      {onRepeatChange !== undefined && (
-        <RepeatPicker
-          value={repeat}
-          onChange={onRepeatChange}
-          ariaLabel={repeatLabel ?? `Repeat for ${ariaLabel}`}
-          iconOnly
-        />
-      )}
       {open && (
         <DatePickerPopup
           value={{ isRange: false, start: value !== null ? { iso: value } : null, end: null }}
           precision={precision}
           allowRange={false}
           allowTime={false}
-          repeat={repeat}
-          onRepeatChange={onRepeatChange}
           onCommit={(commit) => {
             setOpen(false);
             onCommit("iso" in commit ? commit.iso : commit.start !== null ? commit.start.iso : null);

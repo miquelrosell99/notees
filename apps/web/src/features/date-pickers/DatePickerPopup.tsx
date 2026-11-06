@@ -17,8 +17,6 @@
  *    end, the shared grid editing the focused end) and commits
  *    { start, end }; turning it back OFF collapses the value to the point
  *    (start kept, end dropped — silently, no confirm).
- *  - Repeat — the recurrence picker (metadata.repeat) rides here when the
- *    caller passes onRepeatChange (day precision only).
  *  - Remove — clears the value (single-value → unset; multi → the element
  *    being edited); the caller decides the write.
  *
@@ -26,7 +24,7 @@
  * single `onCommit` — a point `{ iso, time? }` or a range
  * `{ start: { iso, time? } | null, end: { iso, time? } | null }`. The schema
  * precision stays the commit ceiling: at year/month precision the popup
- * lands on the year/month grid and the all-day/time/range/repeat chrome
+ * lands on the year/month grid and the all-day/time/range chrome
  * stays hidden (a day has no wall-clock time at a coarser ceiling).
  * `allowRange`/`allowTime` reduce the chrome for surfaces whose write is a
  * bare day (link qualifiers); every commit still flows through onCommit.
@@ -49,7 +47,6 @@ import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js"
 import { BooleanToggle } from "../../components/ui/kit/BooleanToggle.js";
 import { useCalendarMode } from "./calendar/useCalendarMode.js";
 import { DaysGrid, MonthsGrid, YearsGrid } from "./calendar/CalendarGrids.js";
-import { RepeatPicker } from "./RepeatPicker.js";
 import "./CalendarPopup.css"; // reuse grid styles from CalendarPopup
 import "./DatePickerPopup.css"; // own additions
 
@@ -150,7 +147,7 @@ export interface DatePickerPopupProps {
   markedDates?: ReadonlySet<string>;
   /**
    * The schema's commit ceiling (day when unspecified) — the popup lands on
-   * the matching zoom grid and the all-day/time/range/repeat chrome stays
+   * the matching zoom grid and the all-day/time/range chrome stays
    * hidden at year/month precision.
    */
   precision?: DatePrecision;
@@ -161,10 +158,6 @@ export interface DatePickerPopupProps {
    * off for surfaces whose write is a bare day, e.g. link qualifiers).
    */
   allowTime?: boolean;
-  /** The stored recurrence grammar string (null = does not repeat). */
-  repeat?: string | null;
-  /** With this, the Repeat row rides the popup; the caller writes. */
-  onRepeatChange?: ((rule: string | null) => void) | undefined;
 }
 
 // ── component ────────────────────────────────────────────
@@ -181,8 +174,6 @@ export function DatePickerPopup({
   precision = "day",
   allowRange = true,
   allowTime = true,
-  repeat = null,
-  onRepeatChange,
 }: DatePickerPopupProps) {
   const today = new Date();
   const dayPrecision = precision === "day";
@@ -616,7 +607,7 @@ export function DatePickerPopup({
           </div>
         </div>
 
-        {/* ── right: Suggestions / All-day / Range / Repeat / Remove ── */}
+        {/* ── right: Suggestions / All-day / Range / Remove ── */}
         <div className="date-picker-side">
           <div className="date-picker-side-title">Suggestions</div>
           <ul className="date-picker-suggestions">
@@ -688,17 +679,6 @@ export function DatePickerPopup({
                   {showTime && !allDay && timeInput(side, `${side === "start" ? "Start" : "End"} time`)}
                 </div>
               ))}
-            </div>
-          )}
-
-          {onRepeatChange !== undefined && dayPrecision && (
-            <div className="date-picker-row date-picker-repeat-row">
-              <span className="date-picker-row-label">Repeat</span>
-              <RepeatPicker
-                value={repeat}
-                onChange={onRepeatChange}
-                ariaLabel="Repeat"
-              />
             </div>
           )}
 

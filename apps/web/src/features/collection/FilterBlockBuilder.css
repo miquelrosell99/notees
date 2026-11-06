@@ -67,7 +67,7 @@
 
 /* The raw editor's visible label is hidden — the
    accessible name stays (label/htmlFor), the chrome drops. Same clip
-   pattern as the scoped .sr-only registers (RepeatPicker). */
+   pattern as the kit components' scoped .sr-only registers. */
 .nt-fb__raw .code-textarea-label {
   position: absolute;
   width: 1px;

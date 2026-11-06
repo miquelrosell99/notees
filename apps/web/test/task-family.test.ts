@@ -1,8 +1,11 @@
 /**
- * ensureTaskFamily tests: a fresh workspace authors the six task
+ * ensureTaskFamily tests: a fresh workspace authors the five task
  * property schemas at their reserved ids plus the task-class bindings on
  * first call, with canonical status/priority options; the call is a complete
  * no-op once present (no extra schemas, no extra bindings, safe to re-run).
+ * Recurrence rides the dedicated `repeat` property — authored by the domain
+ * seed envelopes + the store's ensureTaskFamilyRows, never by this ensure —
+ * so the withdrawn `taskRecurrence` placeholder is gone from the family.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -82,8 +85,19 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 }
 
 describe("ensureTaskFamily", () => {
-  it("authors the six schemas at the reserved ids with canonical shapes", async () => {
+  it("authors the five schemas at the reserved ids with canonical shapes", async () => {
     const client = await seedClient();
+    // The repeat property rides the domain seed envelopes, not the family
+    // ensure — author it the way the seed does (the reserved id, text,
+    // event+task union scope, one binding row per class) so the family
+    // assertions below read the seeded end state.
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.repeat,
+      name: "Repeat",
+      type: "text",
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.event, SYSTEM_CLASS_UUIDS.task],
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.repeat, {});
     expect(taskFamilyPresent(client)).toBe(false);
 
     await ensureTaskFamily(client);
@@ -101,8 +115,20 @@ describe("ensureTaskFamily", () => {
     expect(
       schemas.get(SYSTEM_PROPERTY_UUIDS.taskPriority)?.options?.map((option) => option.label),
     ).toEqual([...TASK_PRIORITY_OPTIONS]);
-    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskRecurrence)?.type).toBe("select");
-    // the whole family is
+    // The withdrawn taskRecurrence placeholder (…0006) retires with the
+    // dedicated repeat property — the ensure authors it no more.
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskRecurrence)).toBeUndefined();
+    // The seeded recurrence property is the repeat text property: LOCAL
+    // scope (the event+task union — a family-identity shape, not a
+    // generically reusable value), arriving via the seed envelopes.
+    const repeat = schemas.get(SYSTEM_PROPERTY_UUIDS.repeat);
+    expect(repeat?.name).toBe("Repeat");
+    expect(repeat?.type).toBe("text");
+    expect(repeat?.scopeClassIds).toEqual([
+      SYSTEM_CLASS_UUIDS.event,
+      SYSTEM_CLASS_UUIDS.task,
+    ]);
+    // the five family schemas are
     // global-scope (Status "can be reused for other nodes") — the bindings
     // below stay per-class config.
     for (const id of [
@@ -111,7 +137,6 @@ describe("ensureTaskFamily", () => {
       SYSTEM_PROPERTY_UUIDS.taskScheduled,
       SYSTEM_PROPERTY_UUIDS.taskPriority,
       SYSTEM_PROPERTY_UUIDS.taskClosedDate,
-      SYSTEM_PROPERTY_UUIDS.taskRecurrence,
     ] as const) {
       expect(schemas.get(id)?.scopeClassIds).toBeNull();
     }
@@ -127,10 +152,12 @@ describe("ensureTaskFamily", () => {
       SYSTEM_PROPERTY_UUIDS.taskScheduled,
       SYSTEM_PROPERTY_UUIDS.taskPriority,
       SYSTEM_PROPERTY_UUIDS.taskClosedDate,
-      SYSTEM_PROPERTY_UUIDS.taskRecurrence,
+      SYSTEM_PROPERTY_UUIDS.repeat,
     ] as const) {
       expect(bound).toContain(id);
     }
+    // The withdrawn placeholder binds nothing either.
+    expect(bound).not.toContain(SYSTEM_PROPERTY_UUIDS.taskRecurrence);
     expect(taskFamilyPresent(client)).toBe(true);
   });
 
@@ -400,7 +427,7 @@ describe("ensureTaskFamily: the project relation (2026-10-28 seed)", () => {
     expect(client.getClassBindings(SYSTEM_CLASS_UUIDS.task)).toHaveLength(bindingsAfterFirst);
   });
 
-  it("self-heals the project relation on a workspace carrying only the six family schemas", async () => {
+  it("self-heals the project relation on a workspace carrying only the five family schemas", async () => {
     // The live-workspace shape: the family exists (authored before the
     // relation seeded), the project schema + binding are missing — the
     // ensure appends exactly the delta.
@@ -408,10 +435,10 @@ describe("ensureTaskFamily: the project relation (2026-10-28 seed)", () => {
     await ensureTaskFamily(client);
     const before = client.listPropertySchemas().length;
 
-    // The pre-relation workspace: the six family schemas without project.
+    // The pre-relation workspace: the five family schemas without project.
     // Simulated by deleting is not possible (immutable log) — instead assert
     // the converged end state and that re-running plans nothing.
-    expect(before).toBe(7);
+    expect(before).toBe(6);
     const spy = vi.spyOn(client, "createPropertySchema");
     const bindSpy = vi.spyOn(client, "setClassProperty");
     await ensureTaskFamily(client);

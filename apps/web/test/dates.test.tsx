@@ -24,10 +24,9 @@
  *    stay), a Suggestions column (relative dates, the current date checked),
  *    an All-day switch (on by default; off reveals the 24h time input),
  *    a Range switch (off collapses a range to the point, start kept and end
- *    dropped), a Repeat row (day precision), and Remove; the schema
- *    precision is the commit ceiling (a year-precision picker opens at the
- *    year grid and hides the time chrome; the data layer links the year
- *    node);
+ *    dropped), and Remove; the schema precision is the commit ceiling (a
+ *    year-precision picker opens at the year grid and hides the time
+ *    chrome; the data layer links the year node);
  *  - dateQualified link qualifiers persist metadata.startDate/endDate and
  *    round-trip through the effective read model;
  *  - the Class View bindings editor edits precision (datetime schemas) and

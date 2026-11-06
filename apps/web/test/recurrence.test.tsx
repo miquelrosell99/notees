@@ -141,6 +141,14 @@ function dayCell(container: HTMLElement, dayNumber: string): HTMLElement {
 
 const WEEKLY_RRULE = "RRULE:FREQ=WEEKLY";
 
+/** Expand the page's "Properties" section (collapsed by default in the note layout). */
+function expandProperties(): void {
+  const header = screen.queryByRole("button", { name: /^Properties/ });
+  if (header !== null && header.getAttribute("aria-expanded") === "false") {
+    fireEvent.click(header);
+  }
+}
+
 describe("CalendarView recurrence", () => {
   it("lists a weekly event on virtual occurrence days in the day time grid — one chip, no phantoms", async () => {
     const client = await seedClient();
@@ -356,5 +364,45 @@ describe("CalendarView recurrence", () => {
     // reads the node as plain.
     await createEvent(client, classId, schemaId, "Broken", todayIsoLocal(), "whenever");
     expect(() => recurringRowsOf(client)).toThrow(/invalid recurrence rule/);
+  });
+});
+
+describe("recurrence is deliberate or absent on generic date surfaces", () => {
+  it("a source-classed publicationDate row offers no repeat control — in the row or the opened date-picker popup", async () => {
+    const client = await seedClient();
+    await client.createClass("source", { id: SYSTEM_CLASS_UUIDS.source });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.publicationDate,
+      name: "Publication date",
+      type: "datetime",
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setClassProperty(
+      SYSTEM_CLASS_UUIDS.source,
+      SYSTEM_PROPERTY_UUIDS.publicationDate,
+      {},
+    );
+    const pageId = await client.createObject({
+      isEmbedded: false,
+      name: "Paper",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setDatetimeProperty(pageId, SYSTEM_PROPERTY_UUIDS.publicationDate, {
+      iso: "2026-09-27",
+    });
+
+    const { container } = render(<PageView client={client} pageId={pageId} onOpenPage={vi.fn()} />);
+    expandProperties();
+
+    // The row carries no repeat affordance: no RepeatPicker mount anywhere,
+    // no accessible name starting "Repeat for".
+    expect(container.querySelector(".nt-repeat-trigger")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Repeat for/ })).toBeNull();
+
+    // The opened date-picker popup has no Repeat row either.
+    fireEvent.click(screen.getByRole("button", { name: "Set Publication date" }));
+    const dialog = screen.getByRole("dialog", { name: "Date picker" });
+    expect(within(dialog).queryByText("Repeat")).toBeNull();
+    expect(dialog.querySelector(".date-picker-repeat-row")).toBeNull();
   });
 });
