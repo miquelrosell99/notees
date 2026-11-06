@@ -29,6 +29,13 @@
  *  - listing / classes / edges / features: coarse counters bumped by the
  *    op-type family (listing-affecting envelopes; class.* and propertySchema.*;
  *    object.* carriers — the content/edge family; feature/prefs ops).
+ *  - d (definitions): class-definition reads whose value cannot be moved by
+ *    node/edge state — the per-node effective icon/color resolvers. Their
+ *    args carry the node fields they consult, so only class.* / propertySchema.*
+ *    ops (the `classes` counter) can stale them. This split matters: these
+ *    reads are cached PER NODE (one key per visible row), and riding the
+ *    `edges` counter — bumped by EVERY object.* op — re-executed all of them
+ *    on every block creation (~1000 re-serves per create at session scale).
  *  - nodeAll / shapeAll / global: fallbacks for oversized walks, remote
  *    structural batches, and unknown-scope notifications.
  *
@@ -251,6 +258,13 @@ export class ReadRevisions {
         return `q:${this.listing}:${this.edges}`;
       case "recentLinkTargets":
         return `e:${this.edges}`;
+      case "effectiveNodeIcon":
+      case "effectiveNodeColor":
+        // Definitions-only: the resolvers consult the arg-carried node fields
+        // (own icon/color, classIds) plus class definitions — never edges or
+        // membership. A create/edit/delete of a node cannot move another
+        // node's resolved icon/color; only class-definition ops can.
+        return `d:${this.classes}`;
       case "listClasses":
       case "classIcons":
       case "effectiveClassIcons":
@@ -267,8 +281,6 @@ export class ReadRevisions {
       case "effectiveClassParentlessBlock":
       case "getClassDisplayTemplate":
       case "resolveEffectiveDisplayTemplate":
-      case "effectiveNodeColor":
-      case "effectiveNodeIcon":
         // Edges ride along: archival (object.update {active}) changes class
         // membership listings without touching the class families.
         return `c:${this.classes}:${this.edges}`;
