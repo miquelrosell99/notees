@@ -82,7 +82,7 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_MAX_DOCUMENT_BYTES` | `104857600` (100 MB) | Upload cap, documents (pdf/epub) |
 | `NOTEES_CORS_ORIGIN` | — (no CORS headers) | Comma-separated browser origins allowed to call the API cross-origin (web client served from another origin/port). `*` allows any origin — LAN-trusted deployments only. Absent → no CORS headers: same-origin and CLI clients unaffected, browsers denied |
 | `NOTEES_SIGNUP_ENABLED` | off | Open registration: `POST /api/auth/signup` creates non-admin accounts and the login screen shows "Create one". Accepts `1`/`true`/`yes`/`on`. Off → the route answers 404 and the client hides the link |
-| `NOTEES_REQUIRE_KEYED` | on | Workspace keying is mandatory: `POST /workspaces` and the clone route require a `wrappedKey` bundle — a creation without one answers 422 `keying_required` before anything is minted. `0`/`false` restores the legacy unkeyed creation for dev/test fleets; the seeded demo fixtures are exempt (`KEYING_EXEMPT_WORKSPACE_IDS`, `auth.ts`) |
+| `NOTEES_REQUIRE_KEYED` | on | Workspace keying is mandatory: `POST /workspaces` and the clone route require a `wrappedKey` bundle — a creation without one answers 422 `keying_required` before anything is minted. `0`/`false` restores the legacy unkeyed creation for dev/test fleets; the seeded demo fixtures are exempt (`KEYING_EXEMPT_WORKSPACE_IDS`, `auth.ts`). Bundles are minted client-side in the browser's Web Crypto — a secure context: plain-http clients cannot mint one (§10) |
 
 CLI environment (for clients, `notees-cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
@@ -357,9 +357,16 @@ volume needs the mount owned by uid 1000 (`node`).
 ## 10. HTTPS — the optional Caddy edge (tailnet or bring-your-own)
 
 The core stack has **no HTTPS dependency**: plain http on the remappable app
-ports works for everything except browser-persistent storage (OPFS requires a
-secure context — browsers without https run the app on the in-process store
-with the loud warning banner; fully functional otherwise). When a deployment
+ports works for everything except two secure-context browser requirements —
+browser-persistent storage (OPFS requires a secure context — browsers without
+https run the app on the in-process store with the loud warning banner; fully
+functional otherwise) and **workspace keying** (Web Crypto's `subtle` surface
+is secure-context-gated: an http-served client can read, edit, and sync
+existing workspaces but cannot key a workspace or create one — keyed
+workspaces are opened by re-signing in with email + password over https or
+localhost). The sync server itself is unaffected — keying is a client-side
+custody matter; only the creation gate's 422 assumes a client that could mint
+a bundle. When a deployment
 wants https, the compose **edge profile** turns it on in one step — a Caddy
 container with the tailscale plugin:
 
