@@ -108,7 +108,7 @@ describe("migrate-attachments-asset-type", () => {
     expect(plan.retypeNeeded).toBe(true);
     expect(plan.row).toMatchObject({ name: "Files", type: "object", multi: 1, display: "inline" });
 
-    const envelopes = buildEnvelopes(WS, plan);
+    const envelopes = buildEnvelopes(WS, plan, 1729000000000);
     validateEnvelopes(envelopes);
     expect(envelopes).toHaveLength(1);
     for (const envelope of envelopes) store.apply(envelope);
@@ -122,13 +122,13 @@ describe("migrate-attachments-asset-type", () => {
     const store = makeStore();
     const plan = planAssetType(store);
     expect(plan.schemaAbsent).toBe(true);
-    expect(buildEnvelopes(WS, plan)).toEqual([]);
+    expect(buildEnvelopes(WS, plan, 1729000000000)).toEqual([]);
     store.close();
   });
 
   it("the retype upserts type + drops the explicit filter, preserving values, name, and flags", () => {
     const store = attachmentsWorld();
-    const envelopes = buildEnvelopes(WS, planAssetType(store));
+    const envelopes = buildEnvelopes(WS, planAssetType(store), 1729000000000);
     for (const envelope of envelopes) store.apply(envelope);
 
     const row = store.database
@@ -159,7 +159,7 @@ describe("migrate-attachments-asset-type", () => {
 
   it("the gate rejects a malformed retype before anything is written", () => {
     const store = attachmentsWorld();
-    const envelopes = buildEnvelopes(WS, planAssetType(store));
+    const envelopes = buildEnvelopes(WS, planAssetType(store), 1729000000000);
     const tampered = envelopes.map((envelope) => ({
       ...envelope,
       payload: { ...envelope.payload, type: "file" },
