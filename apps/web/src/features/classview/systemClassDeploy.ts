@@ -172,14 +172,29 @@ export async function deploySystemClass(
       Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
         [SystemPropertyName, (typeof SYSTEM_PROPERTY_SPECS)[SystemPropertyName]]
       >
-    ).filter(([, spec]) => spec !== undefined && spec.bindTo === key);
+    ).filter(([, spec]) => {
+      if (spec === undefined) return false;
+      // A list-valued bindTo (the multi-class bind — `repeat`) binds the spec
+      // on EVERY named class: the filter is a membership test. Single values
+      // keep the historical strict-match behavior (one-element membership).
+      const bindToNames = Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
+      return bindToNames.includes(key);
+    });
     if (family.length > 0) {
       const existing = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
       for (const [name, spec] of family) {
         const schemaId = SYSTEM_PROPERTY_UUIDS[name];
         // The seeded scope for this spec: global (the scope-audit flips — url,
-        // the task family) unless the spec stays a family-identity field.
-        const seededScope = spec!.global === true ? null : [classId];
+        // the task family) unless the spec stays a family-identity field. A
+        // list-valued bindTo seeds the UNION scope (the repeat precedent —
+        // the multi-class bind's family-identity shape); a single bind
+        // reduces to [classId], the historical shape.
+        const seededScope =
+          spec!.global === true
+            ? null
+            : (Array.isArray(spec!.bindTo) ? spec!.bindTo : [spec!.bindTo!]).map(
+                (className) => SYSTEM_CLASS_UUIDS[className],
+              );
         const stored = existing.get(schemaId);
         if (stored === undefined) {
           await client.createPropertySchema({
