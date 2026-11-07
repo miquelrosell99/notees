@@ -38,6 +38,7 @@ All chrome MUST compose from `apps/web/src/components/ui/kit/` — one element p
 - **No transient-internal-doc pointers in the tree**: code, tests, docs, and CHANGELOG entries never reference internal proposal folders or transient design docs.
 - **Parallel sessions**: other agent or human sessions may be working in this repo at the same time — `git status --porcelain` + `git log --oneline -5` at session start; per-file staging only (never `git add -A`); red tests in files you didn't touch are someone else's in-flight work — report, don't fix.
 - **Commit and push when done**: a finished slice — gate green, `CHANGELOG.md` entry in — is committed (per-file staging, Conventional Commits: `feat(web): …`) and pushed; never force-push.
+- **Redeploy what you ship — always via the live stack's own compose** (`docker compose build <service> && docker compose up -d` from the live stack folder, whose build context IS this checkout): the running stack carries the local build, never the registry tag. Release tags are for other users of the app, not for the fleet's own deployment — never wait for a release, never pin the fleet stack to `ghcr.io` tags. A code change is not live until the changed service's image is rebuilt from the checkout and the container recreated; then the `verify-min.mjs` smoke must answer VERIFY-PASS (enforced at all times).
 
 ## Records index
 
