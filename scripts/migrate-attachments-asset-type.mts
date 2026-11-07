@@ -83,6 +83,8 @@ export {
 
 // --- CLI ----------------------------------------------------------------------
 
+const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
+
 interface CliOptions {
   dataDir: string;
   workspace: string;
@@ -196,7 +198,7 @@ function main(): void {
       );
     }
 
-    const envelopes = buildEnvelopes(options.workspace, plan);
+    const envelopes = buildEnvelopes(options.workspace, plan, Date.now());
     if (envelopes.length === 0) {
       console.log("\nnothing to migrate.");
       return;

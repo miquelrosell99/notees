@@ -88,6 +88,8 @@ import {
   MIGRATION_IDENTITY,
   planMoves,
   validateEnvelopes,
+  VISIBLE_PREDICATE,
+  type PlannedMove,
 } from "./lib/migrations/cover-banner-alias.ts";
 
 export {
@@ -101,6 +103,8 @@ export {
 
 
 // --- CLI ----------------------------------------------------------------------
+
+const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
 interface CliOptions {
   dataDir: string;
@@ -241,7 +245,7 @@ function main(): void {
       console.log(`  SKIPPED ${skip.nodeId} (${skip.schemaId}): ${skip.reason}`);
     }
 
-    const envelopes = buildEnvelopes(options.workspace, moves);
+    const envelopes = buildEnvelopes(options.workspace, moves, Date.now());
     if (envelopes.length === 0) {
       console.log("\nnothing to migrate — the workspace carries no retired assertions.");
       return;
