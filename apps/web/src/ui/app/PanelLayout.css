@@ -26,7 +26,8 @@
    centered single-column cap drops) and takes its height, so the frame
    can pin the top bar and stretch the columns between it and the card
    bottom. */
-.nt-page-card > .nt-node-view:has(.nt-page--panelled) {
+.nt-page-card > .nt-node-view:has(.nt-page--panelled),
+.nt-page-card > .nt-node-view--panelled {
   max-width: none;
   height: 100%;
 }
@@ -43,6 +44,32 @@
      and this root padding would double it — the bar's own horizontal
      inset rides the .nt-node-topbar override below. */
   padding: var(--spacing-2) 0 0;
+}
+
+/* The focused block view's panelled shell (the NodeView wrapper around the
+   shared MainContentFrame): the SAME geometry as .nt-page--panelled — the
+   frame fills the card so the top bar pins to the card top and the column
+   row stretches to its bottom; the horizontal inset is the frame body
+   row's, the bar carries its own. */
+.nt-node-view--panelled {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2) 0 0;
+}
+
+/* The panelled focused block view's root: the frame's middle cell owns the
+   scroll (.nt-page-content) and the .nt-nodeview-body cap owns the
+   measure, so the .nt-page default cap + padding retire exactly like
+   .nt-page--panelled's. */
+.nt-focused-block--panelled {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 /* The fullscreen whiteboard surface: the canvas is the card's sole
@@ -110,7 +137,8 @@
    invisible 48×48 hit-area overlay (::after) that inflates every
    ancestor's scrollWidth by a few px — the column must not turn that into
    a horizontal scrollbar (wide tables scroll inside .nt-table-wrap). */
-.nt-page--panelled .nt-page-content {
+.nt-page--panelled .nt-page-content,
+.nt-node-view--panelled .nt-page-content {
   align-self: stretch;
   display: flex;
   flex-direction: column;

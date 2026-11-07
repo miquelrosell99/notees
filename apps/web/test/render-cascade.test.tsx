@@ -23,6 +23,7 @@ import type { CloneWriteSurface } from "../src/core/clone.js";
 import { NodeView } from "../src/ui/App.js";
 import { NodeContextMenu } from "../src/features/node-menu/NodeContextMenu.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
+import { DEVICE_SETTINGS_PREFIX } from "../src/features/settings/deviceSettings.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -178,6 +179,113 @@ describe("NodeView render cascade (Revision 11)", () => {
     expect(screen.getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(container.querySelector(".nt-class")).not.toBeNull();
     expect(container.querySelector(".nt-focused-block")).toBeNull();
+  });
+});
+
+describe("the focused block view's panelled chrome (the main surface)", () => {
+  it("the main surface renders the page view's panelled composition: the SAME nodeview top bar and BOTH panel columns for the focused node", async () => {
+    const client = await seedClient();
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const blockId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "focused body" }],
+    });
+    // A heading child so the focused node's Table of content renders.
+    await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "heading", children: [{ type: "text", text: "Background" }] }],
+    });
+
+    const { container } = render(
+      <NodeView client={client} nodeId={blockId} onOpenNode={() => {}} cornerMenu />,
+    );
+
+    // The page view's panelled registers…
+    expect(container.querySelector(".nt-node-view--panelled")).not.toBeNull();
+    expect(container.querySelector(".nt-focused-block--panelled")).not.toBeNull();
+    const topBar = container.querySelector(".nt-node-topbar") as HTMLElement;
+    expect(topBar).not.toBeNull();
+    // …the SAME bar composition: both panel toggles (each above its
+    // column), the focused view's outline/prose switcher, and the "…" node
+    // menu.
+    expect(
+      within(topBar).getByRole("button", { name: "Hide context panel" }),
+    ).not.toBeNull();
+    expect(
+      within(topBar).getByRole("button", { name: "Hide properties panel" }),
+    ).not.toBeNull();
+    expect(within(topBar).getByRole("group", { name: "Blocks view" })).not.toBeNull();
+    expect(within(topBar).getByRole("button", { name: "Node actions" })).not.toBeNull();
+
+    // Both panel columns carry the FOCUSED node's info + metadata: the
+    // context column rides the page view's widget stack (graph/TOC/
+    // Activity/Version history/Comments)…
+    const context = container.querySelector(".nt-page-context") as HTMLElement;
+    expect(context).not.toBeNull();
+    expect(within(context).getByRole("button", { name: /Local graph/ })).not.toBeNull();
+    expect(within(context).getByRole("button", { name: /Table of content/ })).not.toBeNull();
+    expect(within(context).getByRole("button", { name: /^Activity/ })).not.toBeNull();
+    expect(within(context).getByRole("button", { name: /Version history/ })).not.toBeNull();
+    expect(within(context).getByRole("button", { name: /^Comments/ })).not.toBeNull();
+    // …and the right panel rides the properties sidebar.
+    expect(container.querySelector(".nt-page-side-panel")).not.toBeNull();
+  });
+
+  it("the focused view's panel toggles ride the same app-wide device prefs as the page view's", async () => {
+    const client = await seedClient();
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const blockId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "focused body" }],
+    });
+
+    const { container, unmount } = render(
+      <NodeView client={client} nodeId={blockId} onOpenNode={() => {}} cornerMenu />,
+    );
+    expect(container.querySelector(".nt-page-side-panel")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide properties panel" }));
+    expect(container.querySelector(".nt-page-side-panel")).toBeNull();
+    expect(container.querySelector(".nt-page-context")).not.toBeNull();
+    expect(localStorage.getItem(`${DEVICE_SETTINGS_PREFIX}pageSidePanelCollapsed`)).toBe(
+      "true",
+    );
+    unmount();
+
+    // The pref persists — the app-wide panel state, not per view.
+    const second = render(
+      <NodeView client={client} nodeId={blockId} onOpenNode={() => {}} cornerMenu />,
+    );
+    expect(second.container.querySelector(".nt-page-side-panel")).toBeNull();
+  });
+
+  it("the compact (sections-layout) register renders no bar and no panels — the chrome rides the absolute corner", async () => {
+    const client = await seedClient();
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const blockId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "focused body" }],
+    });
+
+    const { container } = render(
+      <NodeView
+        client={client}
+        nodeId={blockId}
+        onOpenNode={() => {}}
+        cornerMenu
+        sectionsLayout
+      />,
+    );
+
+    expect(container.querySelector(".nt-node-view--panelled")).toBeNull();
+    expect(container.querySelector(".nt-focused-block--panelled")).toBeNull();
+    expect(container.querySelector(".nt-node-topbar")).toBeNull();
+    expect(container.querySelector(".nt-page-context")).toBeNull();
+    expect(container.querySelector(".nt-page-side-panel")).toBeNull();
+    const corner = container.querySelector(".nt-node-view__corner") as HTMLElement;
+    expect(corner).not.toBeNull();
+    expect(within(corner).getByRole("group", { name: "Blocks view" })).not.toBeNull();
+    expect(within(corner).getByRole("button", { name: "Node actions" })).not.toBeNull();
   });
 });
 

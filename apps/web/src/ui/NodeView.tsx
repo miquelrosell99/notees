@@ -16,10 +16,15 @@
  * in the nodeview top bar when panelled, with the context-panel toggle
  * between them, else the absolute corner); class pages ride the same top
  * bar / corner via the "…" piece (the old class-only absolute corner
- * overlapped the panelled bar's context toggle); inline-block views ride
- * the same nodeview top bar the page view composes (the SurfaceTopBar
- * primitive, hairline included) — the "…" menu sits in its right cluster,
- * replacing the retired absolute corner.
+ * overlapped the panelled bar's context toggle); inline-block (focused)
+ * views on the main surface wear the page view's PANELLED composition —
+ * the shared MainContentFrame, the same nodeview top bar (now with the
+ * view switcher too, offering the focused view's honest outline/prose
+ * pair), and BOTH panel columns carrying the focused node's info
+ * (graph/TOC/Activity/Version history/Comments) and metadata — toggled
+ * from the same bar, riding the same app-wide device prefs; the compact
+ * (sections-layout) register rides the absolute corner like every compact
+ * page.
  *
  * Surfaces: main (default) · workspace card (compact layout via
  * `cornerMenu: false`) · preview (`preview` — hover/peek: no machinery at
@@ -43,8 +48,24 @@ import { FocusedBlockView } from "./FocusedBlockView.js";
 import { NodeMenuButton, type ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { rendersAsInlineBlockOf } from "./renderStateLabel.js";
 import { ViewToolbar } from "../features/collection/ViewToolbar.js";
+import type { ViewMode } from "../features/collection/types.js";
+import { LocalGraphCard } from "../features/collection/LocalGraphCard.js";
+import { TocSection } from "./app/sidebarSections.js";
+import { ActivityLogSection } from "../features/page-sections/ActivityLogSection.js";
+import { VersionHistorySection } from "../features/page-sections/VersionHistorySection.js";
+import { CommentsSection } from "../features/page-sections/CommentsSection.js";
+import { PropertiesSidebar } from "../features/metadata/index.js";
+import { useDeviceSetting } from "../features/settings/deviceSettings.js";
 import { useViewModePreference } from "./viewPrefs.js";
-import { SurfaceTopBar } from "../components/ui/kit/SurfaceTopBar.js";
+import { MainContentFrame } from "./MainContentFrame.js";
+import { NodeTopbar } from "./PageChrome.js";
+
+/**
+ * The focused view's switcher modes: the collection coerces every other
+ * mode to outline until cards/table decide a parent display, so the bar
+ * offers the honest pair only.
+ */
+const FOCUSED_BLOCKS_MODES: ViewMode[] = ["outline", "prose"];
 
 export function NodeView({
   client,
@@ -151,6 +172,20 @@ export function NodeView({
     "outline",
     BLOCKS_VIEW_MODES,
   );
+  /**
+   * The panelled focused view wears the SAME global panel + focus-mode
+   * device state the page view reads (the panels' open/closed state is
+   * app-wide, not per view).
+   */
+  const [focusMode] = useDeviceSetting("focusMode", false);
+  const [sidePanelCollapsed, setSidePanelCollapsed] = useDeviceSetting(
+    "pageSidePanelCollapsed",
+    false,
+  );
+  const [contextPanelCollapsed, setContextPanelCollapsed] = useDeviceSetting(
+    "pageContextPanelCollapsed",
+    false,
+  );
   const node = client.getNode(nodeId);
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
@@ -158,19 +193,20 @@ export function NodeView({
   const inlineBlock = rendersAsInlineBlockOf(client, node);
   const pageView = !node.isClass && !inlineBlock;
   /**
-   * The card's top-right chrome: pages get the blocks view switcher + the
-   * "…" node menu as two pieces (rendered by PageView — in the nodeview top
-   * bar when panelled, with the context-panel toggle between them, else the
-   * absolute corner); the "…" menu also rides the top bar for CLASS pages
-   * (its old absolute corner pinned to the card's top-
-   * right and overlapped the panelled bar's context toggle). Inline-block
-   * views keep just the "…" menu in the absolute corner (they render no
-   * PageView chrome at all). The preview surface carries none.
+   * The card's top-right chrome pieces: pages AND the focused block view
+   * get the blocks view switcher (rendered by NodeView — in the nodeview
+   * top bar when panelled, else the absolute corner); the "…" menu rides
+   * the same sites (chromeMenu for pages, focusedMenu for the focused
+   * view). The preview surface carries none.
    */
   const chromeModes =
-    pageView && cornerMenu && !preview ? (
+    (pageView || inlineBlock) && cornerMenu && !preview ? (
       <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
-        <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
+        <ViewToolbar
+          modes={inlineBlock ? FOCUSED_BLOCKS_MODES : BLOCKS_VIEW_MODES}
+          value={blocksMode}
+          onChange={setBlocksMode}
+        />
       </div>
     ) : undefined;
   const chromeMenu =
@@ -185,10 +221,10 @@ export function NodeView({
       />
     ) : undefined;
   /**
-   * The inline-block (focused) view's bar menu: the same "…" node menu
-   * pages carry, riding the focused view's own nodeview top bar below —
-   * the absolute corner retired in favor of the page view's bar shape
-   * (the SurfaceTopBar primitive, hairline included).
+   * The inline-block (focused) view's menu: the same "…" node menu pages
+   * carry, riding the SAME nodeview top bar the page view composes when
+   * panelled (below), or the compact register's absolute corner beside the
+   * view switcher.
    */
   const focusedMenu =
     inlineBlock && cornerMenu && !preview ? (
@@ -202,17 +238,13 @@ export function NodeView({
       />
     ) : undefined;
   /**
-   * The compact layout's corner renders the two pieces back to back; the
-   * panelled NodeTopbar renders them with the context-panel toggle between
-   * (view switcher · context toggle · "…").
+   * The panelled main surface (the default): the focused view wears the
+   * page view's panelled composition — the shared frame, the nodeview top
+   * bar, and BOTH panel columns for the FOCUSED node. The compact
+   * (sections-layout) register rides the absolute corner like every
+   * compact page.
    */
-  const chromeRight =
-    chromeModes !== undefined && chromeMenu !== undefined ? (
-      <>
-        {chromeModes}
-        {chromeMenu}
-      </>
-    ) : undefined;
+  const focusedPanelled = inlineBlock && cornerMenu && !preview && !sectionsLayout;
   const view = rendersAsInlineBlockOf(client, node) ? (
     /* Block mode — the focused block view: the node is
        the PARENT of a NodeCollection (the v1 "show parents" prop,
@@ -227,6 +259,7 @@ export function NodeView({
       node={node}
       viewMode={blocksMode}
       readOnly={preview}
+      panelled={focusedPanelled}
       onOpenNode={onOpenNode}
       onOpenInSidebar={onOpenInSidebar}
     />
@@ -259,20 +292,101 @@ export function NodeView({
     />
   );
   if (!cornerMenu || preview) return view;
+
+  /**
+   * The TOC entry jump (the focused view's context column): scroll the
+   * view to the block and flash it — a TOC entry is navigation within the
+   * surface, not an open gesture.
+   */
+  const jumpToBlock = (blockId: string) => {
+    const el = document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+    if (!(el instanceof HTMLElement)) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("nt-block--flash");
+    // Restart the flash animation when the same entry is clicked twice.
+    void el.offsetWidth;
+    el.classList.add("nt-block--flash");
+    window.setTimeout(() => el.classList.remove("nt-block--flash"), 1400);
+  };
+
+  if (focusedPanelled) {
+    return (
+      <div className="nt-node-view nt-node-view--panelled">
+        {/* The focused block view wears the page view's panelled
+            composition: the SAME nodeview top bar (context toggle + classes
+            pills left, the view switcher + "…" menu right, the properties
+            toggle trailing) over the shared frame — the context column and
+            the properties sidebar carry the FOCUSED node's info and
+            metadata, and both columns keep the page view's device-local
+            collapse (the panel state is app-wide). */}
+        <MainContentFrame
+          topBar={
+            <NodeTopbar
+              client={client}
+              nodeId={nodeId}
+              classIds={node.classIds}
+              sidePanelCollapsed={sidePanelCollapsed}
+              onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
+              contextPanelCollapsed={contextPanelCollapsed}
+              onToggleContextPanel={
+                focusMode ? undefined : () => setContextPanelCollapsed(!contextPanelCollapsed)
+              }
+              chromeModes={chromeModes}
+              chromeMenu={focusedMenu}
+              onOpenPage={onOpenNode}
+              focusMode={focusMode}
+            />
+          }
+          leftPanel={
+            !contextPanelCollapsed && !focusMode ? (
+              <>
+                {/* The node-relevant info widgets, same stack the page
+                    view's context column carries — for the focused node. */}
+                <LocalGraphCard
+                  client={client}
+                  nodeId={nodeId}
+                  onOpenNode={(id) => onOpenNode?.(id)}
+                />
+                <TocSection client={client} pageId={nodeId} onJumpToBlock={jumpToBlock} />
+                <ActivityLogSection client={client} nodeId={nodeId} />
+                <VersionHistorySection client={client} nodeId={nodeId} />
+                <CommentsSection client={client} nodeId={nodeId} onOpenNode={onOpenNode} />
+              </>
+            ) : undefined
+          }
+          rightPanel={
+            !sidePanelCollapsed && !focusMode ? (
+              <PropertiesSidebar
+                client={client}
+                nodeId={nodeId}
+                onOpenPage={onOpenNode}
+                onOpenInSidebar={onOpenInSidebar}
+                onOpenPageRaw={(id) => (onOpenNodeRaw ?? onOpenNode)?.(id)}
+              />
+            ) : undefined
+          }
+        >
+          {/* The same middle-cell register the panelled page rides: the
+              cell wrapper is the scroll box, the 46rem cap centers the
+              focused collection inside it. */}
+          <div className="nt-page-content">
+            <div className="nt-nodeview-body">{view}</div>
+          </div>
+        </MainContentFrame>
+      </div>
+    );
+  }
+
   return (
     <div className="nt-node-view">
-      {/* The focused block view wears the SAME nodeview top bar the page
-          view composes (the SurfaceTopBar primitive — the hairline rides
-          its border-bottom); the "…" node menu sits in the bar's right
-          cluster. The bar is in-flow above the content, replacing the
-          retired absolute corner. */}
-      {focusedMenu !== undefined && (
-        <SurfaceTopBar
-          className="nt-node-topbar"
-          actions={
-            <div className="nt-node-topbar__right">{focusedMenu}</div>
-          }
-        />
+      {/* The compact (sections-layout) focused view rides the page view's
+          absolute corner: the view switcher + the "…" menu, no in-flow
+          bar. Page views keep their own corner inside PageView. */}
+      {inlineBlock && (
+        <div className="nt-node-view__corner">
+          {chromeModes}
+          {focusedMenu}
+        </div>
       )}
       {view}
     </div>
