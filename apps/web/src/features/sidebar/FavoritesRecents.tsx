@@ -146,7 +146,9 @@ export function FavoritesRecents({
   const recentPages = recents
     .map((id) => byId.get(id))
     .filter((node): node is PageSummary | ClientNode => node !== undefined)
-    .slice(0, 12);
+    // Twenty entries — the section's min-height floor guarantees real
+    // viewport space now, so a deeper history earns its keep.
+    .slice(0, 20);
 
   /**
    * Row label: PLAIN TEXT — titleOfNode's chrome
@@ -287,6 +289,9 @@ export function FavoritesRecents({
           icon: "mdi-star-outline",
           // Always rendered — empty says so plainly.
           empty: "No favorites yet",
+          // Capped at five visible rows (scrolls beyond) so a long favorites
+          // list can't starve Recents of the column's free height.
+          capped: true,
           // The same row UI as Recents (icons via rowIconFor) plus drag
           // sort: the DnD context wraps the list.
           listWrapper: (list) => (
@@ -380,6 +385,9 @@ export function sidebarSection(
     /** The section's list absorbs the free nav height and scrolls alone —
      * every other sidebar region stays pinned. */
     scrollable?: boolean;
+    /** The section's list shows at most five rows and scrolls beyond —
+     * the favorites cap that keeps a long list from starving Recents. */
+    capped?: boolean;
     /** Always-render placeholder when the section is empty (Favorites
      * uses it); without it an empty section hides. */
     empty?: string;
@@ -400,7 +408,13 @@ export function sidebarSection(
   const collapsed = collapsible && collapsedSections[title] === true;
   return (
     <section
-      className={options.scrollable ? "nt-side-section nt-side-section--scroll" : "nt-side-section"}
+      className={
+        options.scrollable
+          ? "nt-side-section nt-side-section--scroll"
+          : options.capped
+            ? "nt-side-section nt-side-section--capped"
+            : "nt-side-section"
+      }
     >
       {collapsible ? (
         <button
