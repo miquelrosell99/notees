@@ -168,6 +168,21 @@ export function Sidebar({
     setCollapsedSections((previous) => ({ ...previous, [title]: previous[title] !== true }));
   };
 
+  // The visible nav hubs (the section header's count badge names them).
+  const navEntries = NAV_ENTRIES.filter(
+    (entry) =>
+      !entry.menuOnly &&
+      (entry.key !== "journal" || showJournals) &&
+      (entry.key !== "inbox" || showInbox) &&
+      (entry.key !== "calendar" || showCalendar) &&
+      // The Tasks hub is task-family chrome — hidden while
+      // the family is off (live read; absent row = enabled).
+      (entry.key !== "tasks" || client.isFeatureEnabled("tasks")) &&
+      // The journal surfaces ride the journal toggle: the journal view AND Today-page management
+      // hide while it is off — the date classes stay always-on.
+      (entry.key !== "journal" && entry.key !== "today" || client.isFeatureEnabled("journal")),
+  );
+
   return (
     <aside className="nt-sidebar">
       {/* No top row: the workspace selector and the
@@ -176,39 +191,26 @@ export function Sidebar({
       <nav className="nt-sidebar-nav">
         {sidebarSection(
           "Navigation",
-          [
-            ...NAV_ENTRIES.filter(
-              (entry) =>
-                !entry.menuOnly &&
-                (entry.key !== "journal" || showJournals) &&
-                (entry.key !== "inbox" || showInbox) &&
-                (entry.key !== "calendar" || showCalendar) &&
-                // The Tasks hub is task-family chrome — hidden while
-                // the family is off (live read; absent row = enabled).
-                (entry.key !== "tasks" || client.isFeatureEnabled("tasks")) &&
-                // The journal surfaces ride the journal toggle: the journal view AND Today-page management
-                // hide while it is off — the date classes stay always-on.
-                (entry.key !== "journal" && entry.key !== "today" || client.isFeatureEnabled("journal")),
-            ).map((entry) => (
-              <li key={entry.key} className="nt-side-row">
-                <button
-                  type="button"
-                  className={
-                    activeNav === entry.key && selectedPageId === null
-                      ? "nt-side-item nt-side-item-active"
-                      : "nt-side-item"
-                  }
-                  onClick={() => onSelectNav(entry.key)}
-                >
-                  <Icon path={entry.icon} size={1} className="nt-side-item-icon" />
-                  <span className="nt-side-item-label">{entry.label}</span>
-                </button>
-              </li>
-            )),
-          ],
+          navEntries.map((entry) => (
+            <li key={entry.key} className="nt-side-row">
+              <button
+                type="button"
+                className={
+                  activeNav === entry.key && selectedPageId === null
+                    ? "nt-side-item nt-side-item-active"
+                    : "nt-side-item"
+                }
+                onClick={() => onSelectNav(entry.key)}
+              >
+                <Icon path={entry.icon} size={1} className="nt-side-item-icon" />
+                <span className="nt-side-item-label">{entry.label}</span>
+              </button>
+            </li>
+          )),
           // The section icon rides the header like Favorites' star and
-          // Recents' clock (the shared sidebarSection shell).
-          { icon: "mdi-compass-outline" },
+          // Recents' clock (the shared sidebarSection shell); the count
+          // names the visible hubs.
+          { icon: "mdi-compass-outline", count: navEntries.length },
           collapsedSections,
           toggleSection,
         )}

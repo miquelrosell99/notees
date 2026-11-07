@@ -100,12 +100,31 @@
 }
 
 .nt-side-header {
+  /* flex row: chevron + icon + title ride left, the count badge rides the
+     right edge (margin-left: auto). Identical to the old inline flow when
+     no badge renders. */
+  display: flex;
+  align-items: center;
   margin: var(--spacing-2) var(--spacing-2) var(--spacing-1);
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-section);
   text-transform: uppercase;
   color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Count badge — the design-system register: 9px-radius pill, 10px muted
+   text, surface-variant fill (never accent-filled). The total vs the
+   visible rows is the "more below" signal for a capped (Favorites) or
+   scrolled (Recents) list. */
+.nt-side-header-count {
+  margin-left: auto;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--tab-count-radius);
+  background: var(--md-sys-color-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  line-height: 1.6;
 }
 
 .nt-side-list {

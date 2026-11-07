@@ -290,8 +290,10 @@ export function FavoritesRecents({
           // Always rendered — empty says so plainly.
           empty: "No favorites yet",
           // Capped at five visible rows (scrolls beyond) so a long favorites
-          // list can't starve Recents of the column's free height.
+          // list can't starve Recents of the column's free height; the
+          // header count is the "more below" signal (total vs visible).
           capped: true,
+          count: favoritePages.length,
           // The same row UI as Recents (icons via rowIconFor) plus drag
           // sort: the DnD context wraps the list.
           listWrapper: (list) => (
@@ -316,8 +318,9 @@ export function FavoritesRecents({
         "Recents",
         recentPages.map((node) => renderRow(node, rowIconFor(node), "recents")),
         // The clock icon rides the header like Favorites' star (the shared
-        // sidebarSection shell); the section keeps its scrollable list.
-        { scrollable: true, icon: "mdi-clock-outline" },
+        // sidebarSection shell); the section keeps its scrollable list; the
+        // count names the listed entries (up to 20).
+        { scrollable: true, icon: "mdi-clock-outline", count: recentPages.length },
         collapsedSections,
         onToggleCollapse,
       )}
@@ -391,6 +394,11 @@ export function sidebarSection(
     /** Always-render placeholder when the section is empty (Favorites
      * uses it); without it an empty section hides. */
     empty?: string;
+    /** Total entries the section holds — the header's count badge (the
+     * design-system register: muted pill, surface-variant). For a capped or
+     * scrolled list the total vs the visible rows is the "more below"
+     * signal. */
+    count?: number;
     /** Wraps the <ul> (the favorites drag-sort's DndContext/SortableContext). */
     listWrapper?: ((list: React.ReactNode) => React.ReactNode) | undefined;
   } = {},
@@ -406,6 +414,13 @@ export function sidebarSection(
   if (body === null) return null;
   const collapsible = options.collapsible !== false;
   const collapsed = collapsible && collapsedSections[title] === true;
+  // The count badge rides the header's right edge (margin-left: auto): the
+  // total entries vs the visible rows is the "more below" signal for a
+  // capped (Favorites) or scrolled (Recents) list.
+  const countBadge =
+    options.count !== undefined ? (
+      <span className="nt-side-header-count">{options.count}</span>
+    ) : null;
   return (
     <section
       className={
@@ -432,6 +447,7 @@ export function sidebarSection(
             <Icon path={options.icon} size={0.8} className="nt-side-header-icon" />
           )}
           <span>{title}</span>
+          {countBadge}
         </button>
       ) : (
         <h3 className="nt-side-header">
@@ -439,6 +455,7 @@ export function sidebarSection(
             <Icon path={options.icon} size={0.8} className="nt-side-header-icon" />
           )}
           <span>{title}</span>
+          {countBadge}
         </h3>
       )}
       {!collapsed &&
