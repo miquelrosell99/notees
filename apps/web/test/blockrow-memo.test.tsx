@@ -220,7 +220,8 @@ describe("BlockRow bail-out (memoized rows)", () => {
     await act(async () => {
       newId = await client.createObject({
         isEmbedded: true,
-        parentId: aRows[1],
+        // The array is filled three lines above — index 1 always exists.
+        parentId: aRows[1]!,
         contentAst: [{ type: "text", text: "nested new row" }],
       });
     });
