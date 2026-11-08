@@ -93,6 +93,20 @@ describe("useTabRelay", () => {
     expect(sent[0]).toMatchObject({ ok: false, error: { code: "feature_disabled" } });
   });
 
+  it("readlater mode pre-bump: the unknown feature id is ungated — capture answers ok + objectId", async () => {
+    if (READ_IT_LATER_KNOWN) return; // post-bump: the OFF gate above covers readlater
+    const client = await authedClient();
+    const sent: unknown[] = [];
+    vi.spyOn(window, "postMessage").mockImplementation((d: unknown) => void sent.push(d));
+    const ref = { current: client };
+    render(<Probe clientRef={ref} serverUrl={SERVER} token="tok" workspacePlaintext unlockRequest={null} />);
+    post(REQUEST("readlater"));
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    const response = sent[0] as { ok: boolean; objectId?: string };
+    expect(response.ok).toBe(true);
+    expect(client.getNode(response.objectId!)).toBeDefined();
+  });
+
   it("keyed workspace with no master key in custody → failed, zero creates", async () => {
     const client = await authedClient();
     const sent: unknown[] = [];

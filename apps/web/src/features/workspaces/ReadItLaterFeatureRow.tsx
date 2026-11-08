@@ -15,6 +15,7 @@ import { WORKSPACE_FEATURES } from "@notees/protocol";
 import type { AnyClient } from "../../features/sidebar/FavoritesRecents.js";
 import { Icon } from "../../ui/Icon.js";
 import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
+import { FEATURE_TOGGLE_WRITES_ENABLED } from "./WorkspaceSettingsModal.js";
 
 export const READ_IT_LATER_FEATURE = "readItLater" as WorkspaceFeature;
 
@@ -48,6 +49,7 @@ export function ReadItLaterFeatureRow(props: { client: AnyClient }): JSX.Element
             console.warn(`[features] setFeatureEnabled (readItLater) failed:`, error);
           });
         }}
+        disabled={!FEATURE_TOGGLE_WRITES_ENABLED || client === null}
         size="sm"
         aria-label="Read later feature"
       />

@@ -25,7 +25,7 @@ Documentation for people — using the app, and developing or operating it. One 
 - **[Tables](features/tables.md)** — cells are nodes; the grid is a view.
 - **[Whiteboards](features/whiteboards.md)** — the spatial canvas; cards are blocks.
 - **[Pages](features/pages.md)** — also home to presenting a page, focus mode, promotion/demotion, copying, dividing, and merging.
-- **[The Notees Connector](features/connector.md)** — capturing web pages into the workspace: the tab relay, direct capture, the `web_page` node.
+- **[The Notees Connector](features/connector.md)** — capturing web pages into the workspace: the tab relay, direct capture, the `web_page` node (in progress).
 
 **Organization & discovery**
 

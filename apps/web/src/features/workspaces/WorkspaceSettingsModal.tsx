@@ -50,7 +50,7 @@ import "../settings/settingsModal.css";
  * objects keep their data — the family's surfaces hide"); a family with zero
  * instances (or an enable) writes immediately.
  */
-const FEATURE_TOGGLE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
+export const FEATURE_TOGGLE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
 
 type DateFormat =
   | "YYYY/MM/DD"

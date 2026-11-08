@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, parseDateNodeId } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { captureWebPage } from "../src/features/connector/captureWebPage.js";
@@ -52,7 +52,17 @@ describe("captureWebPage", () => {
     const access = client
       .getEffectiveProperties(id)
       .find((p) => p.propertySchemaId === SYSTEM_PROPERTY_UUIDS.accessDate);
-    expect(access).toBeDefined(); // datetime value — a date-chain node ref
+    expect(access).toBeDefined();
+    // The DATE value is a date-chain node reference ({nodeId}) stamping the
+    // LOCAL day of the capture moment (the journal-day law) — a real day node.
+    const moment = new Date("2026-11-08T10:00:00Z");
+    const dayId = (access!.value as { nodeId: string }).nodeId;
+    expect(client.getNode(dayId)).toBeDefined();
+    expect(parseDateNodeId(dayId)).toMatchObject({
+      year: moment.getFullYear(),
+      month: moment.getMonth() + 1,
+      day: moment.getDate(),
+    });
   });
 
   it("duplicate URL re-capture returns the existing node; only one web_page exists", async () => {
