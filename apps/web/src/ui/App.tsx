@@ -115,6 +115,7 @@ import {
   useWorkspaceConnection,
 } from "./app/index.js";
 import { ConnectingScreen } from "./app/ConnectingScreen.js";
+import { useTabRelay } from "./app/useTabRelay.js";
 // The global stylesheet family, in cascade order — the contract the
 // 2026-10-28 co-location pass established: app.css was the LAST css import,
 // so every file below imports at this same spot, in this exact order, and
@@ -510,6 +511,8 @@ export function App() {
     focusMode,
     setFocusMode,
   });
+
+  useTabRelay({ clientRef, serverUrl, token, workspacePlaintext, unlockRequest });
 
   /**
    * The RAW open: sync the URL, the selection and Recents to exactly `id` —
