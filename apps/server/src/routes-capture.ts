@@ -24,6 +24,11 @@ import {
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
+import {
+  normalizeIdentifier,
+  resolveSourceMetadata,
+  type SourceMetadataRecord,
+} from "./resolve-source.js";
 import { workspaceFor } from "./routes-objects.js";
 
 export const captureBodySchema = z
@@ -52,6 +57,77 @@ export const captureBodySchema = z
     note: z.string().trim().max(10_000).optional(),
   })
   .strict();
+
+/**
+ * Best-effort resolver enrichment for a captured page: the raw identifiers
+ * are stamped regardless (the capture is the artifact); a successful
+ * resolveSourceMetadata fills authors/publicationDate/publisher/doi. A
+ * resolver miss/failure (404/502/disabled) DEGRADES to the unresolved
+ * capture — the URL capture is never held hostage by Crossref/OpenLibrary.
+ * publicationDate is a datetime schema: the year links the deterministic
+ * date-chain YEAR node (ensured through the same write path — the store
+ * fails loud on a ref to a missing node), never a bare year string.
+ */
+async function stampResolvedFields(
+  ctx: ServerContext,
+  workspaceId: string,
+  objectId: string,
+  identifiers: { doi?: string | undefined; isbn?: string | undefined },
+): Promise<void> {
+  const setProp = (propertySchemaId: string, value: unknown, elementId?: string) =>
+    ctx.submit({
+      workspaceId,
+      opType: "property.set",
+      payload: { objectId, propertySchemaId, value, ...(elementId ? { elementId } : {}) },
+      affectedNodeIds: [objectId],
+      client: "capture",
+    });
+  // The raw identifiers are stamped regardless — the intent stays visible.
+  if (identifiers.doi !== undefined) {
+    await setProp(SYSTEM_PROPERTY_UUIDS.doi, normalizeIdentifier("doi", identifiers.doi));
+  }
+  if (identifiers.isbn !== undefined) {
+    await setProp(SYSTEM_PROPERTY_UUIDS.isbn, normalizeIdentifier("isbn", identifiers.isbn));
+  }
+  const params = identifiers.doi !== undefined ? { doi: identifiers.doi } : { isbn: identifiers.isbn! };
+  let record: SourceMetadataRecord;
+  try {
+    record = await resolveSourceMetadata(ctx, workspaceId, params);
+  } catch {
+    return;
+  }
+  for (const author of record.authors) {
+    await setProp(SYSTEM_PROPERTY_UUIDS.authors, author, uuidv7());
+  }
+  if (record.year !== undefined) {
+    const yearIso = `${record.year}-01-01`;
+    const yearId = chainNodeIds(yearIso).year;
+    const store = ctx.workspaces.storeFor(workspaceId);
+    const yearExists = store.database.prepare("SELECT 1 FROM node WHERE id = ?").get(yearId) !== undefined;
+    if (!yearExists) {
+      await ctx.submit({
+        workspaceId,
+        opType: "object.create",
+        payload: {
+          objectId: yearId,
+          parentId: null,
+          isEmbedded: false,
+          classIds: [SYSTEM_CLASS_UUIDS.year],
+          contentAst: [{ type: "text", text: dateNodeLabel(parseIsoDate(yearIso), "year") }],
+        },
+        affectedNodeIds: [yearId],
+        client: "capture",
+      });
+    }
+    await setProp(SYSTEM_PROPERTY_UUIDS.publicationDate, { nodeId: yearId });
+  }
+  if (record.publisher !== undefined) {
+    await setProp(SYSTEM_PROPERTY_UUIDS.publisher, record.publisher);
+  }
+  if (record.doi !== undefined) {
+    await setProp(SYSTEM_PROPERTY_UUIDS.doi, normalizeIdentifier("doi", record.doi));
+  }
+}
 
 export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext): void {
   app.post("/capture/web-page", async (request, reply) => {
@@ -148,6 +224,9 @@ export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext):
       affectedNodeIds: [objectId],
       client: "capture",
     });
+    if (parsed.data.identifiers !== undefined) {
+      await stampResolvedFields(ctx, workspaceId, objectId, parsed.data.identifiers);
+    }
     if (parsed.data.note !== undefined) {
       const noteBlockId = uuidv7();
       await ctx.submit({

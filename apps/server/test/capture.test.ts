@@ -2,10 +2,10 @@
  * POST /api/capture/web-page — auth classes, validation, envelope stamping,
  * read-later inbox, idempotency, E2EE rejection, feature gating.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InjectOptions } from "fastify";
 
-import { dayNodeId, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { chainNodeIds, dayNodeId, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
 
@@ -14,6 +14,7 @@ const CAPTURE_BODY = { url: CAPTURE_URL, title: "Example article", mode: "source
 
 let server: TestServer | null = null;
 afterEach(async () => {
+  vi.unstubAllGlobals();
   if (server !== null) { await closeTestServer(server); server = null; }
 });
 
@@ -132,5 +133,66 @@ describe("property stamping (task 5)", () => {
     ).toEqual([SYSTEM_PROPERTY_UUIDS.url, SYSTEM_PROPERTY_UUIDS.accessDate]);
     expect(envs.every((e) => e.client === "capture")).toBe(true);
     expect(envs.every((e) => e.actorId === server!.ctx.actorId)).toBe(true);
+  });
+});
+
+describe("resolver enrichment (task 6)", () => {
+  it("fills resolved fields from a DOI and still stamps the raw identifier", async () => {
+    server = await makeTestServer();
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify({
+        message: {
+          type: "journal-article",
+          title: ["Resolved title"],
+          author: [{ family: "Doe", given: "Jane" }, { family: "Roe", given: "Richard" }],
+          issued: { "date-parts": [[2021]] },
+          DOI: "10.1000/xyz",
+          publisher: "PubCo",
+          "container-title": ["The Journal"],
+        },
+      }), { status: 200 }),
+    ));
+    const res = await capture(server, {
+      ...CAPTURE_BODY,
+      url: "https://example.com/doi-article",
+      identifiers: { doi: "10.1000/xyz" },
+    }, server.authHeaders);
+    expect(res.statusCode).toBe(201);
+    const { objectId } = res.json();
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    const values = (schemaId: string) =>
+      (store.database
+        .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? ORDER BY idx")
+        .all(objectId, schemaId) as Array<{ value: string }>).map((r) => JSON.parse(r.value) as unknown);
+    expect(values(SYSTEM_PROPERTY_UUIDS.doi)).toEqual(["10.1000/xyz"]);
+    expect(values(SYSTEM_PROPERTY_UUIDS.authors)).toEqual(["Doe, Jane", "Roe, Richard"]);
+    // publicationDate is a datetime schema: the year links the deterministic
+    // date-chain YEAR node (a bare "2021" string is not a lawful datetime
+    // value — the store fails loud on the shape).
+    expect(values(SYSTEM_PROPERTY_UUIDS.publicationDate)).toEqual([
+      { nodeId: chainNodeIds("2021-01-01").year },
+    ]);
+    expect(values(SYSTEM_PROPERTY_UUIDS.publisher)).toEqual(["PubCo"]);
+    // The caller's title wins over the resolved one.
+    const node = store.database.prepare("SELECT content FROM node WHERE id = ?").get(objectId) as { content: string };
+    expect(JSON.parse(node.content)).toEqual([{ type: "text", text: "Example article" }]);
+  });
+
+  it("degrades gracefully when the provider 404s — capture still lands", async () => {
+    server = await makeTestServer();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 404 })));
+    const res = await capture(server, {
+      url: "https://example.com/missing-doi",
+      title: "Missing",
+      mode: "source",
+      identifiers: { doi: "10.9999/nothing" },
+    }, server.authHeaders);
+    expect(res.statusCode).toBe(201);
+    const { objectId } = res.json();
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    const doiRow = store.database
+      .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+      .get(objectId, SYSTEM_PROPERTY_UUIDS.doi) as { value: string } | undefined;
+    expect(doiRow && JSON.parse(doiRow.value)).toBe("10.9999/nothing");
   });
 });
