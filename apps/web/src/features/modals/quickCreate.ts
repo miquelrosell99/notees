@@ -333,6 +333,7 @@ export function stagedBindingsOf(client: AnyClient, classId: string): StagedProp
         dateQualified: null,
         active: true,
         pinned: spec.pinned ?? false,
+        showInNodeRows: spec.showInNodeRows ?? false,
       });
     }
   }
@@ -376,6 +377,7 @@ export function stagedPrefillRowsOf(
         dateQualified: null,
         active: true,
         pinned: spec?.pinned ?? false,
+        showInNodeRows: spec?.showInNodeRows ?? false,
       },
       schema,
     });

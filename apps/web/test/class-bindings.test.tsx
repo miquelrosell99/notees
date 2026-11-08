@@ -306,6 +306,52 @@ describe("Class View class properties editor", () => {
     ).not.toBeNull();
   });
 
+  it("round-trips the showInNodeRows flag through class.property.set (patch keeps, explicit false writes)", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Task");
+    const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
+    await client.setClassProperty(classId, schemaId, {});
+    // Absent on the wire reads false, both registry-only and extends-aware.
+    expect(client.getRegistryBindings(classId)[0]).toMatchObject({ showInNodeRows: false });
+    expect(client.getClassBindings(classId)[0]).toMatchObject({ showInNodeRows: false });
+
+    await client.setClassProperty(classId, schemaId, { showInNodeRows: true });
+    expect(client.getRegistryBindings(classId)[0]).toMatchObject({ showInNodeRows: true });
+    expect(client.getClassBindings(classId)[0]).toMatchObject({ showInNodeRows: true });
+
+    // The patch keeps the flag for omitted fields (the pin write leaves it)…
+    await client.setClassProperty(classId, schemaId, { pinned: true });
+    expect(client.getRegistryBindings(classId)[0]).toMatchObject({
+      pinned: true,
+      showInNodeRows: true,
+    });
+
+    // …and an explicit false writes.
+    await client.setClassProperty(classId, schemaId, { showInNodeRows: false });
+    expect(client.getRegistryBindings(classId)[0]).toMatchObject({ showInNodeRows: false });
+  });
+
+  it("toggles the node-row preview via the row's eye affordance (aria-pressed flips with the flag)", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Task");
+    const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
+    await client.setClassProperty(classId, schemaId, {});
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    await expandDefinitions();
+
+    const show = screen.getByRole("button", { name: "Show priority in node rows" });
+    expect(show.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(show);
+    await flushWrites();
+    expect(client.getRegistryBindings(classId)[0]).toMatchObject({ showInNodeRows: true });
+
+    const hide = screen.getByRole("button", { name: "Hide priority from node rows" });
+    expect(hide.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(hide);
+    await flushWrites();
+    expect(client.getRegistryBindings(classId)[0]).toMatchObject({ showInNodeRows: false });
+  });
+
   it("pins a binding via the row's pin toggle: class.property.set {pinned} re-tiers the list", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Task");

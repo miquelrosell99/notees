@@ -590,7 +590,7 @@ export class WorkspaceClientWrites {
    * Upsert a class → property-schema binding (class.property.set). The
    * payload PATCHES the row: omitted fields keep their existing values. The
    * binding carries the genuinely per-class mechanics ONLY — the active
-   * soft-unbind flag and the pinned tier flag.
+   * soft-unbind flag, the pinned tier flag, and the node-row preview flag.
    */
   async setClassProperty(
     classId: string,
@@ -600,6 +600,7 @@ export class WorkspaceClientWrites {
     const payload: Record<string, unknown> = { classId, propertySchemaId };
     if (fields.active !== undefined) payload.active = fields.active;
     if (fields.pinned !== undefined) payload.pinned = fields.pinned;
+    if (fields.showInNodeRows !== undefined) payload.showInNodeRows = fields.showInNodeRows;
     this.ctx.enqueueLocal(this.ctx.buildEnvelope("class.property.set", payload, [classId]));
   }
 

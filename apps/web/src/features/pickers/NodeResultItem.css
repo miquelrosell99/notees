@@ -48,6 +48,21 @@
   margin-bottom: var(--spacing-hairline);
 }
 
+/* The node-row preview line: the flagged bindings' values, one compact
+   " · "-joined line under the name — the crumbs' indent + measure, cropped
+   the same way (the hover tooltip rides the full string via title). */
+.node-result-item__meta {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  /* same indent as the crumbs — the value aligns with the name */
+  padding-left: calc(var(--spacing-6) + var(--spacing-micro));
+}
+
 /* The row rides the fleet ListRow (the register this surface co-defined);
    these are the surface deviations: the outer button owns the chrome
    (padding/radius/hover/scale), so the inner row is chromeless, tighter

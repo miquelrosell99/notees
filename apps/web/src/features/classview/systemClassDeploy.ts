@@ -232,6 +232,7 @@ export async function deploySystemClass(
         if (bound.has(schemaId) || spec!.bind === false) continue;
         await client.setClassProperty(classId, schemaId, {
           ...(spec!.pinned !== undefined ? { pinned: spec!.pinned } : {}),
+          ...(spec!.showInNodeRows !== undefined ? { showInNodeRows: spec!.showInNodeRows } : {}),
         });
       }
     }
@@ -250,6 +251,7 @@ export async function deploySystemClass(
       if (bound) continue;
       await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
         ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
+        ...(extra.showInNodeRows !== undefined ? { showInNodeRows: extra.showInNodeRows } : {}),
       });
     }
 
@@ -263,12 +265,14 @@ export async function deploySystemClass(
       for (const ref of sourceBindings) {
         const property = sourceBindingPropertyOf(ref);
         const pinned = typeof ref === "string" ? undefined : ref.pinned;
+        const showInNodeRows = typeof ref === "string" ? undefined : ref.showInNodeRows;
         const bound = client
           .getRegistryBindings(classId)
           .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property]);
         if (bound) continue;
         await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {
           ...(pinned !== undefined ? { pinned } : {}),
+          ...(showInNodeRows !== undefined ? { showInNodeRows } : {}),
         });
       }
     }

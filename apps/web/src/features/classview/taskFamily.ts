@@ -83,7 +83,9 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
  * classification, never a stored order). The pinned set mirrors
  * TASK_FAMILY_SEED (2026-10-27): Status/Scheduled/Deadline pinned,
  * Priority/Closed + project unpinned (no declared pin set carries
- * the new binding). The withdrawn taskRecurrence placeholder retires
+ * the new binding); the node-row preview flag mirrors the same seed —
+ * Status/Deadline flagged, Scheduled/Priority/Closed/project not. The
+ * withdrawn taskRecurrence placeholder retires
  * here — recurrence is the dedicated `repeat` property, arriving via the
  * domain seed envelopes + the store's ensureTaskFamilyRows, never this
  * ensure. */
@@ -94,6 +96,8 @@ const TASK_FAMILY: Array<{
   options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
   /** The binding row's tier flag (TASK_FAMILY_SEED.pinned). */
   pinned?: boolean;
+  /** The binding row's node-row preview flag (TASK_FAMILY_SEED.showInNodeRows). */
+  showInNodeRows?: boolean;
   /** Multi cardinality (the `project` relation; absent = single-value). */
   multi?: boolean;
   /** Node-typed target filter (already-resolved seed class ids — the shared
@@ -117,6 +121,7 @@ const TASK_FAMILY: Array<{
         color: option.color,
       })),
     pinned: true,
+    showInNodeRows: true,
     defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
   },
   {
@@ -130,6 +135,7 @@ const TASK_FAMILY: Array<{
     name: "Deadline",
     type: "datetime",
     pinned: true,
+    showInNodeRows: true,
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskPriority,

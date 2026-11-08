@@ -444,6 +444,7 @@ export class WorkspaceClientReads {
       .prepare(
         `SELECT cp.property_schema_id,
                 cp.active AS binding_active, cp.pinned AS binding_pinned,
+                cp.show_in_node_rows,
                 ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
@@ -508,6 +509,7 @@ export class WorkspaceClientReads {
         dateQualified: null,
         active: true,
         pinned: spec.pinned ?? false,
+        showInNodeRows: spec.showInNodeRows ?? false,
       });
     }
     return bindings.sort(byTierThenName);
@@ -536,6 +538,7 @@ export class WorkspaceClientReads {
       .prepare(
         `SELECT cp.property_schema_id,
                 cp.active AS binding_active, cp.pinned AS binding_pinned,
+                cp.show_in_node_rows,
                 ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
