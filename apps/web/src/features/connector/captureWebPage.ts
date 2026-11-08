@@ -10,15 +10,29 @@
  * the node to the workspace's "Read later" collection — created on first
  * use (a `collection`-classed node, op-log state like everything else).
  *
+ * Cache-coherent find-or-create: every decision read below rides the
+ * clients' *Fresh (uncached) read surface, never the WorkerClient's
+ * eventually-consistent render cache — a cold or dirty cache key answers
+ * the empty default synchronously, which through the cached reads used to
+ * duplicate web_page nodes for URLs already in the store, mint a second
+ * "Read later" collection, and re-stamp the seed deploy's envelopes on a
+ * cold boot (then journaled, so undoing a capture could invert no-op
+ * deploy ops). And the captures serialize through a per-client
+ * single-flight queue: two interleaved same-URL captures both pass a
+ * find-or-create read taken before either writes, so the dedupe alone
+ * cannot race — the second capture's reads land after the first's writes.
+ *
  * Fresh-workspace self-heal: the flush's staged pipeline derives a staged
  * row's kind from the schema registry (accessDate must stage as a DATE or
- * the datetime write is lawless), and the citation self-heal inside the
- * flush only runs for a class whose lineage reaches `source`. A workspace
- * that never received the server seed (offline-first device, pre-seed
- * workspace) has neither — so the capture deploys the `web_page` seed
- * class first (deploySystemClass: ancestors, the class node, the extends
- * edge, the property family — the offline-first twin of the server seed,
- * idempotent by construction, a complete no-op on a seeded workspace).
+ * the datetime write is lawless — the flush's kind re-derivation reads the
+ * registry fresh for the same reason), and the citation self-heal inside
+ * the flush only runs for a class whose lineage reaches `source`. A
+ * workspace that never received the server seed (offline-first device,
+ * pre-seed workspace) has neither — so the capture deploys the `web_page`
+ * seed class first (deploySystemClass: ancestors, the class node, the
+ * extends edge, the property family — the offline-first twin of the server
+ * seed, idempotent by construction, a complete no-op on a seeded
+ * workspace, every guard read fresh).
  */
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
@@ -57,12 +71,21 @@ function localIsoDateOf(date: Date): string {
   ).padStart(2, "0")}`;
 }
 
-function existingWebPageForUrl(client: AnyClient, url: string): string | undefined {
+/**
+ * The URL-dedupe lookup, over FRESH reads: every `web_page` member's url
+ * row straight from the store. Never the render cache — a cold key's []
+ * here mints a duplicate for a URL the store already carries (synced down
+ * or captured in another tab).
+ */
+async function existingWebPageForUrl(
+  client: AnyClient,
+  url: string,
+): Promise<string | undefined> {
   const wanted = normalizeUrl(url);
-  for (const member of client.getClassMembers(SYSTEM_CLASS_UUIDS.web_page)) {
-    const row = client
-      .getEffectiveProperties(member.id)
-      .find((p) => p.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url);
+  for (const member of await client.getClassMembersFresh(SYSTEM_CLASS_UUIDS.web_page)) {
+    const row = (await client.getEffectivePropertiesFresh(member.id)).find(
+      (p) => p.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url,
+    );
     if (row !== undefined && typeof row.value === "string" && normalizeUrl(row.value) === wanted) {
       return member.id;
     }
@@ -70,14 +93,25 @@ function existingWebPageForUrl(client: AnyClient, url: string): string | undefin
   return undefined;
 }
 
-function findReadLaterCollection(client: AnyClient): string | undefined {
-  for (const member of client.getClassMembers(SYSTEM_CLASS_UUIDS.collection)) {
-    const title =
-      client.getDisplayName(member.id) ?? member.name ?? "";
+/** The "Read later" find-or-create lookup, over FRESH reads (same law). */
+async function findReadLaterCollection(client: AnyClient): Promise<string | undefined> {
+  for (const member of await client.getClassMembersFresh(SYSTEM_CLASS_UUIDS.collection)) {
+    const title = (await client.getDisplayNameFresh(member.id)) ?? member.name ?? "";
     if (title.trim().toLowerCase() === READ_LATER_TITLE.toLowerCase()) return member.id;
   }
   return undefined;
 }
+
+/**
+ * The per-client single-flight queue: every capture runs chained behind
+ * the previous one, so a find-or-create read inside one capture can never
+ * race another capture's writes (two interleaved same-URL captures both
+ * pass a dedupe read taken before either writes — serialization is what
+ * makes the dedupe sound). Keyed on nothing on purpose: one queue per
+ * client, the simplest lawful form; a rejected capture must not strand
+ * the queue, so the next one runs regardless.
+ */
+const captureChains = new WeakMap<AnyClient, Promise<unknown>>();
 
 /**
  * Capture one web page into the workspace graph; resolves to the node's id
@@ -88,7 +122,18 @@ export async function captureWebPage(
   payload: CapturePayload,
   now: Date = new Date(),
 ): Promise<string> {
-  const existing = existingWebPageForUrl(client, payload.url);
+  const previous = captureChains.get(client) ?? Promise.resolve();
+  const queued = previous.then(() => captureOnce(client, payload, now), () => captureOnce(client, payload, now));
+  captureChains.set(client, queued);
+  return queued;
+}
+
+async function captureOnce(
+  client: AnyClient,
+  payload: CapturePayload,
+  now: Date,
+): Promise<string> {
+  const existing = await existingWebPageForUrl(client, payload.url);
   const id =
     existing ??
     (await (async () => {
@@ -118,7 +163,7 @@ export async function captureWebPage(
   }
 
   if (payload.mode === "readlater") {
-    let collection = findReadLaterCollection(client);
+    let collection = await findReadLaterCollection(client);
     if (collection === undefined) {
       collection = await client.createObject({
         isEmbedded: false,

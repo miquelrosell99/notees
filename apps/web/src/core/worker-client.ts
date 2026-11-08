@@ -478,8 +478,28 @@ export class WorkerClient {
     return this.cachedRead("getNodeRaw", [id], undefined);
   }
 
+  /**
+   * Uncached raw-node read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time existence guards (the seed
+   * deploy's no-op checks) ride this: a cold or dirty cache key answers the
+   * undefined default synchronously, which would re-stamp rows that exist
+   * in the store but not yet in the cache.
+   */
+  async getNodeRawFresh(id: string): Promise<ClientNode | undefined> {
+    return (await this.call("getNodeRaw", [id])) as ClientNode | undefined;
+  }
+
   getDisplayName(id: string): string | null {
     return this.cachedRead("getDisplayName", [id], null);
+  }
+
+  /**
+   * Uncached display-name read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time find-or-create decisions (the
+   * connector capture's read-later lookup) ride this.
+   */
+  async getDisplayNameFresh(id: string): Promise<string | null> {
+    return (await this.call("getDisplayName", [id])) as string | null;
   }
 
   effectiveClassColor(classId: string): string | null {
@@ -611,6 +631,16 @@ export class WorkerClient {
     return this.cachedRead<string[]>("getClassParents", [classId], []);
   }
 
+  /**
+   * Uncached extends-parents read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time convergence guards (the seed
+   * deploy's extends check) ride this: a cold or dirty cache key answers []
+   * synchronously, which would re-stamp an edge that exists in the store.
+   */
+  async getClassParentsFresh(classId: string): Promise<string[]> {
+    return (await this.call("getClassParents", [classId])) as string[];
+  }
+
   getClassChildren(classId: string): import("@/core/workspace-client/index.js").ClientNode[] {
     return this.cachedRead("getClassChildren", [classId], []);
   }
@@ -621,6 +651,17 @@ export class WorkerClient {
 
   getClassMembers(classId: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("getClassMembers", [classId], []);
+  }
+
+  /**
+   * Uncached class-members read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time find-or-create decisions (the
+   * connector capture's URL dedupe / read-later lookup) ride this: a cold or
+   * dirty cache key answers [] synchronously, which would duplicate a node
+   * that exists in the store but not yet in the cache.
+   */
+  async getClassMembersFresh(classId: string): Promise<ClientNode[]> {
+    return (await this.call("getClassMembers", [classId])) as ClientNode[];
   }
 
   /** The classed-nodes section badge (same membership projection as a COUNT). */
@@ -640,8 +681,28 @@ export class WorkerClient {
     return this.cachedRead<ClassBinding[]>("getRegistryBindings", [classId], []);
   }
 
+  /**
+   * Uncached registry-bindings read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time existence guards (the seed
+   * deploy's binding no-op checks) ride this: a cold or dirty cache key
+   * answers [] synchronously, which would re-stamp binding rows that exist
+   * in the store.
+   */
+  async getRegistryBindingsFresh(classId: string): Promise<ClassBinding[]> {
+    return (await this.call("getRegistryBindings", [classId])) as ClassBinding[];
+  }
+
   getEffectiveProperties(id: string): EffectiveProperty[] {
     return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
+  }
+
+  /**
+   * Uncached effective-properties read — one raw RPC straight to the store
+   * (the getChildrenFresh precedent). Write-time decisions (the connector
+   * capture's per-member url row in the URL dedupe) ride this.
+   */
+  async getEffectivePropertiesFresh(id: string): Promise<EffectiveProperty[]> {
+    return (await this.call("getEffectiveProperties", [id])) as EffectiveProperty[];
   }
 
   getPropertyRowShells(id: string): PropertyRowShell[] {
@@ -670,6 +731,16 @@ export class WorkerClient {
 
   listPropertySchemas(): ClientPropertySchema[] {
     return this.cachedRead<ClientPropertySchema[]>("listPropertySchemas", [], []);
+  }
+
+  /**
+   * Uncached property-schema registry read — one raw RPC straight to the
+   * store (the getChildrenFresh precedent). Write-time decisions (the
+   * classed-create flush's staged-kind re-derivation — a datetime row staged
+   * from a cold cache as text would be a lawless property write) ride this.
+   */
+  async listPropertySchemasFresh(): Promise<ClientPropertySchema[]> {
+    return (await this.call("listPropertySchemas", [])) as ClientPropertySchema[];
   }
 
   getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
@@ -829,6 +900,16 @@ export class WorkerClient {
   /** Feature-toggle read — absent row means enabled (default on). */
   isFeatureEnabled(feature: WorkspaceFeature): boolean {
     return this.cachedRead<boolean>("isFeatureEnabled", [feature], true);
+  }
+
+  /**
+   * Uncached feature-toggle read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time guards (the seed deploy's
+   * feature-enable check) ride this: a cold or dirty cache key answers the
+   * default-on synchronously.
+   */
+  async isFeatureEnabledFresh(feature: WorkspaceFeature): Promise<boolean> {
+    return (await this.call("isFeatureEnabled", [feature])) as boolean;
   }
 
   /** Toggled feature rows only (untoggled features are absent, not listed). */

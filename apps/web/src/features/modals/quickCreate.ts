@@ -66,6 +66,14 @@ export interface QuickCreateClient {
   getClassMembers(classId: string): ClientNode[];
   listPropertySchemas(): ClientPropertySchema[];
   /**
+   * Uncached alias of listPropertySchemas for write-time decisions (the
+   * flush's staged-kind re-derivation) — never the render cache, whose
+   * cold key would leave a datetime row staged as text. Both full clients
+   * carry the raw-RPC / in-process variant; minimal hosts omit it and the
+   * flush falls back to their sync read (already fresh in-process).
+   */
+  listPropertySchemasFresh?(): Promise<ClientPropertySchema[]>;
+  /**
    * The class's bound properties (extends-aware, alphabetical by property
    * name — the staged form's row source).
    */
@@ -681,9 +689,16 @@ export async function flushClassedCreate(
   // a caller that staged entries before the self-heal (the add-source
   // dialog's direct create on a fresh/offline workspace) typed unknown
   // schemas as text — publicationDate must stage as a DATE once the
-  // datetime schema is real, or the property write fails loud.
+  // datetime schema is real, or the property write fails loud. The read is
+  // FRESH (never the render cache): a cold cache's [] would leave a
+  // datetime row staged as text — a lawless property write.
   {
-    const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+    const fresh = client.listPropertySchemasFresh;
+    const schemas = new Map(
+      (await (fresh !== undefined ? fresh.call(client) : client.listPropertySchemas())).map(
+        (schema) => [schema.id, schema],
+      ),
+    );
     for (const entry of entries) {
       const schema = schemas.get(entry.row.binding.propertySchemaId);
       if (schema === undefined) continue;
@@ -754,7 +769,12 @@ export async function ensureCitationFamily(
     "familyName",
     ...venueKeys.filter((key): key is SystemPropertyName => key in SYSTEM_PROPERTY_UUIDS),
   ];
-  const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
+  const freshSchemas = client.listPropertySchemasFresh;
+  const have = new Set(
+    (await (freshSchemas !== undefined ? freshSchemas.call(client) : client.listPropertySchemas())).map(
+      (schema) => schema.id,
+    ),
+  );
   // True when the class-local venue binding row is already authored (the
   // class.property.set upsert is idempotent, but a skipped no-op is quieter).
   const venueBound = (schemaId: string): boolean =>

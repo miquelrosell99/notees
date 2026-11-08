@@ -242,8 +242,16 @@ export class WorkspaceClient {
     return this.reads.getNodeRaw(id);
   }
 
+  getNodeRawFresh(id: string) {
+    return this.reads.getNodeRawFresh(id);
+  }
+
   getDisplayName(id: string) {
     return this.reads.getDisplayName(id);
+  }
+
+  getDisplayNameFresh(id: string) {
+    return this.reads.getDisplayNameFresh(id);
   }
 
   getPage(id: string) {
@@ -296,6 +304,10 @@ export class WorkspaceClient {
     return this.reads.getClassParents(classId);
   }
 
+  getClassParentsFresh(classId: string) {
+    return this.reads.getClassParentsFresh(classId);
+  }
+
   getDirectClassChildren(classId: string) {
     return this.reads.getDirectClassChildren(classId);
   }
@@ -306,6 +318,10 @@ export class WorkspaceClient {
 
   getClassMembers(classId: string) {
     return this.reads.getClassMembers(classId);
+  }
+
+  getClassMembersFresh(classId: string) {
+    return this.reads.getClassMembersFresh(classId);
   }
 
   getClassMemberCount(classId: string) {
@@ -320,10 +336,18 @@ export class WorkspaceClient {
     return this.reads.getRegistryBindings(classId);
   }
 
+  getRegistryBindingsFresh(classId: string) {
+    return this.reads.getRegistryBindingsFresh(classId);
+  }
+
   // --- property + asset + tree + search/query reads -------------------------------
 
   getEffectiveProperties(id: string) {
     return this.readsProps.getEffectiveProperties(id);
+  }
+
+  getEffectivePropertiesFresh(id: string) {
+    return this.readsProps.getEffectivePropertiesFresh(id);
   }
 
   getPropertyRowShells(id: string) {
@@ -352,6 +376,10 @@ export class WorkspaceClient {
 
   listPropertySchemas() {
     return this.readsProps.listPropertySchemas();
+  }
+
+  listPropertySchemasFresh() {
+    return this.readsProps.listPropertySchemasFresh();
   }
 
   getBlockTree(pageId: string, depth?: number | null) {
@@ -481,6 +509,10 @@ export class WorkspaceClient {
 
   isFeatureEnabled(feature: WorkspaceFeature) {
     return this.readsRefs.isFeatureEnabled(feature);
+  }
+
+  isFeatureEnabledFresh(feature: WorkspaceFeature) {
+    return this.readsRefs.isFeatureEnabledFresh(feature);
   }
 
   listFeatureRows() {

@@ -17,6 +17,16 @@
  * class_property row exists, which used to defeat this self-heal entirely.
  * All existing ops — nothing here mints new vocabulary.
  *
+ * Cache coherence: every no-op guard read rides the clients' *Fresh
+ * (uncached) surface, never the WorkerClient's render cache — a cold or
+ * dirty cache key answers the empty default synchronously (undefined for
+ * getNodeRaw, [] for the list reads, default-on for the feature toggle),
+ * which on a cold boot used to re-stamp seed envelopes for rows the store
+ * already carried — each redundant write journaled by the undo journal, so
+ * undoing an unrelated gesture could invert no-op deploy ops (the
+ * getClassDisplayTemplateFresh precedent: write decisions plan from
+ * uncached reads).
+ *
  * The `task` family is the one exception to the generic path: its schemas
  * carry the designed status options + the bullet display position, a
  * contract that lives in TASK_FAMILY_SEED and is authored by
@@ -114,11 +124,11 @@ export async function deploySystemClass(
   // derivation archives/revives the whole family, so a disabled family
   // revives with this one write (the class rows below land active).
   const ownFeature = featureForBaseClass(key);
-  if (ownFeature !== null && !client.isFeatureEnabled(ownFeature)) {
+  if (ownFeature !== null && !(await client.isFeatureEnabledFresh(ownFeature))) {
     await client.setFeatureEnabled(ownFeature, true);
   }
 
-  if (client.getNodeRaw(classId) === undefined) {
+  if ((await client.getNodeRawFresh(classId)) === undefined) {
     await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES[key], {
       id: classId,
       icon: SYSTEM_CLASS_ICONS[key],
@@ -137,13 +147,13 @@ export async function deploySystemClass(
   // Un-archive an archived seed (the gallery's enable pick). The family
   // rows were revived by the toggle derivation above; this covers every
   // other archived class (and is a no-op when the bit already stands).
-  if (client.getNodeRaw(classId)?.isActive === false) {
+  if ((await client.getNodeRawFresh(classId))?.isActive === false) {
     await client.updateObject(classId, { active: true });
   }
 
   if (parents.length > 0) {
     const parentIds = parents.map((parent) => SYSTEM_CLASS_UUIDS[parent]);
-    const current = client.getClassParents(classId);
+    const current = await client.getClassParentsFresh(classId);
     if (parentIds.some((id) => !current.includes(id))) {
       // Replace semantics with exactly the seeded parent set — a re-run
       // converges with the server seed.
@@ -181,7 +191,9 @@ export async function deploySystemClass(
       return bindToNames.includes(key);
     });
     if (family.length > 0) {
-      const existing = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+      const existing = new Map(
+        (await client.listPropertySchemasFresh()).map((schema) => [schema.id, schema]),
+      );
       for (const [name, spec] of family) {
         const schemaId = SYSTEM_PROPERTY_UUIDS[name];
         // The seeded scope for this spec: global (the scope-audit flips — url,
@@ -222,7 +234,7 @@ export async function deploySystemClass(
           await client.updatePropertySchema(schemaId, { scopeClassIds: seededScope });
         }
       }
-      const registry = client.getRegistryBindings(classId);
+      const registry = await client.getRegistryBindingsFresh(classId);
       const bound = new Set(registry.map((binding) => binding.propertySchemaId));
       for (const [name, spec] of family) {
         const schemaId = SYSTEM_PROPERTY_UUIDS[name];
@@ -245,9 +257,9 @@ export async function deploySystemClass(
     // row the calendar quick-create eligibility walk reads.
     for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
       if (extra.bindTo !== key) continue;
-      const bound = client
-        .getRegistryBindings(classId)
-        .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property]);
+      const bound = (await client.getRegistryBindingsFresh(classId)).some(
+        (binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property],
+      );
       if (bound) continue;
       await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
         ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
@@ -266,9 +278,9 @@ export async function deploySystemClass(
         const property = sourceBindingPropertyOf(ref);
         const pinned = typeof ref === "string" ? undefined : ref.pinned;
         const showInNodeRows = typeof ref === "string" ? undefined : ref.showInNodeRows;
-        const bound = client
-          .getRegistryBindings(classId)
-          .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property]);
+        const bound = (await client.getRegistryBindingsFresh(classId)).some(
+          (binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property],
+        );
         if (bound) continue;
         await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {
           ...(pinned !== undefined ? { pinned } : {}),
@@ -314,7 +326,7 @@ export async function deploySystemClass(
  * automatically — configure now, wire later.
  */
 export async function ensureWeblinkExtendsSource(client: AnyClient): Promise<void> {
-  const current = client.getClassParents(SYSTEM_CLASS_UUIDS.web_page);
+  const current = await client.getClassParentsFresh(SYSTEM_CLASS_UUIDS.web_page);
   if (current.includes(SYSTEM_CLASS_UUIDS.source)) return;
   await deploySystemClass(client, "web_page");
 }
