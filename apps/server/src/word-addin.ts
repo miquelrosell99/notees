@@ -3,11 +3,11 @@
  * files (manifest + assets) from NOTEES_WORD_ADDIN_DIR. PUBLIC BY DESIGN —
  * the add-in holds no credentials and talks only to the localhost CLI
  * bridge; the manifest must be fetchable by Word's sideloading flows. GET
- * only, no auth, path-traversal refused. Hand-rolled streaming (the
+ * only, no auth, path-traversal and symlink escapes refused. Hand-rolled streaming (the
  * assets.ts precedent) — no new dependency.
  */
 
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, realpathSync, statSync } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 
 import type { FastifyInstance } from "fastify";
@@ -40,6 +40,15 @@ export function registerWordAddinRoutes(app: FastifyInstance, config: ServerConf
       throw new AppError(404, "not_found", "not found");
     }
     if (!existsSync(target)) {
+      throw new AppError(404, "not_found", "not found");
+    }
+    // Symlink-escape guard: the lexical check above follows no links, so a
+    // symlink inside the dir pointing outside would otherwise stream the
+    // outside file on this unauthenticated route. Re-apply the root-prefix
+    // contract on the real paths.
+    const realRoot = realpathSync(root);
+    const realTarget = realpathSync(target);
+    if (realTarget !== realRoot && !realTarget.startsWith(realRoot + sep)) {
       throw new AppError(404, "not_found", "not found");
     }
     const stat = statSync(target);

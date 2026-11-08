@@ -162,12 +162,45 @@ function isCollectionMember(store: Store, collectionId: string, objectId: string
 /**
  * The read-later inbox collection is a plain node (collections ARE nodes — no
  * collection.create op); the remembered id is server-local relay bookkeeping
- * (auth.ts), so the create is stamped once per workspace.
+ * (auth.ts), so the create is stamped once per workspace. The remembered id
+ * is NOT authoritative for liveness: the node can be trashed (or the
+ * workspace rebuilt from the log with a fresh store), so every capture
+ * verifies it is still an active node and otherwise reconciles: re-bind to a
+ * live "Read later" collection by name if one exists, create a fresh one
+ * otherwise. Without this a trashed inbox would swallow every readlater
+ * capture silently (the member add lands on an inactive node — the fail-loud
+ * law).
  */
 async function ensureReadLaterCollection(ctx: ServerContext, workspaceId: string): Promise<string> {
+  const store = ctx.workspaces.storeFor(workspaceId);
   const remembered = ctx.auth.getReadLaterCollectionId(workspaceId);
   if (remembered !== undefined) {
-    return remembered;
+    const alive =
+      store.database.prepare("SELECT 1 FROM node WHERE id = ? AND is_active = 1").get(remembered) !==
+      undefined;
+    if (alive) {
+      return remembered;
+    }
+  }
+  // The title IS the content (title-is-content): the by-name lookup binds
+  // the flattened contentAst JSON, the same encoded-equality precedent as
+  // findWebPageByUrl.
+  const byName = store.database
+    .prepare(
+      `SELECT n.id AS id FROM node n
+         JOIN class_member_set m ON m.node_id = n.id AND m.present = 1
+       WHERE n.workspace_id = ? AND n.is_class = 0 AND n.is_active = 1
+         AND m.class_id = ? AND n.content = ?
+       LIMIT 1`,
+    )
+    .get(
+      workspaceId,
+      SYSTEM_CLASS_UUIDS.collection,
+      JSON.stringify([{ type: "text", text: "Read later" }]),
+    ) as { id: string } | undefined;
+  if (byName !== undefined) {
+    ctx.auth.setReadLaterCollectionId(workspaceId, byName.id);
+    return byName.id;
   }
   const collectionId = uuidv7();
   await ctx.submit({

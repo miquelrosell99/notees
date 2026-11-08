@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -43,5 +43,17 @@ describe("GET /word/ — add-in statics", () => {
     expect((await server.app.inject({ method: "GET", url: "/word/nope.js" })).statusCode).toBe(404);
     expect((await server.app.inject({ method: "GET", url: "/word/../secret" })).statusCode).toBe(404);
     expect((await server.app.inject({ method: "GET", url: "/word/%2e%2e/secret" })).statusCode).toBe(404);
+  });
+
+  it("404s a symlink escaping the dir and never serves the outside file", async () => {
+    stageAddin();
+    const outsideDir = mkdtempSync(join(tmpdir(), "notees-addin-out-"));
+    writeFileSync(join(outsideDir, "secret.txt"), "top-secret-outside-content");
+    symlinkSync(join(outsideDir, "secret.txt"), join(addinDir, "escape.txt"));
+    server = await makeTestServer({ wordAddinDir: addinDir });
+    const res = await server.app.inject({ method: "GET", url: "/word/escape.txt" });
+    expect(res.statusCode).toBe(404);
+    expect(res.body).not.toContain("top-secret-outside-content");
+    rmSync(outsideDir, { recursive: true, force: true });
   });
 });

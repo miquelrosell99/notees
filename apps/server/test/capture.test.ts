@@ -235,6 +235,78 @@ describe("read-later inbox (task 7)", () => {
     expect(res.statusCode).toBe(201);
     expect(res.json().collectionId).toBeUndefined();
   });
+
+  it("reconciles a trashed Read later collection — the next capture lands on a live one", async () => {
+    server = await makeTestServer();
+    const first = await capture(server, { url: "https://trash.example/1", title: "A", mode: "readlater" }, server.authHeaders);
+    const trashedId = first.json().collectionId as string;
+    // The user trashes the remembered inbox node.
+    await server.ctx.submit({
+      workspaceId: server.ctx.defaultWorkspace,
+      opType: "object.delete",
+      payload: { objectId: trashedId, permanent: false },
+      affectedNodeIds: [trashedId],
+      client: "capture",
+    });
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    const trashed = store.database.prepare("SELECT is_active FROM node WHERE id = ?").get(trashedId) as { is_active: number };
+    expect(trashed.is_active).toBe(0);
+    const second = await capture(server, { url: "https://trash.example/2", title: "B", mode: "readlater" }, server.authHeaders);
+    expect(second.statusCode).toBe(201);
+    const { objectId, collectionId } = second.json() as { objectId: string; collectionId: string };
+    expect(collectionId).not.toBe(trashedId);
+    const live = store.database.prepare("SELECT is_active FROM node WHERE id = ?").get(collectionId) as { is_active: number };
+    expect(live.is_active).toBe(1);
+    const member = store.database
+      .prepare("SELECT COUNT(*) AS n FROM collection_member WHERE collection_id = ? AND object_id = ? AND present = 1")
+      .get(collectionId, objectId) as { n: number };
+    expect(member.n).toBe(1);
+    // The reconciliation is re-remembered for the next capture.
+    expect(server.ctx.auth.getReadLaterCollectionId(server.ctx.defaultWorkspace)).toBe(collectionId);
+  });
+
+  it("reconciles to a pre-existing live Read later collection by name instead of creating a third", async () => {
+    server = await makeTestServer();
+    const first = await capture(server, { url: "https://trash.example/3", title: "C", mode: "readlater" }, server.authHeaders);
+    const trashedId = first.json().collectionId as string;
+    // The user already made a replacement inbox with the same title.
+    const replacementId = crypto.randomUUID();
+    await server.ctx.submit({
+      workspaceId: server.ctx.defaultWorkspace,
+      opType: "object.create",
+      payload: {
+        objectId: replacementId,
+        classIds: [SYSTEM_CLASS_UUIDS.collection],
+        contentAst: [{ type: "text", text: "Read later" }],
+        isEmbedded: false,
+      },
+      affectedNodeIds: [replacementId],
+      client: "capture",
+    });
+    await server.ctx.submit({
+      workspaceId: server.ctx.defaultWorkspace,
+      opType: "object.delete",
+      payload: { objectId: trashedId, permanent: false },
+      affectedNodeIds: [trashedId],
+      client: "capture",
+    });
+    const second = await capture(server, { url: "https://trash.example/4", title: "D", mode: "readlater" }, server.authHeaders);
+    expect(second.statusCode).toBe(201);
+    expect(second.json().collectionId).toBe(replacementId);
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    const member = store.database
+      .prepare("SELECT COUNT(*) AS n FROM collection_member WHERE collection_id = ? AND object_id = ? AND present = 1")
+      .get(replacementId, second.json().objectId) as { n: number };
+    expect(member.n).toBe(1);
+    // No third collection was created: auto + replacement is the whole set.
+    const collCount = store.database
+      .prepare(
+        `SELECT COUNT(*) AS n FROM node n JOIN class_member_set m ON m.node_id = n.id AND m.present = 1
+         WHERE m.class_id = ? AND n.workspace_id = ?`,
+      )
+      .get(SYSTEM_CLASS_UUIDS.collection, server.ctx.defaultWorkspace) as { n: number };
+    expect(collCount.n).toBe(2);
+  });
 });
 
 describe("E2EE rejection (task 9)", () => {
