@@ -530,6 +530,12 @@ export class AuthStorage {
         this.db.exec(ddl);
       }
     }
+    const workspaceColumns = new Set(
+      (this.db.pragma("table_info(workspace)") as { name: string }[]).map((c) => c.name),
+    );
+    if (!workspaceColumns.has("read_later_collection_id")) {
+      this.db.exec("ALTER TABLE workspace ADD COLUMN read_later_collection_id TEXT");
+    }
     const prefColumns = new Set(
       (this.db.pragma("table_info(user_prefs)") as { name: string }[]).map((c) => c.name),
     );
@@ -731,6 +737,24 @@ export class AuthStorage {
     this.db
       .prepare("UPDATE workspace SET name = ? WHERE id = ?")
       .run(name, workspaceId);
+  }
+
+  /** The remembered "Read later" collection node id (server-local bookkeeping). */
+  getReadLaterCollectionId(workspaceId: string): string | undefined {
+    const row = this.db
+      .prepare("SELECT read_later_collection_id FROM workspace WHERE id = ?")
+      .get(workspaceId) as { read_later_collection_id: string | null } | undefined;
+    return row?.read_later_collection_id ?? undefined;
+  }
+
+  /** Upsert the remembered "Read later" collection id. */
+  setReadLaterCollectionId(workspaceId: string, collectionId: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO workspace (id, read_later_collection_id, created_at) VALUES (?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET read_later_collection_id = excluded.read_later_collection_id`,
+      )
+      .run(workspaceId, collectionId, Date.now());
   }
 
   addMember(workspaceId: string, userId: string, role = "owner"): void {
