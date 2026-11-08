@@ -7,9 +7,27 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-11-08
+
+- **feat(server): web-page capture API + readItLater workspace feature + Word add-in statics.**
+  - `POST /api/capture/web-page` — captures a page as a `web_page` source or into the read-it-later inbox; session Bearer or `capture.write`-scoped API key (the new scope); stamps `object.create`/`property.set`/`collection.member.add` envelopes through the one write path; idempotent per URL (a duplicate re-capture answers 201 with the existing id and stamps zero envelopes; a cross-mode re-capture promotes instead of duplicating — readlater adds the existing node to the inbox, source returns the node with no collection); 409 `e2ee_required` for encrypted workspaces; 403 `feature_disabled` on a disabled `readItLater` row; resolver enrichment from DOI/ISBN degrades gracefully (the capture's artifact is the page, not the metadata — raw doi/isbn always stamp).
+  - Protocol: `readItLater` joins `WORKSPACE_FEATURES` (surface toggle like `journal`; the server capture route answers 403 `feature_disabled` on a disabled row — SCHEMA.md "The feature map"); canonical fixture `workspace-feature-readitlater.json` (fixture gate 50→51). GTK/Flutter fixture-copy follow-up recorded (appliers already handle non-family features generically).
+  - `NOTEES_WORD_ADDIN_DIR` hosts the Word add-in statics at `/word/` (GET, auth-free by design; always registered, 404 when unconfigured).
+  - The relay.db `workspace` row gains `read_later_collection_id` — server-local inbox bookkeeping, never log state.
+  - Tests: 22 new tests across `capture.test.ts`, `capture-scope.test.ts`, `capture-inbox.test.ts`, `word-addin.test.ts`; OpenAPI + error-taxonomy coverage updated.
+
 ## 2026-11-07
 
 - **fix(scripts): the batch-B CLIs compile and run — the fleet-extraction leftovers.** The two batch-B migration scripts referenced identifiers the extraction never carried into the CLI shell: `migrate-cover-banner-alias.mts` used `DEFAULT_WORKSPACE` (undeclared — every sibling script carries the local const), `PlannedMove` and `VISIBLE_PREDICATE` (exported by the node-free core but never imported into the script — the type-only re-export does not bind locally), and both scripts called the core's `buildEnvelopes(workspaceId, plan, stamp, identity?)` with two arguments, dropping the now-required physical-clock stamp (batch A's pattern — the sibling CLIs pass `Date.now()`). Any of the three was a hard failure (`ReferenceError` / a `stamp: undefined` envelope the protocol zod gate rejects at build time); the web repo's typecheck — which follows its vendor-pinned rehearsal suites INTO these scripts — flagged all of them the day the pin landed. Mechanism: the house `DEFAULT_WORKSPACE` const, a local `VISIBLE_PREDICATE` + `type PlannedMove` import from `./lib/migrations/cover-banner-alias.ts` (the re-export contract the web rehearsal suite rides is unchanged), and `Date.now()` at both `buildEnvelopes` call sites. Docs: this entry. Verification: the web repo's `tsc --noEmit` is clean over the vendor-pinned graph again; the vendor-pinned rehearsal suites (`apps/web/test/migrate-cover-banner-alias.test.ts`, `migrate-attachments-asset-type.test.ts` — the re-exported planner/builder shapes, untouched) stay green; each fixed script's dry run exits 0 against an empty data dir with the house "nothing to do" line.
+=======
+## 2026-11-08
+
+- **feat(server): web-page capture API + readItLater workspace feature + Word add-in statics.**
+  - `POST /api/capture/web-page` — captures a page as a `web_page` source or into the read-it-later inbox; session Bearer or `capture.write`-scoped API key (the new scope); stamps `object.create`/`property.set`/`collection.member.add` envelopes through the one write path; idempotent per URL (a duplicate re-capture answers 201 with the existing id and stamps zero envelopes; a cross-mode re-capture promotes instead of duplicating — readlater adds the existing node to the inbox, source returns the node with no collection); 409 `e2ee_required` for encrypted workspaces; 403 `feature_disabled` on a disabled `readItLater` row; resolver enrichment from DOI/ISBN degrades gracefully (the capture's artifact is the page, not the metadata — raw doi/isbn always stamp).
+  - Protocol: `readItLater` joins `WORKSPACE_FEATURES` (surface toggle like `journal`; the server capture route answers 403 `feature_disabled` on a disabled row — SCHEMA.md "The feature map"); canonical fixture `workspace-feature-readitlater.json` (fixture gate 50→51). GTK/Flutter fixture-copy follow-up recorded (appliers already handle non-family features generically).
+  - `NOTEES_WORD_ADDIN_DIR` hosts the Word add-in statics at `/word/` (GET, auth-free by design; always registered, 404 when unconfigured).
+  - The relay.db `workspace` row gains `read_later_collection_id` — server-local inbox bookkeeping, never log state.
+  - Tests: 22 new tests across `capture.test.ts`, `capture-scope.test.ts`, `capture-inbox.test.ts`, `word-addin.test.ts`; OpenAPI + error-taxonomy coverage updated.
 
 ## 2026-11-06
 

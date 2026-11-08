@@ -252,9 +252,11 @@ describe("idempotent re-capture (task 8)", () => {
   it("same URL same mode returns the existing node, no duplicates", async () => {
     server = await makeTestServer();
     const first = await capture(server, { url: "https://dup.example/1", title: "One", mode: "readlater" }, server.authHeaders);
+    const envelopesBefore = server.ctx.relay.envelopeCount(server.ctx.defaultWorkspace);
     const second = await capture(server, { url: "https://dup.example/1", title: "One again", mode: "readlater" }, server.authHeaders);
     expect(second.statusCode).toBe(201);
     expect(second.json().objectId).toBe(first.json().objectId);
+    expect(server.ctx.relay.envelopeCount(server.ctx.defaultWorkspace)).toBe(envelopesBefore);
     const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
     // property_value.value is JSON-encoded by the applier, so the equality
     // bind is the encoded form of the URL string.
@@ -279,6 +281,15 @@ describe("idempotent re-capture (task 8)", () => {
       .prepare("SELECT COUNT(*) AS n FROM collection_member WHERE collection_id = ? AND object_id = ? AND present = 1")
       .get(later.json().collectionId, source.json().objectId) as { n: number };
     expect(member.n).toBe(1);
+  });
+
+  it("source re-capture of an existing readlater URL returns the same node with no collectionId", async () => {
+    server = await makeTestServer();
+    const later = await capture(server, { url: "https://dup.example/3", title: "Three", mode: "readlater" }, server.authHeaders);
+    const source = await capture(server, { url: "https://dup.example/3", title: "Three", mode: "source" }, server.authHeaders);
+    expect(source.statusCode).toBe(201);
+    expect(source.json().objectId).toBe(later.json().objectId);
+    expect(source.json().collectionId).toBeUndefined();
   });
 });
 
