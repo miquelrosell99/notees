@@ -25,6 +25,7 @@ Documentation for people — using the app, and developing or operating it. One 
 - **[Tables](features/tables.md)** — cells are nodes; the grid is a view.
 - **[Whiteboards](features/whiteboards.md)** — the spatial canvas; cards are blocks.
 - **[Pages](features/pages.md)** — also home to presenting a page, focus mode, promotion/demotion, copying, dividing, and merging.
+- **[The Notees Connector](features/connector.md)** — capturing web pages into the workspace: the tab relay, direct capture, the `web_page` node.
 
 **Organization & discovery**
 
@@ -33,6 +34,7 @@ Documentation for people — using the app, and developing or operating it. One 
 - **[Search and the command palette](features/search.md)** — ranking, query modes, in-page find, the global chords.
 - **[Classes](features/classes.md)** — the class view and classed-nodes collection.
 - **[The graph view](features/graph.md)** — the workspace as a map: families, layouts, colors, time lapse.
+- **[Read later](features/read-it-later.md)** — the read-it-later toggle and the "Read later" collection the connector's captures land in.
 
 **Time & tasks**
 
@@ -43,6 +45,7 @@ Documentation for people — using the app, and developing or operating it. One 
 **Output**
 
 - **[Sources](features/sources.md)** — the source library: 39 Zotero-faithful type-classes, the resolver-backed add flow, citekeys, .bib/CSL-JSON export, CLI bibliography imports.
+- **[The Word add-in](features/word.md)** — live citations and bibliographies in Word through the `notees serve` bridge (Designed).
 - **[Exporting](features/exporting.md)** — Markdown/HTML/Word/LaTeX/PDF/JSON archive, table CSV/xlsx and import, workspace zips.
 - **[Importing](features/import.md)** — the Import Workspace modal: Notees dumps, Markdown files/workspaces, Logseq folders, and the Logseq DB reconcile.
 - **[Sharing](features/sharing.md)** — read-only public links, the Shares hub.
