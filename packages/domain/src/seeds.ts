@@ -878,6 +878,22 @@ export interface SystemPropertySpec {
    * scripts/migrate-zotero-full-alignment.mts.
    */
   pinned?: boolean;
+  /**
+   * the binding row's binary NODE-ROW PREVIEW flag (additive
+   * 2026-11-08): true = the bound property's value renders in the node's
+   * ROW (the outliner line/chrome preview), not only in the properties
+   * panel. Absent = false (no preview — the default). DECLARED 2026-11-08
+   * (the node-row previews slice): the task family's taskStatus/taskDeadline
+   * (TASK_FAMILY_SEED), the event family's eventDate (meeting/trip inherit
+   * it through the extends chain; meeting's location rides its own row),
+   * birthday's eventDate extra row, and the source base family's
+   * authors/publicationDate (every source type-class inherits through the
+   * extends chain) — everything else seeds without the preview. The flag
+   * rides future class.property.set envelopes for live workspaces (patch
+   * semantics identical to `pinned`); no log rewrite — old rows default to
+   * no preview.
+   */
+  showInNodeRows?: boolean;
   targetClassFilter?: SystemClassName[];
   defaultValue?: string;
   options?: { id: string; label: string }[];
@@ -906,10 +922,10 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // (…0006-…0001). Live values migrate via scripts/migrate-authors-to-text.mts
   // (slice 1 task 8); the UUID …0012 is unchanged and the object filter is
   // superseded (a text schema takes no targetClassFilter).
-  authors: { type: "text", multi: true, bindTo: "source", pinned: true },
+  authors: { type: "text", multi: true, bindTo: "source", pinned: true, showInNodeRows: true },
   isbn: { type: "text", bindTo: "source" },
   doi: { type: "text", bindTo: "source", pinned: true },
-  publicationDate: { type: "datetime", bindTo: "source", pinned: true },
+  publicationDate: { type: "datetime", bindTo: "source", pinned: true, showInNodeRows: true },
   publisher: { type: "text", bindTo: "source" },
   role: {
     type: "select",
@@ -965,11 +981,16 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // extends event; the class-local meetingDate duplicate retired
   // 2026-10-30, live values converge by
   // scripts/migrate-meeting-date-retirement.mts). location is PINNED (the
-  // seed pin sets slice, amended by the retirement); agenda stays unpinned.
-  location: { type: "text", bindTo: "meeting", pinned: true },
+  // seed pin sets slice, amended by the retirement) and carries the
+  // node-row preview flag (2026-11-08 — a meeting's place reads in the
+  // row); agenda stays unpinned and unpreviewed.
+  location: { type: "text", bindTo: "meeting", pinned: true, showInNodeRows: true },
   agenda: { type: "text", bindTo: "meeting" },
   // Event-family reshape: the event family's minimal shape — one date binding.
-  eventDate: { type: "datetime", bindTo: "event" },
+  // The date carries the node-row preview flag (2026-11-08): an event's date
+  // reads in the row; meeting/trip inherit the flag through the extends
+  // chain (no per-subclass rows — the base row never repeats per class).
+  eventDate: { type: "datetime", bindTo: "event", showInNodeRows: true },
   //: the birthday family is
   // PERSON-typed, not a date duplicate — the date rides event's eventDate
   // through the extends chain (effective-properties binding resolution is
@@ -1391,11 +1412,17 @@ export const SYSTEM_EXTRA_CLASS_BINDINGS: {
   property: SystemPropertyName;
   bindTo: SystemClassName;
   /** The binding row's tier flag (see SystemPropertySpec.pinned). No extra
-   * row pins anything: the url→web_page + eventDate→birthday rows stay
-   * unpinned (only the source base's url row carries the pin). */
+   * row pins anything: the url→web_page row stays unpinned (only the source
+   * base's url row carries the pin). */
   pinned?: boolean;
+  /** The binding row's node-row preview flag (see
+   * SystemPropertySpec.showInNodeRows). The eventDate→birthday row carries
+   * it (a birthday's date reads in the row, the inherited eventDate
+   * preview flag meeting the class-local row); url→web_page stays without
+   * the preview. */
+  showInNodeRows?: boolean;
 }[] = [
-  { property: "eventDate", bindTo: "birthday" },
+  { property: "eventDate", bindTo: "birthday", showInNodeRows: true },
   { property: "url", bindTo: "web_page" },
 ];
 
@@ -1462,6 +1489,11 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * seed pin sets slice): taskStatus/taskScheduled/taskDeadline seed their
  * binding rows PINNED; taskPriority/taskClosedDate/taskRecurrence stay
  * unpinned. Live workspaces converge by scripts/migrate-seed-pins.mts.
+ * DECLARED 2026-11-08 (the node-row previews slice): taskStatus/taskDeadline
+ * seed their binding rows with the node-row preview flag (the row value
+ * reads in the node's row); the rest preview nothing (the applier ensure
+ * writes the column; live workspaces converge by future
+ * class.property.set envelopes — no log rewrite).
  *
  * the SIX SCHEMAS seed at
  * GLOBAL scope (scopeClassIds absent — Status "can be reused for other
@@ -1477,6 +1509,9 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   display?: "panel" | "bullet" | "inline";
   /** The binding row's tier flag (see SystemPropertySpec.pinned). */
   pinned?: boolean;
+  /** The binding row's node-row preview flag (see
+   * SystemPropertySpec.showInNodeRows). */
+  showInNodeRows?: boolean;
   /** Schema-level default (option id for select types; see SystemPropertySpec.defaultValue). */
   defaultValue?: string;
 }> = [
@@ -1494,10 +1529,11 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
     ],
     display: "bullet",
     pinned: true,
+    showInNodeRows: true,
     defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
   },
   { property: "taskScheduled", name: "Scheduled", type: "datetime", pinned: true },
-  { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true },
+  { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true, showInNodeRows: true },
   {
     property: "taskPriority",
     name: "Priority",

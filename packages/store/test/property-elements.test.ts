@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
+import Database from "better-sqlite3";
+
 import { envelopeSchema, newEnvelope, type Envelope } from "@notees/protocol";
 import { b64uDecode, decryptEnvelope, importWorkspaceKey } from "@notees/protocol";
 import { dayNodeId } from "@notees/domain";
@@ -27,6 +29,7 @@ import { Store, type StoreBackend } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
 import { sqliteWasmBackend } from "../src/adapters/sqlitewasm.js";
+import { schemaSql } from "../src/schema.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR_A = "0192a000-0000-7000-8000-000000000002";
@@ -559,6 +562,111 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(pinnedRow(store, SCHEMA_QUALIFIED)).toBeUndefined();
       // The remaining order re-derives: the pinned tier loses member.
       expect(names(store)).toEqual(["tags", "plain", "title"]);
+      store.close();
+    });
+  });
+
+  describe("class_property.showInNodeRows (additive 2026-11-08 — the binary node-row preview flag)", () => {
+    const previewRow = (store: Store, schemaId: string): { show_in_node_rows: number } | undefined =>
+      store.database
+        .prepare("SELECT show_in_node_rows FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(CLASS_A, schemaId) as { show_in_node_rows: number } | undefined;
+
+    it("a fresh binding defaults to NO preview; an explicit flag lands on the row", () => {
+      const store = seededStore();
+      let ts = 1727200032000;
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ show_in_node_rows: 0 });
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: true }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ show_in_node_rows: 1 });
+      store.close();
+    });
+
+    it("the flag patches like active/pinned: omitted keeps the stored flag; an explicit false clears it", () => {
+      const store = seededStore();
+      let ts = 1727200033000;
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED, showInNodeRows: true }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_QUALIFIED)).toEqual({ show_in_node_rows: 1 });
+      // An active-only patch keeps the stored flag (patch semantics
+      // identical to `active`/`pinned`); a fieldless patch likewise.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED, active: true }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_QUALIFIED)).toEqual({ show_in_node_rows: 1 });
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_QUALIFIED)).toEqual({ show_in_node_rows: 1 });
+      // An explicit false turns the preview off.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED, showInNodeRows: false }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_QUALIFIED)).toEqual({ show_in_node_rows: 0 });
+      store.close();
+    });
+
+    it("the flag rides the row LWW (the fixture's interleaved-phone race)", () => {
+      const store = seededStore();
+      let ts = 1727200034000;
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: true }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: true }, (ts += 50), 0, ACTOR_B));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: false }, (ts += 50)));
+      expect(previewRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ show_in_node_rows: 0 });
+      // A stale re-flag is dropped by the row LWW.
+      const stale = store.apply(
+        env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: true }, ts - 25),
+      );
+      expect(stale.ignored).toBe(true);
+      expect(previewRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ show_in_node_rows: 0 });
+      store.close();
+    });
+
+    it("concurrent flag flips at the same HLC converge under EITHER delivery order", () => {
+      const results: string[] = [];
+      for (const order of ["flag-first", "unflag-first"] as const) {
+        const store = seededStore();
+        let ts = 1727200035000;
+        store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, (ts += 100)));
+        const flag = env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: true }, 1727200036000, 0, ACTOR_A);
+        const unflag = env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: false }, 1727200036000, 0, ACTOR_B);
+        store.applyMany(order === "flag-first" ? [flag, unflag] : [unflag, flag]);
+        results.push(JSON.stringify(dumpDb(store)));
+      }
+      expect(results[1]).toEqual(results[0]);
+      // The unflag (bigger actor id) won the tie.
+      const store = seededStore();
+      let ts = 1727200035000;
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, (ts += 100)));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: true }, 1727200036000, 0, ACTOR_A));
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT, showInNodeRows: false }, 1727200036000, 0, ACTOR_B));
+      expect(previewRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ show_in_node_rows: 0 });
+      store.close();
+    });
+
+    it("class.property.unset deletes the flagged row outright (preview state never gates removal)", () => {
+      const store = seededStore();
+      let ts = 1727200037000;
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED, showInNodeRows: true }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_QUALIFIED)).toEqual({ show_in_node_rows: 1 });
+      store.apply(env("class.property.unset", { classId: CLASS_A, propertySchemaId: SCHEMA_QUALIFIED }, (ts += 100)));
+      expect(previewRow(store, SCHEMA_QUALIFIED)).toBeUndefined();
+      store.close();
+    });
+
+    it("v36 -> v37 migration: an old-version database gains the column with the convergent default (better-sqlite3)", () => {
+      const dir = mkdtempSync(join(tmpdir(), "notees-node-rows-migrate-"));
+      tmpDirs.push(dir);
+      const dbPath = join(dir, "store.db");
+
+      // A database at the pre-node-rows schema: the current shape minus the
+      // show_in_node_rows column, user_version pinned to 36.
+      const raw = new Database(dbPath);
+      raw.exec(schemaSql());
+      raw.exec("ALTER TABLE class_property DROP COLUMN show_in_node_rows;");
+      raw.pragma("user_version = 36");
+      raw.close();
+
+      const store = Store.openFile(dbPath);
+      const cols = store.database.prepare("PRAGMA table_info(class_property)").all() as { name: string }[];
+      expect(cols.some((c) => c.name === "show_in_node_rows")).toBe(true);
+      expect(store.database.pragma("user_version", { simple: true })).toBe(37);
+      // A binding authored before the migration reads the convergent default.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SINGLE_TEXT }, 1727200038000));
+      expect(previewRow(store, SCHEMA_SINGLE_TEXT)).toEqual({ show_in_node_rows: 0 });
       store.close();
     });
   });

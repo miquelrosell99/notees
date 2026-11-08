@@ -65,7 +65,9 @@ as a `SCHEMA_VERSION` bump + a guarded ALTER in `packages/store/src/schema.ts`
 converge by the default and the new wire key rides future envelopes (the
 strict-payload additive row of the table above — the §2 lockstep gate still
 applies to pre-batch clients). Store v34's `class_property.pinned` (2026-10-27,
-default 0) is the shape — the v5 `active` precedent.
+default 0) is the shape — the v5 `active` precedent; store v37's
+`class_property.show_in_node_rows` (2026-11-08, default 0 — the node-row
+preview flag) rides the exact same shape.
 
 ## 1. The two migration kinds
 

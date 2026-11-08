@@ -51,7 +51,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the fifty-one required fixtures", () => {
+  it("has exactly the fifty-four required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "card-review.json",
@@ -65,6 +65,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "class-parentless-role.json",
       "class-property-active.json",
       "class-property-defaults.json",
+      "class-property-node-rows.json",
       "class-property-pinned.json",
       "class-unassign.json",
       "code-block.json",
@@ -1080,6 +1081,42 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     expect(unset.payload).toEqual({
       classId: "0192a000-0000-7000-8000-000000000f0c",
       propertySchemaId: "0192a000-0000-7000-8000-000000000f0b",
+    });
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("class-property-node-rows fixture: the interleaved phone flag loses the row LWW race; the unset deletes regardless", () => {
+    const fixture = fixtures.find((f) => f.name === "class-property-node-rows.json")!;
+    const sets = fixture.envelopes.filter((env) => env.opType === "class.property.set");
+    // Bind → flag → interleaved flag (lower HLC, race loser) → unflag (newer,
+    // winner) → active-only patch (flag kept) → flag back.
+    expect(sets.map((env) => (env.payload as { showInNodeRows?: boolean }).showInNodeRows)).toEqual([
+      true,
+      true,
+      false,
+      undefined,
+      true,
+    ]);
+    const phoneFlag = sets[1]!.hlc as { physical: number; logical: number };
+    const unflag = sets[2]!.hlc as { physical: number; logical: number };
+    expect(compareHlc(phoneFlag, unflag)).toBeLessThan(0);
+    // The active-only patch (showInNodeRows omitted) keeps the stored flag —
+    // the patch semantics identical to `pinned`/`active`.
+    expect((sets[3]!.payload as { active?: boolean }).active).toBe(true);
+    // Strict schema: a non-boolean showInNodeRows is rejected outright.
+    expect(
+      payloadSchemaFor("class.property.set")!.safeParse({
+        classId: "0192a000-0000-7000-8000-000000000f2c",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000f2b",
+        showInNodeRows: "yes",
+      }).success,
+    ).toBe(false);
+    // The unset ignores preview state: exactly {classId, propertySchemaId}.
+    const unset = fixture.envelopes.find((env) => env.opType === "class.property.unset")!;
+    expect(unset.payload).toEqual({
+      classId: "0192a000-0000-7000-8000-000000000f2c",
+      propertySchemaId: "0192a000-0000-7000-8000-000000000f2b",
     });
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);

@@ -601,7 +601,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
 
   /**
    * class.property.set: the binding upsert (the active soft-unbind + pinned
-   * tier-flag patch —
+   * tier-flag + showInNodeRows node-row-preview patch —
    * omitted fields keep their values; the
    * binding carries ONLY the per-class mechanics; `required` retired
    * outright, `defaultValue` moved to the property schema, `sequence`
@@ -634,11 +634,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = store.database
       .prepare(
-        `SELECT property_schema_id, active, pinned
+        `SELECT property_schema_id, active, pinned, show_in_node_rows
          FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
       )
       .get(id, propertySchemaId) as
-      | { property_schema_id: string; active: number; pinned: number }
+      | { property_schema_id: string; active: number; pinned: number; show_in_node_rows: number }
       | undefined;
     return {
       classId: id,
@@ -650,6 +650,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
               propertySchemaId: row.property_schema_id,
               active: row.active === 1,
               pinned: row.pinned === 1,
+              showInNodeRows: row.show_in_node_rows === 1,
             },
     };
   });

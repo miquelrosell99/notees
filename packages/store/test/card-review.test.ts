@@ -235,6 +235,6 @@ describe("v34 -> v36 migration (better-sqlite3)", () => {
       .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'card_review'")
       .get();
     expect(table).toBeDefined();
-    expect(store.database.pragma("user_version", { simple: true })).toBe(36);
+    expect(store.database.pragma("user_version", { simple: true })).toBe(37);
   });
 });

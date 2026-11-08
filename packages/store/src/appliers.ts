@@ -1963,9 +1963,11 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
 //
 // Binding rows on `class_property` (SCHEMA.md "Class properties"): the
 // genuinely per-class mechanics ONLY — today `active`, the soft-unbind
-// flag, and `pinned`, the binary tier flag (pinned properties render
+// flag, `pinned`, the binary tier flag (pinned properties render
 // first, alphabetical within each tier — a classification, never a stored
-// order): the render contracts
+// order), and `showInNodeRows`, the binary node-row preview flag (a flagged
+// binding's property value renders in the node's row, not only in the
+// properties panel; absent = false): the render contracts
 // (readonly/hideWhenEmpty/display) moved to the property schema
 //, `required`/`defaultValue` left the binding
 // entirely (2026-10-20 — `required` retired outright, `defaultValue` moved
@@ -2017,18 +2019,20 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
 
   const active = p.active === undefined ? null : p.active ? 1 : 0;
   const pinned = p.pinned === undefined ? null : p.pinned ? 1 : 0;
+  const showInNodeRows = p.showInNodeRows === undefined ? null : p.showInNodeRows ? 1 : 0;
 
   if (!existing) {
     db.prepare(
       `INSERT INTO class_property
-         (class_id, property_schema_id, active, pinned,
+         (class_id, property_schema_id, active, pinned, show_in_node_rows,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.classId,
       p.propertySchemaId,
       active ?? 1,
       pinned ?? 0,
+      showInNodeRows ?? 0,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -2040,11 +2044,13 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
       `UPDATE class_property SET
          active = COALESCE(?, active),
          pinned = COALESCE(?, pinned),
+         show_in_node_rows = COALESCE(?, show_in_node_rows),
          hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE class_id = ? AND property_schema_id = ?`,
     ).run(
       active,
       pinned,
+      showInNodeRows,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -3101,22 +3107,23 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     );
     db.prepare(
       `INSERT OR IGNORE INTO class_property
-         (class_id, property_schema_id, pinned,
+         (class_id, property_schema_id, pinned, show_in_node_rows,
           hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, 0, 0, NULL)`,
-    ).run(classId, schemaId, entry.pinned === true ? 1 : 0);
+       VALUES (?, ?, ?, ?, 0, 0, NULL)`,
+    ).run(classId, schemaId, entry.pinned === true ? 1 : 0, entry.showInNodeRows === true ? 1 : 0);
   }
   // The `repeat` recurrence binding (2026-11-06): the repeat SCHEMA and
   // the EVENT-side binding ride the seed envelopes (new workspaces) and
   // the live-workspace migration — only the task side self-heals here, so
-  // every tasks-enabled store binds repeat on task. Seeds UNPINNED (lands
-  // in no declared pin set); HLC zeroed like the family rows above (a
-  // deterministic function of the enable op).
+  // every tasks-enabled store binds repeat on task. Seeds UNPINNED + no
+  // node-row preview (lands in no declared pin set or preview set); HLC
+  // zeroed like the family rows above (a deterministic function of the
+  // enable op).
   db.prepare(
     `INSERT OR IGNORE INTO class_property
-       (class_id, property_schema_id, pinned,
+       (class_id, property_schema_id, pinned, show_in_node_rows,
         hlc_physical, hlc_logical, actor_id)
-     VALUES (?, ?, 0, 0, 0, NULL)`,
+     VALUES (?, ?, 0, 0, 0, 0, NULL)`,
   ).run(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.repeat);
   reindexNode(db, classId);
 }

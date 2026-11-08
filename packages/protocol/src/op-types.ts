@@ -367,6 +367,13 @@ export const classSetExtendsPayload = z
  * class property lists (alphabetical within the tier, then the unpinned
  * tier, also alphabetical). Omitted = keep the stored flag (patch
  * semantics identical to `active`; row LWW by envelope HLC).
+ *
+ * `showInNodeRows` (additive 2026-11-08, LOCKSTEP-PENDING): the binary
+ * node-row preview flag — a flagged binding's property value renders in
+ * the node's ROW (the outliner line/chrome preview), not only in the
+ * properties panel. Absent = false (the default): no node-row preview.
+ * Omitted = keep the stored flag (patch semantics identical to `active`
+ * and `pinned`; row LWW by envelope HLC).
  */
 export const classPropertySetPayload = z
   .object({
@@ -374,6 +381,7 @@ export const classPropertySetPayload = z
     propertySchemaId: uuid,
     active: z.boolean().optional(),
     pinned: z.boolean().optional(),
+    showInNodeRows: z.boolean().optional(),
   })
   .strict();
 
