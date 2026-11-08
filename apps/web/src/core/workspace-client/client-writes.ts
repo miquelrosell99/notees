@@ -180,6 +180,23 @@ export class WorkspaceClientWrites {
   }
 
   /**
+   * Add a node to a collection (collection.member.add — the OR-Set add-wins
+   * seam; a redundant re-add converges to "member", never duplicates). The
+   * undo journal already inverts it as collection.member.remove (the
+   * membership-capture contract). No client-side membership pre-read: the
+   * applier's upsert comparator makes the re-add idempotent.
+   */
+  addCollectionMember(collectionId: string, objectId: string): void {
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
+        "collection.member.add",
+        { collectionId, objectId },
+        [collectionId, objectId],
+      ),
+    );
+  }
+
+  /**
    * The classed-create gesture (source-library slice 3 task 6, generalized
    * 2026-10-26 — every class's quick-create flushes through it): when the
    * picked class is ARCHIVED (the class-visibility flag), the un-archive

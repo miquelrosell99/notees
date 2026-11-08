@@ -1075,6 +1075,11 @@ export class WorkerCore {
           args[0] as Parameters<WorkspaceClient["setFeatureEnabled"]>[0],
           args[1] as boolean,
         );
+      case "addCollectionMember":
+        return this.client.addCollectionMember(
+          args[0] as string,
+          args[1] as string,
+        );
       case "setFeatureSettings":
         return this.client.setFeatureSettings(
           args[0] as Parameters<WorkspaceClient["setFeatureSettings"]>[0],

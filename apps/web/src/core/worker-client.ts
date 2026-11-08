@@ -963,6 +963,11 @@ export class WorkerClient {
     await this.call("setFeatureEnabled", [feature, enabled]);
   }
 
+  /** Add a node to a collection (collection.member.add, OR-Set add-wins). */
+  async addCollectionMember(collectionId: string, objectId: string): Promise<void> {
+    await this.call("addCollectionMember", [collectionId, objectId]);
+  }
+
   /** The class-level parentlessRole render contract. */
   async updateClassParentlessRole(
     classId: string,

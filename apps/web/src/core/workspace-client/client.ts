@@ -495,6 +495,10 @@ export class WorkspaceClient {
     return this.readsRefs.setFeatureEnabled(feature, enabled);
   }
 
+  addCollectionMember(collectionId: string, objectId: string) {
+    this.writes.addCollectionMember(collectionId, objectId);
+  }
+
   setFeatureSettings(feature: WorkspaceFeature, settings: Record<string, unknown>) {
     return this.readsRefs.setFeatureSettings(feature, settings);
   }
