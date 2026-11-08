@@ -791,6 +791,14 @@ export const WORKSPACE_FEATURES = [
   "sources",
   "persons",
   "journal",
+  /**
+   * The read-it-later capture surface (the Firefox connector's "Read later"
+   * mode + POST /api/capture/web-page gating): a SURFACE toggle like
+   * `journal`, not a class family — no classes derive from it, disabling it
+   * archives nothing. The capture endpoint answers 403 feature_disabled
+   * when the winning row is disabled.
+   */
+  "readItLater",
 ] as const;
 export type WorkspaceFeature = (typeof WORKSPACE_FEATURES)[number];
 export const workspaceFeatureSchema = z.enum(WORKSPACE_FEATURES);

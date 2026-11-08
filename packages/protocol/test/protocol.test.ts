@@ -51,7 +51,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the fifty required fixtures", () => {
+  it("has exactly the fifty-one required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "card-review.json",
@@ -105,6 +105,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "trash-empty.json",
       "typed-link-mark-deleted.json",
       "typed-link-mark.json",
+      "workspace-feature-readitlater.json",
       "workspace-feature-set.json",
     ]);
   });
@@ -672,6 +673,20 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       payloadSchemaFor("workspace.feature.set")!.safeParse({ feature: "journals", enabled: false })
         .success,
     ).toBe(false);
+  });
+
+  it("workspace-feature-readitlater.json toggles the readItLater surface feature", () => {
+    const fixture = fixtures.find((f) => f.name === "workspace-feature-readitlater.json")!;
+    expect(fixture.envelopes.length).toBeGreaterThan(0);
+    for (const env of fixture.envelopes) {
+      expect(env.opType).toBe("workspace.feature.set");
+      expect((env.payload as { feature: string }).feature).toBe("readItLater");
+    }
+    const hlcOf = (env: Record<string, unknown>) =>
+      (env.hlc as { physical: number; logical: number }) ?? { physical: 0, logical: 0 };
+    const [first, second] = fixture.envelopes;
+    expect(compareHlc(hlcOf(first!), hlcOf(second!))).toBeLessThan(0);
+    expect((second!.payload as { enabled: boolean }).enabled).toBe(false);
   });
 
   it("external-ref fixture pins the plugin-mapping lifecycle: set, many-refs-per-node, re-set moves, delete, the LWW races, and the hard-delete purge", () => {
