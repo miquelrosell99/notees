@@ -28,6 +28,7 @@ import { registerAssetRoutes } from "./assets.js";
 import { registerAdminRoutes } from "./routes-admin.js";
 import { registerIdempotencyHooks } from "./idempotency.js";
 import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
+import { registerCaptureRoutes } from "./routes-capture.js";
 import { registerFeatureRoutes } from "./routes-features.js";
 import { registerMetaRoutes } from "./routes-meta.js";
 import { registerObjectRoutes } from "./routes-objects.js";
@@ -209,6 +210,7 @@ export async function buildServer(
       // mutation still requires the caller's credentials and scope.
       registerIdempotencyHooks(api, ctx);
       registerObjectRoutes(api, ctx);
+      registerCaptureRoutes(api, ctx);
       registerFeatureRoutes(api, ctx);
       registerAssetRoutes(api, ctx);
     },

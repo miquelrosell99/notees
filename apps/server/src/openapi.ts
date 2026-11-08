@@ -841,6 +841,42 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
 
+  // --- capture ---------------------------------------------------------------------------
+  ["post", "/api/capture/web-page", {
+    summary: "Capture a web page as a web_page source or into the read-it-later inbox",
+    description:
+      "Stamps object.create (class web_page) + property.set (url, accessDate, resolver fields) envelopes through the one write path; readlater mode additionally stamps collection.member.add into the workspace's auto-created 'Read later' collection. Session Bearer or a capture.write-scoped API key. Idempotent: re-capturing the same URL returns the existing node. 409 e2ee_required for encrypted workspaces (capture through an open client); 403 feature_disabled when the workspace's readItLater toggle is off.",
+    tags: ["Capture"],
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["url", "title", "mode"],
+            properties: {
+              url: { type: "string", format: "uri", pattern: "^https?://", maxLength: 2048 },
+              title: { type: "string", minLength: 1, maxLength: 500 },
+              mode: { type: "string", enum: ["source", "readlater"] },
+              identifiers: {
+                type: "object",
+                additionalProperties: false,
+                properties: { doi: { type: "string" }, isbn: { type: "string" } },
+              },
+              note: { type: "string", maxLength: 10000 },
+            },
+          },
+        },
+      },
+    },
+    success: {
+      status: 201,
+      description: `{ "objectId": "<node id>", "collectionId?": "<read-later collection id, readlater mode only>" }`,
+    },
+    requiredScope: "capture.write",
+    errors: ["validation_failed", "feature_disabled", "e2ee_required"],
+  }],
+
   // --- relay (WIRE.md) -----------------------------------------------------------
   ["post", "/api/relay/v2/batch", {
     summary: "Ingest a batch of envelopes (idempotent by envelope id)",
@@ -1253,6 +1289,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "objects.delete": "retired with the object API (plan-07)",
         "assets.read": "GET /api/assets/*",
         "assets.write": "POST /api/assets",
+        "capture.write": "POST /api/capture/web-page",
         "search": "GET /api/resolve (name→id + the metadata resolver), POST /api/resolve/pdf (the PDF→DOI flow) — /api/search and /api/query retired (plan-07)",
         "export": "retired (plan-07) — the web client builds the workspace zip locally",
         "admin": "the whole /api/plugins surface — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",
