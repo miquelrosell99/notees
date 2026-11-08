@@ -339,13 +339,13 @@ function stubFetch(handler: (url: string, init: RequestInit) => unknown): typeof
 describe("createBridge", () => {
   it("posts to /document with cmd, bearer token, and merged body", async () => {
     let seen: { url: string; init: RequestInit } | null = null;
-    const b = createBridge({ port: 8377, token: "tok", fetchImpl: stubFetch((url, init) => {
+    const b = createBridge({ port: 8474, token: "tok", fetchImpl: stubFetch((url, init) => {
       seen = { url, init };
       return { ok: true, citation: "(Doe 2024)" };
     }) });
     const r = await b.renderCitation(["n1"], "apa", "p. 3");
     expect(r).toEqual({ ok: true, citation: "(Doe 2024)" });
-    expect(seen!.url).toBe("http://127.0.0.1:8377/document");
+    expect(seen!.url).toBe("http://127.0.0.1:8474/document");
     expect((seen!.init.headers as Record<string, string>).authorization).toBe("Bearer tok");
     expect(JSON.parse(seen!.init.body as string)).toEqual({ cmd: "render-citation", objectIds: ["n1"], styleId: "apa", locator: "p. 3" });
   });
@@ -396,7 +396,7 @@ describe("createBridge", () => {
 ```ts
 export interface AddinSettings { port: number; token: string; styleId: string; }
 export interface SettingsStore {
-  load(): AddinSettings;                    // defaults: port 8377, token "", styleId "notees-default"
+  load(): AddinSettings;                    // defaults: port 8474, token "", styleId "apa"
   save(patch: Partial<AddinSettings>): AddinSettings;
   clear(): void;
 }
@@ -408,7 +408,7 @@ export function createSettingsStore(kv: KVStore): SettingsStore;
 - [ ] Write `src/settings/store.ts`:
 
 ```ts
-const DEFAULTS: AddinSettings = { port: 8377, token: "", styleId: "notees-default" };
+const DEFAULTS: AddinSettings = { port: 8474, token: "", styleId: "apa" };
 const KEY = "notees.addin.settings.v1";
 
 export function createSettingsStore(kv: KVStore): SettingsStore {
@@ -629,7 +629,7 @@ export async function refreshCitations(bridge: Bridge, fieldsApi: WordFieldAcces
 **Steps**
 
 - [ ] Implement the embed-rewrite as a pure function `withStyle(embed: CitationEmbed, styleId: string): CitationEmbed` in `src/citation/embed.ts` (trivial clone) — test in `test/style-merge.test.ts`: rewrite preserves `citationId`/`nodeIds`/`locator`, swaps `styleId`; `parseCitationCode(buildCitationCode(withStyle(e, "chicago")))` round-trips.
-- [ ] Write `src/ui/style-picker.tsx`: `<select>` of `{label}` keyed by `{id}`, persisted via settings store; "Reload styles" re-calls `listStyles` and merges (keeps current selection if still present, else first style, else `notees-default`).
+- [ ] Write `src/ui/style-picker.tsx`: `<select>` of `{label}` keyed by `{id}`, persisted via settings store; "Reload styles" re-calls `listStyles` and merges (keeps current selection if still present, else first style, else `apa`).
 - [ ] Add "Refresh all with this style" button: rewrites every citation field's code with the picked `styleId` (via `WordFieldAccess.updateCode` — add that method to the interface and both implementations), then runs Task 9's `refreshCitations`.
 - [ ] Run `pnpm test` — green.
 - [ ] Commit: `feat(word): citation style picker with explicit restyle action`
@@ -705,7 +705,7 @@ export async function refreshCitations(bridge: Bridge, fieldsApi: WordFieldAcces
   - **Windows desktop**: shared-folder catalog — registry key `HKEY_CURRENT_USER\Software\Microsoft\Office\16.0\WEF\TrustedCatalogs` (string value: folder URL `\\<host>\share` or local path), Word → Insert → My Add-ins → shared folder → Notees. Note: XML manifest required (unified manifest unsupported on shares — this is why we ship XML).
   - **Word for the web**: M365 admin center integrated-apps upload of `manifest.xml` (admin consent) OR sideload via the "Upload my add-in" in a Word for the web session where the admin allows it; capability caveat: field refresh may be read-only (Task 12 fallback).
   - **macOS**: `manifest.xml` into `~/Library/Containers/com.Microsoft/Data/documents/wef` (Word for Mac sideload folder).
-  - Pairing: run `notees serve --port 8377`, copy the printed pairing token into the pane's settings.
+  - Pairing: run `notees serve --port 8474`, copy the printed pairing token into the pane's settings.
 - [ ] Verify `pnpm build` output tree matches the layout exactly; `pnpm test` still green.
 - [ ] Commit: `feat(word): xml manifest and /word/ build layout with sideload docs`
 

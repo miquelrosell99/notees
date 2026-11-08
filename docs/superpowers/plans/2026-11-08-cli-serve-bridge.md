@@ -155,7 +155,8 @@ stays in the four-value vocabulary):
 | Missing/wrong bearer token | 401 | `bad_request` |
 | Disallowed `Origin` | 403 | `bad_request` |
 | Non-POST or path ≠ `/document` | 404 | `bad_request` |
-| Unparseable/oversized body, invalid shape, empty `objectIds` | 400 | `bad_request` |
+| Unparseable body, invalid shape, empty `objectIds` | 400 | `bad_request` |
+| Oversized body (> 1 MB) | 413 | `bad_request` |
 | Unknown `cmd` | 400 | `unknown_cmd` |
 | Unknown object id or unknown `styleId` | 404 | `not_found` |
 | citeproc threw during a render | 422 | `render_failed` |
