@@ -237,6 +237,17 @@ describe("read-later inbox (task 7)", () => {
   });
 });
 
+describe("E2EE rejection (task 9)", () => {
+  it("keyed workspaces get 409 e2ee_required and nothing is stamped", async () => {
+    server = await makeTestServer();
+    server.ctx.auth.putWorkspaceKey(server.ctx.defaultWorkspace, "wrapped-test-key");
+    const res = await capture(server, CAPTURE_BODY, server.authHeaders);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("e2ee_required");
+    expect(server.ctx.relay.envelopeCount(server.ctx.defaultWorkspace)).toBe(0);
+  });
+});
+
 describe("idempotent re-capture (task 8)", () => {
   it("same URL same mode returns the existing node, no duplicates", async () => {
     server = await makeTestServer();

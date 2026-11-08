@@ -198,6 +198,17 @@ export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext):
     }
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
+    // A workspace with a workspace_key row is client-encrypted: the server
+    // holds no plaintext channel into encrypted stores, so capture is
+    // rejected before any store lookup or stamping (the client captures
+    // through the tab relay instead).
+    if (ctx.auth.getWorkspaceKey(workspaceId) !== undefined) {
+      throw new AppError(
+        409,
+        "e2ee_required",
+        "workspace is end-to-end encrypted — capture through an open Notees client (tab relay)",
+      );
+    }
     const store = ctx.workspaces.storeFor(workspaceId);
     // Idempotent re-capture: the URL already lives on an active web_page
     // node — return it (201, same body) and stamp nothing new, except that
