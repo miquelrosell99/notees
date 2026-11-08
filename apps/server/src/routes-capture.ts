@@ -198,6 +198,16 @@ export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext):
     }
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
+    // The readItLater feature row gates the whole endpoint (F2: an absent
+    // row is enabled); a disabled row loses to validation but wins over E2EE.
+    const featureRow = ctx.workspaces.storeFor(workspaceId).getFeatureRow(workspaceId, "readItLater");
+    if (featureRow !== undefined && !featureRow.enabled) {
+      throw new AppError(
+        403,
+        "feature_disabled",
+        "the workspace's readItLater feature is disabled",
+      );
+    }
     // A workspace with a workspace_key row is client-encrypted: the server
     // holds no plaintext channel into encrypted stores, so capture is
     // rejected before any store lookup or stamping (the client captures

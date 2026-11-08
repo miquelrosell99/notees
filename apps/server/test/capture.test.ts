@@ -7,7 +7,7 @@ import type { InjectOptions } from "fastify";
 
 import { chainNodeIds, dayNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
+import { closeTestServer, ingest, makeTestServer, testEnvelope, type TestServer } from "./helpers";
 
 const CAPTURE_URL = "https://example.com/article";
 const CAPTURE_BODY = { url: CAPTURE_URL, title: "Example article", mode: "source" };
@@ -279,5 +279,29 @@ describe("idempotent re-capture (task 8)", () => {
       .prepare("SELECT COUNT(*) AS n FROM collection_member WHERE collection_id = ? AND object_id = ? AND present = 1")
       .get(later.json().collectionId, source.json().objectId) as { n: number };
     expect(member.n).toBe(1);
+  });
+});
+
+describe("feature gating (task 10)", () => {
+  it("a disabled readItLater row answers 403 feature_disabled for both modes", async () => {
+    server = await makeTestServer();
+    await ingest(server, [
+      testEnvelope({
+        workspaceId: server.ctx.defaultWorkspace,
+        opType: "workspace.feature.set",
+        payload: { feature: "readItLater", enabled: false },
+      }),
+    ]);
+    for (const mode of ["source", "readlater"] as const) {
+      const res = await capture(server, { url: `https://off.example/${mode}`, title: "T", mode }, server.authHeaders);
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error.code).toBe("feature_disabled");
+    }
+  });
+
+  it("an absent row (F2 default) allows capture", async () => {
+    server = await makeTestServer();
+    const res = await capture(server, CAPTURE_BODY, server.authHeaders);
+    expect(res.statusCode).toBe(201);
   });
 });
