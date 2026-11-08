@@ -58,9 +58,11 @@ export interface WorkspaceFeatureSpec {
  * The family toggles: the five core class families. The `journal` toggle is
  * NOT a family — it gates the journal SURFACES (nav view, Today-page
  * management) while the date classes stay always-on structural seeds; it has
- * no base class and derives no archival bits.
+ * no base class and derives no archival bits. The `readItLater` toggle
+ * (2026-11-08) is the same kind of surface gate: it manages no classes and
+ * derives no archival bits; the server capture endpoint reads its row.
  */
-export type FamilyFeature = Exclude<WorkspaceFeature, "journal">;
+export type FamilyFeature = Exclude<WorkspaceFeature, "journal" | "readItLater">;
 
 /** The core class families. */
 export const WORKSPACE_FEATURE_MAP: Record<FamilyFeature, WorkspaceFeatureSpec> = {
