@@ -236,3 +236,37 @@ describe("read-later inbox (task 7)", () => {
     expect(res.json().collectionId).toBeUndefined();
   });
 });
+
+describe("idempotent re-capture (task 8)", () => {
+  it("same URL same mode returns the existing node, no duplicates", async () => {
+    server = await makeTestServer();
+    const first = await capture(server, { url: "https://dup.example/1", title: "One", mode: "readlater" }, server.authHeaders);
+    const second = await capture(server, { url: "https://dup.example/1", title: "One again", mode: "readlater" }, server.authHeaders);
+    expect(second.statusCode).toBe(201);
+    expect(second.json().objectId).toBe(first.json().objectId);
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    // property_value.value is JSON-encoded by the applier, so the equality
+    // bind is the encoded form of the URL string.
+    const count = store.database
+      .prepare(
+        `SELECT COUNT(DISTINCT n.id) AS n FROM node n
+           JOIN class_member_set m ON m.node_id = n.id AND m.present = 1
+           JOIN property_value v ON v.node_id = n.id AND v.property_schema_id = ?
+         WHERE n.workspace_id = ? AND m.class_id = ? AND v.value = ?`,
+      )
+      .get(SYSTEM_PROPERTY_UUIDS.url, server.ctx.defaultWorkspace, SYSTEM_CLASS_UUIDS.web_page, JSON.stringify("https://dup.example/1")) as { n: number };
+    expect(count.n).toBe(1);
+  });
+
+  it("readlater capture of an existing source URL promotes the node into the collection", async () => {
+    server = await makeTestServer();
+    const source = await capture(server, { url: "https://dup.example/2", title: "Two", mode: "source" }, server.authHeaders);
+    const later = await capture(server, { url: "https://dup.example/2", title: "Two", mode: "readlater" }, server.authHeaders);
+    expect(later.statusCode).toBe(201);
+    expect(later.json().objectId).toBe(source.json().objectId);
+    const member = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace).database
+      .prepare("SELECT COUNT(*) AS n FROM collection_member WHERE collection_id = ? AND object_id = ? AND present = 1")
+      .get(later.json().collectionId, source.json().objectId) as { n: number };
+    expect(member.n).toBe(1);
+  });
+});

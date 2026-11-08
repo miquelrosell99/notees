@@ -30,6 +30,7 @@ import {
   type SourceMetadataRecord,
 } from "./resolve-source.js";
 import { workspaceFor } from "./routes-objects.js";
+import type { Store } from "@notees/store";
 
 export const captureBodySchema = z
   .object({
@@ -129,6 +130,62 @@ async function stampResolvedFields(
   }
 }
 
+/**
+ * Idempotency lookup: an active web_page node in this workspace already
+ * carrying this URL (property_value.value is JSON-encoded by the applier, so
+ * the equality bind is the encoded string). Re-capture returns the existing
+ * node instead of stamping a duplicate.
+ */
+function findWebPageByUrl(store: Store, workspaceId: string, url: string): string | undefined {
+  const row = store.database
+    .prepare(
+      `SELECT n.id AS id FROM node n
+         JOIN class_member_set m ON m.node_id = n.id AND m.present = 1
+         JOIN property_value v ON v.node_id = n.id AND v.property_schema_id = ?
+       WHERE n.workspace_id = ? AND n.is_class = 0 AND n.is_active = 1
+         AND m.class_id = ? AND v.value = ?
+       LIMIT 1`,
+    )
+    .get(SYSTEM_PROPERTY_UUIDS.url, workspaceId, SYSTEM_CLASS_UUIDS.web_page, JSON.stringify(url)) as
+    | { id: string }
+    | undefined;
+  return row?.id;
+}
+
+function isCollectionMember(store: Store, collectionId: string, objectId: string): boolean {
+  const row = store.database
+    .prepare("SELECT present FROM collection_member WHERE collection_id = ? AND object_id = ?")
+    .get(collectionId, objectId) as { present: number } | undefined;
+  return row?.present === 1;
+}
+
+/**
+ * The read-later inbox collection is a plain node (collections ARE nodes — no
+ * collection.create op); the remembered id is server-local relay bookkeeping
+ * (auth.ts), so the create is stamped once per workspace.
+ */
+async function ensureReadLaterCollection(ctx: ServerContext, workspaceId: string): Promise<string> {
+  const remembered = ctx.auth.getReadLaterCollectionId(workspaceId);
+  if (remembered !== undefined) {
+    return remembered;
+  }
+  const collectionId = uuidv7();
+  await ctx.submit({
+    workspaceId,
+    opType: "object.create",
+    payload: {
+      objectId: collectionId,
+      classIds: [SYSTEM_CLASS_UUIDS.collection],
+      contentAst: [{ type: "text", text: "Read later" }],
+      isEmbedded: false,
+    },
+    affectedNodeIds: [collectionId],
+    client: "capture",
+  });
+  ctx.auth.setReadLaterCollectionId(workspaceId, collectionId);
+  return collectionId;
+}
+
 export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext): void {
   app.post("/capture/web-page", async (request, reply) => {
     const parsed = captureBodySchema.safeParse(request.body);
@@ -141,6 +198,29 @@ export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext):
     }
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    // Idempotent re-capture: the URL already lives on an active web_page
+    // node — return it (201, same body) and stamp nothing new, except that
+    // a readlater capture promotes the existing node into the inbox instead
+    // of duplicating it.
+    const existing = findWebPageByUrl(store, workspaceId, parsed.data.url);
+    if (existing !== undefined) {
+      let collectionId: string | undefined;
+      if (parsed.data.mode === "readlater") {
+        collectionId = await ensureReadLaterCollection(ctx, workspaceId);
+        if (!isCollectionMember(store, collectionId, existing)) {
+          await ctx.submit({
+            workspaceId,
+            opType: "collection.member.add",
+            payload: { collectionId, objectId: existing },
+            affectedNodeIds: [collectionId, existing],
+            client: "capture",
+          });
+        }
+      }
+      reply.code(201);
+      return collectionId === undefined ? { objectId: existing } : { objectId: existing, collectionId };
+    }
     // accessDate is a datetime property at day precision: the value links
     // today's deterministic date-chain day node (SCHEMA.md "Datetime"), and
     // the store fails loud on a ref to a missing node — so the chain
@@ -148,7 +228,6 @@ export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext):
     const today = new Date().toISOString().slice(0, 10);
     const parts = parseIsoDate(today);
     const chain = chainNodeIds(today);
-    const store = ctx.workspaces.storeFor(workspaceId);
     const dateSpecs: Array<{
       id: string;
       parentId: string | null;
@@ -244,26 +323,7 @@ export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext):
     }
     let collectionId: string | undefined;
     if (parsed.data.mode === "readlater") {
-      // The inbox collection is a plain node (collections ARE nodes — no
-      // collection.create op); the remembered id is server-local relay
-      // bookkeeping (auth.ts), so the create is stamped once per workspace.
-      collectionId = ctx.auth.getReadLaterCollectionId(workspaceId);
-      if (collectionId === undefined) {
-        collectionId = uuidv7();
-        await ctx.submit({
-          workspaceId,
-          opType: "object.create",
-          payload: {
-            objectId: collectionId,
-            classIds: [SYSTEM_CLASS_UUIDS.collection],
-            contentAst: [{ type: "text", text: "Read later" }],
-            isEmbedded: false,
-          },
-          affectedNodeIds: [collectionId],
-          client: "capture",
-        });
-        ctx.auth.setReadLaterCollectionId(workspaceId, collectionId);
-      }
+      collectionId = await ensureReadLaterCollection(ctx, workspaceId);
       await ctx.submit({
         workspaceId,
         opType: "collection.member.add",
