@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InjectOptions } from "fastify";
 
-import { chainNodeIds, dayNodeId, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { chainNodeIds, dayNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { closeTestServer, makeTestServer, type TestServer } from "./helpers";
 
@@ -194,5 +194,45 @@ describe("resolver enrichment (task 6)", () => {
       .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
       .get(objectId, SYSTEM_PROPERTY_UUIDS.doi) as { value: string } | undefined;
     expect(doiRow && JSON.parse(doiRow.value)).toBe("10.9999/nothing");
+  });
+});
+
+describe("read-later inbox (task 7)", () => {
+  it("auto-creates the Read later collection once and answers collectionId", async () => {
+    server = await makeTestServer();
+    const first = await capture(server, { url: "https://a.example/x", title: "A", mode: "readlater" }, server.authHeaders);
+    expect(first.statusCode).toBe(201);
+    const { objectId, collectionId } = first.json();
+    expect(collectionId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(server.ctx.auth.getReadLaterCollectionId(server.ctx.defaultWorkspace)).toBe(collectionId);
+    const store = server.ctx.workspaces.storeFor(server.ctx.defaultWorkspace);
+    const coll = store.database
+      .prepare("SELECT content FROM node WHERE id = ?")
+      .get(collectionId) as { content: string };
+    // node.content is contentAst JSON (a document-chrome node's content is
+    // flattened to text-only by the applier).
+    expect(JSON.parse(coll.content)).toEqual([{ type: "text", text: "Read later" }]);
+    const member = store.database
+      .prepare("SELECT COUNT(*) AS n FROM collection_member WHERE collection_id = ? AND object_id = ? AND present = 1")
+      .get(collectionId, objectId) as { n: number };
+    expect(member.n).toBe(1);
+    // Second capture reuses the remembered collection — no second create.
+    const second = await capture(server, { url: "https://b.example/y", title: "B", mode: "readlater" }, server.authHeaders);
+    expect(second.statusCode).toBe(201);
+    expect(second.json().collectionId).toBe(collectionId);
+    const collCount = store.database
+      .prepare(
+        `SELECT COUNT(*) AS n FROM node n JOIN class_member_set m ON m.node_id = n.id AND m.present = 1
+         WHERE m.class_id = ? AND n.workspace_id = ?`,
+      )
+      .get(SYSTEM_CLASS_UUIDS.collection, server.ctx.defaultWorkspace) as { n: number };
+    expect(collCount.n).toBe(1);
+  });
+
+  it("source mode answers no collectionId", async () => {
+    server = await makeTestServer();
+    const res = await capture(server, CAPTURE_BODY, server.authHeaders);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().collectionId).toBeUndefined();
   });
 });

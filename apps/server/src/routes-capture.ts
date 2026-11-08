@@ -242,7 +242,37 @@ export function registerCaptureRoutes(app: FastifyInstance, ctx: ServerContext):
         client: "capture",
       });
     }
+    let collectionId: string | undefined;
+    if (parsed.data.mode === "readlater") {
+      // The inbox collection is a plain node (collections ARE nodes — no
+      // collection.create op); the remembered id is server-local relay
+      // bookkeeping (auth.ts), so the create is stamped once per workspace.
+      collectionId = ctx.auth.getReadLaterCollectionId(workspaceId);
+      if (collectionId === undefined) {
+        collectionId = uuidv7();
+        await ctx.submit({
+          workspaceId,
+          opType: "object.create",
+          payload: {
+            objectId: collectionId,
+            classIds: [SYSTEM_CLASS_UUIDS.collection],
+            contentAst: [{ type: "text", text: "Read later" }],
+            isEmbedded: false,
+          },
+          affectedNodeIds: [collectionId],
+          client: "capture",
+        });
+        ctx.auth.setReadLaterCollectionId(workspaceId, collectionId);
+      }
+      await ctx.submit({
+        workspaceId,
+        opType: "collection.member.add",
+        payload: { collectionId, objectId },
+        affectedNodeIds: [collectionId, objectId],
+        client: "capture",
+      });
+    }
     reply.code(201);
-    return { objectId };
+    return collectionId === undefined ? { objectId } : { objectId, collectionId };
   });
 }
