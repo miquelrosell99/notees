@@ -31,6 +31,7 @@ import { Icon } from "../../ui/Icon.js";
 import { Tabs } from "../../components/ui/kit/Tabs.js";
 import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
 import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
+import { ReadItLaterFeatureRow } from "./ReadItLaterFeatureRow.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
 import { SourcesSettingsSection } from "../settings/SourcesSettingsSection.js";
@@ -331,6 +332,13 @@ export function WorkspaceSettingsModal({
                       </div>
                     );
                   })()}
+                  {/* The read-later toggle is a SURFACES gate like journal:
+                      it gates the connector's read-later captures while the
+                      web_page/collection classes stay always-on. The row
+                      itself is vendor-tolerant: until the vendored
+                      WORKSPACE_FEATURES knows `readItLater` it renders
+                      nothing. */}
+                  <ReadItLaterFeatureRow client={client!} />
                   {/* The write issues a workspace.feature.set through the
                       normal client op path (lockstep SHIPPED: GTK/Flutter
                       v3.0.0). F3's disable confirmation gates the OFF write
