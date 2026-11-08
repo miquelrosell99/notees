@@ -278,6 +278,14 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     requiredScope: "objects.read",
     errors: ["validation_failed", "not_found"],
   }],
+  ["get", "/word/*", {
+    summary: "Word add-in statics (manifest + task-pane assets), auth-free by design",
+    description:
+      "Serves the Office.js add-in's files from NOTEES_WORD_ADDIN_DIR (unset → 404). Public: the add-in holds no credentials; only the localhost CLI bridge is authoritative. GET only; path traversal refused.",
+    tags: ["Word add-in"],
+    public: true,
+    success: { description: "the requested static file" },
+  }],
 
   // --- account & auth ---------------------------------------------------------------
   ["get", "/api/server-info", {

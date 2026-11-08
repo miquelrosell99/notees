@@ -38,6 +38,7 @@ import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
 import { registerSectionViewRoutes } from "./routes-section-views.js";
 import { registerPublicShareRoute, registerShareRoutes } from "./routes-shares.js";
 import { registerWorkflowRoutes } from "./routes-workflows.js";
+import { registerWordAddinRoutes } from "./word-addin.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
 import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
@@ -241,6 +242,11 @@ export async function buildServer(
     },
     { prefix: "/api" },
   );
+  // Word add-in statics (NOTEES_WORD_ADDIN_DIR): root-level GET /word/*,
+  // unauthenticated BY DESIGN (the manifest must be fetchable by Word's
+  // sideloading flows; see word-addin.ts). Registered unconditionally so the
+  // OpenAPI coverage stays stable — an unset directory answers 404.
+  registerWordAddinRoutes(app, config);
   registerPublicShareRoute(app, ctx);
 
   // Operator-key maintenance surface: migration appends through the one

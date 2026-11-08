@@ -17,6 +17,8 @@
  *    deployments only, there is no cookie/credential surface to protect.
  *  - NOTEES_RESOLVER_TIMEOUT_MS (default 10000): the metadata resolver's
  *    (GET /api/resolve) per-request upstream timeout.
+ *  - NOTEES_WORD_ADDIN_DIR: the Word add-in statics directory served at
+ *    /word/ (GET only, no auth); empty/absent (default) disables hosting.
  *  - NOTEES_REQUIRE_KEYED (default on): workspace creation (POST /workspaces
  *    and the clone route) requires a wrappedKey bundle — creation without
  *    one answers 422 keying_required. Off restores the legacy unkeyed
@@ -74,6 +76,12 @@ export interface ServerConfig {
    * AbortController cancels the upstream call past it).
    */
   resolverTimeoutMs: number;
+  /**
+   * Word add-in statics directory served at /word/ (GET only, no auth;
+   * NOTEES_WORD_ADDIN_DIR). Absent or empty (the default) disables hosting —
+   * the route answers 404.
+   */
+  wordAddinDir?: string;
 }
 
 export function generateApiKey(): string {
@@ -161,5 +169,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig &
     requireKeyed: boolFromEnv(env, "NOTEES_REQUIRE_KEYED", true),
     corsOrigins: parseCorsOrigins(env.NOTEES_CORS_ORIGIN),
     resolverTimeoutMs: intFromEnv(env, "NOTEES_RESOLVER_TIMEOUT_MS", 10_000),
+    wordAddinDir: env.NOTEES_WORD_ADDIN_DIR ?? "",
   };
 }
