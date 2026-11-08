@@ -4,7 +4,10 @@
  * Names follow the granular set. Today's object/assets surface exercises
  * a subset — relations/annotations/citations/collections endpoints do not
  * exist yet, so their scope names are reserved vocabulary, not enforced
- * anywhere. A key created with NO scope list is unrestricted (the default;
+ * anywhere. `capture.write` is the first scope an existing route enforces
+ * (POST /api/capture/web-page); `collections.write` and `citations` remain
+ * reserved — no route requires them yet. A key created with NO scope list is
+ * unrestricted (the default;
  * the operator key and account sessions are always unrestricted). Scoped keys
  * are object-API credentials: the relay surface rejects them with 403
  * `scope_denied` (routes-relay.ts), and account routes keep requiring a
@@ -31,6 +34,7 @@ export const API_SCOPES = [
   "annotations",
   "citations",
   "collections.write",
+  "capture.write",
   "search",
   "export",
   "admin",

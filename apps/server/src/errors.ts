@@ -27,6 +27,8 @@ export type ErrorCode =
   | "resolver_disabled"
   | "resolver_unavailable"
   | "no_identifier_found"
+  | "feature_disabled"
+  | "e2ee_required"
   | "internal";
 
 export class AppError extends Error {
@@ -96,6 +98,14 @@ export const ERROR_TAXONOMY: Readonly<
   // POST /api/resolve/pdf: the PDF bytes carried no extractable DOI — there
   // is nothing to resolve (the scan is documented on the route).
   no_identifier_found: { status: 422, description: "the PDF carried no extractable identifier (DOI)" },
+  // POST /api/capture/web-page: the workspace's readItLater feature row is
+  // disabled (F2: an absent row means enabled, so only an explicit
+  // disabled row answers this).
+  feature_disabled: { status: 403, description: "the workspace's readItLater feature is disabled" },
+  // POST /api/capture/web-page: the workspace carries a workspace_key row —
+  // the server holds no plaintext channel into encrypted stores; the
+  // client captures through the tab relay instead.
+  e2ee_required: { status: 409, description: "workspace is end-to-end encrypted — capture through an open client" },
   internal: { status: 500, description: "unclassified server failure (the only code not thrown by route code)" },
 };
 
