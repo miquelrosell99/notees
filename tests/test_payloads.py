@@ -619,15 +619,20 @@ class TestBuilders:
 
 class TestWorkspaceFeatureSet:
     """The workspace.feature.set payload — the strict enum of the five core
-    class families (tasks|events|meetings|sources|persons) plus ``journal``
-    (the surfaces-only toggle; the plural
-    ``journals`` stays rejected outright, no wire compat)."""
+    class families (tasks|events|meetings|sources|persons) plus the two
+    surfaces-only toggles: ``journal`` (the journal nav view + Today-page
+    management; the date classes stay always-on) and ``readItLater`` (the
+    read-it-later capture surface gating; no classes derive from it). The
+    plural ``journals`` and the other retired pre-reshape ids stay rejected
+    outright, no wire compat."""
 
     def test_builder_emits_the_toggle(self) -> None:
         assert build_workspace_feature_set("tasks", True) == {"feature": "tasks", "enabled": True}
         assert build_workspace_feature_set("events", False) == {"feature": "events", "enabled": False}
 
-    @pytest.mark.parametrize("feature", ["tasks", "events", "meetings", "sources", "persons", "journal"])
+    @pytest.mark.parametrize(
+        "feature", ["tasks", "events", "meetings", "sources", "persons", "journal", "readItLater"]
+    )
     def test_every_feature_id_accepted(self, feature: str) -> None:
         validate_payload("workspace.feature.set", {"feature": feature, "enabled": True})
 
@@ -635,7 +640,6 @@ class TestWorkspaceFeatureSet:
         "feature",
         [
             "journals",
-            "readItLater",
             "read_it_later",
             "library",
             "people",
@@ -737,6 +741,41 @@ class TestPropertyWirePayloads:
         kept = PAYLOAD_SCHEMAS["class.property.set"].model_validate({"classId": UUID_1, "propertySchemaId": UUID_2})
         assert kept.active is None
         assert "active" not in kept.model_fields_set
+
+    def test_class_property_set_show_in_node_rows_accepted(self) -> None:
+        """The additive node-row preview flag (2026-11-08): accepted like
+        ``active``, omitted = keep the stored flag, absent on the first bind
+        = false (the store column default)."""
+        validate_payload(
+            "class.property.set",
+            {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": True},
+        )
+        payload = PAYLOAD_SCHEMAS["class.property.set"].model_validate(
+            {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": False}
+        )
+        assert payload.show_in_node_rows is False
+        assert "show_in_node_rows" in payload.model_fields_set
+        kept = PAYLOAD_SCHEMAS["class.property.set"].model_validate({"classId": UUID_1, "propertySchemaId": UUID_2})
+        assert kept.show_in_node_rows is None
+        assert "show_in_node_rows" not in kept.model_fields_set
+
+    def test_class_property_set_explicit_null_show_in_node_rows_rejected(self) -> None:
+        """zod parity: an explicit null is NOT ``undefined`` — the strict
+        schema rejects it like the ``active`` precedent."""
+        with pytest.raises(ValidationError, match="showInNodeRows"):
+            validate_payload(
+                "class.property.set",
+                {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": None},
+            )
+
+    @pytest.mark.parametrize("value", ["yes", 1, ["true"]])
+    def test_class_property_set_non_boolean_show_in_node_rows_rejected(self, value: Any) -> None:
+        """The flag is strictly boolean (the TS protocol test's safeParse pin)."""
+        with pytest.raises(ValidationError, match="showInNodeRows"):
+            validate_payload(
+                "class.property.set",
+                {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": value},
+            )
 
 
 class TestListStylePayload:

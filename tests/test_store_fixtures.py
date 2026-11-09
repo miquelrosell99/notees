@@ -677,6 +677,59 @@ class TestWorkspaceFeatureSetFixture:
         backward.close()
 
 
+class TestWorkspaceFeatureReadItLaterFixture:
+    """Replay of workspace-feature-readitlater.json (the readItLater surface
+    toggle): a SURFACE gate like ``journal``, NOT a class family — the applier
+    writes the plain LWW feature row and derives no class archival bits. The
+    racing web enable / phone disable resolve LWW to the later phone disable,
+    identically under the reversed replay."""
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("workspace-feature-readitlater.json")]
+
+    def test_fixture_shape_surface_toggle_pair(self) -> None:
+        """The wire-shape pins (mirroring the monorepo protocol test): both
+        envelopes are ``workspace.feature.set`` on the ``readItLater`` id with
+        exactly {feature, enabled} payloads, and the pair is an off-boundary
+        race — the second (phone) envelope carries the disable and a
+        strictly-higher HLC."""
+        envelopes = self._load()
+        assert len(envelopes) == 2
+        for env in envelopes:
+            assert env.op_type == "workspace.feature.set"
+            assert sorted(env.payload) == ["enabled", "feature"]
+            assert env.payload["feature"] == "readItLater"
+        first, second = envelopes
+        assert first.payload["enabled"] is True
+        assert second.payload["enabled"] is False
+        assert (first.hlc.physical, first.hlc.logical) < (second.hlc.physical, second.hlc.logical)
+
+    def test_replay_lands_the_lww_row_only_no_family_derivation(self, tmp_path: Path) -> None:
+        """The LWW winner is the later phone disable; a surfaces-only toggle
+        archives nothing — no class rows, no membership, just the one
+        ``workspace_feature`` row (the journal precedent)."""
+        forward = LocalStore(tmp_path / "forward.db")
+        backward = LocalStore(tmp_path / "backward.db")
+        envelopes = self._load()
+        # Absent row reads enabled (F2) before any toggle lands.
+        assert forward.is_feature_enabled(WS, "readItLater") is True
+        for env in envelopes:
+            assert forward.apply_remote(env) is True
+        for env in reversed(envelopes):
+            backward.apply_remote(env)
+        for instance in (forward, backward):
+            assert instance.is_feature_enabled(WS, "readItLater") is False
+            assert raw(
+                instance,
+                "SELECT feature, enabled FROM workspace_feature WHERE feature = 'readItLater'",
+            ) == [("readItLater", 0)]
+            # No family archival derivation: the toggle is a surface gate.
+            assert raw(instance, "SELECT COUNT(*) FROM class") == [(0,)]
+            assert raw(instance, "SELECT COUNT(*) FROM class_member_set") == [(0,)]
+            assert raw(instance, "SELECT COUNT(*) FROM class_property") == [(0,)]
+            instance.close()
+
+
 class TestObjectUpdateActiveFixture:
     """Replay of object-update-active.json: the archival bit flips
     ``is_active`` with NO trash row ever (archive is a state, deletion is an
@@ -1950,6 +2003,67 @@ class TestClassPropertyPinnedFixture:
         # …and the unset deletes the row outright, ignoring pinning state.
         assert store.apply_remote(envelopes[7]) is True
         assert self._pinned(store) == []
+
+
+class TestClassPropertyNodeRowsFixture:
+    """Replay of class-property-node-rows.json (the binding row's
+    ``showInNodeRows`` node-row preview flag, additive 2026-11-08): the flag
+    rides ``class.property.set`` with the ``active`` patch semantics (omitted
+    keeps the stored flag), row LWW by envelope HLC — the interleaved
+    lower-HLC phone flag never wins — and ``class.property.unset`` deletes
+    the row outright regardless of preview state."""
+
+    SCHEMA = "0192a000-0000-7000-8000-000000000f2b"
+    CLASS = "0192a000-0000-7000-8000-000000000f2c"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("class-property-node-rows.json")]
+
+    def _flag(self, store: LocalStore) -> list[tuple[Any]]:
+        return raw(
+            store,
+            "SELECT show_in_node_rows FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            (self.CLASS, self.SCHEMA),
+        )
+
+    def test_fixture_shape_patch_semantics_race_and_unset_pair(self) -> None:
+        """The wire-shape pins (mirroring the monorepo protocol test):
+        bind → flag → interleaved flag (lower HLC, race loser) → unflag
+        (newer, winner) → active-only patch (flag kept) → flag back; the
+        unset is the bare {classId, propertySchemaId} pair."""
+        envelopes = self._load()
+        sets = [env for env in envelopes if env.op_type == "class.property.set"]
+        assert [env.payload.get("showInNodeRows") for env in sets] == [True, True, False, None, True]
+        # The interleaved phone flag loses the row LWW race: its HLC strictly
+        # precedes the next (winning) web write.
+        assert sets[1].hlc.physical < sets[2].hlc.physical
+        # The active-only patch (showInNodeRows omitted) keeps the stored flag.
+        assert sets[3].payload.get("active") is True
+        unset = next(env for env in envelopes if env.op_type == "class.property.unset")
+        assert sorted(unset.payload) == ["classId", "propertySchemaId"]
+        physicals = [env.hlc.physical for env in envelopes]
+        assert physicals == sorted(physicals)
+
+    def test_show_in_node_rows_tracks_the_newest_envelope_and_unset_deletes(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:3]:  # schema, class, first flag (web, showInNodeRows=true)
+            assert store.apply_remote(env) is True
+        assert self._flag(store) == [(1,)]
+        # The interleaved phone flag applies but never wins the row: the flag
+        # tracks the newest envelope's value, not the newest file position.
+        assert store.apply_remote(envelopes[3]) is True
+        assert self._flag(store) == [(1,)]
+        assert store.apply_remote(envelopes[4]) is True  # the newer web unflag wins
+        assert self._flag(store) == [(0,)]
+        # The active-only patch keeps the stored flag…
+        assert store.apply_remote(envelopes[5]) is True
+        assert self._flag(store) == [(0,)]
+        # …a later flag flips it back…
+        assert store.apply_remote(envelopes[6]) is True
+        assert self._flag(store) == [(1,)]
+        # …and the unset deletes the row outright, ignoring preview state.
+        assert store.apply_remote(envelopes[7]) is True
+        assert self._flag(store) == []
 
 
 class TestPropertyAssignFixture:

@@ -2075,6 +2075,64 @@ class TestClassPropertyBindings:
         )
         assert raw_rows(store, "SELECT COUNT(*) FROM class_property") == [(0,)]
 
+    def test_show_in_node_rows_absent_is_false_default_and_patch_keeps(self, store: LocalStore) -> None:
+        """The additive node-row preview flag (2026-11-08, web schema v36→v37
+        parity): a first bind WITHOUT the key stores 0 (absent = false, the
+        column default — no log rewrite), an explicit false is a real write,
+        and an omitted key on a later patch keeps the stored flag (the
+        ``active`` patch semantics)."""
+        store.apply_remote(class_env("class.create", uid("cls-1"), hlc=(1, 0), name="Task"))
+        store.apply_remote(
+            make_env(
+                "class.property.set",
+                {"classId": uid("cls-1"), "propertySchemaId": uid("ps-1"), "active": True},
+                hlc=(2, 0),
+            )
+        )
+        assert raw_rows(
+            store,
+            f"SELECT show_in_node_rows FROM class_property WHERE class_id = '{uid('cls-1')}'"
+            f" AND property_schema_id = '{uid('ps-1')}'",
+        ) == [(0,)]
+        store.apply_remote(
+            make_env(
+                "class.property.set",
+                {"classId": uid("cls-1"), "propertySchemaId": uid("ps-1"), "showInNodeRows": True},
+                hlc=(3, 0),
+            )
+        )
+        assert raw_rows(
+            store,
+            f"SELECT show_in_node_rows FROM class_property WHERE class_id = '{uid('cls-1')}'"
+            f" AND property_schema_id = '{uid('ps-1')}'",
+        ) == [(1,)]
+        # An active-only patch keeps the stored flag…
+        store.apply_remote(
+            make_env(
+                "class.property.set",
+                {"classId": uid("cls-1"), "propertySchemaId": uid("ps-1"), "active": False},
+                hlc=(4, 0),
+            )
+        )
+        assert raw_rows(
+            store,
+            f"SELECT show_in_node_rows FROM class_property WHERE class_id = '{uid('cls-1')}'"
+            f" AND property_schema_id = '{uid('ps-1')}'",
+        ) == [(1,)]
+        # …and an explicit false is a real write (not "absent").
+        store.apply_remote(
+            make_env(
+                "class.property.set",
+                {"classId": uid("cls-1"), "propertySchemaId": uid("ps-1"), "showInNodeRows": False},
+                hlc=(5, 0),
+            )
+        )
+        assert raw_rows(
+            store,
+            f"SELECT show_in_node_rows FROM class_property WHERE class_id = '{uid('cls-1')}'"
+            f" AND property_schema_id = '{uid('ps-1')}'",
+        ) == [(0,)]
+
 
 class TestClassUnassign:
     def _seed_classed_node(self, store: LocalStore, *, node_id: str = uid("n-x")) -> None:

@@ -395,6 +395,14 @@ class ClassPropertySetPayload(_Strict):
     time), so panel order no longer exists to configure. The strict schema
     rejects the key outright; live logs rewrite in place via the monorepo's
     scripts/migrate-drop-binding-sequence.mts.
+
+   ``showInNodeRows`` (additive 2026-11-08, web schema v36→v37 parity): the
+    binary node-row preview flag — a flagged binding's property value renders
+    in the node's ROW (the outliner line/chrome preview), not only in the
+    properties panel. Absent = false (the default; no log rewrite — the
+    store column defaults 0). Omitted = keep the stored flag (the patch
+    semantics identical to ``active``); row LWW by envelope HLC. An explicit
+    JSON null is NOT ``undefined`` — the strict schema rejects it.
     """
 
     class_id: UUID = Field(alias="classId")
@@ -404,11 +412,19 @@ class ClassPropertySetPayload(_Strict):
     # keep the stored flag (the patch convention). zod parity: an explicit
     # JSON null is NOT ``undefined`` — the strict schema rejects it.
     active: bool | None = Field(default=None)
+    # The binary node-row preview flag (the 2026-11-08 slice): omitted =
+    # keep the stored flag (the ``active`` patch convention); absent on the
+    # FIRST bind = false (the store column default). zod parity: an explicit
+    # JSON null is rejected, not "absent"; StrictBool mirrors the zod
+    # ``z.boolean()`` (a string/int does not coerce).
+    show_in_node_rows: StrictBool | None = Field(default=None, alias="showInNodeRows")
 
     @model_validator(mode="after")
     def _check_active_not_null(self) -> ClassPropertySetPayload:
         if "active" in self.model_fields_set and self.active is None:
             raise ValueError("class.property.set 'active' must be a boolean when present")
+        if "show_in_node_rows" in self.model_fields_set and self.show_in_node_rows is None:
+            raise ValueError("class.property.set 'showInNodeRows' must be a boolean when present")
         return self
 
 
@@ -639,14 +655,16 @@ class WorkspaceFeatureSetPayload(_Strict):
 
     ``feature`` is fixed protocol vocabulary — the five core class families
     (tasks=task, events=event, meetings=meeting, sources=source,
-    persons=person) plus ``journal`` (the
-    surfaces-only toggle: the journal nav view + Today-page management; the
-    date classes stay always-on structural seeds and it derives no class
-    bits). The retired pre-reshape ids (journals/readItLater/library/
-    people/collections) are rejected outright by this strict schema — no
-    wire compat. LWW by envelope HLC on (workspace,
-    feature); the derived ``workspace_feature`` table stores the winning row
-    and an ABSENT row means enabled (F2).
+    persons=person) plus the two surfaces-only toggles: ``journal`` (the
+    journal nav view + Today-page management; the date classes stay
+    always-on structural seeds and it derives no class bits) and
+    ``readItLater`` (the read-it-later capture surface — the server capture
+    route answers 403 ``feature_disabled`` on a disabled row; a SURFACE
+    toggle like journal, no classes derive from it). The retired
+    pre-reshape ids (journals/library/people/collections) are rejected
+    outright by this strict schema — no wire compat. LWW by envelope HLC on
+    (workspace, feature); the derived ``workspace_feature`` table stores the
+    winning row and an ABSENT row means enabled (F2).
 
     The optional ``settings`` record (op-types.ts ``settings:
     z.record(z.unknown()).optional()`` — the Sources
@@ -656,7 +674,7 @@ class WorkspaceFeatureSetPayload(_Strict):
     stores NULL and reads back absent (distinct from the empty record).
     """
 
-    feature: Literal["tasks", "events", "meetings", "sources", "persons", "journal"]
+    feature: Literal["tasks", "events", "meetings", "sources", "persons", "journal", "readItLater"]
     enabled: bool
     # zod parity: an explicit null is rejected, not "absent" (the
     # PropertySetPayload elementId precedent).
@@ -1035,12 +1053,12 @@ def build_tag_unassign(object_id: str, tag_id: str) -> dict[str, Any]:
 def build_workspace_feature_set(feature: str, enabled: bool) -> dict[str, Any]:
     """Build a ``workspace.feature.set`` payload (the Features tab).
 
-    ``feature`` is one of the five core class families or ``journal`` (the
-    ``WORKSPACE_FEATURES`` enum in ``features.py`` — the journal entry gates
-    the journal surfaces only, no class bits); the strict schema rejects the
-    retired pre-reshape ids (journals/readItLater/library/people/collections)
-    outright. LWW by HLC on (workspace, feature); an absent derived row reads
-    enabled (F2).
+    ``feature`` is one of the five core class families, ``journal``, or
+    ``readItLater`` (the ``WORKSPACE_FEATURES`` enum in ``features.py`` —
+    the journal and readItLater entries gate surfaces only, no class bits);
+    the strict schema rejects the retired pre-reshape ids
+    (journals/library/people/collections) outright. LWW by HLC on
+    (workspace, feature); an absent derived row reads enabled (F2).
     """
     return _validated("workspace.feature.set", {"feature": feature, "enabled": enabled})
 

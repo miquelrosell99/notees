@@ -283,7 +283,15 @@ _log = logging.getLogger(__name__)
 #: the node row's own ``updated_at`` so any pre-v28 database converges to
 #: the same rows. No DDL change — a no-op for a database whose index is
 #: already complete (the rebuild re-derives identical rows).
-SCHEMA_VERSION = 28
+#: v29 (web schema v36→v37 parity — the binding row's ``showInNodeRows``
+#: node-row preview flag, additive 2026-11-08): ``class_property`` gains
+#: ``show_in_node_rows INTEGER NOT NULL DEFAULT 0`` — a flagged binding's
+#: property value renders in the node's row (the outliner line/chrome
+#: preview), not only in the properties panel; absent = false (the default;
+#: no log rewrite, existing rows converge by the default). Purely additive
+#: guarded ALTER — a no-op for fresh databases whose canonical aux DDL
+#: already carries the column (the v24 precedent).
+SCHEMA_VERSION = 29
 
 #: Strict pattern every interpolated snapshot identifier must match — closes
 #: the quote-breakout surface on names read from the attached snapshot.
@@ -3294,8 +3302,9 @@ class LocalStore:
     # ------------------------------------------------------- class.property.*
 
     def _apply_class_property_set(self, env: RelayEnvelope) -> bool:
-        """Binding upsert — the genuinely per-class mechanic ONLY: the
-        ``active`` soft-unbind flag (row LWW by envelope HLC).
+        """Binding upsert — the genuinely per-class mechanics ONLY: the
+        ``active`` soft-unbind flag and ``showInNodeRows``, the binary
+        node-row preview flag (row LWW by envelope HLC).
 
         (the property-definition surfaces batch):
         ``required`` and ``defaultValue`` left the binding entirely —
@@ -3341,22 +3350,27 @@ class LocalStore:
 
         # Omitted (absent) fields keep the stored value via COALESCE; an
         # explicit false is a real write. The binding row carries ONLY
-        # active — the render contracts (readonly/hideWhenEmpty/display) are
+        # active + show_in_node_rows — the render contracts
+        # (readonly/hideWhenEmpty/display) are
         # PROPERTY-level and live on property_schema; the default value
         # lives there too and sequence retired
         # outright.
         active = None if "active" not in payload else (1 if payload["active"] else 0)
+        show_in_node_rows = (
+            None if "showInNodeRows" not in payload else (1 if payload["showInNodeRows"] else 0)
+        )
         with self._conn:
             if existing is None:
                 self._conn.execute(
                     """INSERT INTO class_property
-                         (class_id, property_schema_id, active,
+                         (class_id, property_schema_id, active, show_in_node_rows,
                           hlc_physical, hlc_logical, actor_id)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
                     (
                         class_id,
                         schema_id,
                         active if active is not None else 1,
+                        show_in_node_rows if show_in_node_rows is not None else 0,
                         env.hlc.physical,
                         env.hlc.logical,
                         env.actor_id,
@@ -3366,10 +3380,12 @@ class LocalStore:
                 self._conn.execute(
                     """UPDATE class_property SET
                          active = COALESCE(?, active),
+                         show_in_node_rows = COALESCE(?, show_in_node_rows),
                          hlc_physical = ?, hlc_logical = ?, actor_id = ?
                        WHERE class_id = ? AND property_schema_id = ?""",
                     (
                         active,
+                        show_in_node_rows,
                         env.hlc.physical,
                         env.hlc.logical,
                         env.actor_id,
@@ -6326,10 +6342,16 @@ _CLASS_PROPERTY_DDL = """
 -- 'active' (PC4): the soft-unbind flag — an inactive row stops contributing
 -- to the effective read while the ROW survives; absent column means active,
 -- so existing rows converge with zero migration.
+-- 'show_in_node_rows' (additive 2026-11-08, web schema v36→v37 parity): the
+-- binary node-row preview flag — a flagged binding's property value renders
+-- in the node's row (the outliner line/chrome preview), not only in the
+-- properties panel; absent = false (the default), omitted on a patch keeps
+-- the stored flag (the 'active' patch semantics).
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
+    show_in_node_rows INTEGER NOT NULL DEFAULT 0,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
@@ -7175,6 +7197,17 @@ def _migrate_v28(conn: sqlite3.Connection) -> None:
     _ = conn
 
 
+def _migrate_v29(conn: sqlite3.Connection) -> None:
+    """v29 — the binding row's ``showInNodeRows`` node-row preview flag
+    (web schema v36→v37 parity, additive 2026-11-08):
+    ``class_property.show_in_node_rows INTEGER NOT NULL DEFAULT 0`` — absent
+    = false (the default; existing rows converge by the default), an omitted
+    key on a patch keeps the stored flag (the ``active`` patch semantics).
+    Purely additive guarded ALTER — a no-op for fresh v29 creates, whose
+    canonical aux DDL already carries the column (the v24 precedent)."""
+    LocalStore._add_column_if_missing(conn, "class_property", "show_in_node_rows", "INTEGER NOT NULL DEFAULT 0")
+
+
 #: Ordered migration chain; each entry bumps ``PRAGMA user_version`` to its target.
 _MIGRATIONS: tuple[tuple[int, Callable[[sqlite3.Connection], None]], ...] = (
     (1, _migrate_v1),
@@ -7205,4 +7238,5 @@ _MIGRATIONS: tuple[tuple[int, Callable[[sqlite3.Connection], None]], ...] = (
     (26, _migrate_v26),
     (27, _migrate_v27),
     (28, _migrate_v28),
+    (29, _migrate_v29),
 )

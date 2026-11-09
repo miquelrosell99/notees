@@ -85,10 +85,13 @@ __all__ = [
 ]
 
 #: The strict ``workspace.feature.set`` enum (op-types.ts ``WORKSPACE_FEATURES``):
-#: the five core class families + ``journal`` — the surfaces-only toggle
-#: (the journal nav view + Today-page management; the date classes stay
-#: always-on structural seeds).
-WorkspaceFeature = Literal["tasks", "events", "meetings", "sources", "persons", "journal"]
+#: the five core class families + the two surfaces-only toggles —
+#: ``journal`` (the journal nav view + Today-page management; the date
+#: classes stay always-on structural seeds) and ``readItLater`` (the
+#: read-it-later capture surface gating — the server capture route answers
+#: 403 ``feature_disabled`` on a disabled row; no classes derive from it,
+#: disabling it archives nothing).
+WorkspaceFeature = Literal["tasks", "events", "meetings", "sources", "persons", "journal", "readItLater"]
 WORKSPACE_FEATURES: tuple[WorkspaceFeature, ...] = (
     "tasks",
     "events",
@@ -96,10 +99,11 @@ WORKSPACE_FEATURES: tuple[WorkspaceFeature, ...] = (
     "sources",
     "persons",
     "journal",
+    "readItLater",
 )
 
 #: The family toggles: the five entries that derive class archival bits
-#: (features.ts ``FamilyFeature = Exclude<WorkspaceFeature, "journal">``).
+#: (features.ts ``FamilyFeature = Exclude<WorkspaceFeature, "journal" | "readItLater">``).
 FamilyFeature = Literal["tasks", "events", "meetings", "sources", "persons"]
 
 #: The fixed system-class UUIDs (seeds.ts ``SYSTEM_CLASS_UUIDS`` FULL parity —
@@ -526,8 +530,8 @@ def system_class_name_for_id(class_id: str) -> str | None:
 
 def is_family_feature(feature: WorkspaceFeature) -> TypeGuard[FamilyFeature]:
     """True when ``feature`` is a family toggle (derives class archival
-    bits) — the ``journal`` entry gates surfaces only and is excluded
-    (features.ts ``isFamilyFeature``)."""
+    bits) — the ``journal`` and ``readItLater`` entries gate surfaces only
+    and are excluded (features.ts ``isFamilyFeature``)."""
     return feature in WORKSPACE_FEATURE_MAP
 
 

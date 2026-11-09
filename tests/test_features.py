@@ -42,10 +42,19 @@ TRIP = "00000000-0000-0000-0001-000000000047"
 
 
 class TestFiveFamilyMap:
-    def test_the_reshaped_enum_carries_the_five_families_plus_journal(self) -> None:
-        """The five family entries + the surfaces-only ``journal`` toggle
-       ; the family MAP stays the five exactly."""
-        assert WORKSPACE_FEATURES == ("tasks", "events", "meetings", "sources", "persons", "journal")
+    def test_the_reshaped_enum_carries_the_five_families_plus_the_surface_toggles(self) -> None:
+        """The five family entries + the two surfaces-only toggles
+        (``journal``, ``readItLater`` — neither derives class archival
+        bits); the family MAP stays the five exactly."""
+        assert WORKSPACE_FEATURES == (
+            "tasks",
+            "events",
+            "meetings",
+            "sources",
+            "persons",
+            "journal",
+            "readItLater",
+        )
         assert set(WORKSPACE_FEATURE_MAP) == {"tasks", "events", "meetings", "sources", "persons"}
 
     def test_family_specs(self) -> None:
@@ -55,10 +64,11 @@ class TestFiveFamilyMap:
         assert WORKSPACE_FEATURE_MAP["sources"].base_class == "source"
         assert WORKSPACE_FEATURE_MAP["persons"].base_class == "person"
 
-    def test_is_family_feature_excludes_journal(self) -> None:
+    def test_is_family_feature_excludes_the_surface_toggles(self) -> None:
         for feature in ("tasks", "events", "meetings", "sources", "persons"):
             assert is_family_feature(feature) is True
         assert is_family_feature("journal") is False
+        assert is_family_feature("readItLater") is False
 
 
 class TestFamilySets:

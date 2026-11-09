@@ -254,7 +254,7 @@ class TestMigrationPath:
 
         reopened = LocalStore(path)
         try:
-            assert reopened._conn.execute("PRAGMA user_version").fetchone()[0] == 28  # noqa: SLF001
+            assert reopened._conn.execute("PRAGMA user_version").fetchone()[0] == 29  # noqa: SLF001
             assert all_edges(reopened) == expected
         finally:
             reopened.close()
@@ -263,7 +263,7 @@ class TestMigrationPath:
         path = tmp_path / "store.db"
         store = LocalStore(path)
         try:
-            assert store._conn.execute("PRAGMA user_version").fetchone()[0] == 28  # noqa: SLF001
+            assert store._conn.execute("PRAGMA user_version").fetchone()[0] == 29  # noqa: SLF001
             assert all_edges(store) == []
         finally:
             store.close()
