@@ -7,7 +7,7 @@
  * (the runtime guard, not a type assertion, is the law).
  */
 
-import type { JSX } from "react";
+import { useState, type JSX } from "react";
 
 import type { WorkspaceFeature } from "@notees/protocol";
 import { WORKSPACE_FEATURES } from "@notees/protocol";
@@ -27,7 +27,11 @@ export const READ_IT_LATER_KNOWN: boolean = (WORKSPACE_FEATURES as readonly stri
 export function ReadItLaterFeatureRow(props: { client: AnyClient }): JSX.Element | null {
   if (!READ_IT_LATER_KNOWN) return null;
   const { client } = props;
-  const enabled = client.isFeatureEnabled(READ_IT_LATER_FEATURE);
+  // A local mirror (not a live read at render): the settings chrome holds no
+  // feature subscription, so a controlled toggle would never re-render after
+  // the first flip — the mirror makes the row self-sufficient (the sibling
+  // family rows ride the modal's incidental re-renders; this row must not).
+  const [enabled, setEnabled] = useState(() => client.isFeatureEnabled(READ_IT_LATER_FEATURE));
   return (
     <div className="settings-item settings-feature-row" data-feature="readItLater">
       <span className="settings-feature-row__icon">
@@ -45,6 +49,7 @@ export function ReadItLaterFeatureRow(props: { client: AnyClient }): JSX.Element
         rightLabel="On"
         checked={enabled}
         onChange={(next) => {
+          setEnabled(next);
           void client.setFeatureEnabled(READ_IT_LATER_FEATURE, next).catch((error: unknown) => {
             console.warn(`[features] setFeatureEnabled (readItLater) failed:`, error);
           });
