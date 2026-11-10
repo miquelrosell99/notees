@@ -7,6 +7,18 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-11-10
+
+- **fix(web): the API-keys mint tests stop flaking on loaded CI runners — the
+  "copy it now" assertions get an explicit 5s findBy timeout.** The nightly ci
+  went red on a test-only flake: the mint flow seals the key with
+  production-strength scrypt before the once-only dialog renders, and the
+  default 1000 ms testing-library `findByText` timeout is marginal on a
+  contended 2-core runner (the failing run was visibly slow — 8m20s against
+  the typical ~7m; the suite passes in full locally on the same commit). The
+  three mint assertions in `settings-page.test.tsx` now pass
+  `{ timeout: 5000 }`, with a comment pinning why. No product code touched.
+
 ## 2026-11-09
 
 - **chore(vendor): bump notees pin — readItLater + showInNodeRows land together; the Read-later toggle goes live.** The pin lands the sync repo's capture-API slice (`a887bf2`: the `readItLater` workspace feature, `POST /api/capture/web-page`, `capture.write`, `/word/` add-in statics) and the node-row-previews slice (`4eaa14c`: `class.property.set {showInNodeRows}`, fixture gate 51→54 with both slices' fixtures). Web-side follow-ups the bump activated: the Settings → Features **Read later** row now renders (the vendored id is known) — given a local enabled-state mirror so its controlled toggle flips without an external subscription (the sibling rows ride the modal's incidental re-renders; the row's own post-bump test caught the stale-second-flip); `protocol-batch`'s Features-tab pin extends to seven rows (5 families + journal + read later). Verification: full suite green — 3204/3204 (the pre-existing `calendar-timegrid` red that fails on main itself in this environment stays the only exception); `tsc --noEmit` clean; the vendored packages' dist rebuilt per the dev-condition law.

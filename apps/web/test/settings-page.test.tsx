@@ -411,7 +411,11 @@ describe("SettingsPage", () => {
       target: { value: "correct horse battery staple" },
     });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
-    expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
+    // The mint seals the key with production-strength scrypt; on a loaded
+    // CI runner the KDF + render can outlast the default 1s findBy timeout.
+    expect(
+      await screen.findByText(/copy it now/i, undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
     const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
     expect(create).toBeDefined();
     // The default is every permission on → full access: no scope list rides.
@@ -503,7 +507,7 @@ describe("SettingsPage", () => {
       target: { value: "correct horse battery staple" },
     });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
-    await screen.findByText(/copy it now/i);
+    await screen.findByText(/copy it now/i, undefined, { timeout: 5000 });
     const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
     expect(JSON.parse(String(create?.body))).toEqual({
       name: "reader",
@@ -586,7 +590,10 @@ describe("SettingsPage", () => {
       target: { value: "correct horse battery staple" },
     });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
-    expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
+    // Same scrypt-bound mint flow as above — the explicit timeout applies.
+    expect(
+      await screen.findByText(/copy it now/i, undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
 
     // The unlock oracle checked the password (with the account email)…
     const unlockCall = calls.find((c) => c.url.endsWith("/api/auth/unlock"));
