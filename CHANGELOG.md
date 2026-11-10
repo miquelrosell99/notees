@@ -9,15 +9,20 @@ predating this file.
 
 ## 2026-11-10
 
-- **fix(web): the API-keys mint tests stop flaking on loaded CI runners — the
-  "copy it now" assertions get an explicit 5s findBy timeout.** The nightly ci
-  went red on a test-only flake: the mint flow seals the key with
-  production-strength scrypt before the once-only dialog renders, and the
-  default 1000 ms testing-library `findByText` timeout is marginal on a
-  contended 2-core runner (the failing run was visibly slow — 8m20s against
-  the typical ~7m; the suite passes in full locally on the same commit). The
-  three mint assertions in `settings-page.test.tsx` now pass
-  `{ timeout: 5000 }`, with a comment pinning why. No product code touched.
+- **fix(web): the crypto-bound UI tests stop flaking on loaded CI runners —
+  the suite's testing-library async budget rises to 5s globally.** The
+  nightly ci went red twice on one flake class: a key mint / workspace
+  unlock runs production-strength scrypt before the asserted UI renders,
+  and the default 1000 ms testing-library `findBy`/`waitFor` timeout is
+  marginal on a contended 2-core runner (the failing runs were visibly
+  slow — 8m20s+ against the typical ~7m; the suite passes in full locally
+  on the same commits). The first red was the API-keys "copy it now"
+  dialog in `settings-page.test.tsx`; the follow-up dispatch then red-lit
+  the same class in `unlock-flow.test.tsx` ("KEYED") — per-assertion
+  patches are whack-a-mole, so `test/setup.ts` now sets
+  `configure({ asyncUtilTimeout: 5000 })` for every test, and the three
+  explicit timeouts the first attempt added revert to plain assertions.
+  No product code touched.
 
 ## 2026-11-09
 
