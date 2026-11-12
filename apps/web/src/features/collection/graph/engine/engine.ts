@@ -288,6 +288,88 @@ function detectCommunities(
   return result;
 }
 
+// ─── Disc-center planning (seed placement) ────────────────────────────────────
+
+/**
+ * The minimum community size whose disc must be explicitly de-overlapped at
+ * seed time. Below this the √k spiral already spaces centers at or beyond
+ * the shell, and the short-range local repulsion handles the rest.
+ */
+const PLACEMENT_BIG_MIN = 8;
+
+export interface DiscPlanItem {
+  /** Member count — drives the big/mid/singleton phase classification. */
+  count: number;
+  /** The item's disc radius in world units. */
+  rad: number;
+}
+
+export interface DiscPlanResult {
+  /** Item center offsets (2 floats per item, same order as the input). */
+  offsets: Float32Array;
+  /** The layout's extent — max over items of |offset| + rad. */
+  extent: number;
+}
+
+/**
+ * Plan non-overlapping-ish centers for a set of sized discs on a golden-angle
+ * spiral, in three phases by size (descending order):
+ *   • big (count ≥ PLACEMENT_BIG_MIN) — a frontier walk: each disc sits at
+ *     (frontier + rad + margin), so large discs NEVER overlap. Overlapping
+ *     large discs at seed time were the layout bomb: thousands of piled-up
+ *     nodes sum their local repulsion to the velocity clamp and the whole
+ *     graph goes ballistic, spending its entire alpha budget in flight.
+ *   • mid (2..BIG_MIN-1) — the classic area-filling √k spiral with the
+ *     spacing shell, starting beyond the big-disc ring.
+ *   • singletons — a TIGHT √k spiral (near the equilibrium density the
+ *     center gravity sustains) beyond the mid ring, so orphan fields open
+ *     compact instead of as a sparse disc a hundred ideal-distances wide.
+ */
+export function planDiscCenters(
+  items: DiscPlanItem[],
+  opts: { bigMargin: number; midShell: number; tightShell: number; angle0: number },
+): DiscPlanResult {
+  const order = items.map((_, i) => i).sort((a, b) => items[b]!.count - items[a]!.count);
+  const offsets = new Float32Array(items.length * 2);
+  const golden = 2.399963229728653;
+  let angle = opts.angle0;
+  let frontier = 0;
+  let bigRing = 0;
+  let midRing = 0;
+  let midCount = 0;
+  let singleCount = 0;
+  let extent = 0;
+  for (let rank = 0; rank < order.length; rank++) {
+    const i = order[rank]!;
+    const { count, rad } = items[i]!;
+    let r: number;
+    if (count >= PLACEMENT_BIG_MIN) {
+      // The largest disc (rank 0) sits at the center — the component's or
+      // cluster family's densest member anchors the group.
+      r = rank === 0
+        ? 0
+        : Math.max(frontier + rad + opts.bigMargin, opts.bigMargin * Math.sqrt(rank + 1));
+      frontier = r + rad;
+      bigRing = frontier;
+    } else if (count >= 2) {
+      midCount++;
+      r = (bigRing > 0 ? bigRing : 0) + opts.midShell * Math.sqrt(midCount);
+      if (r + rad > midRing) midRing = r + rad;
+    } else {
+      singleCount++;
+      const base = Math.max(bigRing, midRing);
+      r = base > 0 ? base + opts.tightShell * Math.sqrt(singleCount) : opts.tightShell * Math.sqrt(singleCount);
+    }
+    angle += golden;
+    const x = r * Math.cos(angle);
+    const y = r * Math.sin(angle);
+    offsets[i * 2] = x;
+    offsets[i * 2 + 1] = y;
+    if (r + rad > extent) extent = r + rad;
+  }
+  return { offsets, extent };
+}
+
 // ─── Connected components (BFS) ───────────────────────────────────────────────
 
 function findConnectedComponents(
@@ -631,22 +713,17 @@ export class GraphEngine {
       g.push(i);
     }
 
-    const componentIds = [...componentGroups.keys()]!.sort(
-      (a, b) => (componentGroups.get(b)?.length ?? 0) - (componentGroups.get(a)?.length ?? 0),
-    );
+    const shellRadius = (count: number): number =>
+      Math.min(cfg.idealDistance * 0.5 * Math.sqrt(count), cfg.idealDistance * 6);
+    const tightShell = cfg.idealDistance * 0.4;
+    const clusterMargin = Math.max(cfg.clusterSpacing, cfg.clusterMargin);
 
-    let componentAngle = 0;
-    for (let ci = 0; ci < componentIds.length; ci++) {
-      const cId = componentIds[ci]!;
+    // Pass A: plan cluster centers (relative to the component center) for
+    // every component. The component's radius is the plan's extent.
+    const clusterPlans = new Map<number, { clIds: number[]; offsets: Float32Array; extent: number }>();
+    const compIds = [...componentGroups.keys()];
+    for (const cId of compIds) {
       const nodeIndices = componentGroups.get(cId)!;
-      let compCX = 0, compCY = 0;
-      if (ci > 0) {
-        const r = cfg.componentSpacing * Math.sqrt(ci);
-        compCX = r * Math.cos(componentAngle);
-        compCY = r * Math.sin(componentAngle);
-        componentAngle += 2.399963;
-      }
-
       const clusterGroups = new Map<number, number[]>();
       for (const idx of nodeIndices) {
         const kId = this.clIdArr[idx]!;
@@ -654,23 +731,55 @@ export class GraphEngine {
         if (!cg) { cg = []; clusterGroups.set(kId, cg); }
         cg.push(idx);
       }
-
-      const clIds = [...clusterGroups.keys()]!.sort(
-        (a, b) => (clusterGroups.get(b)?.length ?? 0) - (clusterGroups.get(a)?.length ?? 0),
+      const clIds = [...clusterGroups.keys()];
+      const plan = planDiscCenters(
+        clIds.map((k) => {
+          const count = clusterGroups.get(k)!.length;
+          return { count, rad: shellRadius(count) };
+        }),
+        { bigMargin: clusterMargin, midShell: clusterMargin, tightShell, angle0: rng.next() * Math.PI * 2 },
       );
+      clusterPlans.set(cId, { clIds, offsets: plan.offsets, extent: plan.extent });
+    }
 
-      let clusterAngle = rng.next() * Math.PI * 2;
+    // Pass B: plan component centers — radius-aware like the clusters, so a
+    // big component's disc never swallows its neighbors at seed time. The
+    // mid/tight shells target ~400/~120 unit spacings (the Fermat spiral's
+    // asymptotic point spacing is ≈ 1.77 × the shell): with alpha-gated
+    // settling the seed IS the final layout for anything without springs —
+    // the bands open at the density they should rest at.
+    const compPlan = planDiscCenters(
+      compIds.map((cId) => ({ count: componentGroups.get(cId)!.length, rad: clusterPlans.get(cId)!.extent })),
+      {
+        bigMargin: Math.max(cfg.componentSpacing, clusterMargin),
+        midShell: Math.max(cfg.idealDistance * 2.26, clusterMargin * 0.4),
+        tightShell: cfg.idealDistance * 0.68,
+        angle0: 0,
+      },
+    );
+    const compCenter = new Map<number, { x: number; y: number }>();
+    for (let ci = 0; ci < compIds.length; ci++) {
+      compCenter.set(compIds[ci]!, { x: compPlan.offsets[ci * 2]!, y: compPlan.offsets[ci * 2 + 1]! });
+    }
+
+    // Pass C: emit node positions — component center + cluster offset +
+    // the phylotaxis spiral within the cluster (spacing ≈ ideal distance).
+    const goldenAngle = 2.399963229728653;
+    for (const cId of compIds) {
+      const cc = compCenter.get(cId)!;
+      const { clIds, offsets } = clusterPlans.get(cId)!;
+      const nodeIndices = componentGroups.get(cId)!;
+      const clusterGroups = new Map<number, number[]>();
+      for (const idx of nodeIndices) {
+        const kId = this.clIdArr[idx]!;
+        let cg = clusterGroups.get(kId);
+        if (!cg) { cg = []; clusterGroups.set(kId, cg); }
+        cg.push(idx);
+      }
       for (let ki = 0; ki < clIds.length; ki++) {
         const members = clusterGroups.get(clIds[ki]!)!;
-        let clCX = compCX, clCY = compCY;
-        if (ki > 0) {
-          const r = cfg.clusterSpacing * Math.sqrt(ki);
-          clCX = compCX + r * Math.cos(clusterAngle);
-          clCY = compCY + r * Math.sin(clusterAngle);
-          clusterAngle += 2.399963;
-        }
-
-        const goldenAngle = 2.399963229728653;
+        const clCX = cc.x + offsets[ki * 2]!;
+        const clCY = cc.y + offsets[ki * 2 + 1]!;
         const spiralAngle0 = rng.next() * Math.PI * 2;
         for (let ni = 0; ni < members.length; ni++) {
           const idx = members[ni]!;

@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   GraphEngine,
   buildGraphEngineConfig,
+  planDiscCenters,
   type GraphEngineEdge,
   type GraphEngineNode,
 } from "../src/features/collection/graph/engine/index.js";
@@ -328,5 +329,118 @@ describe("graph engine", () => {
     const r = Math.min(100 * 0.5 * Math.sqrt(half), 100 * 6);
     // Gravity caps the separation, but the surfaces must still clear.
     expect(dist).toBeGreaterThan(1.5 * r);
+  });
+
+  describe("seed placement (the explosion fix)", () => {
+    it("planDiscCenters never overlaps big discs and anchors the largest at the center", () => {
+      const items = [
+        { count: 400, rad: 600 }, // rank 0 — the giant
+        { count: 300, rad: 500 },
+        { count: 200, rad: 400 },
+        { count: 3, rad: 90 },
+        { count: 1, rad: 0 },
+        { count: 1, rad: 0 },
+      ];
+      const { offsets } = planDiscCenters(items, {
+        bigMargin: 560,
+        midShell: 560,
+        tightShell: 40,
+        angle0: 0.7,
+      });
+      const at = (i: number) => ({ x: offsets[i * 2]!, y: offsets[i * 2 + 1]! });
+      const dist = (a: number, b: number) => Math.hypot(at(a).x - at(b).x, at(a).y - at(b).y);
+      // The largest disc sits at the group's center.
+      expect(Math.hypot(at(0).x, at(0).y)).toBe(0);
+      // Any two big discs keep a full surface margin between them.
+      for (const [a, b] of [[0, 1], [0, 2], [1, 2]] as const) {
+        expect(dist(a, b)).toBeGreaterThanOrEqual(items[a]!.rad + items[b]!.rad + 560 - 1e-3);
+      }
+      // Deterministic for the same inputs.
+      const again = planDiscCenters(items, { bigMargin: 560, midShell: 560, tightShell: 40, angle0: 0.7 });
+      expect([...again.offsets]).toEqual([...offsets]);
+    });
+
+    it("bridged communities are seeded with clear space between their discs", () => {
+      const { nodes, edges } = twoClusters();
+      const half = nodes.length / 2;
+      const engine = new GraphEngine(nodes, edges, physics());
+      const centroid = (from: number, to: number): { x: number; y: number } => {
+        let x = 0, y = 0;
+        for (let i = from; i < to; i++) {
+          const p = engine.getNodePosition(nodes[i]!.nodeUuid)!;
+          x += p.x; y += p.y;
+        }
+        return { x: x / (to - from), y: y / (to - from) };
+      };
+      const a = centroid(0, half);
+      const b = centroid(half, nodes.length);
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      // Two 30-node communities: disc surfaces at least the cluster margin
+      // apart at seed time (the piled-up seed was the layout bomb — thousands
+      // of overlapping nodes summed their repulsion to the velocity clamp and
+      // the graph spent its whole alpha budget in flight).
+      const r = Math.min(100 * 0.5 * Math.sqrt(half), 100 * 6);
+      const clusterMargin = 350 * (0.5 + (65 / 100) * 1.5); // balanced + sep 65
+      expect(dist).toBeGreaterThan(2 * r + clusterMargin * 0.9);
+    });
+
+    it("an orphan-heavy graph settles calm and bounded — no explosion, no stray far field", () => {
+      // One chain component + 500 orphan singletons: the workspace shape that
+      // used to open as a 100k-unit scatter of frozen mid-flight nodes.
+      const { nodes, edges } = chain(80);
+      const orphans: GraphEngineNode[] = Array.from({ length: 500 }, (_, i) => ({
+        nodeUuid: `o${i}`,
+      }));
+      const engine = new GraphEngine([...nodes, ...orphans], edges, physics());
+      let seedMaxR = 0;
+      for (const nd of [...nodes, ...orphans]) {
+        const p = engine.getNodePosition(nd.nodeUuid)!;
+        seedMaxR = Math.max(seedMaxR, Math.hypot(p.x, p.y));
+      }
+      for (let t = 0; t < 4000 && !engine.settled; t++) engine.step();
+      expect(engine.settled).toBe(true);
+      const s = engine.getState();
+      let maxR = 0;
+      for (let i = 0; i < s.nodeCount; i++) {
+        expect(Number.isFinite(s.posX[i])).toBe(true);
+        maxR = Math.max(maxR, Math.hypot(s.posX[i]!, s.posY[i]!));
+      }
+      // Nothing flies past its seed radius — settling contracts, never blasts.
+      expect(maxR).toBeLessThanOrEqual(seedMaxR + 500);
+    });
+
+    it("small components settle fully relaxed — edges at rest, not frozen mid-flight", () => {
+      // Star components of 2–6 nodes (the screenshot-constellation shape):
+      // a relaxed settle parks every internal edge within ~1.4× rest length.
+      const nodes: GraphEngineNode[] = [];
+      const edges: GraphEngineEdge[] = [];
+      for (let c = 0; c < 24; c++) {
+        const size = 2 + (c % 5);
+        const hub = `h${c}`;
+        nodes.push({ nodeUuid: hub });
+        for (let k = 1; k < size; k++) {
+          const leaf = `h${c}l${k}`;
+          nodes.push({ nodeUuid: leaf });
+          edges.push({ source: hub, target: leaf, type: "parent" });
+        }
+      }
+      const engine = new GraphEngine(nodes, edges, physics());
+      for (let t = 0; t < 4000 && !engine.settled; t++) engine.step();
+      expect(engine.settled).toBe(true);
+      const s = engine.getState();
+      const idx = new Map(s.nodeIdArr.map((id, i) => [id, i]));
+      let sum = 0;
+      let worst = 0;
+      for (let ei = 0; ei < engine.numEdges; ei++) {
+        const si = idx.get(s.nodeIdArr[engine.edgeSrc[ei]!]!)!;
+        const ti = idx.get(s.nodeIdArr[engine.edgeTgt[ei]!]!)!;
+        const ratio =
+          Math.hypot(s.posX[si]! - s.posX[ti]!, s.posY[si]! - s.posY[ti]!) / engine.edgeRest[ei]!;
+        sum += ratio;
+        worst = Math.max(worst, ratio);
+      }
+      expect(sum / engine.numEdges).toBeLessThan(1.4);
+      expect(worst).toBeLessThan(2.2);
+    });
   });
 });

@@ -22,6 +22,14 @@ export class CenterGravityForce implements ForcePlugin {
     const strength = e.config.componentCenterStrength;
     if (strength <= 0) return;
 
+    // The pull is a Hookean spring toward the origin — but UNBOUNDED it
+    // dwarfs every local force once a graph is seeded wider than a few
+    // thousand units (0.006 · 30k ≈ 180 vs spring forces of ~5), and the
+    // whole map collapses ballistically into the center. The cap keeps
+    // gravity the gentle gatherer it is meant to be: strong enough to reel
+    // in strays over a long settle, never the dominant term of the balance.
+    const maxAccel = 3;
+
     const posX = e.posX, posY = e.posY;
     const ax = e.axBuf, ay = e.ayBuf;
     const alphas = e.alphaArr;
@@ -32,8 +40,12 @@ export class CenterGravityForce implements ForcePlugin {
       const i = activeIdx[k]!;
       const a = alphas[i]!;
       if (a <= 0) continue;
-      ax[i]! -= posX[i]! * strength * a;
-      ay[i]! -= posY[i]! * strength * a;
+      const x = posX[i]!, y = posY[i]!;
+      const dist = Math.sqrt(x * x + y * y);
+      if (dist < 1e-6) continue;
+      const mag = Math.min(dist * strength, maxAccel) / dist;
+      ax[i]! -= x * mag * a;
+      ay[i]! -= y * mag * a;
     }
   }
 }

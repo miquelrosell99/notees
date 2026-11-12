@@ -7,6 +7,9 @@
 
 import type { ForcePlugin } from './interface.js';
 import type { GraphEngine } from '../engine.js';
+import { FastSpatialHash } from '../spatialHash.js';
+
+const BUBBLE_RADIUS = 600;
 
 export class ComponentBubbleForce implements ForcePlugin {
   private engine!: GraphEngine;
@@ -18,6 +21,17 @@ export class ComponentBubbleForce implements ForcePlugin {
   private cfx: Float32Array = new Float32Array(0);
   private cfy: Float32Array = new Float32Array(0);
   private cap = 0;
+
+  /**
+   * Component-centroid hash — this force owns its instance (the engine's
+   * shared hash belongs to local repulsion's node domain). The old pairwise
+   * scan was O(C²) per tick: an orphan-heavy workspace runs ~6k components,
+   * 18M pair evaluations a tick, ~40 ms — the warmup budget went to scanning
+   * instead of simulating. Singleton components are never query sources:
+   * orphan-vs-orphan spacing is the local repulsion's job (its radius covers
+   * the orphan band's spacing), so only multi-node components initiate.
+   */
+  private grid = new FastSpatialHash(BUBBLE_RADIUS, 512);
 
   initialize(engine: GraphEngine): void {
     this.engine = engine;
@@ -58,23 +72,39 @@ export class ComponentBubbleForce implements ForcePlugin {
       const c = compId[i]!;
       cx[c]! += posX[i]!; cy[c]! += posY[i]!; cc[c]!++;
     }
-    for (let c = 0; c < C; c++) { if (cc[c]! > 0) { cx[c]! /= cc[c]!; cy[c]! /= cc[c]!; } }
+    let anySource = false;
+    for (let c = 0; c < C; c++) {
+      if (cc[c]! > 0) { cx[c]! /= cc[c]!; cy[c]! /= cc[c]!; }
+      if (cc[c]! >= 2) anySource = true;
+    }
 
-    // Pairwise repulsion between centroids
-    const compRepelStr = 2500;
-    const compRepelRadius = 600;
-    for (let a = 0; a < C; a++) {
-      if (cc[a] === 0) continue;
-      for (let b = a + 1; b < C; b++) {
-        if (cc[b] === 0) continue;
-        const dx = cx[a]! - cx[b]!, dy = cy[a]! - cy[b]!;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const t = 1 - dist / compRepelRadius;
-        if (t <= 0) continue;
-        const f = compRepelStr * t * t / dist;
-        const fx = dx * f, fy = dy * f;
-        cfx[a]! += fx; cfy[a]! += fy;
-        cfx[b]! -= fx; cfy[b]! -= fy;
+    if (anySource) {
+      // Repulsion between nearby centroids, found through the hash. A pair
+      // (a, b) with both multi-node is processed once (from the lower id);
+      // a singleton is only ever a pair TARGET — it never initiates.
+      const grid = this.grid;
+      grid.setCellSize(BUBBLE_RADIUS);
+      grid.clear(C);
+      for (let c = 0; c < C; c++) if (cc[c]! > 0) grid.insert(c, cx[c]!, cy[c]!);
+
+      const compRepelStr = 2500;
+      const nbuf = grid.resultBuf;
+      for (let a = 0; a < C; a++) {
+        if (cc[a]! < 2) continue;
+        const nCount = grid.queryInto(cx[a]!, cy[a]!);
+        for (let q = 0; q < nCount; q++) {
+          const b = nbuf[q]!;
+          if (b === a) continue;
+          if (cc[b]! >= 2 && b < a) continue; // both-initiator pair: once
+          const dx = cx[a]! - cx[b]!, dy = cy[a]! - cy[b]!;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const t = 1 - dist / BUBBLE_RADIUS;
+          if (t <= 0) continue;
+          const f = compRepelStr * t * t / dist;
+          const fx = dx * f, fy = dy * f;
+          cfx[a]! += fx; cfy[a]! += fy;
+          cfx[b]! -= fx; cfy[b]! -= fy;
+        }
       }
     }
 

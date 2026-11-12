@@ -332,6 +332,78 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     expect(renderer.stats.edgeInstCount).toBe(0); // its only edge is post-cutoff too
     vi.restoreAllMocks();
   });
+
+  it("constellation LOD: a hover draws only the hovered node's incident edges — never the whole graph", async () => {
+    stubWebgl2();
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer();
+    renderer.init(canvas);
+    await flush();
+    await flush();
+
+    // a→b, a→c, c→d (parent type — each carries one arrowhead).
+    renderer.setNodeVisuals(["a", "b", "c", "d"], new Map());
+    renderer.updatePositions(new Float32Array([0, 0, 100, 0, 0, 100, 100, 100]), ["a", "b", "c", "d"]);
+    renderer.setEdges([
+      { source: "a", target: "b", linkType: 0 },
+      { source: "a", target: "c", linkType: 0 },
+      { source: "c", target: "d", linkType: 0 },
+    ]);
+    // Constellation zoom (lod 0): no edges without hover.
+    renderer.setCamera(50, 50, 0.1);
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(0);
+    expect(renderer.stats.arrowInstCount).toBe(0);
+
+    // Hover a: only a's two incident edges surface (plus their arrowheads).
+    renderer.setHoverNeighborhood("a", ACCENT);
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(2);
+    expect(renderer.stats.arrowInstCount).toBe(2);
+
+    // Hover c: the a–c edge follows the hover, c–d replaces a–b.
+    renderer.setHoverNeighborhood("c", ACCENT);
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(2);
+    expect(renderer.stats.arrowInstCount).toBe(2);
+
+    // Overview zoom (lod 1): the full topology draws, hover or not.
+    renderer.setCamera(50, 50, 0.5);
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(3);
+    expect(renderer.stats.arrowInstCount).toBe(3);
+    vi.restoreAllMocks();
+  });
+
+  it("constellation LOD: a hovered edge draws alone", async () => {
+    stubWebgl2();
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer();
+    renderer.init(canvas);
+    await flush();
+    await flush();
+
+    renderer.setNodeVisuals(["a", "b", "c"], new Map());
+    renderer.updatePositions(new Float32Array([0, 0, 100, 0, 0, 100]), ["a", "b", "c"]);
+    renderer.setEdges([
+      { source: "a", target: "b", linkType: 0 },
+      { source: "b", target: "c", linkType: 0 },
+    ]);
+    renderer.setCamera(50, 50, 0.1); // lod 0
+    renderer.setHoveredEdge(1); // b→c
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(1);
+    expect(renderer.stats.arrowInstCount).toBe(1);
+
+    renderer.setHoveredEdge(-1);
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(0);
+    vi.restoreAllMocks();
+  });
 });
 
 describe("culled-sync helpers (the streamed-frame delta path)", () => {

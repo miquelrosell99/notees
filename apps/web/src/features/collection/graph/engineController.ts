@@ -22,6 +22,19 @@ export interface EngineFrame {
   settled: boolean;
 }
 
+/** Identity key for a physics bag — an identical setConfig re-heats nothing. */
+function physicsKey(p: GraphEnginePhysicsConfig): string {
+  return JSON.stringify([
+    p.preset,
+    p.centralGravity,
+    p.linkCountAttraction,
+    p.massAccumulation,
+    p.clustering,
+    p.clusterSeparation,
+    p.initialAlpha,
+  ]);
+}
+
 interface WorkerToMain {
   type: "ready" | "frame";
   positions?: Float32Array;
@@ -40,6 +53,8 @@ export class EngineController {
   private ready = false;
   private settled = false;
   private pending: Array<Record<string, unknown>> = [];
+  /** The last physics bag applied — an identical setConfig re-heats nothing. */
+  private lastConfigKey: string | null = null;
 
   constructor(onFrame: (frame: EngineFrame) => void) {
     this.onFrame = onFrame;
@@ -52,6 +67,7 @@ export class EngineController {
    * config — a pre-built config would crash it (`preset` is not on it).
    */
   init(nodes: GraphEngineNode[], edges: GraphEngineEdge[], physics: GraphEnginePhysicsConfig): void {
+    this.lastConfigKey = physicsKey(physics);
     if (typeof Worker !== "undefined") {
       try {
         this.worker = new Worker(new URL("./engine/worker.ts", import.meta.url), { type: "module" });
@@ -106,6 +122,12 @@ export class EngineController {
   }
 
   setConfig(physics: GraphEnginePhysicsConfig): void {
+    // GraphView re-sends the bag it init'd with on mount (its physics effect
+    // runs after the engine exists) — an identical config re-heats nothing
+    // on either path, worker or main thread.
+    const key = physicsKey(physics);
+    if (key === this.lastConfigKey) return;
+    this.lastConfigKey = key;
     if (this.mainThread !== null) {
       this.mainThread.setConfig(buildGraphEngineConfig(physics));
       // Owner-facing physics change: re-animate so the new constants show.

@@ -13,7 +13,10 @@ import {
   EngineController,
   type EngineFrame,
 } from "../src/features/collection/graph/engineController.js";
-import type { GraphEnginePhysicsConfig } from "../src/features/collection/graph/engine/index.js";
+import {
+  GraphEngine,
+  type GraphEnginePhysicsConfig,
+} from "../src/features/collection/graph/engine/index.js";
 
 class FakeWorker {
   static instances: FakeWorker[] = [];
@@ -102,5 +105,35 @@ describe("EngineController worker protocol", () => {
     worker.ready();
     controller.dispose();
     expect(worker.terminated).toBe(true);
+  });
+
+  it("an identical setConfig after init re-heats nothing (the mount double-animation fix)", () => {
+    vi.stubGlobal("Worker", FakeWorker);
+    const controller = new EngineController(() => {});
+    controller.init([node], [], physics);
+    const worker = FakeWorker.instances[0]!;
+    worker.ready();
+    const sent = worker.posted.length;
+    // GraphView's physics effect re-sends the init bag on mount — the
+    // controller must swallow it; the freshly warmed layout re-animated
+    // for nothing otherwise.
+    controller.setConfig(physics);
+    expect(worker.posted.length).toBe(sent);
+    // A genuinely different bag still reaches the worker.
+    controller.setConfig({ ...physics, clusterSeparation: 80 });
+    expect(worker.posted[worker.posted.length - 1]).toMatchObject({ type: "setConfig" });
+  });
+
+  it("main-thread fallback: an identical setConfig does not reheat the engine", () => {
+    // jsdom has no Worker global — init falls back to the main-thread engine.
+    const reheat = vi.spyOn(GraphEngine.prototype, "reheat");
+    const controller = new EngineController(() => {});
+    controller.init([node], [], physics);
+    reheat.mockClear(); // setTopology's construction-time reheat
+    controller.setConfig(physics);
+    expect(reheat).not.toHaveBeenCalled();
+    controller.setConfig({ ...physics, clusterSeparation: 80 });
+    expect(reheat).toHaveBeenCalledTimes(1);
+    reheat.mockRestore();
   });
 });

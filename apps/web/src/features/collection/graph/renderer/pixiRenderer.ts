@@ -13,7 +13,9 @@
  *   • Edge pipeline: per-edge color/width, LOD mask by linkType, selection
  *     dim, edge-hover alpha (0.35), hover recolor, time-lapse discard,
  *     min screen width 1px, curvature + the class-link sine wiggle sampled
- *     from the same GLSL curve math.
+ *     from the same GLSL curve math. At constellation LOD (zoom < 0.25) a
+ *     hover draws ONLY the hovered node's incident edges (or the hovered
+ *     edge alone) — hover evidence, never the whole topology.
  *   • Arrowheads: the shared planEdgeRender eligibility (linkType 3/4 carry
  *     no heads), same triangle geometry, same target-radius offset.
  *   • Selection rings: filled disc at 1.85× the effective node radius,
@@ -824,6 +826,24 @@ export class GraphPixiRenderer implements GraphRenderer {
   }
 
   /**
+   * The constellation-LOD (level 0) hover restriction. At level 0 edges are
+   * hidden wholesale; a hover may surface ONLY the relevant evidence — the
+   * hovered node's incident edges, or the single hovered edge — never the
+   * whole graph (the pre-restriction behavior painted every edge in the
+   * topology on hover, which read as the graph "lighting up"). Returns null
+   * when the full kept set stands (no restriction at level 1+).
+   */
+  private lod0HoverAllowSet(): Set<number> | null {
+    if (lodLevelForZoom(this.camera.zoom) !== 0) return null;
+    if (this.hoverNeighborhoodId !== null) {
+      const incident = this.incidentEdges.get(this.hoverNeighborhoodId);
+      return new Set(incident ?? []);
+    }
+    if (this.hoveredEdgeIndex >= 0) return new Set([this.hoveredEdgeIndex]);
+    return null;
+  }
+
+  /**
    * Full node sprite sync — the tint/alpha/scale/visibility pass. O(N), runs
    * on node-set/visual changes and zoom changes (the min-radius clamp);
    * streamed position frames take the incremental syncNodePositions instead.
@@ -980,7 +1000,13 @@ export class GraphPixiRenderer implements GraphRenderer {
     if (!shouldDrawEdgesAtLod(lod, this.hoverActive() || this.hoveredEdgeIndex >= 0)) return;
     if (this.positions.length === 0) return;
 
-    for (const ei of this.edgePlan.keep) this.edgeBucketMembers[ei % EDGE_BUCKETS]!.push(ei);
+    // Constellation LOD: only the hover's incident edges are drawable.
+    const allow = this.lod0HoverAllowSet();
+    const keep = allow === null ? this.edgePlan.keep : this.edgePlan.keep.filter((ei) => allow.has(ei));
+    const arrows =
+      allow === null ? this.edgePlan.arrows : this.edgePlan.arrows.filter((a) => allow.has(a.edge));
+
+    for (const ei of keep) this.edgeBucketMembers[ei % EDGE_BUCKETS]!.push(ei);
     for (let b = 0; b < EDGE_BUCKETS; b++) {
       const members = this.edgeBucketMembers[b]!;
       if (members.length > 0) {
@@ -988,7 +1014,7 @@ export class GraphPixiRenderer implements GraphRenderer {
         this.edgeDrawCount += this.edgeBucketCounts[b]!;
       }
     }
-    for (const a of this.edgePlan.arrows) this.arrowBucketMembers[a.edge % EDGE_BUCKETS]!.push(a);
+    for (const a of arrows) this.arrowBucketMembers[a.edge % EDGE_BUCKETS]!.push(a);
     for (let b = 0; b < EDGE_BUCKETS; b++) {
       const members = this.arrowBucketMembers[b]!;
       if (members.length > 0) {
@@ -1034,10 +1060,14 @@ export class GraphPixiRenderer implements GraphRenderer {
     }
 
     const movedEdges = new Set<number>();
+    const allow = this.lod0HoverAllowSet();
     for (const idx of changed) {
       const incident = this.incidentEdges.get(this.nodeIdOrder[idx]!);
       if (incident === undefined) continue;
-      for (const ei of incident) movedEdges.add(ei);
+      for (const ei of incident) {
+        if (allow !== null && !allow.has(ei)) continue;
+        movedEdges.add(ei);
+      }
     }
 
     if (movedEdges.size > this.edgePlan.keep.length * BIG_MOTION_FRACTION) {

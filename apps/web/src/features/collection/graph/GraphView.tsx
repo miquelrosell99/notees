@@ -38,8 +38,10 @@
  * accent color (Obsidian-style: the hovered node, its incident edges, and
  * its linked nodes accent; everything else stays visible but dimmed in its
  * own color) and the hovered node's label always renders, nudged a few
- * pixels down as the identifier — no tooltip box; edges keep the richer
- * kind/weight/evidence tooltip.
+ * pixels down as the identifier — no tooltip box; at the constellation zoom
+ * level (lod 0, zoom < 0.25) edges are hidden wholesale and a hover surfaces
+ * ONLY the hovered node's incident edges (or the single hovered edge), never
+ * the whole topology; edges keep the richer kind/weight/evidence tooltip.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -963,7 +965,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       renderer.setEdgeMask(edgeMaskForZoom(cam.zoom));
       renderer.render();
       // First real pixels are on the canvas — the stage overlay steps aside.
-      if (awaitingFirstFrameRef.current) {
+      // The frame presence matters: the overlay must survive the seconds the
+      // worker's warm-up fast-forward takes (it clears on the first REAL
+      // frame, not on the first empty rAF tick — a blank stage with a stray
+      // dot was the old opening).
+      if (awaitingFirstFrameRef.current && frame !== null) {
         awaitingFirstFrameRef.current = false;
         setAwaitingFirstFrame(false);
       }
@@ -1727,12 +1733,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
 
   /** The Visibility popover (the eye): everything that decides WHAT is drawn
    *  — link families, node classes, orphans, journal visibility, and the
-   *  semantic web's two bound sliders riding next to their family toggles. */
-  const filtersActive =
-    FAMILY_LABELS.some(({ key }) => prefs.families[key] !== true) ||
-    !prefs.showClasses ||
-    !prefs.showOrphans;
-
+   *  semantic web's two bound sliders riding next to their family toggles.
+   *  The trigger lights only while its panel is open (the same register as
+   *  the settings cog beside it) — non-default filters are visible inside
+   *  the panel itself. */
   const filtersPanel = (
     <div className="nt-graph__settings">
       <span className="nt-graph__settings-heading">Link families</span>
@@ -1993,8 +1997,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             panelWidth={300}
             title="Visibility"
             tooltip="Visibility"
-            active={filtersActive}
-            buttonProps={{ "aria-pressed": filtersActive }}
           >
             {filtersPanel}
           </ButtonWithPanel>

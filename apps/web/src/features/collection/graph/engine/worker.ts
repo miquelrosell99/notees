@@ -35,11 +35,14 @@ import type { GraphEnginePhysicsConfig, GraphEngineNode, GraphEngineEdge } from 
 
 const TICK_MS = 16;
 
-// Fast-forward depth before first paint: 150 ticks at 3×
-// dt so fresh graphs arrive pre-settled — with alphaDecay 0.02 the alpha
-// budget is nearly spent by the end of the warm-up.
-const WARMUP_TICKS = 150;
-const WARMUP_DT_MULT = 3.0;
+// Fast-forward depth before first paint: tick until the engine reports
+// settled (every node quiet and still), capped so a huge graph degrades to
+// "nearly settled, finishes visibly" instead of blocking the worker. The
+// calm seed placement means the budget is spent relaxing springs, not
+// dissipating an explosion — a plain dt, no multiplier (the old 3× dt
+// outran the drag model and arrived mid-flight, so the graph visibly
+// re-arranged for seconds after the first paint).
+const WARMUP_MAX_TICKS = 600;
 
 const META_SEQ = 0;
 const META_COUNT = 1;
@@ -56,6 +59,8 @@ let running = false;
 let userPaused = false;
 let nodeIds: string[] = [];
 let dragWasPinned = false;
+/** The last applied physics bag — an identical setConfig re-heats nothing. */
+let lastConfigKey: string | null = null;
 
 // SharedArrayBuffer path
 const SAB_ENABLED = typeof SharedArrayBuffer !== 'undefined' &&
@@ -189,23 +194,33 @@ function reheatAround(nodeUuid: string): void {
   ensureTicking();
 }
 
-function fastForward(ticks: number, dtMult: number): void {
+function fastForwardToSettled(): void {
   if (!engine) return;
-  const origDt = engine.config.dt;
-  engine.config.dt *= dtMult;
-  for (let i = 0; i < ticks; i++) engine.step();
-  engine.config.dt = origDt;
+  for (let i = 0; i < WARMUP_MAX_TICKS && !engine.settled; i++) engine.step();
+}
+
+function physicsKey(cfg: GraphEnginePhysicsConfig): string {
+  return JSON.stringify([
+    cfg.preset,
+    cfg.centralGravity,
+    cfg.linkCountAttraction,
+    cfg.massAccumulation,
+    cfg.clustering,
+    cfg.clusterSeparation,
+    cfg.initialAlpha,
+  ]);
 }
 
 function initEngine(nodes: GraphEngineNode[], edges: GraphEngineEdge[], cfg: GraphEnginePhysicsConfig): void {
   const config = buildGraphEngineConfig(cfg);
   engine = new GraphEngine(nodes, edges, config);
+  lastConfigKey = physicsKey(cfg);
   nodeIds = nodes.map(n => n.nodeUuid);
   ensureSABs(nodes.length);
   ensureFallbackBuffers(nodes.length);
 
   // Fast-forward warm-up instead of synchronous burst
-  fastForward(WARMUP_TICKS, WARMUP_DT_MULT);
+  fastForwardToSettled();
 
   if (SAB_ENABLED) postSharedBufferRefs();
   self.postMessage({ type: 'ready' as const });
@@ -227,6 +242,7 @@ self.onmessage = (e: MessageEvent) => {
         engine.setTopology(msg.nodes, msg.edges);
         engine.setConfig(buildGraphEngineConfig(msg.config));
         engine.reheat();
+        lastConfigKey = physicsKey(msg.config);
         nodeIds = msg.nodes.map((n: GraphEngineNode) => n.nodeUuid);
         ensureSABs(nodeIds.length);
         ensureFallbackBuffers(nodeIds.length);
@@ -250,6 +266,12 @@ self.onmessage = (e: MessageEvent) => {
     }
     case 'setConfig': {
       if (!engine) break;
+      // GraphView re-sends the bag it init'd with on mount (its physics
+      // effect runs after the engine exists) — an identical config must not
+      // re-animate the freshly settled layout.
+      const key = physicsKey(msg.config);
+      if (key === lastConfigKey) break;
+      lastConfigKey = key;
       const config = buildGraphEngineConfig(msg.config);
       engine.setConfig(config);
       // Owner-facing physics change: re-animate so the new constants show.

@@ -295,8 +295,9 @@ describe("GraphView component", () => {
       // Colors chip (the rail toggle)…
       const visibility = screen.getByRole("button", { name: "Visibility" });
       expect(visibility.className).toContain("btn");
-      // The pressed visibility toggle wears the active register (container-active fill).
-      expect(visibility.className).toContain("bg-surface-container-active");
+      // The eye rests quiet even with a non-default filter pref — the active
+      // register rides the panel's own open state, same as the settings cog.
+      expect(visibility.className).not.toContain("bg-surface-container-active");
       expect(screen.getByText(/nodes · .* edges/)).toBeTruthy();
       const colorsChip = screen.getByRole("button", { name: "Colors" });
       expect(colorsChip.className).toContain("chip");
@@ -318,6 +319,8 @@ describe("GraphView component", () => {
       // classes, the journal visibility levels.
       fireEvent.click(screen.getByRole("button", { name: "Visibility" }));
       expect(await screen.findByRole("switch", { name: "Class nodes" })).toBeTruthy();
+      // …and the open panel lights the trigger (the ButtonWithPanel register).
+      expect(visibility.className).toContain("bg-surface-container-active");
       expect(screen.getByRole("switch", { name: "Orphans" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Day pages" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Month pages" })).toBeTruthy();
