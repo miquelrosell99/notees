@@ -7,6 +7,10 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-11-12
+
+- **chore(ci): automated vendor-bump — the `vendor/notees` pin now bumps by PR, opened by `.github/workflows/vendor-bump.yml`.** notees-sync's `vendor-dispatch` fires a `notees-sync-updated` `repository_dispatch` on every sync main push; this workflow pins `vendor/notees` at the pushed SHA (manual `workflow_dispatch` takes an optional SHA; the Monday 04:17 UTC scheduled run re-pins to sync's `origin/main` as the drift net), rebuilds the vendored `@notees/*` dists, refreshes the lockfile, runs the gate (`pnpm --filter @notees/web typecheck && pnpm --filter @notees/web test`), prepends the changelog entry, and opens `vendor/bump-<sha>` — auto-squash-merged when the gate is green, left open as the lockstep alarm when red (`ci.yml`, including the css-token-drift job, also runs on the PR). The manual bump recipe stays for exceptional pins. Verification: YAML parse clean; changelog-insert path exercised against a scratch copy (fresh-date and same-date headings); the live run happens on the next sync main push or the next scheduled run.
+
 ## 2026-11-10
 
 - **fix(web): the crypto-bound UI tests stop flaking on loaded CI runners —

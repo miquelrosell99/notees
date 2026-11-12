@@ -14,7 +14,7 @@ corepack enable && corepack prepare pnpm@9.0.0 --activate
 pnpm install
 ```
 
-**Never edit anything under `vendor/`** — fix it in `notees-sync`, then bump the pin (`git -C vendor/notees fetch origin && git -C vendor/notees checkout origin/main`, then `pnpm install` + commit the lockfile + submodule pointer).
+**Never edit anything under `vendor/`** — fix it in `notees-sync`, then bump the pin (`git -C vendor/notees fetch origin && git -C vendor/notees checkout origin/main`, then `pnpm install` + commit the lockfile + submodule pointer). Bumps normally arrive as **automated PRs**: notees-sync's `vendor-dispatch` notifies this repo on every sync main push, and `.github/workflows/vendor-bump.yml` opens the bump PR (gate green → squash-merge; a Monday scheduled run is the drift net).
 
 ## Development
 
