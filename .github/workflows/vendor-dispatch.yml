@@ -13,13 +13,22 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   dispatch:
     runs-on: ubuntu-22.04
     steps:
       - name: Notify notees-cli
-        if: ${{ secrets.VENDOR_DISPATCH_TOKEN != '' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.VENDOR_DISPATCH_TOKEN }}
-        run: gh api -X POST repos/miquelrosell99/notees-cli/dispatches -f event_type=notees-sync-updated -F "client_payload[sha]=${{ github.sha }}"
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "VENDOR_DISPATCH_TOKEN not set — skipping (the CLI's weekly scheduled vendor-bump is the drift net)."
+            exit 0
+          fi
+          gh api -X POST repos/miquelrosell99/notees-cli/dispatches \
+            -f event_type=notees-sync-updated \
+            -F "client_payload[sha]=${{ github.sha }}"
