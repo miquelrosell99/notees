@@ -60,22 +60,25 @@
   flex-direction: column;
   padding: var(--spacing-1) 0;
   min-height: 0;
-  /* The escape valve: sections own their scrolling (below), but when the
-     viewport is too short to honor every section's floor + the pinned
-     sections, the nav column itself scrolls — no section may be starved
-     silently. */
-  overflow-y: auto;
+  /* The column itself never scrolls: the sections own the sidebar's
+     scrolling (below), and a column-level scrollbar beside the section
+     scrollbars read as chrome noise (one scrollbar per scroller). On a
+     short viewport the scrollable sections shrink — the Recents floor
+     below retired with this valve — because anything this clip cut off
+     would sit out of reach forever. */
+  overflow-y: hidden;
 }
 
 /* The scrollable section (Recents): fills the nav's leftover height, the
-   pinned header sits above, the list is the sole scroller. The min-height
-   floor (eight rows — six list rows + the header block's two) guarantees
-   Recents can never shrink below a usable size; that starvation is what
-   this layout fixes, and the nav column's own scroll absorbs the overflow
-   on short viewports. */
+   header sits above, the list is the sole scroller. The 2026-11-07
+   eight-row floor is retired with the nav column's scroll valve it
+   depended on: with the column's overflow hidden, any floor would push
+   the section's bottom rows out of reach on a short viewport — shrinking
+   toward zero (the list still scrolls inside whatever space remains) is
+   the honest degradation. */
 .nt-side-section--scroll {
   flex: 1;
-  min-height: calc(var(--height-sm) * 8 + var(--spacing-1));
+  min-height: 0;
   display: flex;
   flex-direction: column;
   margin-bottom: 0;
