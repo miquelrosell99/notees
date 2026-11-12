@@ -75,9 +75,6 @@ export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEng
     // layout unfolds but the wobble ends in seconds, not minutes.
     alphaDecay: 0.02,
     alphaMin: 0.005,
-    // Fresh-engine starting activity (warm starts pass 0.2 via the physics
-    // config; default full unfold). Topology updates/reheats ignore this.
-    initialAlpha: user.initialAlpha ?? 1.0,
     // Mean per-tick displacement² under which the graph counts as still
     // (≈0.01 px/tick RMS — sub-pixel, and dt-aware via the integrator).
     settleEnergyEps: 1e-4,

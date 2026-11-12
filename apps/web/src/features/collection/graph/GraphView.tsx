@@ -172,7 +172,6 @@ const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
   { key: "temporal", label: "Temporal" },
 ];
 
-const POSITIONS_KEY = (workspaceId: string): string => `notees.graph.positions.${workspaceId}`;
 const PREFS_KEY = (surface: string): string => `graphPrefs.${surface}`;
 /** Time-lapse playback: min → max over ~20s, then rest. */
 const TIME_LAPSE_DURATION_MS = 20_000;
@@ -215,30 +214,6 @@ function loadPrefs(surface: string): GraphPrefs {
     colorGroups: Array.isArray(stored.colorGroups) ? stored.colorGroups : [],
     classColors: Array.isArray(stored.classColors) ? stored.classColors : [],
   };
-}
-
-function loadCachedPositions(workspaceId: string): Map<string, { x: number; y: number }> {
-  try {
-    const raw = localStorage.getItem(POSITIONS_KEY(workspaceId));
-    if (raw === null) return new Map();
-    const parsed = JSON.parse(raw) as Record<string, { x: number; y: number }>;
-    return new Map(Object.entries(parsed));
-  } catch {
-    return new Map();
-  }
-}
-
-function cachePositions(workspaceId: string, order: string[], positions: Float32Array): void {
-  try {
-    const record: Record<string, { x: number; y: number }> = {};
-    const limit = Math.min(order.length, 12000);
-    for (let i = 0; i < limit; i++) {
-      record[order[i]!] = { x: positions[i * 2]!, y: positions[i * 2 + 1]! };
-    }
-    localStorage.setItem(POSITIONS_KEY(workspaceId), JSON.stringify(record));
-  } catch {
-    // Best effort — quota or privacy mode just skips the warm start.
-  }
 }
 
 function hexToRgba(hex: string, alpha = 1): [number, number, number, number] | undefined {
@@ -304,7 +279,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   });
   /**
    * The once-per-mount camera fit: the force path never fitted the opening camera — cameraRef starts
-   * at the origin zoom 0.5, and cached layouts whose center isn't the origin
+   * at the origin zoom 0.5, and a settled layout whose center isn't the origin
    * opened on empty canvas. Fitted on the FIRST engine frame, NEVER reset —
    * a display rebuild (filter toggle, reload) keeps the user's camera, like
    * Obsidian.
@@ -729,7 +704,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     setGlError(null);
 
     const theme = graphTheme();
-    const cached = loadCachedPositions(client.getWorkspaceId());
 
     const { radii, degrees } = computeNodeSizing(
       display,
@@ -781,13 +755,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       layoutModeRef.current === "force" ? null : computeFixedLayout(layoutModeRef.current, display);
 
     const engineNodes = display.nodes.map((node) => {
-      const cachedPos = cached.get(node.id);
       const fixed = fixedLayout?.get(node.id);
-      const start = fixed ?? cachedPos;
       return {
         nodeUuid: node.id,
-        x: start?.x,
-        y: start?.y,
+        x: fixed?.x,
+        y: fixed?.y,
         connectionCount: degrees.get(node.id)?.all ?? 0,
         mass: node.mass,
         pinned: fixed !== undefined,
@@ -830,54 +802,16 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       renderer.setTimeLapse(true, timeLapseRef.current.cutoffSec);
     }
 
-    // Instant paint from the cached layout: a returning workspace paints the
-    // previous session's map in the same tick as the renderer init — no blank
-    // window while the engine warms up. Uncached nodes sit at the origin until
-    // the first engine frame re-homes them (only when the cache covers the
-    // graph; a stale/partial cache would misrepresent the layout).
-    if (fixedLayout === null && nodeIds.length > 0) {
-      let covered = 0;
-      for (const id of nodeIds) if (cached.has(id)) covered++;
-      if (covered / nodeIds.length >= 0.7) {
-        const positions = new Float32Array(nodeIds.length * 2);
-        nodeIds.forEach((id, i) => {
-          const p = cached.get(id);
-          if (p !== undefined) {
-            positions[i * 2] = p.x;
-            positions[i * 2 + 1] = p.y;
-          }
-        });
-        renderer.updatePositions(positions, nodeIds);
-        positionsRef.current = { positions, nodeIds };
-        frameRef.current = {
-          positions,
-          nodeIds,
-          nodeCount: nodeIds.length,
-          energy: 0,
-          ticks: 0,
-          settled: false,
-        };
-        cameraRef.current = renderer.fitToCanvas();
-        fitDoneRef.current = true;
-        renderer.setCamera(cameraRef.current.x, cameraRef.current.y, cameraRef.current.zoom);
-        renderer.render();
-        awaitingFirstFrameRef.current = false;
-        setAwaitingFirstFrame(false);
-      }
-    }
-
     if (fixedLayout === null) {
       const engine = new EngineController((frame) => {
         frameRef.current = frame;
         dirtyRef.current = true;
       });
       engineRef.current = engine;
-      // Warm-quiet start: when ≥70% of the nodes carry
-      // cached positions the layout is already shaped — seed the engine at
-      // 0.2 activity so it opens nearly still and finishes cooling in a
-      // second or two; below the threshold the full 1.0 unfold runs.
-      const warmStart =
-        display.nodes.length > 0 && cached.size / display.nodes.length >= 0.7;
+      // Every open is a fresh, deterministic unfold: the seed is fixed and
+      // the worker's warm-up fast-forwards to settled before the first
+      // frame, so the first paint is the finished map (no position cache —
+      // manual arrangements are session-local, Obsidian-style).
       engine.init(
         engineNodes.map(({ nodeUuid, x, y, connectionCount, mass, pinned }) => ({
           nodeUuid,
@@ -895,7 +829,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           massAccumulation: prefs.massAccumulation,
           clustering: prefs.clustering,
           clusterSeparation: prefs.clusterSeparation,
-          ...(warmStart ? { initialAlpha: 0.2 } : {}),
         },
       );
       engine.setPaused(loopStateRef.current.paused);
@@ -930,7 +863,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     let raf = 0;
     let frames = 0;
     let fpsWindowStart = performance.now();
-    let lastSave = performance.now();
     const namesCache = new Map<string, string>();
     const nameOf = (id: string): string => {
       let name = namesCache.get(id);
@@ -1046,19 +978,12 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         frames = 0;
         fpsWindowStart = now;
       }
-      if (now - lastSave > 5000 && frame !== null && engineRef.current !== null) {
-        lastSave = now;
-        cachePositions(client.getWorkspaceId(), frame.nodeIds, frame.positions);
-      }
     };
     raf = requestAnimationFrame(loop);
 
     return () => {
       cancelAnimationFrame(raf);
       resizeObserver.disconnect();
-      if (frameRef.current !== null && engineRef.current !== null) {
-        cachePositions(client.getWorkspaceId(), frameRef.current.nodeIds, frameRef.current.positions);
-      }
       engineRef.current?.dispose();
       engineRef.current = null;
       renderer.destroy();
@@ -2185,11 +2110,9 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           </div>
         )}
         {/* The loading overlay covers the stage between "topology projected"
-            and "first pixels" — engine init + warmup at 7.4k nodes used to
-            leave a blank canvas here for seconds (a loading
-            modal, not a blank view). It never renders for cached workspaces:
-            the pre-paint paints synchronously in the lifecycle effect and
-            clears the flag before the browser composites. */}
+            and "first pixels" — the worker's warm-up fast-forwards the layout
+            to settled before the first frame, which takes seconds at large
+            node counts. It clears the moment the first real frame lands. */}
         {awaitingFirstFrame && (
           <div className="nt-graph__stage-loading">
             <LoadingScreen fullscreen={false} label="Warming up the layout…" />

@@ -207,7 +207,6 @@ function physicsKey(cfg: GraphEnginePhysicsConfig): string {
     cfg.massAccumulation,
     cfg.clustering,
     cfg.clusterSeparation,
-    cfg.initialAlpha,
   ]);
 }
 

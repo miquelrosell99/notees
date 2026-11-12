@@ -31,7 +31,6 @@ function physicsKey(p: GraphEnginePhysicsConfig): string {
     p.massAccumulation,
     p.clustering,
     p.clusterSeparation,
-    p.initialAlpha,
   ]);
 }
 
