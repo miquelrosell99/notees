@@ -20,7 +20,7 @@ source) set `NOTEES_DATA_DIR` in the gitignored repo-root `.env`.
 # (notees-sync = this repo; noteees-web = the notees-web repo, vendor
 # submodule initialized). Then the smoke (script ships in notees-web):
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest .
-(cd ../notees-web && docker build -f apps/web/Dockerfile -t ghcr.io/miquelrosell99/notees-web:latest .)
+(docker build -f apps/web/Dockerfile -t ghcr.io/miquelrosell99/notees-web:latest . — same repo since the 2026-11-12 re-merge)
 docker compose up -d
 cd <notees-web checkout>/scripts/screenshots && node verify-min.mjs
 ```

@@ -1,3 +1,5 @@
+> **Paths superseded 2026-11-12 (ADR-001):** `notees-sync` + `notees-web` re-merged into `miquelrosell99/notees`; checkouts now live at `/root/projects/notees/core` (one repo, no vendor pin — adapt the commands below accordingly; `notees-web/vendor/notees` no longer exists).
+
 # Recurrence as a dedicated Repeat property — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
