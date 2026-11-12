@@ -5,7 +5,7 @@ name: vendor-dispatch
 # the web client lives in this repo and consumes the packages directly.
 # Requires the VENDOR_DISPATCH_TOKEN secret — a fine-grained PAT with
 # Contents: write on miquelrosell99/notees-cli. When the secret is unset
-# this is a silent no-op (the CLI's weekly scheduled vendor-bump is the
+# this is a silent no-op (the CLI's hourly scheduled vendor-bump is the
 # drift net), and a failed dispatch never fails this workflow — a main
 # push is never blocked on client bookkeeping.
 
