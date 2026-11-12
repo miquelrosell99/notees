@@ -1,0 +1,619 @@
+/**
+ * InlineTokens — renders a flat content token stream (SCHEMA.md content
+ * grammar) into React elements. Renders only what slice 1 implements;
+ * unknown tokens render nothing (never crash). Text marks map to
+ * <strong>/<em>/<s>/<mark>/<code>; mentions render as dashed-underline
+ * links (names resolved through the optional resolveName callback, with
+ * graceful fallbacks); class chips render as the node-link look with a
+ * WAVY underline tinted by the class's effective color
+ * and no pill chrome — they open the class like a mention opens its
+ * target; external links are markdown `[label](href)` spans inside `text`
+ * tokens (the retired external_link token's replacement — SCHEMA.md render
+ * grammar), rendered as plain hyperlinks (underline + link color, never a
+ * pill; the shared `@notees/domain` splitter, http/https/mailto only);
+ * mentions also notify the app-level
+ * hover coordinator
+ * (NodeHoverPreview — dwell raises a bounded preview card; the card's pin
+ * promotes to a floating editor window); a mention whose target carries an
+ * icon renders it ahead of the label (the resolveIcon resolver — defined
+ * icons only, no display-default glyph); a mention whose target title
+ * itself carries link elements (mentions, class links, hyperlinks) renders
+ * THOSE elements inside the chip via the resolveLabelTokens resolver —
+ * the chip stays one link to its target, so the nested elements render
+ * inert: the icons and resolved names ride inside the label but carry no
+ * underline of their own (the chip's own line names the whole label; a
+ * nested underline only doubles it — the app.css chip-scoped rules) and no
+ * own click or hover (the `inert` mode), one recursion level deep
+ * (labelDepth caps the nesting, so link cycles terminate; titles without
+ * link elements keep the flat string label); quote and heading recurse (heading
+ * carries the large/bold typography); embed_ref renders
+ * the live subtree via the
+ * optional renderEmbed callback (placeholder box when absent); query renders
+ * nothing in the stream — the query node's chrome rides as a sibling section
+ * below the block's content row (QueryNodeSection);
+ * whiteboard renders the live canvas via the optional
+ * renderWhiteboard callback (placeholder box when absent); asset_ref renders
+ * via the optional renderAsset callback (SCHEMA.md:61 — full-bleed when alone
+ * in the stream; placeholder box when absent); embed_ref card views route
+ * through the optional renderEmbedCard callback (falling back to
+ * renderEmbed); code_block renders read-only as a mono pre with the language
+ * badge and hr as a horizontal rule; typed_link marks
+ * show the verb in the tooltip — bound verbs (`{ propertySchemaId }`)
+ * resolve the schema's name through the optional resolveVerb callback; other
+ * block-scale tokens render as labeled placeholder boxes.
+ */
+
+import { Fragment, type ReactNode } from "react";
+
+import { cssColorFor } from "../components/ui/kit/colorPresets.js";
+import { notifyNodeHover } from "../features/node-menu/NodeHoverPreview.js";
+import { Icon } from "./Icon.js";
+import { splitMarkdownLinks } from "@notees/domain";
+
+export interface InlineTokensProps {
+  tokens: readonly unknown[];
+  resolveName?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Full-title resolver for node-link labels (mentions and
+   * node links render the COMPLETE title — resolveName is the capped
+   * display name, the dense-chrome budget). When provided, mention labels
+   * prefer it; when absent, resolveName stays the source (callers that
+   * have not been wired keep the capped form). A token's own customLabel
+   * (a one-off wording) always wins over both.
+   */
+  resolveFullTitle?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Rich-label source for node-link chips: returns the target node's title
+   * token stream so a mention whose target title itself carries link
+   * elements (mentions, class links, hyperlinks) renders them inside the
+   * chip instead of flattening to a string that drops them. Only
+   * inline-scale streams containing at least one link token qualify —
+   * anything else falls back to the flat resolveFullTitle/resolveName
+   * string (identical output, cheaper). The nested render is inert (the
+   * chip is one link to its target) and capped at one recursion level, so
+   * link cycles terminate. Absent = every chip renders the flat string
+   * (unwired projections).
+   */
+  resolveLabelTokens?: ((nodeId: string) => readonly unknown[] | undefined) | undefined;
+  /**
+   * Recursion depth of a chip label render (0 at the top level). Internal:
+   * the rich-label recursion passes labelDepth + 1 and only depth-0 chips
+   * consult resolveLabelTokens, which caps the nesting at one level.
+   */
+  labelDepth?: number | undefined;
+  /**
+   * Inert link mode: link tokens (mentions, class links, markdown
+   * hyperlinks) render without the link chrome — no click target, no
+   * underline (the chip's own line names the whole label; the app.css
+   * chip-scoped rules strip the nested underlines, leaving icons, names,
+   * and the hyperlink color) — the nested render inside a node-link chip's
+   * rich label, where interactive content inside the chip's button would be
+   * invalid and the whole chip owns the click and the hover.
+   */
+  inert?: boolean | undefined;
+  /**
+   * Live embed renderer for `embed_ref` tokens (EmbedView). Injected by the
+   * row so this module stays pure; when absent, embed_ref falls back to the
+   * placeholder box. Receives the raw token + its stream index so the
+   * renderer can write the token's `view` field (the embed view switcher).
+   */
+  renderEmbed?: ((nodeId: string, token: unknown, index: number) => ReactNode) | undefined;
+  /**
+   * Live canvas renderer for `whiteboard` tokens (WhiteboardCanvas),
+   * injected by the row (embedded mini-canvas) or the page view (fullscreen
+   * canvas); when absent (e.g. read-only embed projections, plain token
+   * previews), whiteboard falls back to the placeholder box.
+   */
+  renderWhiteboard?: ((token: unknown, index: number) => ReactNode) | undefined;
+  /**
+   * Live asset renderer for `asset_ref` tokens (AssetView), injected by the
+   * row; `fullBleed` is true when the token is alone in its stream
+   * (SCHEMA.md:61 — a block whose entire content is one asset renders at
+   * block width). When absent (read-only embed projections), asset_ref falls
+   * back to the placeholder box.
+   */
+  renderAsset?: ((token: unknown, index: number, fullBleed: boolean) => ReactNode) | undefined;
+  /**
+   * Card renderer for `embed_ref` tokens carrying a card `view`
+   * (the intermediate reference views between mention and full
+   * transclusion). Injected by the row; when absent, card views fall back
+   * to the default `renderEmbed` (the full live subtree). Receives the raw
+   * token + its stream index so the renderer can write the token's `view`.
+   */
+  renderEmbedCard?:
+    | ((
+        nodeId: string,
+        view: "small_card" | "wide_card",
+        token: unknown,
+        index: number,
+      ) => ReactNode)
+    | undefined;
+  /**
+   * PG1 bound-verb label: resolves a typed_link mark's `{ propertySchemaId }`
+   * verb to the schema's display name (title tooltip). When absent, the raw
+   * schema id shows (the broken-mention fallback philosophy).
+   */
+  resolveVerb?: ((propertySchemaId: string) => string | null) | undefined;
+  /**
+   * Navigation for inline node references: when set, mention tokens render
+   * as dashed-underline links that open the target (read mode).
+   */
+  onOpenNode?: ((nodeId: string) => void) | undefined;
+  /** Effective-color resolver: tints mention underlines with the target's color. */
+  resolveColor?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Effective-icon resolver for node links: a mention
+   * whose target carries an icon — its own or its first class's (the
+   * definedNodeIcon semantics, NO display-default fallback, so iconless
+   * links stay text-only) — renders that icon ahead of the label. Absent =
+   * links render text-only (unwired projections).
+   */
+  resolveIcon?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Class effective-color resolver: tints class-link wavy underlines with
+   * the class's color (the extends-chain walk). When absent, chips render
+   * the neutral outline underline.
+   */
+  resolveClassColor?: ((classId: string) => string | null) | undefined;
+  /**
+   * Class-assignment resolver (the divergence ruling): a
+   * class_link whose class is NOT in the OWNING node's class_ids renders
+   * PENDING — a dashed wavy underline, "referenced, not assigned" — instead
+   * of the live solid wavy. The state is legal (undo interleavings, imports,
+   * external writers can produce it); it must be visible, not hidden.
+   * Absent = every link renders live (unwired projections).
+   */
+  resolveClassAssigned?: ((classId: string) => boolean) | undefined;
+  /**
+   * One-gesture divergence fix: clicking a PENDING class link ASSIGNS the
+   * class (the marker becomes live; clicks open the class from then on).
+   * Absent = pending links stay read-only indicators.
+   */
+  onAssignClass?: ((classId: string) => void) | undefined;
+  /**
+   * Right-click menu for mention tokens (the node-link context menu):
+   * receives the token identity + pointer position; the caller supplies the
+   * owning node's id (see openNodeLinkMenu). Works in every view mode.
+   */
+  onMentionMenu?:
+    | ((info: {
+        targetNodeId: string;
+        tokenIndex: number;
+        customLabel?: string | undefined;
+        x: number;
+        y: number;
+      }) => void)
+    | undefined;
+}
+
+function renderMarkedText(text: string, marks: readonly string[] | undefined): ReactNode {
+  if (!marks || marks.length === 0) return text;
+  let node: ReactNode = text;
+  for (let i = marks.length - 1; i >= 0; i -= 1) {
+    switch (marks[i]) {
+      case "bold":
+        node = <strong>{node}</strong>;
+        break;
+      case "italic":
+        node = <em>{node}</em>;
+        break;
+      case "strike":
+        node = <s>{node}</s>;
+        break;
+      case "highlight":
+        node = <mark>{node}</mark>;
+        break;
+      case "code":
+        node = <code>{node}</code>;
+        break;
+      default:
+        break;
+    }
+  }
+  return node;
+}
+
+function Placeholder({ label, detail }: { label: string; detail?: string | undefined }) {
+  return (
+    <span className="nt-placeholder" title={detail ?? label}>
+      {label}
+    </span>
+  );
+}
+
+// Token types that may ride inside a node-link chip's rich label. Anything
+// block-scale (embeds, queries, headings, code blocks…) disqualifies the
+// stream — a chip label stays one line of inline content.
+const CHIP_LABEL_TYPES = new Set(["text", "mention", "class_link", "typed_link", "hard_break"]);
+
+/**
+ * A target title's token stream qualifies for rich chip-label rendering when
+ * every token is inline-scale AND at least one link element rides in it
+ * (mention, class link, typed link, or a markdown hyperlink inside a text
+ * token). Pure-text streams return null — the flat string label renders the
+ * same text without the recursion.
+ */
+function chipLabelStream(tokens: readonly unknown[]): readonly unknown[] | null {
+  if (tokens.length === 0) return null;
+  let hasLink = false;
+  for (const token of tokens) {
+    if (typeof token !== "object" || token === null) return null;
+    const type = (token as { type?: unknown }).type;
+    if (typeof type !== "string" || !CHIP_LABEL_TYPES.has(type)) return null;
+    if (type === "mention" || type === "class_link" || type === "typed_link") {
+      hasLink = true;
+    } else if (type === "text") {
+      const text = (token as { text?: unknown }).text;
+      if (typeof text !== "string") return null;
+      if (splitMarkdownLinks(text).some((segment) => segment.kind === "link")) hasLink = true;
+    }
+  }
+  return hasLink ? tokens : null;
+}
+
+function renderToken(
+  token: unknown,
+  key: number,
+  resolveName: InlineTokensProps["resolveName"],
+  resolveFullTitle: InlineTokensProps["resolveFullTitle"],
+  resolveVerb: InlineTokensProps["resolveVerb"],
+  renderEmbed: InlineTokensProps["renderEmbed"],
+  renderEmbedCard: InlineTokensProps["renderEmbedCard"],
+  renderWhiteboard: InlineTokensProps["renderWhiteboard"],
+  renderAsset: InlineTokensProps["renderAsset"],
+  assetAlone: boolean,
+  onOpenNode: InlineTokensProps["onOpenNode"],
+  resolveColor: InlineTokensProps["resolveColor"],
+  resolveIcon: InlineTokensProps["resolveIcon"],
+  resolveClassColor: InlineTokensProps["resolveClassColor"],
+  resolveClassAssigned: InlineTokensProps["resolveClassAssigned"],
+  onAssignClass: InlineTokensProps["onAssignClass"],
+  onMentionMenu: InlineTokensProps["onMentionMenu"],
+  resolveLabelTokens: InlineTokensProps["resolveLabelTokens"],
+  labelDepth: number,
+  inert: boolean,
+): ReactNode {
+  if (typeof token !== "object" || token === null) return null;
+  const t = token as Record<string, unknown>;
+  switch (t.type) {
+    case "text": {
+      if (typeof t.text !== "string") return null;
+      const marks = Array.isArray(t.marks) ? t.marks.filter((m): m is string => typeof m === "string") : undefined;
+      // Markdown-link spans (SCHEMA.md render grammar — the retired
+      // external_link token's replacement): `[label](href)` inside a text
+      // token renders as a plain hyperlink, keeping the token's marks on
+      // every segment. Non-linkable syntax stays literal text.
+      const segments = splitMarkdownLinks(t.text);
+      if (segments.length === 1 && segments[0]?.kind === "text") {
+        return <span key={key}>{renderMarkedText(t.text, marks)}</span>;
+      }
+      return (
+        <span key={key}>
+          {segments.map((segment, index) =>
+            segment.kind === "link" ? (
+              inert ? (
+                // Inert label (nested inside a node-link chip): the link
+                // keeps its look but no href/click — the chip owns the
+                // gesture; the href rides the tooltip.
+                <span
+                  key={index}
+                  className="nt-hyperlink nt-hyperlink--inert"
+                  title={segment.href}
+                >
+                  {renderMarkedText(segment.text, marks)}
+                </span>
+              ) : (
+              // Click gesture: a plain click must not follow
+              // the href — the block row owns the click (edit mode, or
+              // openNode read-only), and the event bubbles there on purpose;
+              // a Ctrl/Cmd/Shift-modified click keeps the browser default
+              // (target=_blank opens a new tab).
+              <a
+                key={index}
+                className="nt-hyperlink"
+                href={segment.href}
+                target="_blank"
+                rel="noreferrer"
+                title="Ctrl+click to open link"
+                onClick={(event) => {
+                  if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                {renderMarkedText(segment.text, marks)}
+              </a>
+              )
+            ) : (
+              <Fragment key={index}>{renderMarkedText(segment.text, marks)}</Fragment>
+            ),
+          )}
+        </span>
+      );
+    }
+    case "typed_link": {
+      if (typeof t.text !== "string") return null;
+      // PG1: a bound verb (`{ propertySchemaId }`) renders the schema's name
+      // in the tooltip; a free verb renders as written.
+      const boundSchemaId =
+        typeof t.verb === "object" && t.verb !== null && "propertySchemaId" in t.verb
+          ? String((t.verb as { propertySchemaId: unknown }).propertySchemaId)
+          : null;
+      const verb =
+        typeof t.verb === "string"
+          ? t.verb
+          : boundSchemaId !== null
+            ? (resolveVerb?.(boundSchemaId) ?? boundSchemaId)
+            : "link";
+      return (
+        <span key={key} className="nt-typed-link" title={verb} data-verb-bound={boundSchemaId ?? undefined}>
+          {t.text}
+        </span>
+      );
+    }
+    case "mention": {
+      const targetNodeId = typeof t.targetNodeId === "string" ? t.targetNodeId : "";
+      const customLabel = typeof t.customLabel === "string" ? t.customLabel : undefined;
+      const name =
+        customLabel ??
+        (targetNodeId
+          ? (resolveFullTitle?.(targetNodeId) ?? resolveName?.(targetNodeId) ?? undefined)
+          : undefined) ??
+        targetNodeId;
+      if (!name) return null;
+      // The target's effective icon rides ahead of the label when it has one
+      // (the resolver returns null for iconless targets — no default glyph).
+      const icon = targetNodeId !== "" ? (resolveIcon?.(targetNodeId) ?? null) : null;
+      const iconNode = icon !== null ? <Icon path={icon} size={0.75} className="nt-link__icon" /> : null;
+      // Rich label: when the target's title itself carries link elements,
+      // render ITS token stream inside the chip (inert — the chip owns the
+      // gesture) instead of the flat string that would drop them. Depth-0
+      // chips only, so the nesting caps at one level and link cycles
+      // terminate. A customLabel (a one-off wording) always wins.
+      const labelStream =
+        customLabel === undefined && targetNodeId !== "" && labelDepth < 1
+          ? chipLabelStream(resolveLabelTokens?.(targetNodeId) ?? [])
+          : null;
+      const labelNode =
+        labelStream !== null ? (
+          <InlineTokens
+            tokens={labelStream}
+            inert
+            labelDepth={labelDepth + 1}
+            resolveName={resolveName}
+            resolveFullTitle={resolveFullTitle}
+            resolveVerb={resolveVerb}
+            resolveIcon={resolveIcon}
+            resolveClassColor={resolveClassColor}
+            resolveClassAssigned={resolveClassAssigned}
+          />
+        ) : (
+          name
+        );
+      if (inert) {
+        // Nested inside another chip's rich label: the link look on a span,
+        // no own click, no own hover — the chip's own button owns the gesture
+        // AND the hover preview for its target across the whole label.
+        const linkColor = resolveColor?.(targetNodeId) ?? null;
+        return (
+          <span
+            key={key}
+            className="nt-link nt-link--inert"
+            title={targetNodeId || undefined}
+            style={linkColor !== null ? { borderBottomColor: cssColorFor(linkColor) } : undefined}
+          >
+            {iconNode}
+            {labelNode}
+          </span>
+        );
+      }
+      const mentionMenuProps =
+        onMentionMenu === undefined
+          ? undefined
+          : {
+              onContextMenu: (event: { preventDefault(): void; clientX: number; clientY: number }) => {
+                event.preventDefault();
+                onMentionMenu({
+                  targetNodeId,
+                  tokenIndex: key,
+                  customLabel,
+                  x: event.clientX,
+                  y: event.clientY,
+                });
+              },
+            };
+      if (onOpenNode !== undefined && targetNodeId !== "") {
+        const linkColor = resolveColor?.(targetNodeId) ?? null;
+        return (
+          <button
+            key={key}
+            type="button"
+            className="nt-link"
+            title={targetNodeId}
+            style={linkColor !== null ? { borderBottomColor: cssColorFor(linkColor) } : undefined}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenNode(targetNodeId);
+            }}
+            onMouseEnter={(event) => notifyNodeHover(targetNodeId, "enter", event.currentTarget, event.buttons)}
+            onMouseLeave={(event) => notifyNodeHover(targetNodeId, "leave", event.currentTarget)}
+            {...mentionMenuProps}
+          >
+            {iconNode}
+            {labelNode}
+          </button>
+        );
+      }
+      return (
+        <span
+          key={key}
+          className="nt-chip nt-mention"
+          title={targetNodeId || undefined}
+          onMouseEnter={(event) => notifyNodeHover(targetNodeId, "enter", event.currentTarget, event.buttons)}
+          onMouseLeave={(event) => notifyNodeHover(targetNodeId, "leave", event.currentTarget)}
+          {...mentionMenuProps}
+        >
+          {iconNode}
+          {labelNode}
+        </span>
+      );
+    }
+    case "class_link": {
+      const classId = typeof t.classId === "string" ? t.classId : "";
+      const name =
+        (typeof t.displayText === "string" ? t.displayText : undefined) ??
+        (classId ? (resolveName?.(classId) ?? undefined) : undefined) ??
+        classId;
+      if (!name) return null;
+      // The inline class wears the node-link look with a wavy underline
+      // tinted by the class's effective color — no pill.
+      // The DIVERGENCE ruling: a link whose class is NOT
+      // assigned to the owning node renders PENDING (dashed) — legal state
+      // (undo interleavings, imports, external writers) made visible — and
+      // an interactive click ASSIGNS it (live from then on); the live link
+      // opens the class exactly like a mention opens its target; read-only
+      // projections degrade to the styled span.
+      const assigned = classId === "" ? true : (resolveClassAssigned?.(classId) ?? true);
+      // Right-click rides the node-link context menu (the Convert item
+      // flips the chip to a plain mention, class targets only) — same
+      // contract as the mention chip beside it.
+      const chipMenuProps =
+        onMentionMenu === undefined || classId === ""
+          ? undefined
+          : {
+              onContextMenu: (event: { preventDefault(): void; clientX: number; clientY: number }) => {
+                event.preventDefault();
+                onMentionMenu({
+                  targetNodeId: classId,
+                  tokenIndex: key,
+                  ...(typeof t.displayText === "string" ? { customLabel: t.displayText } : {}),
+                  x: event.clientX,
+                  y: event.clientY,
+                });
+              },
+            };
+      if (onOpenNode !== undefined && classId !== "" && !inert) {
+        const chipColor = resolveClassColor?.(classId) ?? null;
+        return (
+          <button
+            key={key}
+            type="button"
+            className={`nt-link nt-link--class${assigned ? "" : " nt-link--class-pending"}`}
+            title={assigned ? classId : `Class ${name} not assigned — click to assign`}
+            style={chipColor !== null ? { textDecorationColor: cssColorFor(chipColor) } : undefined}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!assigned && onAssignClass !== undefined) onAssignClass(classId);
+              else onOpenNode(classId);
+            }}
+            {...chipMenuProps}
+          >
+            {name}
+          </button>
+        );
+      }
+      return (
+        <span
+          key={key}
+          className={`nt-class-link${assigned ? "" : " nt-class-link--pending"}`}
+          title={classId || undefined}
+          {...chipMenuProps}
+        >
+          {name}
+        </span>
+      );
+    }
+    case "quote": {
+      const children = Array.isArray(t.children) ? t.children : [];
+      return (
+        <span key={key} className="nt-quote">
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveIcon={resolveIcon} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
+        </span>
+      );
+    }
+    case "heading": {
+      // The heading token renders as a large/bold line (the BlockRow chrome
+      // carries the block chrome; the token carries the typography).
+      const children = Array.isArray(t.children) ? t.children : [];
+      return (
+        <span key={key} className="nt-heading">
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveIcon={resolveIcon} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
+        </span>
+      );
+    }
+    case "math": {
+      if (typeof t.expression !== "string") return null;
+      // Slice 1: no KaTeX; plain code fallback.
+      return (
+        <code key={key} className="nt-math">
+          {t.expression}
+        </code>
+      );
+    }
+    case "hard_break":
+      return <br key={key} />;
+    case "asset_ref":
+      if (renderAsset !== undefined) {
+        return <Fragment key={key}>{renderAsset(token, key, assetAlone)}</Fragment>;
+      }
+      return <Placeholder key={key} label="asset" detail={typeof t.assetId === "string" ? t.assetId : undefined} />;
+    case "embed_ref": {
+      const nodeId = typeof t.nodeId === "string" ? t.nodeId : "";
+      const view = t.view === "small_card" || t.view === "wide_card" ? t.view : null;
+      if (view !== null && renderEmbedCard !== undefined && nodeId !== "") {
+        return <Fragment key={key}>{renderEmbedCard(nodeId, view, token, key)}</Fragment>;
+      }
+      if (renderEmbed !== undefined && nodeId !== "") {
+        return <Fragment key={key}>{renderEmbed(nodeId, token, key)}</Fragment>;
+      }
+      return <Placeholder key={key} label="embed" detail={nodeId || undefined} />;
+    }
+    case "code_block": {
+      // Read-only block-scale render: the source verbatim in a
+      // mono pre, with the optional language hint as a badge. The editing
+      // surface (CodeTextarea in an editor branch) is designed with the
+      // token but stays unshipped until the protocol lockstep lands.
+      if (typeof t.text !== "string") return null;
+      const language = typeof t.language === "string" ? t.language : null;
+      return (
+        <span key={key} className="nt-code-block">
+          {language !== null && <span className="nt-code-block__lang">{language}</span>}
+          <pre className="nt-code-block__pre">
+            <code>{t.text}</code>
+          </pre>
+        </span>
+      );
+    }
+    case "hr":
+      return <hr key={key} className="nt-hr" />;
+    case "query":
+      // The query node's chrome rides as a sibling section BELOW the block's
+      // content row (QueryNodeSection) — the token
+      // itself renders nothing inside the stream.
+      return null;
+    case "whiteboard":
+      if (renderWhiteboard !== undefined) {
+        return <Fragment key={key}>{renderWhiteboard(token, key)}</Fragment>;
+      }
+      return <Placeholder key={key} label="whiteboard" />;
+    default:
+      // Unknown token type: graceful fallback — render nothing, never crash.
+      return null;
+  }
+}
+
+export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveLabelTokens, labelDepth = 0, inert = false, resolveVerb, renderEmbed, renderEmbedCard, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu }: InlineTokensProps) {
+  // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
+  // flag reaches only the (single) asset token in that stream.
+  const assetAlone =
+    renderAsset !== undefined &&
+    tokens.length === 1 &&
+    typeof tokens[0] === "object" &&
+    tokens[0] !== null &&
+    (tokens[0] as { type?: unknown }).type === "asset_ref";
+  return (
+    <>
+      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu, resolveLabelTokens, labelDepth, inert))}
+    </>
+  );
+}

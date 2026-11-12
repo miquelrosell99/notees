@@ -1,0 +1,98 @@
+/**
+ * CollectionHub styles — the nav hubs' shared surface shape. The root is full-bleed in the main content card (the
+ * PageCard.css hub-surface exception); the SurfaceTopBar pins at the card's
+ * top, the body scrolls at the CARD's right border, and the collection
+ * keeps the former .nt-hub measure (800px cap, spacing-6 inset) via the
+ * capped content column. Token-only (variables.css).
+ */
+
+/* The root: a full-height flex column both as the PageCard's direct child
+   (the PageCard.css hub-surface exception) and nested inside the tasks
+   hub's .nt-hub-tasks wrapper — the bar pins, the body scrolls in both. */
+.nt-hub {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.nt-hub__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-hub__content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: var(--layout-size-13xl);
+  margin-inline: auto;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+/* The lifted toolbar's register overrides (the SurfaceTopBar className
+   pass-through): the view switcher, the ported view chrome and the filter
+   toolbar's controls join the actions cluster — the bar and the cluster
+   WRAP instead of overflowing at narrow widths (the NodeCollectionTopBar
+   cluster precedent: one tight right-justified group per line). */
+.nt-hub__surface-bar {
+  flex-wrap: wrap;
+  row-gap: var(--spacing-1);
+}
+
+.nt-hub__surface-bar .surface-topbar__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: var(--spacing-1);
+}
+
+/* The view switcher's toolbar joins the actions cluster (the hosted
+   register): its base width: 100% belongs to the full-width section-row
+   hosts (NodeView's modes corner, the Created section) — inside the cluster
+   it would claim a whole flex line and drop the view chrome and filter
+   controls to a second row. In the bar it shrinks to its content as one
+   tight group; the cluster itself still wraps at narrow widths. */
+.nt-hub__surface-bar .view-toolbar {
+  width: auto;
+  flex-wrap: nowrap;
+}
+
+/* The view-chrome slot (the hosted .node-collection__view-chrome
+   precedent): display:contents merges the ported per-view toolbar into the
+   actions cluster's flex line, and the ported toolbar loses its body-top
+   bottom margin. */
+.nt-hub__view-chrome {
+  display: contents;
+}
+
+.nt-hub__view-chrome .nt-table-toolbar,
+.nt-hub__view-chrome .cards-toolbar,
+.nt-hub__view-chrome .board-toolbar,
+.nt-hub__view-chrome .outline-toolbar {
+  margin-bottom: 0;
+}
+
+/* The structured filter panel's seat: the full-width line beneath the bar
+   (the NodeCollectionTopBar panel-host precedent) — the inline toolbar
+   PORTALS its panel here; empty (panel closed) the host has no content and
+   contributes no height. The horizontal inset matches the bar's padding so
+   the dropped panel aligns with the bar's content. */
+.nt-hub__bar-panel-host {
+  padding: 0 var(--spacing-6) var(--spacing-2);
+}
+
+@media (width <= 768px) {
+  .nt-hub__content {
+    padding: 0 var(--spacing-4) var(--spacing-6);
+  }
+
+  .nt-hub__bar-panel-host {
+    padding: 0 var(--spacing-4) var(--spacing-2);
+  }
+}

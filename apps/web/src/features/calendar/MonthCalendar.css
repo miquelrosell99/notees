@@ -1,0 +1,67 @@
+/* MonthCalendar — the Calendar view's right-column month panel. Tokens from
+   variables.css; day cells come from the shared calendar-grid.css. */
+
+.month-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.month-calendar__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.month-calendar__zoom {
+  flex-shrink: 0;
+}
+
+.month-calendar__grid {
+  display: grid;
+  gap: var(--spacing-micro);
+}
+
+/* The 12-cell grids keep a FIXED arity: the panel is a fixed-width side
+   column and 4×3 / 3×4 is the reading of the year picker — the column
+   count derives from the content (12 months, a 3×4 year window), not the
+   viewport, so the adaptive-columns idiom does not apply here (skill §5:
+   fixed values only where genuinely constant). */
+.month-calendar__grid--months {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.month-calendar__grid--years {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.month-calendar__pick.btn {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-1);
+  position: relative;
+}
+
+/* The invisible 48px hit-area floor (M3's 48dp minimum): the visible pick rides the
+   grid; the ::after overlay centered on it reaches ≥48×48. */
+.month-calendar__pick.btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+.month-calendar__pick.btn.current {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font-weight: 600;
+}

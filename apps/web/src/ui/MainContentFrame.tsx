@@ -1,0 +1,122 @@
+/**
+ * MainContentFrame — the panelled main-content composition generalized
+ *: the layout the node view alone used to own — a
+ * full-width top bar above a three-column body (raised-card panel left ·
+ * content middle · raised-card panel right) — becomes a shared, purely
+ * presentational component any main-content view composes. PageView was the
+ * first host (its context column and properties sidebar moved out of
+ * PageView's private grid into the frame's slots); CalendarView is the
+ * second (its mini-month + week strip + week agenda ride the right panel,
+ * toggled from the top bar). Any other main-content view opts in the same
+ * way — that opt-in IS the flag: a view renders the frame and passes panel
+ * content, or doesn't and renders full-bleed.
+ *
+ * The frame owns NO state: whether a panel renders is the host's call (its
+ * own device-local collapse prefs, its own focus mode), communicated by
+ * passing the panel ReactNode or undefined. Each host owns its panel CONTENT
+ * too — the frame supplies only the chrome registers (the card element, the
+ * column split, the collapse geometry), so two hosts never share panel
+ * content, only the composition. The panel WIDTHS are the host's call as
+ * well: `leftPanelWidth` / `rightPanelWidth` carry a CSS length (the token
+ * vars per the adaptive-values law) into the panel's flex-basis via a
+ * custom property; undefined rides the register default (the calendar's mini-month needed its old 320px column back, and each
+ * view may set its own measure).
+ *
+ * The CSS registers move with the frame (MainContentFrame.css): the panel
+ * cards keep their class names (.nt-page-context / .nt-page-side-panel —
+ * the raised-card panel registers documented there), the body row is
+ * .nt-main-frame__body and OWNS the outer body inset too (the horizontal padding is the card-edge → panel-card
+ * gap, universal across hosts: hosts must NOT carry their own side
+ * padding, and each host's top bar carries its own horizontal inset), the
+ * middle cell .nt-main-frame__content carries NO width cap — the host
+ * wraps its children in its own cap when it wants one (PageView's journal
+ * measure rides .nt-nodeview-body in ui/app/PanelLayout.css) and rides full-bleed when it
+ * doesn't (the hubs' eventual panel adoption). The scrollbar seam: a host's scroll box scrolls at its own right edge — beside
+ * the right side pane — with the text cap centered inside it; the cap
+ * never owns the scroll. The panel chrome (padding,
+ * scroll, column rhythm) is the CARDS' register; a single-column pane's
+ * content rides the canonical .nt-main-frame__panel-content class on its
+ * own root instead of re-styling padding per view.
+ */
+
+import type { CSSProperties, ReactNode } from "react";
+
+import "./MainContentFrame.css";
+
+export interface MainContentFrameProps {
+  /**
+   * The full-width bar pinned above the column split — any SurfaceTopBar
+   * composition (the nodeview top bar, a hub bar). The bar never rescales
+   * when a panel shows or hides: it rides above the columns, not inside
+   * one.
+   */
+  topBar: ReactNode;
+  /** The left panel's content; undefined renders no left column. */
+  leftPanel?: ReactNode;
+  /** The left panel card's accessible name (the context column default). */
+  leftLabel?: string;
+  /**
+   * The left panel column's width override — a CSS length (the token vars
+   * per the adaptive-values law, e.g. `var(--layout-size-8xl)`). Undefined
+   * rides the register default (the context column's clamp).
+   */
+  leftPanelWidth?: string;
+  /** The right panel's content; undefined renders no right column. */
+  rightPanel?: ReactNode;
+  /** The right panel card's accessible name (the properties default). */
+  rightLabel?: string;
+  /**
+   * The right panel column's width override — a CSS length (the token vars
+   * per the adaptive-values law, e.g. `var(--layout-size-8xl)`). Undefined
+   * rides the register default (the properties panel's clamp).
+   */
+  rightPanelWidth?: string;
+  /** The middle column: the view's own body (scroller, cap, chrome). */
+  children: ReactNode;
+}
+
+export function MainContentFrame({
+  topBar,
+  leftPanel,
+  leftLabel = "Context",
+  leftPanelWidth,
+  rightPanel,
+  rightLabel = "Properties",
+  rightPanelWidth,
+  children,
+}: MainContentFrameProps) {
+  return (
+    <div className="nt-main-frame">
+      {topBar}
+      <div className="nt-main-frame__body">
+        {leftPanel !== undefined && (
+          <aside
+            className="nt-page-context"
+            aria-label={leftLabel}
+            style={
+              leftPanelWidth !== undefined
+                ? ({ "--nt-context-panel-width": leftPanelWidth } as CSSProperties)
+                : undefined
+            }
+          >
+            {leftPanel}
+          </aside>
+        )}
+        <div className="nt-main-frame__content">{children}</div>
+        {rightPanel !== undefined && (
+          <aside
+            className="nt-page-side-panel"
+            aria-label={rightLabel}
+            style={
+              rightPanelWidth !== undefined
+                ? ({ "--nt-side-panel-width": rightPanelWidth } as CSSProperties)
+                : undefined
+            }
+          >
+            {rightPanel}
+          </aside>
+        )}
+      </div>
+    </div>
+  );
+}

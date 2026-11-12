@@ -1,0 +1,444 @@
+// Edit-thread probe (the measured overlay): while
+// a block is in edit mode, the page body draws ONE SVG polyline
+// (EditThread.tsx) from the top-level ancestor bullet to the editing
+// block bullet — down each bullet column, a rounded right turn at each
+// level change — a SEPARATE overlay, never the tree own indent rail
+// highlighted:
+//   1. editing a3 (chain A → a2 → a3): the overlay exists with a 2-turn
+//      path; the stroke is the accent; the svg is pointer-events: none.
+//   2. the tree chrome is untouched: every rail rests (A rail reads as
+//      C rail), the grip pseudos grow nothing.
+//   3. geometry: the path starts at A bullet center, ends at a3, and
+//      x strictly increases per level.
+//   4. the ANCESTOR chevrons stay hidden while a descendant edits, and the
+//      PATH DOTS wear the accent at resting size (the non-path sibling
+//      stays muted).
+//   5. the thread follows the caret: editing a top-level block draws
+//      nothing; editing a2b draws A → a2b (one turn).
+//   6. the overlay passes clicks through — the rail fold still fires
+//      beneath it.
+//   7. editing chrome stays on the editing row: the subtree dots do not
+//      accent, and the editing block own chevron stays hidden (hover-only
+//      reveal).
+//   8. glyph bullets (class icons): the arms end BEFORE the icon — the
+//      editing target and an intermediate link — never strike through it;
+//      an intermediate glyph gets the SURROUND: a loop of inverted
+//      rounding wraps its lower-left and the downward line rejoins the
+//      CENTER column just below the glyph — its original position.
+//   9. the context menu anchors to its block: while the node menu is open
+//      the block bullet carries the hover/active highlight, and Escape
+//      clears it.
+//  10. the focused block view threads from the FOCUSED block (the view
+//      root row, a real bullet) down to the editing child.
+//  11. the prose focused view renders the parent as an editable top-level
+//      header (the title-variant row); bullets hide — no thread (the
+//      prose law) — and the view stays editable.
+// TEST workspace; cleans up after itself.
+import { chromium } from "playwright";
+const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
+if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin login email)");
+
+const API = "http://localhost:8377";
+const WEB = "http://localhost:8378";
+const WS = "c491595f-9f94-5ade-a620-e30ed063d8d2"; // the test workspace (law 8)
+const KEY = (await import("node:fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
+
+const api = async (path, init) => {
+  const r = await fetch(API + path, {
+    method: init?.method ?? "GET",
+    headers: { "x-api-key": KEY, "x-workspace-id": WS, "content-type": "application/json" },
+    body: init?.body ? JSON.stringify(init.body) : undefined,
+  });
+  if (!r.ok) throw new Error(`api ${path}: ${r.status} ${(await r.text()).slice(0, 140)}`);
+  return r.json();
+};
+const block = (parentId, text) =>
+  api("/api/objects", { method: "POST", body: { parentId, contentAst: [{ type: "text", text }] } }).then((r) => r.id);
+
+// A parentless create is a Page (Revision 12: standalone by definition;
+// `presentAsMain` retired). `name` seeds the initial text content
+// (title-is-content).
+const pageId = (await api("/api/objects", { method: "POST", body: { name: "Thread probe scratch" } })).id;
+let A, a2, a3, a2b, B, C, c1;
+try {
+  A = await block(pageId, "alfa");
+  a2 = await block(A, "bravo");
+  a3 = await block(a2, "misterio");
+  a2b = await block(A, "delta"); // non-path direct child of A
+  B = await block(pageId, "echo"); // non-path top-level block
+  C = await block(pageId, "foxtrot");
+  c1 = await block(C, "golf"); // non-chain rail reference (C's rail rests)
+  console.log("structure: page[A[a2[a3], a2b], B, C[c1]] — edit target: a3");
+
+  const loginRes = await fetch(API + "/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: ADMIN_EMAIL, password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }),
+  });
+  if (!loginRes.ok) throw new Error(`login: ${loginRes.status}`);
+  const { token: SESSION } = await loginRes.json();
+
+  const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage"] });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const pg = await context.newPage();
+  const consoleErrors = [];
+  pg.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text().slice(0, 200)));
+  pg.on("pageerror", (e) => consoleErrors.push("pageerror: " + String(e).slice(0, 200)));
+  await pg.addInitScript(([url, token, ws]) => {
+    localStorage.setItem("notees.serverUrl", url);
+    localStorage.setItem("notees.sessionToken", token);
+    localStorage.setItem("notees.workspaceId", ws);
+  }, [API, SESSION, WS]);
+
+  await pg.goto(`${WEB}/${pageId}`, { waitUntil: "commit", timeout: 120_000 });
+  await pg.waitForSelector(`[data-block-id="${A}"] .nt-block-children__rail`, { timeout: 60_000 });
+
+  const expect = (cond, msg) => {
+    if (!cond) throw new Error("ASSERT: " + msg);
+    console.log("ok —", msg);
+  };
+
+  // One read of the whole thread state: the overlay path (+ its parsed
+  // points and turn count), the chrome-resting proofs, the ancestor
+  // chevrons, and the dot opacities — all host-relative.
+  const state = (ids) =>
+    pg.evaluate(([aid, a2id, a3id, a2bid, bid, cid]) => {
+      const host = document.querySelector(".nt-edit-thread-host");
+      if (host === null) return { host: false };
+      const svg = host.querySelector(":scope > .nt-edit-thread-overlay");
+      let path = null;
+      if (svg !== null) {
+        const p = svg.querySelector("path");
+        path = {
+          d: p?.getAttribute("d") ?? null,
+          qCount: (p?.getAttribute("d").match(/Q/g) ?? []).length,
+          stroke: p === null || p === undefined ? null : getComputedStyle(p).stroke,
+        };
+        if (path.d !== null) {
+          const nums = path.d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+          path.pts = [];
+          for (let i = 0; i + 1 < nums.length; i += 2) path.pts.push({ x: nums[i], y: nums[i + 1] });
+        }
+      }
+      const center = (bid) => {
+        const b = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet`);
+        if (b === null) return null;
+        const r = b.getBoundingClientRect();
+        const h = host.getBoundingClientRect();
+        return { x: r.left + r.width / 2 - h.left, y: r.top + r.height / 2 - h.top };
+      };
+      const railBg = (bid) => getComputedStyle(host.querySelector(`[data-block-id="${bid}"] .nt-block-children__rail`)).backgroundImage;
+      const chevronOpacity = (bid) => {
+        const c = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-chevron`);
+        return c === null ? null : getComputedStyle(c).opacity;
+      };
+      const dotOpacity = (bid) => {
+        const d = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-dot`);
+        return d === null ? null : getComputedStyle(d).opacity;
+      };
+      const dotBg = (bid) => {
+        const d = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-dot`);
+        return d === null ? null : getComputedStyle(d).backgroundColor;
+      };
+      const gripArms = (bid) => {
+        const g = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-block-grip`);
+        return { before: getComputedStyle(g, "::before").content, after: getComputedStyle(g, "::after").content };
+      };
+      // Alignment: the rail button straddles the
+      // container's left edge (the grid centerline — the bullet column)
+      // and draws its 2px hairline gradient-centered, so the button's
+      // center IS the bullet column. Paint order: the overlay rides
+      // z-index 1 (above the positioned rail button, below the z-2
+      // bullets/chevrons).
+      const railEl = host.querySelector(`[data-block-id="${aid}"] .nt-block-children__rail`);
+      const bulletA = host.querySelector(`[data-block-id="${aid}"] > .nt-block-row .nt-bullet`);
+      const railRect = railEl.getBoundingClientRect();
+      const bulletRect = bulletA.getBoundingClientRect();
+      const chevronA2El = host.querySelector(`[data-block-id="${a2id}"] > .nt-block-row .nt-block-chevron`);
+      return {
+        host: true,
+        svg: svg === null ? false : { pointerEvents: getComputedStyle(svg).pointerEvents, zIndex: getComputedStyle(svg).zIndex },
+        path,
+        railA: railBg(aid),
+        railC: railBg(cid),
+        railVsBullet: +(railRect.left + railRect.width / 2 - (bulletRect.left + bulletRect.width / 2)).toFixed(2),
+        bulletZ: getComputedStyle(bulletA).zIndex,
+        chevronZ: chevronA2El === null ? null : getComputedStyle(chevronA2El).zIndex,
+        armsA2: gripArms(a2id),
+        chevronA: chevronOpacity(aid),
+        chevronA2: chevronOpacity(a2id),
+        dotA2: dotOpacity(a2id),
+        dotA3: dotOpacity(a3id),
+        dotA2b: dotOpacity(a2bid),
+        dotB: dotOpacity(bid),
+        dotBgA2: dotBg(a2id),
+        dotBgA2b: dotBg(a2bid),
+        centerA: center(aid),
+        centerA2: center(a2id),
+        centerA3: center(a3id),
+        centerA2b: center(a2bid),
+      };
+    }, ids);
+
+  // ── 1–4. edit the deepest block: the overlay draws the chain ──
+  await pg.click(`[data-block-id="${a3}"] .nt-block-content`);
+  await pg.waitForSelector(`[data-block-id="${a3}"].nt-block--editing`, { timeout: 10_000 });
+  await pg.waitForSelector(".nt-edit-thread-overlay path", { timeout: 10_000 });
+  await pg.waitForTimeout(350); // chevron/dot opacities ride short transitions
+  let s = await state([A, a2, a3, a2b, B, C]);
+
+  expect(s.host && s.svg !== false, "the overlay svg mounts in the select surface");
+  expect(s.svg.pointerEvents === "none", "the overlay is pointer-events: none");
+  expect(s.path !== null && s.path.qCount === 2, `the path takes a turn per level change (2 turns for A → a2 → a3; d=${s.path?.d})`);
+  expect(s.path.pts.length >= 6, "the path carries the rounded-corner segments");
+  {
+    const start = s.path.pts[0];
+    const end = s.path.pts[s.path.pts.length - 1];
+    const near = (p, c) => Math.abs(p.x - c.x) <= 2 && Math.abs(p.y - c.y) <= 2;
+    expect(near(start, s.centerA), "the thread starts at the TOP block's bullet center");
+    expect(near(end, s.centerA3), "the thread ends at the editing block's bullet center");
+    const xs = [s.centerA.x, s.centerA2.x, s.centerA3.x];
+    expect(xs[0] < xs[1] && xs[1] < xs[2], "each level change turns to the right");
+  }
+  // The stroke is the accent: read the editing dot's own accent color
+  // (kept as the reference for the menu-anchor step — the menu click
+  // blurs the editor, so the editing dot is gone by then).
+  const accentBg = await pg.evaluate(() => {
+    const editing = document.querySelector(".nt-block--editing > .nt-block-row .nt-bullet-dot");
+    return getComputedStyle(editing).backgroundColor;
+  });
+  const strokeIsAccent = await pg.evaluate((ref) => {
+    const path = document.querySelector(".nt-edit-thread-host .nt-edit-thread-overlay path");
+    return getComputedStyle(path).stroke === ref;
+  }, accentBg);
+  expect(strokeIsAccent, "the thread stroke is the accent color");
+
+  expect(s.railA === s.railC, "the tree's own rails stay resting — the thread is a separate overlay");
+  expect(s.armsA2.before === "none" && s.armsA2.after === "none", "no CSS pseudo arms ride the grips");
+  expect(Math.abs(s.railVsBullet) <= 1.2, `the rail rides the parent bullet column (offset ${s.railVsBullet}px)`);
+  expect(s.svg.zIndex === "1", "the overlay rides z-index 1 — above the rails (a positioned button), below the dots");
+  expect(s.bulletZ === "2" && s.chevronZ === "2", "the bullets and the hover chevron paint above the thread");
+  expect(s.chevronA === "0" && s.chevronA2 === "0", "the ancestors' chevrons stay hidden while a descendant edits");
+  expect(s.dotBgA2 === s.path.stroke && s.dotBgA2b !== s.path.stroke,
+    "the path dots wear the accent at resting size; the non-path sibling stays muted");
+
+  // ── 4b. the context menu anchors to its block: the bullet highlights ──
+  {
+    await pg.click(`[data-block-id="${a2b}"] .nt-block-content`, { button: "right" });
+    await pg.waitForSelector(".nt-block--menu-open", { timeout: 10_000 });
+    await pg.waitForTimeout(250); // the highlight rides a short transition
+    const menuState = await pg.evaluate((bid) => {
+      const block = document.querySelector(`[data-block-id="${bid}"]`);
+      const dot = block.querySelector(":scope > .nt-block-row .nt-bullet-dot");
+      const cs = getComputedStyle(dot);
+      return {
+        anchored: block.classList.contains("nt-block--menu-open"),
+        editing: block.classList.contains("nt-block--editing"),
+        opacity: cs.opacity,
+        bg: cs.backgroundColor,
+      };
+    }, a2b);
+    expect(menuState.anchored && !menuState.editing, "the menu-open block wears the anchor class");
+    expect(menuState.opacity === "1" && menuState.bg === accentBg,
+      "the anchored bullet carries the hover/active highlight");
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(300);
+    const cleared = await pg.evaluate((bid) => {
+      const block = document.querySelector(`[data-block-id="${bid}"]`);
+      return !block.classList.contains("nt-block--menu-open");
+    }, a2b);
+    expect(cleared, "Escape closes the menu — the highlight clears");
+  }
+
+  // ── 5a. the caret follows: a top-level edit draws nothing ──
+  await pg.click(`[data-block-id="${B}"] .nt-block-content`);
+  await pg.waitForSelector(`[data-block-id="${B}"].nt-block--editing`, { timeout: 10_000 });
+  await pg.waitForTimeout(200);
+  s = await state([A, a2, a3, a2b, B, C]);
+  expect(s.svg === false, "editing a top-level block draws no thread (no ancestors)");
+
+  // ── 5b. editing a2b draws A → a2b (one turn) ──
+  await pg.click(`[data-block-id="${a2b}"] .nt-block-content`);
+  await pg.waitForSelector(`[data-block-id="${a2b}"].nt-block--editing`, { timeout: 10_000 });
+  await pg.waitForSelector(".nt-edit-thread-overlay path", { timeout: 10_000 });
+  s = await state([A, a2, a3, a2b, B, C]);
+  expect(s.path !== null && s.path.qCount === 1, "editing a2b draws one turn (A → a2b)");
+  {
+    const end = s.path.pts[s.path.pts.length - 1];
+    expect(Math.abs(end.x - s.centerA2b.x) <= 2 && Math.abs(end.y - s.centerA2b.y) <= 2,
+      "the thread ends at the editing block's bullet");
+  }
+
+  // ── 6. the overlay passes clicks through: the rail's fold still fires ──
+  {
+    await pg.click(`[data-block-id="${a3}"] .nt-block-content`);
+    await pg.waitForSelector(`[data-block-id="${a3}"].nt-block--editing`, { timeout: 10_000 });
+    await pg.waitForSelector(".nt-edit-thread-overlay path", { timeout: 10_000 });
+    const geom = await pg.evaluate(([aid, a2id]) => {
+      const rail = document.querySelector(`[data-block-id="${aid}"] .nt-block-children__rail`).getBoundingClientRect();
+      const bullet = document.querySelector(`[data-block-id="${a2id}"] > .nt-block-row .nt-bullet`).getBoundingClientRect();
+      return { railX: rail.left + 4, y: bullet.top + bullet.height / 2 };
+    }, [A, a2]);
+    await pg.mouse.click(geom.railX, geom.y);
+    await pg.waitForTimeout(300);
+    const folded = await pg.evaluate(([a2id, a3id]) => {
+      const chevron = document.querySelector(`[data-block-id="${a2id}"] .nt-block-chevron`);
+      return {
+        expanded: chevron?.getAttribute("aria-expanded"),
+        a3Gone: document.querySelector(`[data-block-id="${a3id}"]`) === null,
+        threadGone: document.querySelector(".nt-edit-thread-overlay") === null,
+        url: location.pathname,
+      };
+    }, [a2, a3]);
+    expect(folded.expanded === "false", "the click reached the rail — a2 folded");
+    expect(folded.a3Gone, "a2's subtree hid with the fold");
+    expect(folded.threadGone, "the fold unmounted the editor — the thread tore down");
+    expect(folded.url === `/${pageId}`, "no zoom — the URL stays on the page");
+    // Unfold a2 again — the glyph step below edits a3, which lives inside
+    // a2's subtree (the second rail click unfolds every folded child).
+    await pg.mouse.click(geom.railX, geom.y);
+    await pg.waitForSelector(`[data-block-id="${a3}"] .nt-block-content`, { timeout: 10_000 });
+  }
+
+  // ── 7. the editing accent stays on the editing row (subtree regression) ──
+  {
+    await pg.click(`[data-block-id="${a2}"] .nt-block-content`);
+    await pg.waitForSelector(`[data-block-id="${a2}"].nt-block--editing`, { timeout: 10_000 });
+    await pg.waitForTimeout(350);
+    s = await state([A, a2, a3, a2b, B, C]);
+    expect(s.dotA2 === "1", "the editing block's own dot carries the accent (opacity 1)");
+    expect(s.dotA3 !== "1", "the editing block's CHILD dot stays resting (the subtree-accent bug stays fixed)");
+    expect(s.dotA2b !== "1", "the sibling row's dot stays resting");
+    expect(s.chevronA2 === "0", "the editing block's own chevron stays hidden — hover-only reveal");
+  }
+
+  // ── 8. glyph bullets: the arms end BEFORE the icon (never strike through),
+  //      and an intermediate glyph gets the hidden jog back to its column ──
+  {
+    await pg.click(`[data-block-id="${a3}"] .nt-block-content`);
+    await pg.waitForSelector(`[data-block-id="${a3}"].nt-block--editing`, { timeout: 10_000 });
+    await api(`/api/objects/${a3}`, { method: "PATCH", body: { icon: "mdiFormatQuote" } });
+    await api(`/api/objects/${a2}`, { method: "PATCH", body: { icon: "mdiBookmarkOutline" } });
+    await pg.waitForSelector(`[data-block-id="${a3}"] > .nt-block-row .nt-bullet-icon`, { timeout: 15_000 });
+    await pg.waitForSelector(`[data-block-id="${a2}"] > .nt-block-row .nt-bullet-icon`, { timeout: 15_000 });
+    await pg.waitForTimeout(500); // the overlay recomputes on the store notification
+    const glyphGeom = await pg.evaluate(([a2id, a3id]) => {
+      const host = document.querySelector(".nt-edit-thread-host");
+      const h = host.getBoundingClientRect();
+      const read = (bid) => {
+        const icon = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet-icon`);
+        const bullet = host.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet`);
+        if (icon === null || bullet === null) return null;
+        const ir = icon.getBoundingClientRect();
+        const br = bullet.getBoundingClientRect();
+        return { glyphLeft: ir.left - h.left, glyphBottom: ir.bottom - h.top, cx: br.left + br.width / 2 - h.left, cy: br.top + br.height / 2 - h.top };
+      };
+      return { a2: read(a2id), a3: read(a3id) };
+    }, [a2, a3]);
+    s = await state([A, a2, a3, a2b, B, C]);
+    {
+      const end = s.path.pts[s.path.pts.length - 1];
+      expect(Math.abs(end.x - (glyphGeom.a3.glyphLeft - 3)) <= 1.5 && Math.abs(end.y - glyphGeom.a3.cy) <= 1.5,
+        "the arm ends BEFORE the editing block's icon (no strike-through)");
+      // Intermediate iconed link (a2): four pairs land at its row's y — the
+      // rounded turn's control + end, the arm inset by a radius, and the
+      // left-edge hug's control (the gap column). The surround then wraps
+      // the glyph's lower-left and rejoins the CENTER column just below
+      // the glyph — the downward line keeps its original position.
+      const rowPairs = s.path.pts.filter((p) => Math.abs(p.y - glyphGeom.a2.cy) <= 1.5);
+      expect(rowPairs.length === 4, `an iconed intermediate link draws the turn, the arm, and the hug (${rowPairs.length} pairs)`);
+      expect(Math.abs(rowPairs[2].x - (glyphGeom.a2.glyphLeft - 3 - 5)) <= 1.5, "the arm stops a radius before the gap");
+      expect(Math.abs(rowPairs[3].x - (glyphGeom.a2.glyphLeft - 3)) <= 1.5, "the hug reaches the gap column left of the icon");
+      {
+        const after = s.path.pts[s.path.pts.indexOf(rowPairs[3]) + 1];
+        expect(after !== undefined && Math.abs(after.x - (glyphGeom.a2.glyphLeft - 3)) <= 1.5 && Math.abs(after.y - (glyphGeom.a2.cy + 5)) <= 1.5,
+          "the surround first hugs the icon's left edge down");
+        const rejoinCandidates = s.path.pts.filter((p) => Math.abs(p.y - (glyphGeom.a2.glyphBottom + 3)) <= 1.5);
+        const rejoin = rejoinCandidates[rejoinCandidates.length - 1]; // the rejoin is the LAST pair on that line (the wrap control + end come first)
+        expect(rejoin !== undefined && Math.abs(rejoin.x - glyphGeom.a2.cx) <= 1.5,
+          "the downward line rejoins the CENTER column just below the glyph — its original position");
+      }
+      expect(s.path.qCount === 4, "four rounded joins: the turn, the hug, the bottom-left wrap, the final turn");
+    }
+  }
+
+  // ── 10. the focused block view threads from the focused block (the view
+  //      root row) down to the editing child ──
+  {
+    await pg.click(`[data-block-id="${A}"] .nt-bullet`); // zoom into A
+    await pg.waitForSelector(".nt-focused-block", { timeout: 10_000 });
+    await pg.click(`.nt-focused-block [data-block-id="${a2}"] .nt-block-content`);
+    await pg.waitForSelector(`.nt-focused-block [data-block-id="${a2}"].nt-block--editing`, { timeout: 10_000 });
+    await pg.waitForSelector(".nt-focused-block .nt-edit-thread-overlay path", { timeout: 10_000 });
+    await pg.waitForTimeout(250);
+    const focused = await pg.evaluate(([aid, a2id]) => {
+      const view = document.querySelector(".nt-focused-block");
+      const d = view.querySelector(".nt-edit-thread-overlay path").getAttribute("d");
+      const h = view.getBoundingClientRect();
+      const center = (bid) => {
+        const b = view.querySelector(`[data-block-id="${bid}"] > .nt-block-row .nt-bullet`);
+        const r = b.getBoundingClientRect();
+        return { x: r.left + r.width / 2 - h.left, y: r.top + r.height / 2 - h.top };
+      };
+      const glyph = view.querySelector(`[data-block-id="${a2id}"] > .nt-block-row .nt-bullet-icon`);
+      const gr = glyph.getBoundingClientRect();
+      const nums = d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+      const pts = [];
+      for (let i = 0; i + 1 < nums.length; i += 2) pts.push({ x: nums[i], y: nums[i + 1] });
+      return {
+        start: pts[0],
+        end: pts[pts.length - 1],
+        cA: center(aid),
+        cA2: center(a2id),
+        a2GlyphLeft: gr.left - h.left,
+        qCount: (d.match(/Q/g) ?? []).length,
+      };
+    }, [A, a2]);
+    expect(Math.abs(focused.start.x - focused.cA.x) <= 2 && Math.abs(focused.start.y - focused.cA.y) <= 2,
+      "the focused view's thread starts at the FOCUSED block's bullet");
+    expect(Math.abs(focused.end.x - (focused.a2GlyphLeft - 3)) <= 1.5 && Math.abs(focused.end.y - focused.cA2.y) <= 1.5,
+      "the thread ends before the editing child's icon (the arm language, focused view included)");
+    expect(focused.qCount === 1, "one rounded turn (focused block → child)");
+  }
+
+  // ── 11. the prose focused view: the parent renders as an editable
+  //      top-level header; bullets hide (no thread, per the prose law) ──
+  {
+    // The SPA zoom path (no reload): the per-node view pref is read when
+    // the zoom lands — useDeviceSetting re-reads on a key change now (the
+    // prose header rendering outline exposed the stale-value bug).
+    await pg.goto(`${WEB}/${pageId}`, { waitUntil: "commit" });
+    await pg.waitForSelector(`[data-block-id="${A}"] .nt-bullet`, { timeout: 60_000 });
+    await pg.evaluate((aid) => {
+      localStorage.setItem(`notees.settings.viewMode.nodeBlocks.${aid}`, JSON.stringify("prose"));
+    }, A);
+    await pg.click(`[data-block-id="${A}"] .nt-bullet`);
+    await pg.waitForSelector(".nt-focused-block", { timeout: 10_000 });
+    await pg.waitForTimeout(400);
+    const prose = await pg.evaluate(([aid, a2id]) => {
+      const view = document.querySelector(".nt-focused-block");
+      const header = view.querySelector(`[data-block-id="${aid}"]`);
+      const childBullet = view.querySelector(`[data-block-id="${a2id}"] .nt-bullet`);
+      return {
+        headerIsTitle: header?.classList.contains("nt-block--title") ?? false,
+        childBulletDisplay: childBullet === null ? null : getComputedStyle(childBullet).display,
+        overlay: view.querySelector(".nt-edit-thread-overlay") !== null,
+        ghost: view.querySelector(".nt-ghost-row") !== null,
+      };
+    }, [A, a2]);
+    expect(prose.headerIsTitle, "the prose focused view renders the parent as an editable top-level header (the title-variant row)");
+    expect(prose.childBulletDisplay === "none", "prose hides the child bullets (the view transform)");
+    expect(!prose.overlay, "no thread in prose — bullets hidden, nothing to measure (the prose law)");
+    expect(prose.ghost, "the + Add block ghost trails the prose focused view");
+    await pg.click(`.nt-focused-block [data-block-id="${a2b}"] .nt-block-content`);
+    await pg.waitForSelector(`.nt-focused-block [data-block-id="${a2b}"].nt-block--editing`, { timeout: 10_000 });
+    console.log("ok — the prose focused view stays editable (click-to-edit on a child)");
+  }
+
+  if (consoleErrors.length > 0) throw new Error("console errors: " + consoleErrors.join(" | "));
+  console.log("PROBE-PASS: the overlay thread draws the ancestor path with rounded turns, leaves the tree chrome resting, passes clicks through, and follows the caret");
+  await browser.close();
+} finally {
+  await fetch(`${API}/api/objects/${pageId}`, { method: "DELETE", headers: { "x-api-key": KEY, "x-workspace-id": WS } }).catch(() => {});
+  console.log("scratch page deleted");
+}

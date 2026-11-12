@@ -1,0 +1,990 @@
+/**
+ * Full-subtree Markdown export — the web client's export engine.
+ *
+ * Built on @notees/export: the page and every descendant (blocks and child
+ * pages, depth-first) become one Markdown document. Block children render as
+ * nested bullets under their node (the exporter's `childrenOf`); child pages
+ * become their own sections separated by thematic breaks (concatBundle).
+ * Names for mentions / chips / class ids resolve through the client's live
+ * display-name read (rename-free: the CURRENT name renders).
+ *
+ * Single-node delivery keeps the concatenated-document shape (preview +
+ * one `.md` download). Batch delivery builds one bundle over
+ * every selected root's subtree and zips it the established way: `<slug>-<uuid8>.md`
+ * filenames, sidecar whiteboards, and `notees-manifest.json` — relative
+ * link rewriting between pages is deliberately not applied (single-workspace
+ * zips from the modal keep the `[[name]]` conventions).
+ *
+ * Include-assets delivery: the exported subtrees are scanned
+ * for `asset_ref` tokens, the bytes are fetched concurrency-limited through
+ * the client's REST read, and the bundle is zipped with the assets under
+ * `assets/<name-slug>-<hash8>.<ext>` — the same naming the server-side
+ * workspace zip uses. The `assetPath` hook then rewrites each Markdown
+ * asset ref to its relative path; assets with missing metadata or
+ * unfetchable bytes keep the raw uuid reference and add no file.
+ *
+ * Format-routed delivery: the modal's format cards select a
+ * registry format, and the export dispatches on it — markdown keeps the
+ * historical paths above; html/latex/docx build ONE ExportDocument over the
+ * root's whole subtree (child pages ride the outline — these formats deliver
+ * a single file, so there is no per-child-page filing like markdown's
+ * concat) and render through the package serializers. MIME type and
+ * extension come from the web registry's delivery table, never hardcoded
+ * per format. Batch delivery for those formats is one zip of per-root
+ * rendered files (see exportSubtreeBatchFile).
+ *
+ * Bibliography delivery (source-library slices 3–6 task 2): the BibTeX and
+ * CSL-JSON cards are node-set formats like the JSON archive — ONE document
+ * over the selection, each collected node projected through the package's
+ * nodeToCsl (see exportSubtreeBibliography).
+ */
+
+import { zipSync } from "fflate";
+
+import {
+  buildExportDocument,
+  buildJsonArchive,
+  bundleMarkdown,
+  concatBundleMarkdown,
+  cslToBib,
+  exportFileName,
+  nodeToCsl,
+  nodeToMarkdown,
+  renderContent,
+  renderExportDocumentToDocx,
+  renderExportDocumentToHtml,
+  renderExportDocumentToLatex,
+  renderJsonArchive,
+  resolveExportOptions,
+  serializeBibtex,
+  type ExportBundle,
+  type ExportContext,
+  type ExportDocument,
+  type ExportFile,
+  type ExportFormatId,
+  type ExportNode,
+  type ExportOptions,
+  type ExportPropertyValue,
+  type ResolvedExportOptions,
+} from "@notees/export";
+import { rendersAsInlineBlock, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+
+import { titleOfNode, titleOf } from "../../ui/dateDisplay.js";
+import { parentlessBlockResolverOf } from "../../ui/renderStateLabel.js";
+import { resolveCssColor } from "../../components/ui/kit/colorPresets.js";
+import { nodeIcon } from "../../ui/iconFor.js";
+
+import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";
+import type { WebExportFormatId } from "./registerExportFormats.js";
+import { blobBytes } from "../../core/workspace-client/asset-transport.js";
+
+import type {
+  ClientNode,
+  ClientPropertySchema,
+  EffectiveProperty,
+  WorkspaceClient,
+} from "@/core/workspace-client/index.js";
+import type { WorkerClient } from "@/core/worker-client.js";
+
+export type ExportClient = WorkspaceClient | WorkerClient;
+
+/**
+ * The structural read surface the export engine composes from — both client
+ * classes satisfy it, and so does the node context menu's MenuClient (the
+ * Copy › markdown shapes ride it without dragging the whole client union).
+ */
+export interface ExportReadSurface {
+  getNode(id: string): ClientNode | undefined;
+  getChildren(id: string): ClientNode[];
+  getEffectiveProperties(id: string): EffectiveProperty[];
+  listPropertySchemas(): ClientPropertySchema[];
+  effectiveClassColor(classId: string): string | null;
+  effectiveClassIcons(): ReadonlyMap<string, string | null>;
+  getDisplayName(id: string): string | null;
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
+}
+
+/** Map a client node to the exporter's shape, with its effective properties. */
+export function toExportNode(client: ExportReadSurface, id: string): ExportNode | undefined {
+  const node = client.getNode(id);
+  if (node === undefined) return undefined;
+  const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+  const properties: ExportPropertyValue[] = client
+    .getEffectiveProperties(id)
+    .map((property) => ({
+      schemaId: property.propertySchemaId,
+      schemaName: property.schema?.name ?? property.propertySchemaId,
+      ...(property.schema !== null ? { schemaType: property.schema.type } : {}),
+      ...((() => {
+        const options = schemas.get(property.propertySchemaId)?.options;
+        return options !== null && options !== undefined && options.length > 0 ? { schemaOptions: options } : {};
+      })()),
+      value: property.value,
+      ...(property.metadata !== null ? { metadata: property.metadata } : {}),
+    }));
+  return {
+    id: node.id,
+    isClass: node.isClass ? 1 : 0,
+    isEmbedded: node.isEmbedded ? 1 : 0,
+    parentId: node.parentId,
+    // Export DTO name = the node's resolved display name (title-is-content:
+    // derived from its content, rename-free).
+    name: titleOfNode(node) || null,
+    contentAst: node.contentAst,
+    classIds: node.classIds,
+    properties,
+    coverAssetId: node.coverAssetId,
+    bannerAssetId: node.bannerAssetId,
+    aliasedNodeId: node.aliasedNodeId,
+  };
+}
+
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The carrier-block set of one node — the child blocks its property values
+ * reference ({nodeId} refs and legacy bare-uuid text values, AUTHORED rows
+ * only). Carriers render inside the property row, NOT in the body: the page
+ * view's body excludes them (`WorkspaceClient.getBlockTree` /
+ * `propertyCarrierIdsOf`), and the exports must too or a text property's
+ * carrier block reads twice. The carrier's whole subtree is pruned with it.
+ */
+function propertyCarrierIdsOf(client: ExportReadSurface, nodeId: string): Set<string> {
+  const ids = new Set<string>();
+  for (const row of client.getEffectiveProperties(nodeId)) {
+    if (row.source !== "authored") continue;
+    const value = row.value;
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as { nodeId?: unknown }).nodeId === "string"
+    ) {
+      ids.add((value as { nodeId: string }).nodeId);
+    } else if (typeof value === "string" && UUID_LIKE.test(value)) {
+      ids.add(value);
+    }
+  }
+  return ids;
+}
+
+/** Inline-body children only — the nested-bullet read (child pages are files).
+ *  Carrier blocks excluded (they render in the property row, not the body). */
+function blockChildrenOf(client: ExportReadSurface, id: string): ExportNode[] {
+  const carriers = propertyCarrierIdsOf(client, id);
+  const hostNode = client.getNode(id);
+  const nodes: ExportNode[] = [];
+  for (const child of client.getChildren(id)) {
+    if (!rendersAsInlineBlock(child, hostNode, parentlessBlockResolverOf(client))) continue;
+    if (carriers.has(child.id)) continue;
+    const mapped = toExportNode(client, child.id);
+    if (mapped !== undefined) nodes.push(mapped);
+  }
+  return nodes;
+}
+
+/**
+ * The chrome hooks every IR/document construction shares: class colors
+ * (resolved to concrete hex for the PDF pills) and node icons (the raw
+ * stored token — the PDF normalizes MDI names against its sprite paths).
+ */
+function chromeHooks(client: ExportReadSurface): Pick<ExportContext, "colorOf" | "iconOf"> {
+  return {
+    colorOf: (classId) => {
+      const stored = client.effectiveClassColor(classId);
+      return stored === null ? null : resolveCssColor(stored);
+    },
+    iconOf: (nodeId) => {
+      const node = client.getNode(nodeId);
+      if (node === undefined) return null;
+      return nodeIcon(node, client.effectiveClassIcons());
+    },
+  };
+}
+
+function makeExportContext(
+  client: ExportReadSurface,
+  hooks?: { assetPath?: ((assetId: string) => string | undefined) | undefined },
+): ExportContext {
+  return {
+    nameOf: (id) => titleOf(client, id) ?? undefined,
+    childrenOf: (id) => blockChildrenOf(client, id),
+    ...chromeHooks(client),
+    ...(hooks?.assetPath !== undefined ? { assetPath: hooks.assetPath } : {}),
+  };
+}
+
+/** Depth-first node list for one root: the root, then each child-page subtree. */
+function collectSubtree(client: ExportClient, rootId: string, includeChildPages: boolean): ExportNode[] {
+  const visited = new Set<string>();
+  const ordered: ExportNode[] = [];
+  const collect = (id: string): void => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const node = toExportNode(client, id);
+    if (node === undefined) return;
+    ordered.push(node);
+    if (!includeChildPages) return;
+    // Child pages = the main-children zone (present-as-main children of any
+    // node type); inline body blocks stay inside their node's file.
+    for (const child of client.getChildren(id)) {
+      if (!child.isClass && !child.isEmbedded) collect(child.id);
+    }
+  };
+  collect(rootId);
+  return ordered;
+}
+
+export interface SubtreeExport {
+  /** The concatenated Markdown document (frontmatter per node, `---` breaks). */
+  markdown: string;
+  /** Suggested download filename (`<title-slug>-<YYYYMMDDHHmm>.md`). */
+  filename: string;
+}
+
+export interface ExportSubtreeOptions {
+  /** false → only the root node (its block tree still renders as bullets). */
+  includeChildPages?: boolean;
+  /** Engine bag pass-through — see @notees/export's ExportOptions. */
+  includeEmbedded?: boolean;
+  includeOutline?: boolean;
+  hideEmptyProperties?: boolean;
+  showTypeLabels?: boolean;
+}
+
+/** The engine options the modal's checkbox rows reach. */
+function engineOptions(options: ExportSubtreeOptions): ExportOptions {
+  return {
+    includeEmbedded: options.includeEmbedded,
+    includeOutline: options.includeOutline,
+    hideEmptyProperties: options.hideEmptyProperties,
+    showTypeLabels: options.showTypeLabels,
+  };
+}
+
+/**
+ * Clipboard markdown — the node context menu's Copy › submenu composes its
+ * two shapes through here: the node's own content only (`renderContent` —
+ * no children), or the node with its inline block tree as nested bullets
+ * (`nodeToMarkdown` over the block-children context, frontmatter OFF —
+ * pasted text carries no YAML noise, and child pages stay files: only the
+ * inline body rides along, the export read's own convention).
+ */
+export function clipboardMarkdown(
+  client: ExportReadSurface,
+  rootId: string,
+  withChildren: boolean,
+): string {
+  const root = client.getNode(rootId);
+  if (root === undefined) throw new Error("clipboardMarkdown: node not found");
+  if (!withChildren) {
+    return renderContent(root.contentAst, makeExportContext(client));
+  }
+  const node = toExportNode(client, rootId);
+  if (node === undefined) throw new Error("clipboardMarkdown: node not found");
+  return nodeToMarkdown(node, makeExportContext(client), { includeFrontmatter: false });
+}
+
+/**
+ * Render the subtree rooted at `rootId` into one Markdown document.
+ * Depth-first: the root first, then each child-page subtree in child order.
+ */
+export function exportSubtreeMarkdown(
+  client: ExportClient,
+  rootId: string,
+  options: ExportSubtreeOptions = {},
+): SubtreeExport {
+  const root = client.getNode(rootId);
+  if (root === undefined) throw new Error("exportSubtreeMarkdown: node not found");
+
+  const ordered = collectSubtree(client, rootId, options.includeChildPages ?? true);
+  const bundle = bundleMarkdown(ordered, makeExportContext(client), engineOptions(options));
+  const title = titleOfNode(root).trim();
+  const filename = exportFileSlugName(title, rootId, "md");
+  return { markdown: concatBundleMarkdown(bundle), filename };
+}
+
+export interface ExportSubtreeBundleOptions extends ExportSubtreeOptions {
+  /** Bundle naming; batch zip delivery uses "slug" (the E5 convention). */
+  filenamePolicy?: "uuid" | "slug";
+  /** Whiteboard projection; batch zip delivery uses "sidecar" (the E5 convention). */
+  whiteboardMode?: "inline" | "sidecar";
+  /**
+   * asset_ref CAS id → bundle-relative path of its bytes (include-assets
+   * delivery, E7). Passed through to the exporter's `assetPath` hook so the
+   * Markdown refs rewrite relative; misses keep the raw uuid reference.
+   */
+  assetPath?: (assetId: string) => string | undefined;
+}
+
+// --- JSON archive delivery ------------------------------------------------------
+
+/**
+ * The archive slice for one root: the root, EVERY inline-body descendant
+ * (block content is verbatim in the archive — unlike markdown, blocks are
+ * not folded into a parent page's file), and, with includeChildPages, each
+ * main-zone child page's subtree. Same walk shape as
+ * collectSubtreeAssetRefIds (root, inline DFS, then child pages).
+ */
+function collectSubtreeArchiveNodes(
+  client: ExportClient,
+  rootId: string,
+  includeChildPages: boolean,
+): ExportNode[] {
+  const visited = new Set<string>();
+  const ordered: ExportNode[] = [];
+  const collect = (id: string): void => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const node = toExportNode(client, id);
+    if (node === undefined) return;
+    ordered.push(node);
+    for (const child of client.getChildren(id)) {
+      if (child.isClass) continue;
+      if (!child.isEmbedded) {
+        if (includeChildPages) collect(child.id);
+      } else {
+        collect(child.id);
+      }
+    }
+  };
+  collect(rootId);
+  return ordered;
+}
+
+/**
+ * JSON archive delivery: ONE `notees-json-archive` document over
+ * the union of every root's slice (buildJsonArchive dedups overlapping
+ * subtrees) — the batch deliberately does NOT zip per-root files the way
+ * the IR formats do: an archive is a single artifact for the whole
+ * selection. `children` metadata records ALL direct child ids (both zones,
+ * position order) through the client read, mirroring the CLI's
+ * children-endpoint projection.
+ */
+export function exportSubtreeJsonArchive(
+  client: ExportClient,
+  rootIds: readonly string[],
+  options: ExportSubtreeOptions = {},
+): SubtreeFileExport {
+  const includeChildPages = options.includeChildPages ?? true;
+  const ordered = rootIds.flatMap((id) => collectSubtreeArchiveNodes(client, id, includeChildPages));
+  const ctx: ExportContext = {
+    nameOf: (id) => titleOf(client, id) ?? undefined,
+    childrenOf: (id) =>
+      client
+        .getChildren(id)
+        .map((child) => toExportNode(client, child.id))
+        .filter((node): node is ExportNode => node !== undefined),
+  };
+  const archive = buildJsonArchive(ordered, ctx);
+  const firstRoot = client.getNode(rootIds[0]!);
+  const title = firstRoot === undefined ? "" : titleOfNode(firstRoot).trim();
+  const text = renderJsonArchive(archive);
+  return {
+    blob: new Blob([text], { type: "application/json" }),
+    filename: exportFileSlugName(title, rootIds[0]!, "json"),
+    text,
+  };
+}
+
+/**
+ * Build one bundle over every selected root's subtree — the batch-zip
+ * delivery: one `<slug>-<uuid8>.md` per node plus sidecar whiteboards and
+ * the manifest, mirroring the server zip conventions.
+ */
+export function exportSubtreeBundle(
+  client: ExportClient,
+  rootIds: readonly string[],
+  options: ExportSubtreeBundleOptions = {},
+): ExportBundle {
+  const includeChildPages = options.includeChildPages ?? true;
+  const ordered = rootIds.flatMap((id) => collectSubtree(client, id, includeChildPages));
+  return bundleMarkdown(ordered, makeExportContext(client, { assetPath: options.assetPath }), {
+    ...engineOptions(options),
+    filenamePolicy: options.filenamePolicy ?? "slug",
+    whiteboardMode: options.whiteboardMode ?? "sidecar",
+  });
+}
+
+/**
+ * Claim a bundle/zip path against the in-use set — a later collision gains
+ * `-2`, `-3`, … before the extension, mirroring the server zip's path
+ * assignment. Shared by the markdown bundle de-duplication, the
+ * format-routed batch zip (task W), and the P1 PDF batch zip.
+ * Exported for the P1 PDF engine.
+ */
+export function claimUniquePath(used: Set<string>, path: string): string {
+  if (!used.has(path)) {
+    used.add(path);
+    return path;
+  }
+  const match = /^(.*?)(\.[^.]+)$/.exec(path);
+  const stem = match?.[1] ?? path;
+  const ext = match?.[2] ?? "";
+  let candidate = path;
+  let counter = 2;
+  while (used.has(candidate)) {
+    candidate = `${stem}-${counter}${ext}`;
+    counter += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+/**
+ * Make bundle file paths unique — a later collision gains `-2`, `-3`, …
+ * before the extension, mirroring the server zip's path assignment — and
+ * keep the manifest paths in agreement. The bundle emits one file per node
+ * in manifest order followed by that node's sidecars, so the node files are
+ * exactly the files matching the next manifest entry's path.
+ */
+function dedupeBundlePaths(bundle: ExportBundle): ExportBundle {
+  const used = new Set<string>();
+  const files: ExportFile[] = [];
+  const nodes = bundle.manifest.nodes.map((node) => ({ ...node }));
+  let nodeIndex = 0;
+  let changed = false;
+  for (const file of bundle.files) {
+    const entry = nodes[nodeIndex];
+    const nodeFile = entry !== undefined && file.path === entry.path;
+    const path = claimUniquePath(used, file.path);
+    if (path !== file.path) {
+      changed = true;
+      files.push({ ...file, path });
+      if (nodeFile) nodes[nodeIndex] = { ...entry, path };
+    } else {
+      files.push(file);
+    }
+    if (nodeFile) nodeIndex += 1;
+  }
+  if (!changed) return bundle;
+  return { files, manifest: { ...bundle.manifest, nodes } };
+}
+
+/**
+ * Zip a bundle the E5 way: files at their (de-duplicated) bundle paths,
+ * asset bytes under `assets/` when included, plus `notees-manifest.json`
+ * (the bundle manifest, version 2).
+ */
+export function zipExportBundle(
+  bundle: ExportBundle,
+  assets?: ReadonlyMap<string, SubtreeAssetFile>,
+): Uint8Array<ArrayBuffer> {
+  const unique = dedupeBundlePaths(bundle);
+  const entries: Record<string, Uint8Array> = {};
+  for (const file of unique.files) {
+    entries[file.path] = new TextEncoder().encode(file.content);
+  }
+  if (assets !== undefined) {
+    // The map may hold several ref ids pointing at one file (same
+    // name+hash); emit each path once.
+    const emitted = new Set<string>();
+    for (const asset of assets.values()) {
+      if (emitted.has(asset.path)) continue;
+      emitted.add(asset.path);
+      entries[asset.path] = asset.bytes;
+    }
+  }
+  entries["notees-manifest.json"] = new TextEncoder().encode(
+    `${JSON.stringify(unique.manifest, null, 2)}\n`,
+  );
+  // Copy into a fresh ArrayBuffer-backed array: fflate types its result as
+  // Uint8Array<ArrayBufferLike>, which Blob's constructor rejects.
+  return new Uint8Array(zipSync(entries));
+}
+
+/** Batch-zip download name: the first root's title slug (E5's `<slug>.zip`). */
+export function exportZipFileName(client: ExportClient, firstRootId: string, date: Date = new Date()): string {
+  const root = client.getNode(firstRootId);
+  const title = root === undefined ? "" : titleOfNode(root).trim();
+  const slug = slugifyName(title);
+  return `${slug.length > 0 ? slug : "export"}-${exportTimestamp(date)}.zip`;
+}
+
+/**
+ * Name → filename slug: maximal letter/digit runs (any Unicode script) kept,
+ * every other run → one "-", leading/trailing dashes trimmed. May be "" for
+ * an empty/all-punctuation name — callers pick their own fallback.
+ */
+export function slugifyName(name: string): string {
+  return name.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
+}
+
+/**
+ * The export download timestamp — the local calendar stamp appended to
+ * every modal download name (`YYYYMMDDHHmm`, the owner's naming ruling):
+ * the generated file carries WHEN it was generated, so repeated exports of
+ * one node never overwrite each other in the download folder.
+ */
+export function exportTimestamp(date: Date = new Date()): string {
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return (
+    `${String(date.getFullYear())}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
+    `${pad(date.getHours())}${pad(date.getMinutes())}`
+  );
+}
+
+// --- bibliography delivery ------------------------------------------------------
+
+/**
+ * Bibliography delivery (source-library slices 3–6 task 2): ONE document over
+ * the whole selection — the JSON-archive convention, not the IR formats'
+ * per-root zip. The node set is the markdown single-file read
+ * ({@link collectSubtree}: each root plus, with `includeChildPages`, every
+ * child-page subtree — inline body blocks are content, not sources, and never
+ * become entries), deduped by node id across overlapping batch roots.
+ * Each node projects through the package's `nodeToCsl` (the dual-track read
+ * contract — `authors` rows first, `linkedAuthors` agent derivation when
+ * empty); `.bib` re-serializes through the package's own `cslToBib` bridge,
+ * CSL-JSON is the item array verbatim. Delivery metadata (MIME type,
+ * extension) comes from the web registry's table, never hardcoded here.
+ */
+export function exportSubtreeBibliography(
+  client: ExportClient,
+  rootIds: readonly string[],
+  options: { format: "bib" | "csl-json"; includeChildPages?: boolean },
+): SubtreeFileExport {
+  const delivery = getWebExportFormat(options.format);
+  if (delivery === undefined) {
+    throw new Error(`exportSubtreeBibliography: "${options.format}" has no web delivery metadata`);
+  }
+  const includeChildPages = options.includeChildPages ?? true;
+  const seen = new Set<string>();
+  const items = [];
+  for (const rootId of rootIds) {
+    for (const node of collectSubtree(client, rootId, includeChildPages)) {
+      if (seen.has(node.id)) continue;
+      seen.add(node.id);
+      items.push(
+        nodeToCsl(node, node.properties, {
+          resolveName: (id) => titleOf(client, id) ?? undefined,
+          resolveAgentName: (id) => agentCitationName(client, id) ?? undefined,
+        }),
+      );
+    }
+  }
+  const firstRoot = client.getNode(rootIds[0]!);
+  const title = firstRoot === undefined ? "" : titleOfNode(firstRoot).trim();
+  const content =
+    options.format === "bib"
+      ? serializeBibtex(items.map(cslToBib))
+      : `${JSON.stringify(items, null, 2)}\n`;
+  return {
+    blob: new Blob([content], { type: delivery.mimeType }),
+    filename: exportFileSlugName(title, rootIds[0]!, delivery.extension),
+    text: content,
+  };
+}
+
+/**
+ * The `linkedAuthors` fallback half of the read contract, web-side: an agent
+ * node's citation name is "Family, Given" from its effective givenName/
+ * familyName property rows (either half may be absent), falling back to its
+ * display title — the agent givenName/familyName derivation the package
+ * delegates to the caller (the export package is ctx-free).
+ */
+function agentCitationName(client: ExportReadSurface, agentId: string): string | null {
+  let family: string | undefined;
+  let given: string | undefined;
+  for (const row of client.getEffectiveProperties(agentId)) {
+    if (row.source !== "authored") continue;
+    if (typeof row.value !== "string") continue;
+    if (row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.familyName) family = row.value;
+    if (row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.givenName) given = row.value;
+  }
+  const parts = [family, given].filter((part): part is string => part !== undefined && part.trim().length > 0);
+  if (parts.length > 0) return parts.map((part) => part.trim()).join(", ");
+  return titleOf(client, agentId);
+}
+
+// --- format-routed delivery -----------------------------------------------------
+
+/**
+ * Every non-class child joins the outline — the one-file formats (html/docx/
+ * latex) deliver the root's WHOLE subtree inside one document, so child pages
+ * are outline entries here instead of files of their own (markdown files
+ * them separately and concatenates, see blockChildrenOf). With
+ * `includeChildPages` off the outline keeps to inline blocks, mirroring the
+ * markdown single-node read.
+ */
+function subtreeChildrenOf(client: ExportClient, id: string, includeChildPages: boolean): ExportNode[] {
+  const carriers = propertyCarrierIdsOf(client, id);
+  const nodes: ExportNode[] = [];
+  for (const child of client.getChildren(id)) {
+    if (child.isClass) continue;
+    if (!includeChildPages && !child.isEmbedded) continue;
+    if (carriers.has(child.id)) continue;
+    const mapped = toExportNode(client, child.id);
+    if (mapped !== undefined) nodes.push(mapped);
+  }
+  return nodes;
+}
+
+/**
+ * Build the single-file IR for the routed formats: ONE ExportDocument over
+ * the root's whole subtree, resolved once (names, outline tree, embed
+ * inlining) — the package serializers stay ctx-free projections over it.
+ * This is the shared IR construction the format switch below reuses.
+ *
+ * Exported for the P1 PDF engine (ui/export-pdf): it consumes the same IR
+ * through the single shared construction instead of re-deriving it.
+ */
+export function buildSubtreeDocument(
+  client: ExportClient,
+  rootId: string,
+  options: ExportSubtreeOptions,
+): { document: ExportDocument; resolved: ResolvedExportOptions } {
+  const node = toExportNode(client, rootId);
+  if (node === undefined) throw new Error("exportSubtree: node not found");
+  const resolved = resolveExportOptions(engineOptions(options));
+  const includeChildPages = options.includeChildPages ?? true;
+  const ctx: ExportContext = {
+    nameOf: (id) => titleOf(client, id) ?? undefined,
+    childrenOf: (id) => subtreeChildrenOf(client, id, includeChildPages),
+    ...chromeHooks(client),
+  };
+  return { document: buildExportDocument(node, ctx, resolved), resolved };
+}
+
+/** Single-file download name: `<title-slug>-<YYYYMMDDHHmm>.<ext>`, falling
+ *  back to the node id for empty titles; the local timestamp (the owner's
+ *  naming ruling) keeps repeated exports of one node from overwriting each
+ *  other. Exported for the P1 PDF engine's download names. */
+export function exportFileSlugName(rootName: string, rootId: string, extension: string, date: Date = new Date()): string {
+  const slug = slugifyName(rootName);
+  return `${slug.length > 0 ? slug : rootId}-${exportTimestamp(date)}.${extension}`;
+}
+
+export interface ExportSubtreeFileOptions extends ExportSubtreeOptions {
+  /** The selected registry format card — routes the built IR to its serializer. */
+  format: ExportFormatId;
+}
+
+export interface SubtreeFileExport {
+  blob: Blob;
+  filename: string;
+  /**
+   * The UTF-8 source when the format serializes to text (markdown/html/latex/
+   * the JSON archive/bibliography) — the very bytes behind `blob`. The export
+   * modal's live preview and Copy ride this instead of re-rendering; binary
+   * formats (docx, the client-PDF engine's result) leave it undefined.
+   */
+  text?: string;
+}
+
+/**
+ * Format-routed single-node delivery (task W): markdown keeps the historical
+ * concatenated-document path (exportSubtreeMarkdown — behavior untouched);
+ * html and latex render the built document to text, docx resolves its OOXML
+ * package bytes. MIME type and extension always come from the web registry's
+ * delivery table for the selected format — never hardcoded per format.
+ *
+ * Assets (E7): only markdown has an asset-bytes path today; for the other
+ * formats `includeAssets` is accepted but ignored — the package serializers
+ * render placeholder refs and there is nothing to zip alongside. The modal
+ * only surfaces the option on the markdown card, so this never surprises.
+ */
+export async function exportSubtreeFile(
+  client: ExportClient,
+  rootId: string,
+  options: ExportSubtreeFileOptions,
+): Promise<SubtreeFileExport> {
+  const delivery = getWebExportFormat(options.format);
+  if (delivery === undefined) {
+    throw new Error(`exportSubtreeFile: "${options.format}" has no web delivery metadata`);
+  }
+  if (options.format === "markdown") {
+    const exported = exportSubtreeMarkdown(client, rootId, options);
+    return {
+      blob: new Blob([exported.markdown], { type: delivery.mimeType }),
+      filename: exported.filename,
+      text: exported.markdown,
+    };
+  }
+  const root = client.getNode(rootId);
+  if (root === undefined) throw new Error("exportSubtreeFile: node not found");
+  const { document, resolved } = buildSubtreeDocument(client, rootId, options);
+  const filename = exportFileSlugName(titleOfNode(root).trim(), rootId, delivery.extension);
+  switch (options.format) {
+    case "html": {
+      const text = renderExportDocumentToHtml(document, resolved);
+      return { blob: new Blob([text], { type: delivery.mimeType }), filename, text };
+    }
+    case "latex": {
+      const text = renderExportDocumentToLatex(document, resolved);
+      return {
+        blob: new Blob([text], { type: delivery.mimeType }),
+        // LaTeX ships as application/x-latex (the registry's delivery table);
+        // the .tex extension is what a TeX toolchain keys off, so the mime
+        // needs no text/plain fallback.
+        filename,
+        text,
+      };
+    }
+    case "docx": {
+      const bytes = await renderExportDocumentToDocx(document, resolved);
+      // Copy into a fresh ArrayBuffer-backed array: the packer types its
+      // result as Uint8Array<ArrayBufferLike>, which Blob's constructor rejects.
+      return { blob: new Blob([new Uint8Array(bytes)], { type: delivery.mimeType }), filename };
+    }
+    default:
+      // pdf: rendered by the lazily imported client-side engine (task P1,
+      // ui/export-pdf) — routing it here is a programmer error, so fail
+      // loud like the package registry does.
+      throw new Error(`${options.format} export must route through the client-side PDF engine (ui/export-pdf)`);
+  }
+}
+
+/**
+ * The plaintext projection behind the export modal's live preview — the
+ * selected format card's OWN text (never a foreign format's bytes), so the
+ * preview textarea and the Copy button show exactly what downloads:
+ *  - markdown / html / latex: one rendered document per selected root,
+ *    concatenated the markdown convention (`\n\n---\n\n`) for a batch;
+ *  - json / bib / csl-json: ONE node-set document over the whole selection
+ *    (their delivery convention — the archive and bibliography engines take
+ *    every root at once).
+ * Only registry cards with `preview: "text"` route here; pdf rides its own
+ * iframe and docx shows the static note (binary formats have no plaintext).
+ */
+export function exportSubtreeTextPreview(
+  client: ExportClient,
+  rootIds: readonly string[],
+  format: WebExportFormatId,
+  options: ExportSubtreeOptions = {},
+): string {
+  switch (format) {
+    case "markdown":
+      return rootIds
+        .map((id) => exportSubtreeMarkdown(client, id, options).markdown)
+        .join("\n\n---\n\n");
+    case "json":
+      return exportSubtreeJsonArchive(client, rootIds, options).text ?? "";
+    case "bib":
+    case "csl-json":
+      return (
+        exportSubtreeBibliography(client, rootIds, {
+          format,
+          ...(options.includeChildPages !== undefined
+            ? { includeChildPages: options.includeChildPages }
+            : {}),
+        }).text ?? ""
+      );
+    case "html":
+    case "latex":
+      return rootIds
+        .map((id) => {
+          const { document, resolved } = buildSubtreeDocument(client, id, options);
+          return format === "html"
+            ? renderExportDocumentToHtml(document, resolved)
+            : renderExportDocumentToLatex(document, resolved);
+        })
+        .join("\n\n---\n\n");
+    default:
+      throw new Error(
+        `exportSubtreeTextPreview: "${format}" has no plaintext projection (pdf rides the client engine, docx is binary)`,
+      );
+  }
+}
+
+/**
+ * Batch delivery for the non-markdown formats (task W): ONE zip carrying
+ * each root's rendered file, named by the E3 slug policy
+ * (`<slug>-<id8>.<ext>` — the bundle's exportFileName with the registry
+ * extension swapped for the markdown suffix).
+ *
+ * Two deliberate simplifications, documented choices:
+ *  - NO `notees-manifest.json` — the manifest is a markdown-bundle concept
+ *    (a uuid↔name↔path map over per-NODE files); these zips hold one file
+ *    per ROOT with each root's whole subtree inside its file.
+ *  - NO asset bytes — the package serializers have no bytes path (asset
+ *    blocks stay placeholder refs), so there is nothing to zip under
+ *    assets/; the modal's include-assets toggle is markdown-only.
+ *
+ * markdown is NOT routed here — its batch delivery is the E3/E7 bundle zip
+ * (exportSubtreeBundle + zipExportBundle, include-assets orchestration and
+ * all), which the modal drives directly; passing it is a programmer error.
+ * pdf is NOT routed here either — its batch delivery is the client-side PDF
+ * engine's zip (ui/export-pdf renderSubtreePdfBatch, task P1).
+ */
+export async function exportSubtreeBatchFile(
+  client: ExportClient,
+  rootIds: readonly string[],
+  options: ExportSubtreeFileOptions,
+): Promise<SubtreeFileExport> {
+  const delivery = getWebExportFormat(options.format);
+  if (options.format === "markdown" || delivery === undefined) {
+    throw new Error("exportSubtreeBatchFile: route markdown batch delivery through exportSubtreeBundle (E3/E7)");
+  }
+  if (options.format === "pdf") {
+    throw new Error("exportSubtreeBatchFile: route pdf batch delivery through the client-side PDF engine (task P1)");
+  }
+  const encode = new TextEncoder();
+  const entries: Record<string, Uint8Array> = {};
+  const used = new Set<string>();
+  for (const rootId of rootIds) {
+    const node = toExportNode(client, rootId);
+    if (node === undefined) continue;
+    const { document, resolved } = buildSubtreeDocument(client, rootId, options);
+    let bytes: Uint8Array;
+    if (options.format === "docx") {
+      bytes = new Uint8Array(await renderExportDocumentToDocx(document, resolved));
+    } else {
+      const text =
+        options.format === "html"
+          ? renderExportDocumentToHtml(document, resolved)
+          : renderExportDocumentToLatex(document, resolved);
+      bytes = encode.encode(text);
+    }
+    const path = claimUniquePath(
+      used,
+      exportFileName(node, "slug").replace(/\.md$/, `.${delivery.extension}`),
+    );
+    entries[path] = bytes;
+  }
+  // Copy into a fresh ArrayBuffer-backed array: fflate types its result as
+  // Uint8Array<ArrayBufferLike>, which Blob's constructor rejects.
+  const blob = new Blob([new Uint8Array(zipSync(entries))], { type: "application/zip" });
+  return { blob, filename: exportZipFileName(client, rootIds[0]!) };
+}
+
+// --- include-assets delivery ----------------------------------------------------
+
+/**
+ * Every `asset_ref` CAS id across the exported subtrees — the root's own
+ * stream, its inline-body descendants, and (with `includeChildPages`) every
+ * child page's subtree in child order. Mirrors the E5 server-side walk so
+ * client and server zips bundle the same asset set.
+ */
+export function collectSubtreeAssetRefIds(
+  client: ExportClient,
+  rootIds: readonly string[],
+  includeChildPages: boolean,
+): string[] {
+  const refs = new Set<string>();
+  const visit = (id: string, visited: Set<string>): void => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const node = client.getNode(id);
+    if (node === undefined) return;
+    for (const token of node.contentAst) {
+      if (token.type === "asset_ref") refs.add(token.assetId);
+    }
+    // Carrier blocks render in the property row, not the body — their
+    // subtrees are pruned from the walk exactly like the render paths.
+    const carriers = propertyCarrierIdsOf(client, id);
+    for (const child of client.getChildren(id)) {
+      if (child.isClass) continue;
+      // Inline blocks belong to this node's file (always scanned); child
+      // pages ride along only when the subtree option includes them.
+      if (!child.isEmbedded) {
+        if (includeChildPages) visit(child.id, visited);
+      } else if (!carriers.has(child.id)) {
+        visit(child.id, visited);
+      }
+    }
+  };
+  for (const rootId of rootIds) visit(rootId, new Set());
+  return [...refs];
+}
+
+export interface SubtreeAssetFile {
+  /** Bundle-relative zip path: `assets/<name-slug>-<hash8>.<ext>` (the E5 convention). */
+  path: string;
+  bytes: Uint8Array;
+}
+
+/** Extension fallback for asset filenames without a usable original one. */
+const ASSET_MIME_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+  "application/epub+zip": "epub",
+  "audio/mpeg": "mp3",
+  "audio/ogg": "ogg",
+  "audio/flac": "flac",
+  "audio/wav": "wav",
+  "audio/mp4": "m4a",
+};
+
+/**
+ * Zip file naming for one asset — the same policy the E5 server zip uses
+ * (`routes-auth.ts`): the original name slug (extension stripped) plus the
+ * content hash's first 8 hex chars, so identical names from different bytes
+ * stay unique. The extension prefers the upload's original name (sanitized
+ * to a short alphanumeric token), then the sniffed mime mapping, then `bin`.
+ * The content hash is already in the local node_asset row, so no extra
+ * digest is computed client-side.
+ */
+function assetZipFileName(originalName: string, hash: string, mimeType: string): string {
+  const slug = slugifyName(originalName.replace(/\.[A-Za-z0-9]{1,8}$/, ""));
+  const dot = originalName.lastIndexOf(".");
+  const rawExt = dot > 0 ? originalName.slice(dot + 1).toLowerCase() : "";
+  const ext = /^[a-z0-9]{1,8}$/.test(rawExt) ? rawExt : (ASSET_MIME_EXTENSIONS[mimeType] ?? "bin");
+  return `${slug.length > 0 ? `${slug}-` : ""}${hash.slice(0, 8)}.${ext}`;
+}
+
+/**
+ * Order-preserving concurrency-limited map: at most `limit` tasks run at
+ * once. Asset fetches are N+1 REST reads; a small pool keeps the tab
+ * responsive on subtrees heavy with assets. Rejections propagate.
+ * Exported for the P1 PDF engine's data-URL asset resolution.
+ */
+export async function mapWithConcurrency<T>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<void>,
+): Promise<void> {
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      await task(items[index]!);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, () => worker()),
+  );
+}
+
+/** Asset byte fetches in flight at once (E7: small pool, no dependency). */
+const ASSET_FETCH_CONCURRENCY = 4;
+
+/**
+ * Fetch the bytes of every referenced asset: metadata from the local
+ * node_asset rows (`getAssetInfo` resolves a raw asset_ref id), bytes via
+ * the client's REST read, at most {@link ASSET_FETCH_CONCURRENCY} at a
+ * time. Unknown assets and fetch failures skip silently — the Markdown
+ * keeps the raw uuid ref and no file is added.
+ */
+export async function fetchSubtreeAssets(
+  client: ExportClient,
+  assetRefIds: readonly string[],
+): Promise<Map<string, SubtreeAssetFile>> {
+  const files = new Map<string, SubtreeAssetFile>();
+  const byPath = new Map<string, SubtreeAssetFile>();
+  await mapWithConcurrency(assetRefIds, ASSET_FETCH_CONCURRENCY, async (refId) => {
+    if (files.has(refId)) return;
+    const info = client.getAssetInfo(refId);
+    if (info === undefined) return;
+    const path = `assets/${assetZipFileName(info.originalName, info.hash, info.mimeType)}`;
+    const existing = byPath.get(path);
+    if (existing !== undefined) {
+      // Same name+hash — same bytes; point the second ref at the one file.
+      files.set(refId, existing);
+      return;
+    }
+    let bytes: Uint8Array;
+    try {
+      bytes = await blobBytes(await client.fetchAssetBytes(info.assetId));
+    } catch {
+      return;
+    }
+    const file: SubtreeAssetFile = { path, bytes };
+    byPath.set(path, file);
+    files.set(refId, file);
+  });
+  return files;
+}

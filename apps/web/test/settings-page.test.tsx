@@ -1,0 +1,652 @@
+/**
+ * SettingsPage tests (jsdom): the full settings surface renders the
+ * deep-linked section's content in the content area; the section nav
+ * reports the requested section; the /settings/<section> routing helpers
+ * map deep links (unknown sections land on appearance); the App's history
+ * seam (pushSettingsSection + popStateNavHandler) pushes section changes
+ * onto the URL and swaps sections on back/forward; retired accent presets
+ * in storage fall back to the default; and the server-dependent sections
+ * (API keys, sync, account) work against the mocked endpoints.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+import {
+  SETTINGS_SECTIONS,
+  SettingsPage,
+  normalizeSettingsSection,
+  pathForSettingsSection,
+  settingsSectionFromPath,
+  type SettingsPageProps,
+  type SettingsSection,
+} from "../src/features/settings/SettingsPage.js";
+import { popStateNavHandler, pushSettingsSection } from "../src/ui/app/routing.js";
+import { applyAppearance } from "../src/features/settings/deviceSettings.js";
+import type { AccountUser } from "../src/core/auth-api.js";
+
+beforeAll(() => {
+  // jsdom lacks ResizeObserver.
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
+
+afterEach(() => {
+  localStorage.clear();
+  document.documentElement.dataset.theme = "dark";
+  document.documentElement.dataset.oled = "false";
+  delete document.documentElement.dataset.accent;
+  delete document.documentElement.dataset.focus;
+  window.history.pushState({}, "", "/");
+});
+
+const USER: AccountUser = {
+  id: "u1",
+  email: "ada@example.com",
+  displayName: "Ada",
+  name: "Ada",
+  surnames: null,
+  avatarUrl: null,
+  isAdmin: false,
+};
+
+/** fetch stub: routes by URL suffix, recording calls for assertions. */
+function stubFetch(routes: Record<string, () => unknown>) {
+  const calls: { url: string; method: string; body: string | null }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, method: init?.method ?? "GET", body: (init?.body as string) ?? null });
+      for (const suffix of Object.keys(routes)) {
+        if (url.endsWith(suffix)) return Response.json(routes[suffix]!());
+      }
+      return new Response("unexpected", { status: 500 });
+    }),
+  );
+  return calls;
+}
+
+function renderPage(overrides: Partial<SettingsPageProps> = {}): SettingsPageProps {
+  const props: SettingsPageProps = {
+    section: "appearance",
+    onNavigate: () => {},
+    serverUrl: "https://notees.example.com",
+    token: "session-token",
+    user: USER,
+    onSignOut: () => {},
+    onForgetServer: () => {},
+    onConnectServer: () => {},
+    ...overrides,
+  };
+  render(<SettingsPage {...props} />);
+  return props;
+}
+
+describe("settings routes", () => {
+  it("maps /settings/<section> deep links, defaulting unknown sections to appearance", () => {
+    expect(settingsSectionFromPath("/settings/sync")).toBe("sync");
+    expect(settingsSectionFromPath("/settings/SYNC")).toBe("sync");
+    expect(settingsSectionFromPath("/settings/account/")).toBe("account");
+    expect(settingsSectionFromPath("/settings")).toBe("appearance");
+    expect(settingsSectionFromPath("/settings/")).toBe("appearance");
+    expect(settingsSectionFromPath("/settings/unknown")).toBe("appearance");
+    expect(settingsSectionFromPath("/journal")).toBeNull();
+    expect(settingsSectionFromPath("/pages")).toBeNull();
+    expect(settingsSectionFromPath("/")).toBeNull();
+  });
+
+  it("round-trips every section through its canonical path", () => {
+    for (const { id } of SETTINGS_SECTIONS) {
+      expect(settingsSectionFromPath(pathForSettingsSection(id))).toBe(id);
+    }
+  });
+
+  it("normalizeSettingsSection accepts only the eight sections", () => {
+    expect(normalizeSettingsSection("editor")).toBe("editor");
+    expect(normalizeSettingsSection("appearance")).toBe("appearance");
+    expect(normalizeSettingsSection("sage")).toBe("appearance");
+    expect(normalizeSettingsSection("custom")).toBe("appearance");
+    expect(normalizeSettingsSection("")).toBe("appearance");
+    expect(normalizeSettingsSection(null)).toBe("appearance");
+    expect(normalizeSettingsSection(undefined)).toBe("appearance");
+  });
+
+  it("retired accent presets in storage fall back to the default on apply", () => {
+    localStorage.setItem("notees.settings.accentColor", JSON.stringify("sage"));
+    applyAppearance();
+    expect(document.documentElement.dataset.accent).toBe("margin");
+
+    localStorage.setItem("notees.settings.accentColor", JSON.stringify("custom"));
+    applyAppearance();
+    expect(document.documentElement.dataset.accent).toBe("margin");
+
+    localStorage.setItem("notees.settings.accentColor", JSON.stringify("blue"));
+    applyAppearance();
+    expect(document.documentElement.dataset.accent).toBe("blue");
+  });
+});
+
+describe("settings history (pushSettingsSection + popStateNavHandler)", () => {
+  function track(): { sections: Array<SettingsSection | null>; cleanup: () => void } {
+    const sections: Array<SettingsSection | null> = [];
+    const handler = popStateNavHandler({
+      openManager: () => {},
+      closeManager: () => {},
+      setNav: () => {},
+      setNode: () => {},
+      setSettingsSection: (section) => sections.push(section),
+    });
+    window.addEventListener("popstate", handler);
+    return { sections, cleanup: () => window.removeEventListener("popstate", handler) };
+  }
+
+  it("pushState lands on /settings/<section> and the popstate seam maps it back", () => {
+    const { sections, cleanup } = track();
+    pushSettingsSection("sync");
+    expect(window.location.pathname).toBe("/settings/sync");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(sections.at(-1)).toBe("sync");
+    cleanup();
+    window.history.pushState({}, "", "/");
+  });
+
+  it("swaps sections on back/forward and clears the route when leaving it", () => {
+    // jsdom does not implement history traversal, so the popstate events
+    // back/forward would fire are dispatched against the pushed entries.
+    const { sections, cleanup } = track();
+    window.history.pushState({}, "", "/journal");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    pushSettingsSection("editor");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    pushSettingsSection("about");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    // Back to the journal hub, then forward to a node path.
+    window.history.pushState({}, "", "/journal");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    window.history.pushState({}, "", "/11111111-2222-4333-8444-555555555555");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    expect(sections).toEqual([null, "editor", "about", null, null]);
+    cleanup();
+    window.history.pushState({}, "", "/");
+  });
+});
+
+describe("SettingsPage", () => {
+  it("renders the deep-linked section's content and marks it active in the nav", () => {
+    renderPage({ section: "sync" });
+    expect(screen.getAllByText("https://notees.example.com").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Sync Server" })).toBeInTheDocument();
+    expect(screen.queryByText("Outdent behavior")).toBeNull();
+    const nav = screen.getByRole("navigation", { name: "Settings sections" });
+    expect(within(nav).getByRole("button", { name: "Sync" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  it("section nav reports the requested section", () => {
+    const onNavigate = vi.fn();
+    renderPage({ onNavigate });
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Settings sections" })).getByRole(
+        "button",
+        { name: "Editor" },
+      ),
+    );
+    expect(onNavigate).toHaveBeenCalledWith("editor");
+  });
+
+  it("lists all eight sections in the nav", () => {
+    renderPage();
+    const nav = screen.getByRole("navigation", { name: "Settings sections" });
+    expect(within(nav).getAllByRole("button")).toHaveLength(8);
+  });
+
+  it("applies the UI font choice to <html> and persists it device-locally", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("radio", { name: "System stack" }));
+    expect(document.documentElement.dataset.font).toBe("system");
+    expect(localStorage.getItem("notees.settings.uiFont")).toBe('"system"');
+    fireEvent.click(screen.getByRole("radio", { name: "Bundled (Instrument Sans)" }));
+    expect(document.documentElement.dataset.font).toBe("bundled");
+    expect(localStorage.getItem("notees.settings.uiFont")).toBe('"bundled"');
+  });
+
+  it("maps the theme segmented control onto theme + oled", () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("radio", { name: "OLED theme" }));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.oled).toBe("true");
+    expect(localStorage.getItem("notees.settings.oledMode")).toBe("true");
+  });
+
+  it("flags the current sync server in the list", () => {
+    stubFetch({});
+    renderPage({ section: "sync" });
+    const current = screen.getByRole("radio", { name: "https://notees.example.com" });
+    expect(current).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Current")).toBeInTheDocument();
+  });
+
+  it("disconnects only after the confirmation step and keeps the address", () => {
+    stubFetch({});
+    const onForgetServer = vi.fn();
+    renderPage({ section: "sync", onForgetServer });
+    fireEvent.click(screen.getByRole("button", { name: /^disconnect$/i }));
+    expect(onForgetServer).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /disconnect from this server/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^disconnect$/i }));
+    expect(onForgetServer).toHaveBeenCalledTimes(1);
+    // Disconnect un-selects — the address stays in the remembered list.
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).toContain("https://notees.example.com");
+  });
+
+  it("lists known sync servers with the current one first and flagged", () => {
+    stubFetch({});
+    localStorage.setItem(
+      "notees.settings.knownSyncServers",
+      JSON.stringify(["https://alpha.example.com", "https://notees.example.com"]),
+    );
+    renderPage({ section: "sync" });
+    const current = screen.getByRole("radio", { name: "https://notees.example.com" });
+    const other = screen.getByRole("radio", { name: "https://alpha.example.com" });
+    // The current server leads the list and carries the checked state.
+    expect(screen.getAllByRole("radio")[0]).toBe(current);
+    expect(current).toHaveAttribute("aria-checked", "true");
+    expect(other).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Current")).toBeInTheDocument();
+  });
+
+  it("remembers the current sync server device-locally", () => {
+    stubFetch({});
+    renderPage({ section: "sync" });
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).toContain("https://notees.example.com");
+  });
+
+  it("connects to a remembered server chosen from the radio list", () => {
+    stubFetch({});
+    localStorage.setItem(
+      "notees.settings.knownSyncServers",
+      JSON.stringify(["https://alpha.example.com"]),
+    );
+    const onConnectServer = vi.fn();
+    renderPage({ section: "sync", onConnectServer });
+    fireEvent.click(screen.getByRole("radio", { name: "https://alpha.example.com" }));
+    expect(onConnectServer).toHaveBeenCalledWith("https://alpha.example.com");
+  });
+
+  it("forgets a remembered server via its trash button", () => {
+    stubFetch({});
+    localStorage.setItem(
+      "notees.settings.knownSyncServers",
+      JSON.stringify(["https://alpha.example.com"]),
+    );
+    renderPage({ section: "sync" });
+    fireEvent.click(screen.getByRole("button", { name: "Remove https://alpha.example.com" }));
+    expect(screen.queryByRole("radio", { name: "https://alpha.example.com" })).toBeNull();
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).not.toContain("https://alpha.example.com");
+  });
+
+  it("treats removing the current server as the confirmed remove + sign-out", () => {
+    stubFetch({});
+    const onForgetServer = vi.fn();
+    renderPage({ section: "sync", onForgetServer });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove https://notees.example.com" }),
+    );
+    expect(onForgetServer).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: /remove this server/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^remove$/i }));
+    expect(onForgetServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("adds a typed server via the Add server modal and connects with a loading state", () => {
+    stubFetch({});
+    const onConnectServer = vi.fn();
+    renderPage({ section: "sync", onConnectServer });
+    fireEvent.click(screen.getByRole("button", { name: /add server/i }));
+    const dialog = screen.getByRole("dialog", { name: /add a sync server/i });
+    const field = within(dialog).getByRole("textbox", { name: /server url/i });
+    expect(field).toHaveValue("");
+    fireEvent.change(field, { target: { value: "https://new.example.com" } });
+    const connect = within(dialog).getByRole("button", { name: /^connect$/i });
+    fireEvent.click(connect);
+    expect(onConnectServer).toHaveBeenCalledWith("https://new.example.com");
+    expect(connect).toHaveAttribute("aria-busy", "true");
+    expect(
+      JSON.parse(localStorage.getItem("notees.settings.knownSyncServers")!),
+    ).toContain("https://new.example.com");
+  });
+
+  it("keeps the modal connect disabled until a URL is entered", () => {
+    stubFetch({});
+    renderPage({ section: "sync" });
+    fireEvent.click(screen.getByRole("button", { name: /add server/i }));
+    const dialog = screen.getByRole("dialog", { name: /add a sync server/i });
+    expect(within(dialog).getByRole("button", { name: /^connect$/i })).toBeDisabled();
+  });
+
+  it("manages API keys against the real endpoints in the Account section", async () => {
+    const { createKdfRecord, generateMasterKey } = await import("@notees/protocol");
+    const kdf = await createKdfRecord(await generateMasterKey(), "correct horse battery staple");
+    interface Key {
+      id: string;
+      name: string;
+      revokedAt: number | null;
+      scopes: string[] | null;
+      machine: boolean;
+    }
+    let keys: Key[] = [
+      { id: "k1", name: "laptop CLI", revokedAt: null, scopes: null, machine: false },
+      { id: "k0", name: "retired probe", revokedAt: 1_700_000_000_000, scopes: null, machine: false },
+    ];
+    const envelope = (k: Key) => ({
+      id: k.id,
+      userId: "u1",
+      name: k.name,
+      prefix: "nk_ab",
+      createdAt: 0,
+      lastUsedAt: null,
+      revokedAt: k.revokedAt,
+      scopes: k.scopes,
+      machine: k.machine,
+    });
+    const calls: { url: string; method: string; body: string | null }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: (init?.body as string) ?? null });
+        if (url.endsWith("/api/api-keys") && method === "GET") {
+          return Response.json({ apiKeys: keys.map(envelope) });
+        }
+        if (url.endsWith("/api/api-keys") && method === "POST") {
+          const created: Key = { id: "k2", name: "desktop CLI", revokedAt: null, scopes: null, machine: false };
+          keys = [...keys, created];
+          return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
+        }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
+        }
+        if (url.endsWith("/api/api-keys/k1") && method === "DELETE") {
+          keys = keys.filter((k) => k.id !== "k1");
+          return Response.json({ ok: true });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    renderPage({ section: "account" });
+
+    // Existing key listed: legacy keys carry the password-gated badge; the
+    // scope chips render.
+    expect(await screen.findByText("laptop CLI")).toBeInTheDocument();
+    expect(screen.getByText("password-gated (legacy)")).toBeInTheDocument();
+    expect(screen.getByText("full access")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Read objects" })).toBeInTheDocument();
+    // Revoked keys are history — the list shows the live set only.
+    expect(screen.queryByText("retired probe")).not.toBeInTheDocument();
+
+    // Create a new key: password seals it (custody installed), secret shown once.
+    fireEvent.change(screen.getByPlaceholderText(/key name/i), {
+      target: { value: "desktop CLI" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create key/i }));
+    expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
+    const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
+    expect(create).toBeDefined();
+    // The default is every permission on → full access: no scope list rides.
+    expect(JSON.parse(String(create?.body))).toEqual({ name: "desktop CLI" });
+    // Custody installed under the same flow.
+    expect(
+      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys/k2/custody")),
+    ).toBe(true);
+
+    // Revoke the first key: inline confirmation, then DELETE.
+    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    await waitFor(() => expect(screen.queryByText("laptop CLI")).not.toBeInTheDocument());
+    expect(
+      calls.some((c) => c.method === "DELETE" && c.url.endsWith("/api/api-keys/k1")),
+    ).toBe(true);
+  });
+
+  it("scoped keys: chip selection posts the scope list and rows render scope badges", async () => {
+    const { createKdfRecord, generateMasterKey } = await import("@notees/protocol");
+    const kdf = await createKdfRecord(await generateMasterKey(), "correct horse battery staple");
+    interface Key {
+      id: string;
+      name: string;
+      revokedAt: null;
+      scopes: string[] | null;
+      machine: boolean;
+    }
+    let keys: Key[] = [
+      { id: "k1", name: "export bot", revokedAt: null, scopes: ["objects.read", "export"], machine: false },
+    ];
+    const envelope = (k: Key) => ({
+      id: k.id,
+      userId: "u1",
+      name: k.name,
+      prefix: "nk_ab",
+      createdAt: 0,
+      lastUsedAt: null,
+      revokedAt: k.revokedAt,
+      scopes: k.scopes,
+      machine: k.machine,
+    });
+    const calls: { url: string; method: string; body: string | null }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: (init?.body as string) ?? null });
+        if (url.endsWith("/api/api-keys") && method === "GET") {
+          return Response.json({ apiKeys: keys.map(envelope) });
+        }
+        if (url.endsWith("/api/api-keys") && method === "POST") {
+          const body = JSON.parse(String(init?.body)) as { scopes?: string[] };
+          const created: Key = {
+            id: "k2",
+            name: "reader",
+            revokedAt: null,
+            scopes: body.scopes ?? null,
+            machine: false,
+          };
+          keys = [...keys, created];
+          return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
+        }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    renderPage({ section: "account" });
+    expect(await screen.findByText("export bot")).toBeInTheDocument();
+    // The label appears twice: the row's scope badge and the ACL table row.
+    // (The checkbox itself is matched by role + accessible name.)
+    expect(screen.getAllByText("Read objects")).toHaveLength(2);
+    expect(screen.getAllByText("Export")).toHaveLength(2);
+
+    // Every permission starts on (full access). Uncheck two → create (with
+    // the seal password) → the POST carries the remaining allow-list.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Admin" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Upload assets" }));
+    fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "reader" } });
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create key/i }));
+    await screen.findByText(/copy it now/i);
+    const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
+    expect(JSON.parse(String(create?.body))).toEqual({
+      name: "reader",
+      scopes: ["objects.read", "objects.write", "objects.delete", "assets.read", "search", "export"],
+    });
+  });
+
+  it("custody is the norm: a mint seals the key, legacy rows wear the password-gated badge", async () => {
+    const {
+      b64uDecode,
+      createKdfRecord,
+      deriveMachineKey,
+      generateMasterKey,
+      importMasterKey,
+      masterKeyFp,
+      unwrapWorkspaceKey,
+    } = await import("@notees/protocol");
+    const master = await generateMasterKey();
+    const kdf = await createKdfRecord(master, "correct horse battery staple");
+    const expectedFp = masterKeyFp(new Uint8Array(await crypto.subtle.exportKey("raw", master)));
+
+    interface Key {
+      id: string;
+      name: string;
+      scopes: string[] | null;
+      machine: boolean;
+    }
+    let keys: Key[] = [
+      { id: "k1", name: "ci bot", scopes: null, machine: true },
+      { id: "k0", name: "old key", scopes: null, machine: false },
+    ];
+    const envelope = (k: Key) => ({
+      id: k.id,
+      userId: "u1",
+      name: k.name,
+      prefix: "nk_ab",
+      createdAt: 0,
+      lastUsedAt: null,
+      revokedAt: null,
+      scopes: k.scopes,
+      machine: k.machine,
+    });
+    const calls: { url: string; method: string; body: string | null }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: (init?.body as string) ?? null });
+        if (url.endsWith("/api/api-keys") && method === "GET") {
+          return Response.json({ apiKeys: keys.map(envelope) });
+        }
+        if (url.endsWith("/api/api-keys") && method === "POST") {
+          const created: Key = { id: "k2", name: "ci bot 2", scopes: null, machine: false };
+          keys = [...keys, created];
+          return Response.json({ apiKey: envelope(created), token: "nk_machine_token_000000000000000000" });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
+        }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    renderPage({ section: "account" });
+    // Custody-carrying keys wear no badge (the norm); the legacy one is flagged.
+    expect(await screen.findByText("ci bot")).toBeInTheDocument();
+    expect(screen.getByText("old key")).toBeInTheDocument();
+    expect(screen.getByText("password-gated (legacy)")).toBeInTheDocument();
+    expect(screen.queryByText("machine")).not.toBeInTheDocument();
+
+    // Mint: the seal password is required before submit is enabled.
+    fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "ci bot 2" } });
+    expect(screen.getByRole("button", { name: /create key/i })).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create key/i }));
+    expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
+
+    // The unlock oracle checked the password (with the account email)…
+    const unlockCall = calls.find((c) => c.url.endsWith("/api/auth/unlock"));
+    expect(JSON.parse(String(unlockCall?.body))).toEqual({
+      email: "ada@example.com",
+      password: "correct horse battery staple",
+    });
+    // …and the installed wrap opens under a key derived from the once-shown
+    // token, reproducing the account master key.
+    const install = calls.find((c) => c.url.endsWith("/api/api-keys/k2/custody"));
+    expect(install).toBeDefined();
+    const record = JSON.parse(String(install?.body)) as { salt: string; wrappedMaster: string };
+    const machineKey = await importMasterKey(
+      deriveMachineKey("nk_machine_token_000000000000000000", b64uDecode(record.salt)),
+    );
+    const reopened = await unwrapWorkspaceKey(machineKey, record.wrappedMaster);
+    const reopenedBytes = new Uint8Array(await crypto.subtle.exportKey("raw", reopened as never));
+    expect(masterKeyFp(reopenedBytes)).toBe(expectedFp);
+  });
+
+
+  it("signs out from the Account section", () => {
+    stubFetch({});
+    const onSignOut = vi.fn();
+    renderPage({ section: "account", onSignOut });
+    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
+    expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it("marks profile and security placeholders, and ships the change-password card", () => {
+    stubFetch({});
+    renderPage({ section: "account" });
+    expect(
+      screen.getByText(/editing your profile is not available in this build/i),
+    ).toBeInTheDocument();
+    // The Change Password card is live: the three fields render (the submit
+    // flow is covered by the change-password suite).
+    expect(screen.getByLabelText(/^current password$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^new password$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^confirm new password$/i)).toBeInTheDocument();
+    renderPage({ section: "security" });
+    expect(
+      screen.getByText(/two-factor authentication is not available in this build/i),
+    ).toBeInTheDocument();
+    // The Recovery Codes card is live: the status line, the password field,
+    // and the generate affordance (the flow itself is covered by the
+    // recovery-codes suite).
+    expect(screen.getByRole("heading", { name: /^recovery codes$/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^account password$/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /generate new codes/i })).toBeInTheDocument();
+  });
+});
+
+describe("accent swatch group (skill §9)", () => {
+  it("the five swatches expose their selection via aria-pressed, exactly one pressed", () => {
+    renderPage({ section: "appearance" });
+    const swatches = screen.getAllByRole("button", { name: /^(Advance Green|Monochrome|Brown|Teal|Blue)$/ });
+    expect(swatches).toHaveLength(5);
+    const pressed = swatches.filter((swatch) => swatch.getAttribute("aria-pressed") === "true");
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]!.getAttribute("aria-label")).toBe("Advance Green");
+  });
+});

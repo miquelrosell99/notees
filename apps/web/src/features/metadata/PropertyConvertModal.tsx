@@ -1,0 +1,492 @@
+/**
+ * PropertyConvertModal — blessed delete+recreate type conversion
+ * (the recommendation side of the
+ * register — conversion machinery à la Capacities is NOT built; one honest
+ * flow instead):
+ *
+ *   1. pick the new type (the `image` zombie has no defined value shape —
+ *      and is not offered as a target);
+ *   2. the flow computes same-shape copies per authored value (node-ref
+ *      family → node-typed targets, scalars → scalar targets, select family
+ *      options carry over so option ids keep resolving); every value that
+ *      does not map is LISTED, and is dropped only after an explicit
+ *      "--yes-style" confirmation (the checkbox);
+ *   3. on confirm: create the new schema (fresh UUIDv7 — delete+recreate
+ *      under the SAME id would keep the dead type's values visible), copy
+ *      the mappable values at their slot idx, rebind every class binding
+ *      (a presence row + the soft-unbind flag; a defaultValue copies only
+ *      when it type-checks per PC2), then delete the old schema
+ *      (soft-delete — the blessed path, values under it survive in the log);
+ *   4. a copy that fails the apply-time validation (PG6: class filter,
+ *      target existence, precision) is recorded as dropped with the
+ *      applier's reason — the flow never half-writes silently.
+ *
+ * Result state reports created/copied/dropped; the modal closes on Done.
+ *
+ * R6 GATE: type conversion is gated by USAGE — a
+ * property with a value on ANY node renders a BLOCKED state (the type is
+ * locked; the plan/convert UI and the drop-values confirm are not
+ * reachable). A value-free property converts freely. The with-values
+ * easy-conversion matrix stays parked until to
+ * change a used property's type, create the new property (the S1 modal)
+ * and move values manually.
+ */
+
+import { useMemo, useState } from "react";
+import { uuidv7 } from "uuidv7";
+
+import { isValidDefaultForType } from "@notees/store";
+
+import type { WorkerClient } from "@/core/worker-client.js";
+import type {
+  ClientPropertyOption,
+  ClientPropertySchema,
+  ClientWriteOp,
+  EffectiveProperty,
+  WorkspaceClient,
+} from "@/core/workspace-client/index.js";
+
+import { titleOf } from "../../ui/dateDisplay.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
+import "./PropertyConvertModal.css";
+
+type AnyClient = WorkspaceClient | WorkerClient;
+
+/** The wire property types offered as conversion targets (no `image`). */
+const TARGET_TYPES = [
+  "text",
+  "number",
+  "boolean",
+  "datetime",
+  "email",
+  "select",
+  "multi_select",
+  "object",
+] as const;
+
+type Conversion =
+  | { ok: true; value: unknown }
+  | { ok: false; reason: string };
+
+interface DroppedValue {
+  nodeLabel: string;
+  preview: string;
+  reason: string;
+}
+
+interface CopiedValue {
+  nodeId: string;
+  idx: number;
+  value: unknown;
+}
+
+interface ConvertPlan {
+  copied: CopiedValue[];
+  dropped: DroppedValue[];
+  /** select-family target: the old options carry over verbatim (PG16 colors included). */
+  carriedOptions: ClientPropertyOption[] | null;
+}
+
+function isNodeRef(value: unknown): value is { nodeId: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { nodeId?: unknown }).nodeId === "string"
+  );
+}
+
+function isRange(value: unknown): value is { start?: unknown; end?: unknown } {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Same-shape copy of one value to the target type; null = "no value". */
+export function convertValueForType(
+  value: unknown,
+  from: string,
+  to: string,
+  targetOptions: ClientPropertyOption[] | null,
+): Conversion {
+  if (value === null || value === undefined) return { ok: true, value: null };
+  const drop = (reason: string): Conversion => ({ ok: false, reason });
+  const scalarTarget = to === "text" || to === "email";
+  if (scalarTarget) {
+    if (typeof value === "string") {
+      // select values are option IDS — the honest text is the label.
+      if (from === "select" || from === "multi_select") {
+        const option = targetOptions?.find((o) => o.id === value);
+        return option !== undefined
+          ? { ok: true, value: option.label }
+          : drop("option id has no label to copy as text");
+      }
+      return { ok: true, value };
+    }
+    if (to === "text" && typeof value === "number" && Number.isFinite(value)) {
+      return { ok: true, value: String(value) };
+    }
+    return drop(`a ${typeof value === "object" ? "linked" : from} value has no text form`);
+  }
+  if (to === "number") {
+    if (typeof value === "number" && Number.isFinite(value)) return { ok: true, value };
+    if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
+      return { ok: true, value: Number(value) };
+    }
+    return drop("not a number (or a numeric string)");
+  }
+  if (to === "boolean") {
+    return typeof value === "boolean" ? { ok: true, value } : drop("not a boolean");
+  }
+  if (to === "select") {
+    const id = typeof value === "string" ? value : null;
+    if (id !== null && targetOptions?.some((o) => o.id === id) === true) {
+      return { ok: true, value: id };
+    }
+    return drop("option id does not exist on the new schema");
+  }
+  if (to === "multi_select") {
+    const ids = Array.isArray(value)
+      ? value
+      : typeof value === "string" && (from === "select" || from === "multi_select")
+        ? [value]
+        : null;
+    if (ids !== null && ids.every((v) => typeof v === "string")) {
+      const kept = (ids as string[]).filter((id) => targetOptions?.some((o) => o.id === id));
+      return kept.length > 0
+        ? { ok: true, value: kept }
+        : drop("no option id exists on the new schema");
+    }
+    return drop("not an option-id list");
+  }
+  if (to === "object") {
+    return isNodeRef(value)
+      ? { ok: true, value }
+      : drop("only linked values map to a node-typed schema");
+  }
+  if (to === "datetime") {
+    // The unified union is shape-preserving where possible: a point copies
+    // as a point, a {start,end} range as a range (either side open, times
+    // riding the slots).
+    if (isNodeRef(value)) return { ok: true, value };
+    if (isRange(value)) {
+      const start = value.start ?? null;
+      const end = value.end ?? null;
+      if (
+        (start === null || isNodeRef(start)) &&
+        (end === null || isNodeRef(end))
+      ) {
+        return { ok: true, value: { start, end } };
+      }
+    }
+    return drop("only a date point or a {start,end} date range maps to datetime");
+  }
+  return drop(`conversion to ${to} is not supported`);
+}
+
+/** Build the plan: every authored value of the schema, mapped or listed. */
+export function buildConvertPlan(
+  client: AnyClient,
+  schema: ClientPropertySchema,
+  targetType: string,
+  carryOptions: boolean,
+): ConvertPlan {
+  const sameOptionFamily =
+    (schema.type === "select" || schema.type === "multi_select") &&
+    (targetType === "select" || targetType === "multi_select");
+  const carriedOptions = sameOptionFamily && carryOptions ? (schema.options ?? []) : null;
+  const targetOptions = targetType === "select" || targetType === "multi_select" ? carriedOptions : null;
+  const copied: CopiedValue[] = [];
+  const dropped: DroppedValue[] = [];
+  for (const node of client.getPropertyReferences(schema.id)) {
+    const rows = client
+      .getEffectiveProperties(node.id)
+      .filter(
+        (row): row is EffectiveProperty =>
+          row.propertySchemaId === schema.id && row.source === "authored",
+      );
+    const label = titleOf(client, node.id, { read: "fallback", empty: "untitled" }) ?? "Untitled";
+    for (const row of rows) {
+      const result = convertValueForType(row.value, schema.type, targetType, targetOptions);
+      const preview = JSON.stringify(row.value);
+      if (result.ok) {
+        copied.push({ nodeId: node.id, idx: row.idx, value: result.value });
+      } else {
+        dropped.push({
+          nodeLabel: label,
+          preview: preview.length > 60 ? `${preview.slice(0, 57)}…` : preview,
+          reason: result.reason,
+        });
+      }
+    }
+  }
+  return { copied, dropped, carriedOptions };
+}
+
+export function PropertyConvertModal({
+  client,
+  schema,
+  onClose,
+}: {
+  client: AnyClient;
+  schema: ClientPropertySchema;
+  onClose: () => void;
+}) {
+  const [targetType, setTargetType] = useState<string | null>(null);
+  const [carryOptions, setCarryOptions] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<{ createdId: string; copied: number; dropped: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // R6: values ANYWHERE lock the type — the gate renders before anything
+  // else and the plan/convert UI is unreachable in that state.
+  const usageCount = client.getPropertyReferences(schema.id).length;
+  const blocked = usageCount > 0;
+
+  const plan = useMemo(
+    () =>
+      targetType === null
+        ? null
+        : buildConvertPlan(client, schema, targetType, carryOptions),
+    [client, schema, targetType, carryOptions],
+  );
+
+  /** multi_select is always multi; otherwise the old cardinality carries. */
+  const targetMulti = targetType === "multi_select" ? true : schema.multi;
+
+  async function runConversion(): Promise<void> {
+    if (targetType === null || plan === null) return;
+    setRunning(true);
+    setError(null);
+    try {
+      // The new schema id is caller-minted (the create accepts a chosen id —
+      // the delete+recreate flow NEEDS a fresh id, and minting it here lets
+      // every later op anchor to it). The schema create itself stays an
+      // awaited call BEFORE the copy batch: propertySchema.create is not a
+      // ClientWriteOp kind, and the copies' apply-time validation (PG6)
+      // reads the schema row, so the create must be log-visible first.
+      const createdId = uuidv7();
+      await client.createPropertySchema({
+        id: createdId,
+        name: schema.name,
+        type: targetType,
+        multi: targetMulti,
+        // Scope rides the scopeClassIds list (the sole locality authority,
+        //) — null (global) rides as the omission.
+        ...(schema.scopeClassIds !== null ? { scopeClassIds: schema.scopeClassIds } : {}),
+        ...(plan.carriedOptions !== null ? { options: plan.carriedOptions } : {}),
+        ...(schema.targetClassFilter !== null && (targetType === "object" || targetType === "datetime")
+          ? { targetClassFilter: schema.targetClassFilter }
+          : {}),
+        ...(schema.datePrecision !== null && targetType === "datetime"
+          ? { datePrecision: schema.datePrecision }
+          : {}),
+      });
+      // The render contracts are PROPERTY-level and the create input
+      // carries none — patch the new schema with the old row's contracts.
+      // Value display only rides types the row button renders (select /
+      // multi_select / boolean); hide-when-empty is type-agnostic.
+      // (`readonly` retired 2026-10-21 — derived from the system list on
+      // the new schema's id, nothing to copy.)
+      const carriesDisplay =
+        schema.display !== null &&
+        schema.display !== undefined &&
+        (targetType === "select" || targetType === "multi_select" || targetType === "boolean");
+      if (carriesDisplay || schema.hideWhenEmpty != null) {
+        await client.updatePropertySchema(createdId, {
+          ...(carriesDisplay ? { display: schema.display } : {}),
+          ...(schema.hideWhenEmpty != null ? { hideWhenEmpty: schema.hideWhenEmpty } : {}),
+        });
+      }
+      // The GLOBAL default carries over when it type-checks against the new
+      // type; an
+      // incompatible default is dropped (the new schema starts defaultless;
+      // the old schema is deleted below anyway).
+      if (schema.defaultValue !== null && schema.defaultValue !== undefined) {
+        if (isValidDefaultForType(targetType, schema.defaultValue)) {
+          await client.updatePropertySchema(createdId, { defaultValue: schema.defaultValue });
+        }
+      }
+      // Copy mappable values at their slot idx — ONE applyOps batch (one
+      // undo entry, one worker RPC). The per-entry try/catch this replaces
+      // recorded each apply-time PG6 failure and continued; the batch
+      // applies in order and aborts at the first failure, so the failure
+      // arm re-derives the exact landed prefix from the store. (Unreachable
+      // in the current flow: the R6 usage gate keeps plan.copied empty
+      // whenever the Convert button renders — this arm only matters if the
+      // with-values compatibility matrix ships.)
+      let copied = 0;
+      let dropped = plan.dropped.length;
+      const copyOps: ClientWriteOp[] = plan.copied.map((entry) => ({
+        kind: "setProperty",
+        objectId: entry.nodeId,
+        propertySchemaId: createdId,
+        value: entry.value,
+        idx: entry.idx,
+      }));
+      try {
+        await client.applyOps(copyOps, { verb: "convert property" });
+        copied = plan.copied.length;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        for (const entry of plan.copied) {
+          const landed = client
+            .getEffectiveProperties(entry.nodeId)
+            .some(
+              (row) =>
+                row.propertySchemaId === createdId &&
+                row.source === "authored" &&
+                row.idx === entry.idx &&
+                JSON.stringify(row.value) === JSON.stringify(entry.value),
+            );
+          if (landed) {
+            copied++;
+          } else {
+            dropped++;
+            plan.dropped.push({
+              nodeLabel: titleOf(client, entry.nodeId, { read: "fallback", empty: "untitled" }) ?? "Untitled",
+              preview: JSON.stringify(entry.value),
+              reason,
+            });
+          }
+        }
+      }
+      // Rebind every class that bound the old schema: create the new
+      // binding, then remove the old row (class.property.unset — binding
+      // rows survive schema deletion by design, so "rebind" is explicit).
+      for (const klass of client.listClasses()) {
+        const binding = client
+          .getClassBindings(klass.id)
+          .find((b) => b.propertySchemaId === schema.id);
+        if (binding === undefined) continue;
+        // The binding is a presence row + the soft-unbind flag
+        // (required/defaultValue/sequence retired or moved to the schema —
+        //); the default carried over onto the
+        // new schema above.
+        await client.setClassProperty(klass.id, createdId, {});
+        await client.unsetClassProperty(klass.id, schema.id);
+      }
+      await client.deletePropertySchema(schema.id);
+      setResult({ createdId, copied, dropped });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <Modal isOpen onClose={onClose} size="md" showCloseButton={false} className="nt-property-convert">
+      <div className="modal__header">
+        <h2 className="modal__title">Convert “{schema.name}”</h2>
+        <Button
+          icon="mdi mdi-close"
+          aria-label="Close modal"
+          className="modal__close"
+          onClick={onClose}
+          size="sm"
+          variant="ghost"
+        />
+      </div>
+      <div className="modal__content">
+        {result === null && blocked && (
+          /* R6 blocked state: values anywhere lock the type — the plan/convert UI is unreachable here. */
+          <div className="nt-property-convert__blocked">
+            <p>
+              <strong>{schema.name}</strong> has values on {usageCount} node
+              {usageCount === 1 ? "" : "s"}, so its type can’t change.
+            </p>
+            <p className="nt-property-convert__blocked-hint">
+              To use a different type, create a new property with it and move
+              the values over — conversion of a property with values is
+              parked until the owner rules on the compatibility matrix.
+            </p>
+          </div>
+        )}
+        {result === null && !blocked && (
+          <>
+            <p className="nt-property-convert__intro">
+              Conversion creates a new {schema.multi ? "multi " : ""}
+              <strong>{schema.type}</strong> schema in place of this one: mappable values copy over,
+              class bindings re-point, then the old schema is deleted.
+            </p>
+            <label className="nt-property-settings__field">
+              <span className="nt-property-settings__label">New type</span>
+              <select
+                className="nt-property-settings__input"
+                aria-label="New property type"
+                value={targetType ?? ""}
+                onChange={(event) => {
+                  setTargetType(event.target.value === "" ? null : event.target.value);
+                }}
+              >
+                <option value="">Choose a type…</option>
+                {TARGET_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {plan?.carriedOptions !== null && plan !== null && (
+              <label className="nt-property-settings__check">
+                <Checkbox
+                  checked={carryOptions}
+                  onChange={(checked) => setCarryOptions(checked)}
+                  aria-label="Carry options over"
+                />
+                <span>Carry the {plan.carriedOptions?.length ?? 0} options over (ids and colors preserved)</span>
+              </label>
+            )}
+            {plan !== null && (
+              <div className="nt-property-convert__plan">
+                <p>
+                  <strong>{plan.copied.length}</strong> value{plan.copied.length === 1 ? "" : "s"}{" "}
+                  will copy to the new schema.
+                </p>
+              </div>
+            )}
+            {error !== null && (
+              <p role="alert" className="nt-error">
+                {error}
+              </p>
+            )}
+          </>
+        )}
+        {result !== null && (
+          <div className="nt-property-convert__result">
+            <p>
+              Converted <strong>{schema.name}</strong>: {result.copied} value
+              {result.copied === 1 ? "" : "s"} copied
+              {result.dropped > 0 ? `, ${result.dropped} dropped` : ""}. The old schema was deleted;
+              the new schema has a fresh id.
+            </p>
+          </div>
+        )}
+      </div>
+      <div className="modal__footer">
+        {result === null && blocked ? (
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        ) : result === null ? (
+          <>
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={targetType === null || running}
+              onClick={() => void runConversion()}
+            >
+              {running ? "Converting…" : "Convert"}
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" onClick={onClose}>
+            Done
+          </Button>
+        )}
+      </div>
+    </Modal>
+  );
+}

@@ -1,0 +1,1311 @@
+/**
+ * SettingsPage — the full settings surface: the eight settings sections
+ * (appearance/editor/general/sync/account/security/support/about) with a
+ * sidebar section nav, rendered in the PageCard slot of the app shell.
+ * Deep-linkable at /settings/<section> (unknown sections land on
+ * appearance); section changes ride window.history so back/forward and
+ * reloads work like every other surface.
+ *
+ * The quick-tweaks modal retired: the theme / accent /
+ * font controls live here exclusively; the sidebar gear and Ctrl/Cmd+,
+ * open this page (Appearance) directly, and the palette's Toggle theme
+ * command flips light/dark without opening it.
+ */
+import { useEffect, useState } from "react";
+
+import { createKdfRecord, importMasterKey, unwrapMasterKeyWithBytes } from "@notees/protocol";
+
+import type { AccountUser } from "@/core/auth-api.js";
+import { changePassword, listRecoveryCodes, unlock } from "@/core/auth-api.js";
+import { generateAndInstallRecoveryCodes } from "@/core/recovery.js";
+
+import { Button } from "../../components/ui/kit/Button.js";
+import { Card } from "../../components/ui/kit/Card.js";
+import { AddPill } from "../../components/ui/kit/AddPill.js";
+import { BooleanToggle } from "../../components/ui/kit/BooleanToggle.js";
+import { Pill } from "../../components/ui/kit/Pill.js";
+import { Radio, RadioGroup } from "../../components/ui/kit/Radio.js";
+import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
+import { TextField } from "../../components/ui/kit/TextField.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { Icon } from "../../ui/Icon.js";
+import { ApiKeysSection } from "../../ui/SettingsPanel.js";
+import {
+  ACCENT_COLOR_OPTIONS,
+  applyAppearance,
+  useDeviceSetting,
+  type AccentColor,
+  type ThemePreference,
+  type UiFontPreference,
+} from "./deviceSettings.js";
+
+import "./settingsModal.css";
+import "./SettingsPage.css";
+
+export type SettingsSection =
+  | "appearance"
+  | "editor"
+  | "general"
+  | "sync"
+  | "account"
+  | "security"
+  | "support"
+  | "about";
+
+export const SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
+  { id: "appearance", label: "Appearance" },
+  { id: "editor", label: "Editor" },
+  { id: "general", label: "General" },
+  { id: "sync", label: "Sync" },
+  { id: "account", label: "Account" },
+  { id: "security", label: "Security" },
+  { id: "support", label: "Support" },
+  { id: "about", label: "About" },
+];
+
+const SECTION_IDS = new Set<string>(SETTINGS_SECTIONS.map((section) => section.id));
+
+/** Unknown (or absent) sections land on appearance. */
+export function normalizeSettingsSection(value: string | null | undefined): SettingsSection {
+  return value !== null && value !== undefined && SECTION_IDS.has(value)
+    ? (value as SettingsSection)
+    : "appearance";
+}
+
+/** Parse a /settings/<section> path; null when the path is not a settings route. */
+export function settingsSectionFromPath(pathname: string): SettingsSection | null {
+  const match = /^\/settings(?:\/([^/]+))?\/?$/.exec(pathname);
+  if (match === null) return null;
+  return normalizeSettingsSection(match[1]?.toLowerCase());
+}
+
+export function pathForSettingsSection(section: SettingsSection): string {
+  return `/settings/${section}`;
+}
+
+// --- Shared appearance controls (the quick modal + the page) --------------------
+
+/** The theme control's four options over the unchanged storage keys:
+ *  Light → theme:light; Dark → theme:dark, oled:false; OLED → theme:dark,
+ *  oled:true; Auto → theme:system, oled:false. A stored system+OLED combo
+ *  resolves to Auto until the next save (no migration). */
+export type ThemeMode = "light" | "dark" | "oled" | "auto";
+
+export function currentThemeMode(theme: ThemePreference, oled: boolean): ThemeMode {
+  if (theme === "light") return "light";
+  if (theme === "system") return "auto";
+  return oled ? "oled" : "dark";
+}
+
+export function ThemeModeControl({ id }: { id: string }) {
+  const [theme, setTheme] = useDeviceSetting<ThemePreference>("theme", "system");
+  const [oled, setOled] = useDeviceSetting("oledMode", false);
+  return (
+    <SelectionButton
+      id={id}
+      options={[
+        { value: "light", icon: "mdi-weather-sunny", label: "Light theme" },
+        { value: "dark", icon: "mdi-weather-night", label: "Dark theme" },
+        { value: "oled", icon: "mdi-overscan", label: "OLED theme" },
+        { value: "auto", icon: "mdi-monitor", label: "Auto theme" },
+      ]}
+      value={currentThemeMode(theme, oled)}
+      onChange={(value) => {
+        const mode = value as ThemeMode;
+        setTheme(mode === "light" ? "light" : mode === "auto" ? "system" : "dark");
+        setOled(mode === "oled");
+        applyAppearance();
+      }}
+      size="sm"
+    />
+  );
+}
+
+export function AccentColorPicker() {
+  const [accentColor, setAccentColor] = useDeviceSetting<AccentColor>("accentColor", "margin");
+  return (
+    <div className="settings-accent-options" role="group" aria-label="Accent Color">
+      {ACCENT_COLOR_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={`settings-accent-swatch ${option.value === "monochrome" ? "settings-accent-swatch--monochrome" : ""} ${accentColor === option.value ? "settings-accent-swatch--active" : ""}`}
+          style={{ backgroundColor: option.value === "monochrome" ? undefined : option.hex }}
+          onClick={() => {
+            setAccentColor(option.value);
+            applyAppearance();
+          }}
+          aria-label={option.label}
+          aria-pressed={accentColor === option.value}
+          title={option.label}
+        />
+      ))}
+    </div>
+  );
+}
+
+// --- Sections --------------------------------------------------------------------
+
+type DateFormat =
+  | "YYYY/MM/DD"
+  | "YYYY-MM-DD"
+  | "DD/MM/YYYY"
+  | "DD-MM-YYYY"
+  | "MM/DD/YYYY"
+  | "MM-DD-YYYY";
+
+const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string; example: string }[] = [
+  { value: "YYYY/MM/DD", label: "YYYY/MM/DD", example: "2026/01/15" },
+  { value: "YYYY-MM-DD", label: "YYYY-MM-DD", example: "2026-01-15" },
+  { value: "DD/MM/YYYY", label: "DD/MM/YYYY", example: "15/01/2026" },
+  { value: "DD-MM-YYYY", label: "DD-MM-YYYY", example: "15-01-2026" },
+  { value: "MM/DD/YYYY", label: "MM/DD/YYYY", example: "01/15/2026" },
+  { value: "MM-DD-YYYY", label: "MM-DD-YYYY", example: "01-15-2026" },
+];
+
+const FIRST_DAY_OF_WEEK_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 6, label: "Saturday" },
+];
+
+/** Sponsorship and support channels (official project links). */
+const SPONSORSHIP_CHANNELS: { id: string; name: string; description: string; url: string; icon: string }[] = [
+  {
+    id: "github-sponsors",
+    name: "GitHub Sponsors",
+    description: "Recurring support with public recognition.",
+    url: "https://github.com/sponsors/miquelrosell99",
+    icon: "mdi-github",
+  },
+  {
+    id: "ko-fi",
+    name: "Ko-fi",
+    description: "One-time tip for users who prefer not to subscribe.",
+    url: "https://ko-fi.com/miquelrosell",
+    icon: "mdi-coffee",
+  },
+];
+
+function AppearanceSection() {
+  const [uiFont, setUiFont] = useDeviceSetting<UiFontPreference>("uiFont", "bundled");
+  return (
+    <div className="settings-section">
+      <h3 className="settings-section__title">Appearance</h3>
+      <Card>
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-theme" className="settings-item__label">
+              Theme
+            </label>
+            <p className="settings-item__description">Choose your preferred color theme</p>
+          </div>
+          <ThemeModeControl id="user-theme" />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-ui-font" className="settings-item__label">
+              Font
+            </label>
+            <p className="settings-item__description">
+              Bundled ships Instrument Sans, Newsreader, and JetBrains Mono with the
+              app; System uses the platform&apos;s own font stack.
+            </p>
+          </div>
+          <SelectionButton
+            id="user-ui-font"
+            options={[
+              { value: "bundled", icon: "mdi-format-font", label: "Bundled (Instrument Sans)" },
+              { value: "system", icon: "mdi-monitor", label: "System stack" },
+            ]}
+            value={uiFont}
+            onChange={(value) => {
+              setUiFont(value as UiFontPreference);
+              applyAppearance();
+            }}
+            size="sm"
+          />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label className="settings-item__label">Accent Color</label>
+            <p className="settings-item__description">
+              Functional accent for tags, badges, and active states
+            </p>
+          </div>
+          <AccentColorPicker />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function EditorSection() {
+  const [treeEditMode, setTreeEditMode] = useDeviceSetting<"direct" | "logical">(
+    "treeEditMode",
+    "logical",
+  );
+  const [listCollapseLevel, setListCollapseLevel] = useDeviceSetting("listCollapseLevel", 0);
+  const [hashtagPasteMode, setHashtagPasteMode] = useDeviceSetting<"inline-tag" | "inline-class">(
+    "hashtagPasteMode",
+    "inline-tag",
+  );
+  const [showBulletThread, setShowBulletThread] = useDeviceSetting("bulletThread", true);
+  return (
+    <div className="settings-section">
+      <h3 className="settings-section__title">Editor</h3>
+      <Card>
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-tree-edit-mode" className="settings-item__label">
+              Outdent behavior
+            </label>
+            <p className="settings-item__description">
+              Direct moves only the outdented block up one level; Logical preserves
+              category grouping by moving subsequent siblings under the outdented block.
+            </p>
+          </div>
+          <SelectionButton
+            id="user-tree-edit-mode"
+            options={[
+              { value: "direct", icon: "mdi-arrow-collapse-right", label: "Direct" },
+              { value: "logical", icon: "mdi-file-tree", label: "Logical" },
+            ]}
+            value={treeEditMode}
+            onChange={(value) => setTreeEditMode(value as "direct" | "logical")}
+            size="sm"
+          />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-linked-refs-collapse" className="settings-item__label">
+              Auto-collapse nodes at this depth in lists
+            </label>
+            <p className="settings-item__description">
+              Rows with children in list collections start collapsed at this depth
+              (1 = the top-level rows); collections that manage their own collapse
+              (Child pages, the page body) are unaffected. 0 = disabled
+            </p>
+          </div>
+          <SelectionButton
+            id="user-linked-refs-collapse"
+            options={[
+              { value: "0", icon: "mdi-close-circle-outline", label: "Disabled" },
+              { value: "1", icon: "mdi-numeric-1", label: "Level 1" },
+              { value: "2", icon: "mdi-numeric-2", label: "Level 2" },
+              { value: "3", icon: "mdi-numeric-3", label: "Level 3" },
+            ]}
+            value={listCollapseLevel.toString()}
+            onChange={(value) => setListCollapseLevel(parseInt(value, 10))}
+            size="sm"
+          />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-hashtag-paste" className="settings-item__label">
+              Hashtag paste behavior
+            </label>
+            <p className="settings-item__description">
+              How #hashtag patterns in pasted text should be interpreted
+            </p>
+          </div>
+          <SelectionButton
+            id="user-hashtag-paste"
+            options={[
+              { value: "inline-tag", icon: "mdi-tag", label: "Inline tag (node link with is_tag)" },
+              { value: "inline-class", icon: "mdi-shape-outline", label: "Inline class (class reference)" },
+            ]}
+            value={hashtagPasteMode}
+            onChange={(value) => setHashtagPasteMode(value as "inline-tag" | "inline-class")}
+            size="sm"
+          />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-bullet-thread" className="settings-item__label">
+              Bullet thread
+            </label>
+            <p className="settings-item__description">
+              Highlight the active editing path with guide lines and a connecting thread
+            </p>
+          </div>
+          <BooleanToggle
+            id="user-bullet-thread"
+            checked={showBulletThread}
+            onChange={(checked) => setShowBulletThread(checked)}
+            size="sm"
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function GeneralSection() {
+  const [firstDayOfWeek, setFirstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
+  const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
+  const [defaultView, setDefaultView] = useDeviceSetting("defaultView", "today");
+  const [quickAddDestination, setQuickAddDestination] = useDeviceSetting(
+    "quickAddDestination",
+    "inbox",
+  );
+  const [showDevOptions, setShowDevOptions] = useDeviceSetting("showDevOptions", false);
+  return (
+    <div className="settings-section">
+      <h3 className="settings-section__title">General</h3>
+      <Card>
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-first-day" className="settings-item__label">
+              First day of week
+            </label>
+            <p className="settings-item__description">
+              Choose which day starts the week in calendars
+            </p>
+          </div>
+          <select
+            id="user-first-day"
+            className="settings-item__select"
+            value={firstDayOfWeek}
+            onChange={(e) => setFirstDayOfWeek(parseInt(e.target.value, 10))}
+          >
+            {FIRST_DAY_OF_WEEK_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-date-format" className="settings-item__label">
+              Default date format
+            </label>
+            <p className="settings-item__description">
+              Default format for daily and monthly notes. Each workspace can override
+              this.
+            </p>
+          </div>
+          <select
+            id="user-date-format"
+            className="settings-item__select"
+            value={dateFormat}
+            onChange={(e) => setDateFormat(e.target.value as DateFormat)}
+          >
+            {DATE_FORMAT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label} ({option.example})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-default-view" className="settings-item__label">
+              Default view
+            </label>
+            <p className="settings-item__description">
+              Choose what to show when opening a workspace
+            </p>
+          </div>
+          <select
+            id="user-default-view"
+            className="settings-item__select"
+            value={defaultView}
+            onChange={(e) => setDefaultView(e.target.value)}
+          >
+            <option value="today">Today&apos;s Page</option>
+            <option value="journal">Journal</option>
+            <option value="all-pages">All Pages</option>
+            <option value="graph">Graph View</option>
+          </select>
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-quick-add" className="settings-item__label">
+              Quick add destination
+            </label>
+            <p className="settings-item__description">Where to send quick add notes</p>
+          </div>
+          <SelectionButton
+            id="user-quick-add"
+            options={[
+              { value: "today", icon: "mdi-calendar-today", label: "Today's Page" },
+              { value: "inbox", icon: "mdi-inbox", label: "Inbox" },
+            ]}
+            value={quickAddDestination}
+            onChange={(value) => setQuickAddDestination(value)}
+            size="sm"
+          />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="user-dev-options" className="settings-item__label">
+              Developer options
+            </label>
+            <p className="settings-item__description">
+              Show dev tools in command palette and other places.
+            </p>
+          </div>
+          <BooleanToggle
+            id="user-dev-options"
+            checked={showDevOptions}
+            onChange={(checked) => setShowDevOptions(checked)}
+            size="sm"
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+interface SyncSectionProps {
+  serverUrl: string;
+  token: string;
+  onForgetServer: () => void;
+  onConnectServer: (url: string) => void;
+}
+
+/** The workflow-rules status line: rules are evaluated on THIS device as envelopes apply. */
+function WorkflowStatusLine({ serverUrl, token }: { serverUrl: string; token: string }) {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${serverUrl.replace(/\/$/, "")}/api/workflows`, { headers: { "X-API-Key": token } })
+      .then(async (response) => {
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as { rules?: unknown[] };
+        setCount(body.rules?.length ?? 0);
+      })
+      .catch(() => {
+        // Unreachable — no status line; evaluation still runs.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, token]);
+  if (count === null) return null;
+  return (
+    <p className="settings-section__subtitle" role="status">
+      {count === 0
+        ? "No workflow rules active."
+        : `${count} workflow rule${count === 1 ? "" : "s"} active — evaluated on this device as envelopes apply.`}
+    </p>
+  );
+}
+
+function SyncSection({ serverUrl, token, onForgetServer, onConnectServer }: SyncSectionProps) {
+  // "disconnect" un-selects the current server (sign-out; the address stays
+  // in the list); "remove-current" deletes the current entry, which implies
+  // the sign-out — a removed address cannot stay selected.
+  const [confirm, setConfirm] = useState<"disconnect" | "remove-current" | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDraft, setAddDraft] = useState("");
+  const [addConnecting, setAddConnecting] = useState(false);
+  // Device-local registry of every sync server address this device has seen.
+  // The current server always leads the list and is remembered on first
+  // sight, so it survives a later disconnect.
+  const [knownServers, setKnownServers] = useDeviceSetting<string[]>("knownSyncServers", []);
+
+  useEffect(() => {
+    if (serverUrl !== "" && !knownServers.includes(serverUrl)) {
+      setKnownServers([serverUrl, ...knownServers]);
+    }
+  }, [serverUrl, knownServers, setKnownServers]);
+
+  const servers =
+    serverUrl !== ""
+      ? [serverUrl, ...knownServers.filter((url) => url !== serverUrl && url.trim() !== "")]
+      : knownServers.filter((url) => url.trim() !== "");
+
+  const isCurrent = (url: string) => url === serverUrl;
+
+  const removeServer = (url: string) => {
+    if (isCurrent(url)) {
+      setConfirm("remove-current");
+      return;
+    }
+    setKnownServers(knownServers.filter((known) => known !== url));
+  };
+
+  const closeAdd = () => {
+    if (addConnecting) return;
+    setAddOpen(false);
+  };
+
+  const connectTo = (url: string) => {
+    if (!knownServers.includes(url)) setKnownServers([...knownServers, url]);
+    // The probe runs in the parent (boot screen on success or failure); the
+    // button's loading register spins until this surface unmounts.
+    setAddConnecting(true);
+    onConnectServer(url);
+  };
+
+  return (
+    <>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Workflow Rules</h3>
+        <Card>
+          <WorkflowStatusLine serverUrl={serverUrl} token={token} />
+          <p className="settings-section__description">
+            Rules run on this device as envelopes apply — actions are ordinary envelopes that
+            every client converges on. The full rules UI is future work.
+          </p>
+        </Card>
+      </div>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Sync Server</h3>
+        <Card>
+          <div className="settings-server-list">
+            <RadioGroup
+              name="sync-server"
+              value={serverUrl}
+              aria-label="Known sync servers"
+              onValueChange={(value) => {
+                if (value !== serverUrl) onConnectServer(value);
+              }}
+            >
+              {servers.map((url) => (
+                <div key={url} className="settings-server-row">
+                  <Radio
+                    value={url}
+                    label={url}
+                    size="sm"
+                    className="settings-server-row__radio"
+                  />
+                  <div className="settings-server-row__actions">
+                    {isCurrent(url) ? (
+                      <Pill
+                        text="Current"
+                        className="settings-server-row__flag"
+                        leftIcon={<Icon path="mdi-flag-outline" size={0.75} />}
+                      />
+                    ) : null}
+                    {isCurrent(url) ? (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        className="settings-server-row__disconnect"
+                        onClick={() => setConfirm("disconnect")}
+                      >
+                        Disconnect
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon="mdi mdi-trash-can-outline"
+                      aria-label={`Remove ${url}`}
+                      className="settings-server-row__trash"
+                      onClick={() => removeServer(url)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </RadioGroup>
+            <div className="settings-server-add">
+              <AddPill
+                label="Add server"
+                onClick={() => {
+                  setAddDraft("");
+                  setAddConnecting(false);
+                  setAddOpen(true);
+                }}
+              />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Modal
+        isOpen={addOpen}
+        onClose={closeAdd}
+        title="Add a sync server"
+        size="sm"
+        className="settings-server-modal"
+        footer={
+          <>
+            <Button variant="outline" size="md" onClick={closeAdd} disabled={addConnecting}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={addConnecting}
+              disabled={addDraft.trim() === ""}
+              onClick={() => connectTo(addDraft.trim())}
+            >
+              Connect
+            </Button>
+          </>
+        }
+      >
+        <p className="settings-section__description">
+          Probe a different sync server — on success you sign in there and it joins the
+          list.
+        </p>
+        <TextField
+          label="Server URL"
+          size="sm"
+          value={addDraft}
+          onChange={(e) => setAddDraft(e.target.value)}
+          placeholder="https://notees.example.com"
+          disabled={addConnecting}
+        />
+      </Modal>
+
+      <ConfirmationModal
+        isOpen={confirm === "disconnect"}
+        variant="danger"
+        title="Disconnect from this server?"
+        message="You will be signed out on this device; local data stays. The address stays in the list so you can reconnect from here."
+        confirmLabel="Disconnect"
+        onConfirm={() => {
+          setConfirm(null);
+          onForgetServer();
+        }}
+        onCancel={() => setConfirm(null)}
+      />
+
+      <ConfirmationModal
+        isOpen={confirm === "remove-current"}
+        variant="danger"
+        title="Remove this server?"
+        message="The address leaves the list and you are signed out on this device; local data stays."
+        confirmLabel="Remove"
+        onConfirm={() => {
+          setConfirm(null);
+          setKnownServers(knownServers.filter((known) => known !== serverUrl));
+          onForgetServer();
+        }}
+        onCancel={() => setConfirm(null)}
+      />
+    </>
+  );
+}
+
+interface AccountSectionProps {
+  serverUrl: string;
+  token: string;
+  user: AccountUser;
+  onSignOut: () => void;
+}
+
+/**
+ * The ADS credential editor — a password-styled field over the per-user
+ * prefs channel (GET/PUT /api/me/prefs, the owner-bound column). The token
+ * is server-only: it never caches device-locally, the read happens once on
+ * mount, and a save rides straight to the server (the Account section holds
+ * server coordinates, like the API-keys card beside it).
+ */
+function ChangePasswordCard({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirmNext, setConfirmNext] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+
+  const submit = async () => {
+    if (busy) return;
+    setNotice(null);
+    if (next.length < 8) {
+      setNotice({ kind: "error", text: "The new password must be at least 8 characters." });
+      return;
+    }
+    if (next !== confirmNext) {
+      setNotice({ kind: "error", text: "The new passwords do not match." });
+      return;
+    }
+    setBusy(true);
+    try {
+      // The current password unlocks the kdf record; the SAME master key is
+      // re-wrapped under the new password (the route compares keyFp to prove
+      // sameness). The raw bytes exist strictly inside this call.
+      const { kdf } = await unlock(serverUrl, { email, password: current });
+      const { bytes } = await unwrapMasterKeyWithBytes(current, kdf);
+      const extractable = await importMasterKey(bytes, true);
+      const newKdfRecord = await createKdfRecord(extractable, next);
+      await changePassword(serverUrl, token, { currentPassword: current, newKdfRecord });
+      setNotice({
+        kind: "ok",
+        text: "Password changed. Other devices will need the new password at next unlock — this device stays signed in.",
+      });
+      setCurrent("");
+      setNext("");
+      setConfirmNext("");
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-ads">
+      <p className="settings-section__description">
+        Rewraps the account master key under a new password. Your history stays readable —
+        other devices simply need the new password at next unlock. Lost password with no
+        recovery code means lost history.
+      </p>
+      <TextField
+        label="Current password"
+        type="password"
+        value={current}
+        onChange={(event) => setCurrent(event.target.value)}
+        autoComplete="current-password"
+        disabled={busy}
+      />
+      <TextField
+        label="New password"
+        type="password"
+        value={next}
+        onChange={(event) => setNext(event.target.value)}
+        autoComplete="new-password"
+        disabled={busy}
+      />
+      <TextField
+        label="Confirm new password"
+        type="password"
+        value={confirmNext}
+        onChange={(event) => setConfirmNext(event.target.value)}
+        autoComplete="new-password"
+        disabled={busy}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void submit();
+        }}
+      />
+      <div className="settings-ads__row">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => void submit()}
+          disabled={busy || current === "" || next === "" || confirmNext === ""}
+          loading={busy}
+        >
+          Change password
+        </Button>
+        {notice !== null && (
+          <p className="settings-ads__notice" role="status" data-kind={notice.kind}>
+            {notice.text}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdsTokenCard({ serverUrl, token }: { serverUrl: string; token: string }) {
+  const [value, setValue] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`${serverUrl.replace(/\/$/, "")}/api/me/prefs`, { headers: { "X-API-Key": token } })
+      .then(async (response) => {
+        if (!response.ok || cancelled) return;
+        const body = (await response.json()) as { adsApiToken?: unknown };
+        if (typeof body.adsApiToken === "string") setValue(body.adsApiToken);
+        setLoaded(true);
+      })
+      .catch(() => {
+        // Unreachable — the field stays empty; the next save sets it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, token]);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api/me/prefs`, {
+        method: "PUT",
+        headers: { "X-API-Key": token, "content-type": "application/json" },
+        body: JSON.stringify({ adsApiToken: value }),
+      });
+      setNotice(response.ok ? "Saved." : "Could not save the token — try again.");
+    } catch {
+      setNotice("Could not reach the server — the token was not saved.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-ads">
+      <TextField
+        label="ADS API token"
+        type="password"
+        value={value}
+        onChange={(event) => {
+          setValue(event.target.value);
+          setNotice(null);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void save();
+        }}
+        placeholder={loaded ? "No token set" : "Loading…"}
+        autoComplete="off"
+        disabled={busy}
+      />
+      <div className="settings-ads__row">
+        <Button variant="outline" size="sm" onClick={() => void save()} disabled={busy} loading={busy}>
+          Save token
+        </Button>
+        {notice !== null && (
+          <p className="settings-ads__notice" role="status">
+            {notice}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountSection({ serverUrl, token, user, onSignOut }: AccountSectionProps) {
+  return (
+    <>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Account</h3>
+        <Card>
+          <div className="settings-user-card">
+            <div className="settings-user-info">
+              <div className="settings-user-avatar">
+                {(user.displayName || user.email || "?").charAt(0).toUpperCase()}
+              </div>
+              <div className="settings-user-details">
+                <p className="settings-user-name">
+                  {user.displayName || user.email || "User"}
+                </p>
+                <p className="settings-user-id">{user.email || "Unknown"}</p>
+              </div>
+            </div>
+
+            <div className="settings-account-meta">
+              <div className="settings-meta-item">
+                <span className="settings-meta-label">Account Type</span>
+                <span className="settings-meta-value">
+                  {user.isAdmin ? "Admin" : "Standard"}
+                </span>
+              </div>
+              <div className="settings-meta-item">
+                <span className="settings-meta-label">Status</span>
+                <span className="settings-meta-value settings-meta-value--active">
+                  Active
+                </span>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Edit Profile</h3>
+        <Card>
+          <p className="settings-section__subtitle">
+            Editing your profile is not available in this build.
+          </p>
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">ADS Token</h3>
+        <Card>
+          <p className="settings-section__description">
+            Add sources by ADS bibcode (Astrophysics Data System): the resolver sends
+            YOUR token to api.adsabs.harvard.edu — and nowhere else — when you look up a
+            bibcode. Get a free token at ui.adsabs.harvard.edu, under Account → API
+            token. Saving an empty field clears the stored token.
+          </p>
+          <AdsTokenCard serverUrl={serverUrl} token={token} />
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Change Password</h3>
+        <Card>
+          <ChangePasswordCard serverUrl={serverUrl} token={token} email={user.email ?? ""} />
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Device Access (API Keys)</h3>
+        <Card>
+          <ApiKeysSection serverUrl={serverUrl} token={token} email={user.email ?? ""} />
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Account Actions</h3>
+        <Card>
+          <Button
+            className="settings-btn settings-btn--logout"
+            variant="danger"
+            size="md"
+            onClick={onSignOut}
+          >
+            Log out
+          </Button>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function RecoveryCodesCard({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listRecoveryCodes(serverUrl, token)
+      .then((result) => {
+        if (!cancelled) setRemaining(result.codes.length);
+      })
+      .catch(() => {
+        // Unreachable — the count stays unknown; generation still works.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [serverUrl, token]);
+
+  const generate = async () => {
+    if (busy) return;
+    setNotice(null);
+    setBusy(true);
+    try {
+      // The password unwraps the master key (via the session-less unlock
+      // check); the codes wrap it and are shown ONCE. Generation revokes any
+      // previous set.
+      const { kdf } = await unlock(serverUrl, { email, password });
+      const created = await generateAndInstallRecoveryCodes(serverUrl, token, password, kdf);
+      setCodes(created);
+      setRemaining(created.length);
+      setPassword("");
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="settings-ads">
+      <p className="settings-section__description">
+        Recovery codes are the ONLY way back in after a lost password — lost password with no
+        code means lost history. Each code works once: entering it lets you set a new password.
+        Store them somewhere safe, outside this app.
+      </p>
+      {remaining !== null && (
+        <p className="settings-section__subtitle" role="status">
+          {remaining === 0
+            ? "No recovery codes on file."
+            : `${remaining} recovery code${remaining === 1 ? "" : "s"} on file.`}
+        </p>
+      )}
+      {codes === null ? (
+        <>
+          <TextField
+            label="Account password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            autoComplete="current-password"
+            disabled={busy}
+          />
+          <div className="settings-ads__row">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void generate()}
+              disabled={busy || password === ""}
+              loading={busy}
+            >
+              Generate new codes
+            </Button>
+            {notice !== null && (
+              <p className="settings-ads__notice" role="status" data-kind={notice.kind}>
+                {notice.text}
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="settings-section__subtitle" role="alert">
+            Save these codes NOW — they are shown exactly once. Generating a new set revokes them.
+          </p>
+          <ol className="settings-recovery-codes">
+            {codes.map((code) => (
+              <li key={code}>
+                <code>{code}</code>
+              </li>
+            ))}
+          </ol>
+          <div className="settings-ads__row">
+            <Button variant="outline" size="sm" onClick={() => setCodes(null)}>
+              I saved them
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SecuritySection({ serverUrl, token, email }: { serverUrl: string; token: string; email: string }) {
+  return (
+    <>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Recovery Codes</h3>
+        <Card>
+          <RecoveryCodesCard serverUrl={serverUrl} token={token} email={email} />
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Two-Factor Authentication</h3>
+        <Card>
+          <p className="settings-section__subtitle">
+            Two-factor authentication is not available in this build.
+          </p>
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Encryption at Rest</h3>
+        <Card>
+          <p className="settings-section__subtitle">
+            Local-cache encryption is not available in this build.
+          </p>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function SupportSection() {
+  const [supportBadgeHidden, setSupportBadgeHidden] = useDeviceSetting("supportBadgeHidden", false);
+  const [supportBadgeHiddenUntil, setSupportBadgeHiddenUntil] = useDeviceSetting<number | null>(
+    "supportBadgeHiddenUntil",
+    null,
+  );
+  const supportBadgeVisible =
+    !supportBadgeHidden ||
+    (supportBadgeHiddenUntil !== null && supportBadgeHiddenUntil <= Date.now());
+  return (
+    <>
+      <div className="settings-section">
+        <h3 className="settings-section__title">Support Preferences</h3>
+        <Card>
+          <div className="settings-item">
+            <div className="settings-item__info">
+              <label htmlFor="support-badge-toggle" className="settings-item__label">
+                Show support badge
+              </label>
+              <p className="settings-item__description">
+                Display a small &quot;Support Notees&quot; reminder in the sidebar.
+              </p>
+            </div>
+            <BooleanToggle
+              id="support-badge-toggle"
+              checked={supportBadgeVisible}
+              onChange={(checked) => {
+                const show = checked;
+                setSupportBadgeHidden(!show);
+                if (show) {
+                  setSupportBadgeHiddenUntil(null);
+                }
+              }}
+              size="md"
+            />
+          </div>
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Sponsor the Project</h3>
+        <Card>
+          <p className="settings-section__subtitle">
+            Notees is free, open source, and funded by people like you. If you find it
+            useful, consider sponsoring development.
+          </p>
+
+          <div className="settings-support-channels">
+            {SPONSORSHIP_CHANNELS.map((channel) => (
+              <a
+                key={channel.id}
+                href={channel.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="settings-support-channel"
+              >
+                <span className="settings-support-channel__icon" aria-hidden="true">
+                  <Icon path={channel.icon} size={1.2} />
+                </span>
+                <div className="settings-support-channel__info">
+                  <span className="settings-support-channel__name">{channel.name}</span>
+                  <span className="settings-support-channel__description">
+                    {channel.description}
+                  </span>
+                </div>
+                <span className="settings-support-channel__arrow" aria-hidden="true">
+                  <Icon path="mdi-open-in-new" size={0.9} />
+                </span>
+              </a>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function AboutSection() {
+  return (
+    <>
+      <div className="settings-section">
+        <h3 className="settings-section__title">About Notees</h3>
+        <Card>
+          <div className="settings-about">
+            <img src="/app-icon-512.svg" alt="" className="settings-about__logo" />
+            <h4 className="settings-about__name">Notees</h4>
+            <p className="settings-about__description">
+              A self-hosted, privacy-first, local-first personal information environment:
+              one object graph whose only authority is an immutable operation log.
+            </p>
+            <p className="settings-about__copyright">
+              © {new Date().getFullYear()} Miquel Rosell Tarragó
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Privacy</h3>
+        <Card>
+          <div className="settings-privacy-card">
+            <p className="settings-privacy-card__text">
+              No cloud. All data stays on your server.
+            </p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section__title">Links</h3>
+        <Card>
+          <div className="settings-links">
+            <a
+              href="https://github.com/miquelrosell99/notees#readme"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="settings-link"
+            >
+              Documentation
+            </a>
+            <a
+              href="https://github.com/miquelrosell99/notees/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="settings-link"
+            >
+              Report a bug
+            </a>
+            <a
+              href="https://github.com/miquelrosell99/notees/issues/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="settings-link"
+            >
+              Feature request
+            </a>
+          </div>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+export interface SettingsPageProps {
+  section: SettingsSection;
+  /** Push a section change (state + URL) — the App owns history. */
+  onNavigate: (section: SettingsSection) => void;
+  serverUrl: string;
+  token: string;
+  user: AccountUser;
+  onSignOut: () => void;
+  /** Disconnect & forget: clears the stored server + credentials and signs
+   *  out; the parent owns the transition back to the boot form. */
+  onForgetServer: () => void;
+  /** Connect to a different sync server; the parent owns the probe. */
+  onConnectServer: (url: string) => void;
+}
+
+export function SettingsPage({
+  section,
+  onNavigate,
+  serverUrl,
+  token,
+  user,
+  onSignOut,
+  onForgetServer,
+  onConnectServer,
+}: SettingsPageProps) {
+  return (
+    <div className="settings-page">
+      <nav className="settings-page__nav" aria-label="Settings sections">
+        {SETTINGS_SECTIONS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`settings-page__nav-item ${section === item.id ? "settings-page__nav-item--active" : ""}`}
+            aria-current={section === item.id ? "page" : undefined}
+            onClick={() => onNavigate(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      <div className="settings-page__content">
+        {section === "appearance" && <AppearanceSection />}
+        {section === "editor" && <EditorSection />}
+        {section === "general" && <GeneralSection />}
+        {section === "sync" && (
+          <SyncSection
+            serverUrl={serverUrl}
+            token={token}
+            onForgetServer={onForgetServer}
+            onConnectServer={onConnectServer}
+          />
+        )}
+        {section === "account" && (
+          <AccountSection serverUrl={serverUrl} token={token} user={user} onSignOut={onSignOut} />
+        )}
+        {section === "security" && (
+          <SecuritySection serverUrl={serverUrl} token={token} email={user.email ?? ""} />
+        )}
+        {section === "support" && <SupportSection />}
+        {section === "about" && <AboutSection />}
+      </div>
+    </div>
+  );
+}

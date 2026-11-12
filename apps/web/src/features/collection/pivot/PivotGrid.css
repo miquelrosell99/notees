@@ -1,0 +1,52 @@
+/* PivotGrid — the pivot view mode (query results + every collection
+   surface): the dimension pickers ride a control row, the grid a sober
+   bordered table (numeric cells right-aligned, row headers sticky-label
+   plain). */
+
+.nt-query-pivot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-query-pivot__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+.nt-query-pivot__grid {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  font-size: var(--font-size-sm);
+}
+
+.nt-query-pivot__grid th,
+.nt-query-pivot__grid td {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  padding: var(--spacing-micro) var(--spacing-2-5);
+  text-align: left;
+}
+
+.nt-query-pivot__grid thead th {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+.nt-query-pivot__grid tbody th {
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-query-pivot__grid .nt-query-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nt-query-pivot__corner {
+  min-width: 10ch;
+}

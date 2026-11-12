@@ -1,0 +1,26 @@
+/* AdoptionOfferModal — the F2 publish offer for an offline-created workspace */
+
+.adoption-offer-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-2) 0;
+}
+
+.adoption-offer-modal__explain {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.adoption-offer-modal__error {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--md-sys-color-error);
+}
+
+.adoption-offer-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

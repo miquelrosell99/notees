@@ -1,0 +1,785 @@
+/**
+ * Search & command palette wave — jsdom
+ * over the in-process WorkspaceClient:
+ *
+ *  - CommandPalette sections: Recently created + Recently linked (the new
+ *    empty-query home, backed by the store's recentLinkTargets recency read),
+ *    Random, Date Pages, Pages, Classes, Properties, Content, Commands
+ *    (the action registry, with the query-scoped typed create); search
+ *    results rank Classes → Properties → Pages → Content, then Date Pages
+ *    and Commands; the empty-query home keeps Recently created → Recently
+ *    linked → Random → Commands; node rows carry their EFFECTIVE icon
+ *    (own → class-chain → render-state default);
+ *  - the Content group debounces the ranked FTS, renders match snippets, and
+ *    labels block hits with their containing page;
+ *  - the `is_daily:` prefix scopes the palette to the Date Pages section,
+ *    and formatted-date keywords ("feb 14") map onto the deterministic date
+ *    chain (create-on-pick via ensureDateChain);
+ *  - NodeSelector: a leading `class:<name>` prefix refines candidates
+ *    to that class's members, and the create row answers the rest of the
+ *    query carrying the refined class;
+ *  - NodeSelector: the classes tab, the exact-name create-row suppression
+ *    and the `class:` refine all fold diacritics (the store search mirror):
+ *    "video" matches the class "Vídeo";
+ *  - NodeSelector: searchMode="blocks" lists only inline blocks, each
+ *    labeled with its containing-page path;
+ *  - `/` filter mode (palette + picker): the slash opens the Filters option
+ *    list (kinds + class rows + the "With class…" browse), applying an
+ *    option renders a removable chip and scopes the results (Commands chip →
+ *    the action registry only; a With-class chip → the class's members),
+ *    chips compose with the existing text prefixes, and Backspace on an
+ *    empty query pops the last chip.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+import { chainNodeIds, deriveDisplayName } from "@notees/domain";
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { EMPTY_UNDO_STATE, type UndoUiState } from "../src/core/undo-journal.js";
+import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
+import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
+
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+/** WORKAROUND(store applier): class.create's contentAst never lands — seed
+ * titles through object.update; remove once the applier is fixed. */
+async function createTitledClass(client: WorkspaceClient, title: string): Promise<string> {
+  const id = await client.createClass(title);
+  await client.updateObject(id, { contentAst: [{ type: "text", text: title }] });
+  return id;
+}
+
+interface PaletteWorld {
+  client: WorkspaceClient;
+  garden: string;
+  catalog: string;
+  notes: string;
+}
+
+async function seedPaletteWorld(): Promise<PaletteWorld> {
+  const client = await seedClient();
+  const garden = await client.createObject({
+    isEmbedded: false,
+    contentAst: [{ type: "text", text: "Garden" }],
+  });
+  // Title match for "tulip": belongs to Pages, deduped out of Content.
+  const catalog = await client.createObject({
+    isEmbedded: false,
+    contentAst: [{ type: "text", text: "Tulip Catalog" }],
+  });
+  const notes = await client.createObject({
+    isEmbedded: false,
+    contentAst: [{ type: "text", text: "Notes" }],
+  });
+  await client.createObject({
+    isEmbedded: true,
+    parentId: notes,
+    contentAst: [{ type: "text", text: "tulip bulbs go in the border" }],
+  });
+  return { client, garden, catalog, notes };
+}
+
+function renderPalette(
+  client: WorkspaceClient,
+  handlers: {
+    onOpenNode?: (id: string) => void;
+    onNewPage?: (title?: string) => void;
+    onOpenProperty?: (id: string) => void;
+    undoState?: UndoUiState;
+  } = {},
+) {
+  const opened: string[] = [];
+  const created: Array<string | undefined> = [];
+  const openedProperties: string[] = [];
+  const undoCalls: string[] = [];
+  render(
+    <CommandPalette
+      client={client}
+      open
+      onRequestOpen={() => {}}
+      onClose={() => {}}
+      onOpenNode={handlers.onOpenNode ?? ((id) => opened.push(id))}
+      onNewPage={handlers.onNewPage ?? ((title) => created.push(title))}
+      onOpenProperty={handlers.onOpenProperty ?? ((id) => openedProperties.push(id))}
+      onSignOut={() => {}}
+      undoState={handlers.undoState ?? EMPTY_UNDO_STATE}
+      onUndo={() => undoCalls.push("undo")}
+      onRedo={() => undoCalls.push("redo")}
+      cacheVersion={0}
+    />,
+  );
+  return { opened, created, openedProperties, undoCalls };
+}
+
+const typeInPalette = (text: string): void => {
+  fireEvent.change(screen.getByLabelText("Command palette search"), { target: { value: text } });
+};
+
+describe("CommandPalette home sections", () => {
+  it("empty query shows Recently created → Recently linked → Random → Commands (the device Recent section is gone)", async () => {
+    const client = await seedClient();
+    // An old page something links at, five newer pages, then the linking
+    // source — so Recently linked has a row the first section didn't claim.
+    const target = await client.createObject({ isEmbedded: false, name: "Old Target" });
+    for (let i = 0; i < 5; i += 1) {
+      await client.createObject({ isEmbedded: false, name: `Filler ${i + 1}` });
+    }
+    const source = await client.createObject({ isEmbedded: false, name: "Source" });
+    await client.updateObject(source, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: target }],
+    });
+    renderPalette(client);
+
+    expect(await screen.findByText("Recently created")).not.toBeNull();
+    expect(screen.getByText("Recently linked")).not.toBeNull();
+    expect(screen.getByText("Random")).not.toBeNull();
+    expect(screen.getByText("Commands")).not.toBeNull();
+    expect(screen.queryByText("Recent")).toBeNull();
+    // Group order on the home surface.
+    const labels = [...document.querySelectorAll(".nt-palette-group-label")].map(
+      (el) => el.textContent,
+    );
+    const rankOf = (label: string) => labels.indexOf(label);
+    expect(rankOf("Recently created")).toBeGreaterThanOrEqual(0);
+    expect(rankOf("Recently linked")).toBeGreaterThan(rankOf("Recently created"));
+    expect(rankOf("Random")).toBeGreaterThan(rankOf("Recently linked"));
+    expect(rankOf("Commands")).toBeGreaterThan(rankOf("Random"));
+    // No query: the fuzzy title sections stay quiet.
+    expect(screen.queryByText("Pages")).toBeNull();
+  });
+
+  it("Recently created ranks the chrome pages by createdAt, newest first", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Alpha" });
+    await client.createObject({ isEmbedded: false, name: "Beta" });
+    await client.createObject({ isEmbedded: false, name: "Gamma" });
+    renderPalette(client);
+
+    expect(await screen.findByText("Recently created")).not.toBeNull();
+    expect(labelsUnderGroup("Recently created")).toEqual(["Gamma", "Beta", "Alpha"]);
+  });
+
+  it("the Recently linked section hides when nothing was ever linked (honest emptiness)", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Lonely Page" });
+    renderPalette(client);
+
+    expect(await screen.findByText("Recently created")).not.toBeNull();
+    expect(screen.queryByText("Recently linked")).toBeNull();
+  });
+
+  it("Recently linked surfaces the page a new mention points at — even one too old for Recently created", async () => {
+    const client = await seedClient();
+    const target = await client.createObject({ isEmbedded: false, name: "Linked Target" });
+    // Five newer pages push the target out of Recently created's five.
+    for (let i = 0; i < 5; i += 1) {
+      await client.createObject({ isEmbedded: false, name: `Filler ${i + 1}` });
+    }
+    const source = await client.createObject({ isEmbedded: false, name: "Source" });
+    await client.updateObject(source, {
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: target }],
+    });
+    renderPalette(client);
+
+    expect(await screen.findByText("Recently linked")).not.toBeNull();
+    expect(labelsUnderGroup("Recently linked")).toContain("Linked Target");
+    // The target is NOT in Recently created (the fillers are newer).
+    expect(labelsUnderGroup("Recently created")).not.toContain("Linked Target");
+  });
+
+  it("node rows show the EFFECTIVE icon: the class-chain icon when the node has none of its own", async () => {
+    const client = await seedClient();
+    const novelId = await createTitledClass(client, "Novel");
+    await client.updateObject(novelId, { icon: "mdi-book-open-variant" });
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [novelId] });
+    renderPalette(client);
+
+    // Dune is the newest page — the first Recently created row (Random may
+    // pick it too; Random is dedupe-exempt, so scope to the first row).
+    const row = (await screen.findAllByText("Dune"))[0]?.closest(".nt-palette-item");
+    const href = row?.querySelector(".nt-palette-item-icon use")?.getAttribute("href");
+    expect(href).toBe("/mdi-sprite.svg#mdi-book-open-variant");
+  });
+});
+
+describe("CommandPalette sections", () => {
+  it("typed creation: the Commands registry offers 'Create page \"<query>\"'", async () => {
+    const { client } = await seedPaletteWorld();
+    const { created } = renderPalette(client);
+    typeInPalette("Shopping List");
+    const row = await screen.findByText('Create page "Shopping List"');
+    fireEvent.click(row);
+    expect(created).toEqual(["Shopping List"]);
+  });
+
+  it("typed creation: a bare year outside the date window offers 'Create year \"<query>\"'", async () => {
+    const { client } = await seedPaletteWorld();
+    const { created } = renderPalette(client);
+    typeInPalette("1711");
+    const row = await screen.findByText('Create year "1711"');
+    fireEvent.click(row);
+    expect(created).toEqual(["1711"]);
+  });
+
+  it("typed creation: an in-window year keeps the generic 'Create page' row (the date machinery owns it)", async () => {
+    const { client } = await seedPaletteWorld();
+    renderPalette(client);
+    // 2026 is inside the 1900..2200 date-node window: the palette's date
+    // sections own the year affordance, the typed create stays generic.
+    typeInPalette("2026");
+    expect(await screen.findByText('Create page "2026"')).not.toBeNull();
+    expect(screen.queryByText('Create year "2026"')).toBeNull();
+  });
+
+  it("a shell re-render with fresh callback identities does not wipe the typed query", async () => {
+    const { client } = await seedPaletteWorld();
+    // App hands the palette fresh inline arrows every render; during a
+    // background catch-up the shell re-renders constantly. The open-reset
+    // effect must not re-run on callback identity churn — the query and its
+    // results survive (the post-fix smoke caught the wipe live).
+    const props = {
+      client,
+      open: true,
+      onRequestOpen: () => {},
+      onClose: () => {},
+      onOpenNode: () => {},
+      onNewPage: () => {},
+      onSignOut: () => {},
+      undoState: EMPTY_UNDO_STATE,
+      onUndo: () => {},
+      onRedo: () => {},
+      cacheVersion: 0,
+    };
+    const view = render(<CommandPalette {...props} />);
+    typeInPalette("Garden");
+    expect((await screen.findAllByText("Garden")).length).toBeGreaterThan(0);
+    // App-style re-render: every callback a brand-new arrow identity.
+    view.rerender(
+      <CommandPalette
+        {...props}
+        onOpenNode={() => {}}
+        onNewPage={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect((screen.getByLabelText("Command palette search") as HTMLInputElement).value).toBe("Garden");
+    expect(screen.getAllByText("Garden").length).toBeGreaterThan(0);
+  });
+});
+
+/** Row labels under one group label, in row order (the home's section mix
+ *  varies, so tests scope by group, not by absolute row index). */
+function labelsUnderGroup(group: string): Array<string | null> {
+  const nodes = [...document.querySelectorAll(".nt-palette-group-label, .nt-palette-item-label")];
+  const start = nodes.findIndex(
+    (el) => el.classList.contains("nt-palette-group-label") && el.textContent === group,
+  );
+  if (start < 0) return [];
+  const out: Array<string | null> = [];
+  for (const el of nodes.slice(start + 1)) {
+    if (el.classList.contains("nt-palette-group-label")) break;
+    out.push(el.textContent);
+  }
+  return out;
+}
+
+describe("CommandPalette Random section (#8)", () => {
+  /** A workspace of `count` plain pages, all eligible for the section. */
+  async function seedRandomWorld(count: number): Promise<WorkspaceClient> {
+    const client = await seedClient();
+    for (let i = 0; i < count; i += 1) {
+      await client.createObject({
+        isEmbedded: false,
+        contentAst: [{ type: "text", text: `Page ${i + 1}` }],
+      });
+    }
+    return client;
+  }
+
+  it("the empty query shows the Random section with five rows and a refresh button", async () => {
+    const client = await seedRandomWorld(8);
+    renderPalette(client);
+
+    expect(await screen.findByText("Random")).not.toBeNull();
+    expect(screen.getByLabelText("Refresh random pages")).not.toBeNull();
+    // The section owns exactly five rows (the command count is a moving
+    // registry — assert the section's five, not the total).
+    expect(labelsUnderGroup("Random")).toHaveLength(5);
+    expect(labelsUnderGroup("Random").every((label) => /^Page \d$/.test(label ?? ""))).toBe(true);
+    expect(screen.getByText("Commands")).not.toBeNull();
+  });
+
+  it("the Random section answers no query (empty-query only, like the home sections)", async () => {
+    const client = await seedRandomWorld(8);
+    renderPalette(client);
+    await screen.findByText("Random");
+    typeInPalette("Page 1");
+    expect(screen.queryByText("Random")).toBeNull();
+    // The fuzzy Pages section owns the query instead.
+    expect(await screen.findByText("Pages")).not.toBeNull();
+  });
+
+  it("refresh re-picks via a seeded Math.random, opening a different five", async () => {
+    const client = await seedRandomWorld(8);
+    // Math.random() === 0 drives Fisher–Yates on [Page 1..8] to
+    // [2,3,4,5,6,7,8,1] (every swap pulls index 0 forward).
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    renderPalette(client);
+    await screen.findByText("Random");
+    expect(labelsUnderGroup("Random")).toEqual(["Page 2", "Page 3", "Page 4", "Page 5", "Page 6"]);
+
+    // Math.random() === 0.99 makes every swap a no-op (identity order).
+    randomSpy.mockReturnValue(0.99);
+    fireEvent.click(screen.getByLabelText("Refresh random pages"));
+    expect(labelsUnderGroup("Random")).toEqual(["Page 1", "Page 2", "Page 3", "Page 4", "Page 5"]);
+  });
+
+  it("refresh does NOT re-query the worker (the same cached pool re-shuffles)", async () => {
+    const client = await seedRandomWorld(8);
+    const listSpy = vi.spyOn(client, "listPageSummaries");
+    renderPalette(client);
+    await screen.findByText("Random");
+    const callsAfterOpen = listSpy.mock.calls.length;
+    expect(callsAfterOpen).toBeGreaterThan(0);
+    fireEvent.click(screen.getByLabelText("Refresh random pages"));
+    expect(listSpy.mock.calls.length).toBe(callsAfterOpen);
+  });
+});
+
+describe("CommandPalette Content group", () => {
+  it("debounced ranked FTS with snippets, block hits labeled by containing page", async () => {
+    const { client } = await seedPaletteWorld();
+    const { opened } = renderPalette(client);
+    typeInPalette("tulip");
+    // The Content group surfaces the block whose text matches.
+    expect(await screen.findByText("Content")).not.toBeNull();
+    const row = await screen.findByText("tulip bulbs go in the border");
+    expect(row).not.toBeNull();
+    // The block hit is labeled with its containing page (Notes).
+    expect(screen.getByText("Notes", { selector: ".nt-palette-item-meta" })).not.toBeNull();
+    // The snippet marks the matched token.
+    const mark = screen.getByText("tulip", { selector: ".nt-search-mark" });
+    expect(mark.closest(".nt-search-snippet")).not.toBeNull();
+    fireEvent.click(row);
+    expect(opened).toHaveLength(1);
+    expect(client.getNode(opened[0]!)?.parentId).not.toBeNull();
+    // The title-matched page lands in Pages, deduped out of Content: the
+    // Content group holds exactly the one block row.
+    expect(screen.getByText("Pages")).not.toBeNull();
+    expect(screen.getByText("Tulip Catalog")).not.toBeNull();
+    expect(document.querySelectorAll(".nt-palette-snippet")).toHaveLength(1);
+  });
+});
+
+describe("CommandPalette Properties section", () => {
+  it("lists property schemas and opens the picked one via onOpenProperty", async () => {
+    const { client } = await seedPaletteWorld();
+    const schemaId = await client.createPropertySchema({ name: "Genre", type: "select" });
+    const { openedProperties } = renderPalette(client);
+    typeInPalette("genre");
+    expect(await screen.findByText("Properties")).not.toBeNull();
+    const row = screen.getByText("Genre");
+    fireEvent.click(row);
+    expect(openedProperties).toEqual([schemaId]);
+  });
+
+  it("matches property schemas by type keyword", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.createPropertySchema({ name: "First read", type: "datetime" });
+    renderPalette(client);
+    typeInPalette("date");
+    expect(await screen.findByText("Properties")).not.toBeNull();
+    expect(screen.getByText("First read")).not.toBeNull();
+  });
+
+  it("stays quiet on the empty query and under is_daily:", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.createPropertySchema({ name: "Genre", type: "select" });
+    // A date page must exist for the is_daily: scoping to list the section.
+    await client.ensureDateChain("2026-03-05");
+    renderPalette(client);
+    expect(screen.queryByText("Properties")).toBeNull();
+    typeInPalette("is_daily:");
+    expect(await screen.findByText("Date Pages")).not.toBeNull();
+    expect(screen.queryByText("Properties")).toBeNull();
+  });
+
+  it("search sections rank Classes, Properties, Pages, Content", async () => {
+    const { client } = await seedPaletteWorld();
+    await createTitledClass(client, "Tulip");
+    await client.createPropertySchema({ name: "Tulip rating", type: "number" });
+    renderPalette(client);
+    typeInPalette("tulip");
+    // Content is debounced — wait for the last of the four groups.
+    expect(await screen.findByText("Content")).not.toBeNull();
+    const labels = [...document.querySelectorAll(".nt-palette-group-label")].map(
+      (el) => el.textContent,
+    );
+    const rankOf = (label: string) => labels.indexOf(label);
+    expect(rankOf("Classes")).toBeGreaterThanOrEqual(0);
+    expect(rankOf("Properties")).toBeGreaterThan(rankOf("Classes"));
+    expect(rankOf("Pages")).toBeGreaterThan(rankOf("Properties"));
+    expect(rankOf("Content")).toBeGreaterThan(rankOf("Pages"));
+  });
+});
+
+describe("CommandPalette date affordances", () => {
+  it("formatted-date keywords offer the parsed date page (created on pick)", async () => {
+    const { client } = await seedPaletteWorld();
+    const { opened } = renderPalette(client);
+    typeInPalette("feb 14");
+    const row = await screen.findByText(/^Create date page: February 14, \d{4}$/);
+    fireEvent.click(row);
+    const dayId = chainNodeIds(`${new Date().getFullYear()}-02-14`).day;
+    // ensureDateChain creates the year/month/day chain; the day page opens.
+    await waitFor(() => expect(client.getNode(dayId)).not.toBeUndefined());
+    expect(opened).toEqual([dayId]);
+  });
+
+  it("existing date pages match by raw compact keyword in the Date Pages section", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.ensureDateChain("2026-03-05");
+    renderPalette(client);
+    typeInPalette("20260305");
+    expect(await screen.findByText("Date Pages")).not.toBeNull();
+    // The formatted display label renders (user dateFormat default YYYY-MM-DD).
+    expect(await screen.findByText("2026-03-05")).not.toBeNull();
+  });
+
+  it("the is_daily: prefix scopes the palette to date pages", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.ensureDateChain("2026-03-05");
+    renderPalette(client);
+    typeInPalette("is_daily:");
+    expect(await screen.findByText("Date Pages")).not.toBeNull();
+    // The date page lists; the ordinary pages and classes stay out.
+    expect(screen.getByText("2026-03-05")).not.toBeNull();
+    expect(screen.queryByText("Garden")).toBeNull();
+    expect(screen.queryByText("Tulip Catalog")).toBeNull();
+    expect(screen.queryByText("Pages")).toBeNull();
+    expect(screen.queryByText("Classes")).toBeNull();
+  });
+});
+
+describe("NodeSelector class refine", () => {
+  it("a class: prefix narrows candidates to the class's members", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [fictionId] });
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "class:Fiction " } });
+    expect(await screen.findByText("Dune")).not.toBeNull();
+    expect(screen.queryByText("Gardening Annual")).toBeNull();
+    // Empty effective query: the create row waits for the rest of the query.
+    expect(screen.queryByText(/^Create "/)).toBeNull();
+  });
+
+  it("spaced class names resolve greedily; the create row opens the class modal", async () => {
+    const client = await seedClient();
+    const myClassId = await createTitledClass(client, "My Class");
+    await client.createObject({ isEmbedded: false, name: "Ada Lovelace", classIds: [myClassId] });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    // The greedy name parse takes "My Class" (not "My"), leaving "lovelace".
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "class:My Class lovelace" } });
+    expect(await screen.findByText("Ada Lovelace")).not.toBeNull();
+    // The create row answers the REST of the query, not the raw prefix.
+    const createRow = await screen.findByText('Create "lovelace"');
+    fireEvent.click(createRow);
+    // The class pick opens the class-driven modal: the
+    // typed remainder seeds the title, the refined class is fixed.
+    const dialog = await screen.findByRole("dialog", { name: /new my class/i });
+    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("lovelace");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => {
+      const created = client.listPages().find((n) => deriveDisplayName(n) === "lovelace");
+      expect(created).not.toBeUndefined();
+      expect(created!.classIds).toContain(myClassId);
+    });
+  });
+});
+
+describe("NodeSelector diacritic folding (the store search mirror)", () => {
+  it("an unaccented query matches an accented class name in the classes tab", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Vídeo");
+    await createTitledClass(client, "Poesía");
+    render(<NodeSelector client={client} trigger="inline" searchMode="classes" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "video" } });
+    expect(await screen.findByText("Vídeo")).not.toBeNull();
+    expect(screen.queryByText("Poesía")).toBeNull();
+    // The accent direction folds too: "poesia" finds "Poesía".
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "poesia" } });
+    expect(await screen.findByText("Poesía")).not.toBeNull();
+    expect(screen.queryByText("Vídeo")).toBeNull();
+  });
+
+  it("an unaccented exact query suppresses the create row when the accented class exists", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Vídeo");
+    render(<NodeSelector client={client} trigger="inline" searchMode="classes" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "video" } });
+    expect(await screen.findByText("Vídeo")).not.toBeNull();
+    expect(screen.queryByText('Create "video"')).toBeNull();
+    // A query that folds to nothing exact still creates.
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "videos" } });
+    expect(await screen.findByText('Create "videos"')).not.toBeNull();
+  });
+
+  it("an unaccented `class:` prefix refines into an accented class name", async () => {
+    const client = await seedClient();
+    const videoId = await createTitledClass(client, "Vídeo");
+    await client.createObject({ isEmbedded: false, name: "Charla", classIds: [videoId] });
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "class:video char" } });
+    expect(await screen.findByText("Charla")).not.toBeNull();
+    expect(screen.queryByText("Gardening Annual")).toBeNull();
+  });
+});
+
+describe("NodeSelector block mode", () => {
+  it("blocks mode lists only inline blocks, labeled by their containing page", async () => {
+    const client = await seedClient();
+    const notes = await client.createObject({ isEmbedded: false, name: "Notes" });
+    await client.createObject({
+      isEmbedded: true,
+      parentId: notes,
+      contentAst: [{ type: "text", text: "quixotic block text" }],
+    });
+    await client.createObject({ isEmbedded: false, name: "Quixotic Page" });
+    const { container } = render(
+      <NodeSelector client={client} trigger="inline" searchMode="blocks" onAdd={() => {}} />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "quixotic" } });
+    // The block renders; the page with the matching TITLE stays out.
+    expect(await screen.findByText("quixotic block text")).not.toBeNull();
+    expect(screen.queryByText("Quixotic Page")).toBeNull();
+    // The containing-page breadcrumb.
+    const crumbs = container.querySelector(".node-result-item__crumbs");
+    expect(crumbs?.textContent).toBe("Notes");
+  });
+});
+
+describe("CommandPalette `/` filter mode", () => {
+  it("a leading slash swaps the results for the Filters option list", async () => {
+    const { client } = await seedPaletteWorld();
+    renderPalette(client);
+    await screen.findByText("Random");
+    typeInPalette("/");
+    // The full palette kinds, including the palette-only Commands row.
+    expect(await screen.findByText("Filters")).not.toBeNull();
+    for (const label of ["Daily pages", "Pages", "Blocks", "Classes", "With class…", "Commands"]) {
+      expect(screen.getByText(label)).not.toBeNull();
+    }
+    // The results sections stepped aside.
+    expect(screen.queryByText("Random")).toBeNull();
+  });
+
+  it("the slash text narrows the options and names classes directly", async () => {
+    const { client } = await seedPaletteWorld();
+    await createTitledClass(client, "Fiction");
+    renderPalette(client);
+    typeInPalette("/fic");
+    // The class row rides the narrowed list; non-matching kinds drop out.
+    expect(await screen.findByText("Class: Fiction")).not.toBeNull();
+    expect(screen.queryByText("Daily pages")).toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+  });
+
+  it("applying the Commands chip scopes the palette to the action registry", async () => {
+    const { client } = await seedPaletteWorld();
+    renderPalette(client);
+    typeInPalette("/comm");
+    await screen.findByText("Commands");
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Enter" });
+    // The chip renders; only Commands answer; the node sections stay out.
+    expect(await screen.findByText("Commands", { selector: ".nt-palette-group-label" })).not.toBeNull();
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Commands");
+    expect(screen.queryByText("Pages")).toBeNull();
+    expect(screen.queryByText("Recently created")).toBeNull();
+    expect(screen.getByText("New page")).not.toBeNull();
+  });
+
+  it("applying the Daily pages chip scopes the palette to date pages", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.ensureDateChain("2026-03-05");
+    renderPalette(client);
+    typeInPalette("/da");
+    await screen.findByText("Daily pages");
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Enter" });
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Daily pages");
+    expect(await screen.findByText("Date Pages")).not.toBeNull();
+    expect(screen.getByText("2026-03-05")).not.toBeNull();
+    expect(screen.queryByText("Garden")).toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+  });
+
+  it("a With-class chip restricts the node sections to the class's members", async () => {
+    const { client } = await seedPaletteWorld();
+    const fictionId = await createTitledClass(client, "Fiction");
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [fictionId] });
+    renderPalette(client);
+    typeInPalette("/Fiction");
+    await screen.findByText("Class: Fiction");
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Enter" });
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Class: Fiction");
+    // Only the member answers; the registry and the other pages stay out,
+    // and the typed create row has no class path to offer (hidden).
+    expect(await screen.findByText("Dune")).not.toBeNull();
+    expect(screen.queryByText("Tulip Catalog")).toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+    expect(screen.queryByText(/^Create page "/)).toBeNull();
+  });
+
+  it("the With class… row browses the classes; Backspace on an empty query pops the last chip", async () => {
+    const { client } = await seedPaletteWorld();
+    await createTitledClass(client, "Fiction");
+    renderPalette(client);
+    typeInPalette("/");
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("With class…"));
+    // The browse lists the workspace's classes.
+    expect(await screen.findByText("Classes")).not.toBeNull();
+    fireEvent.click(screen.getByText("Fiction"));
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Class: Fiction");
+    // One Backspace on the empty query removes the chip again.
+    fireEvent.keyDown(screen.getByLabelText("Command palette search"), { key: "Backspace" });
+    expect(document.querySelector(".filter-chips")).toBeNull();
+    expect(screen.queryByText("Class: Fiction")).toBeNull();
+  });
+});
+
+describe("NodeSelector `/` filter mode", () => {
+  it("a leading slash lists the picker filter kinds (no Commands row)", async () => {
+    const client = await seedClient();
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    expect(await screen.findByText("Filters")).not.toBeNull();
+    expect(screen.getByText("Daily pages")).not.toBeNull();
+    expect(screen.getByText("With class…")).not.toBeNull();
+    expect(screen.queryByText("Commands")).toBeNull();
+  });
+
+  it("the classes picker offers no filters (the honest empty state)", async () => {
+    const client = await seedClient();
+    render(<NodeSelector client={client} trigger="inline" searchMode="classes" onAdd={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    expect(await screen.findByText("No filters in this picker")).not.toBeNull();
+  });
+
+  it("a Daily pages chip lists the date-chain pool", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
+    await client.ensureDateChain("2026-03-05");
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("Daily pages"));
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Daily pages");
+    // The filter IS the query: the day page lists, the ordinary page stays out.
+    expect(await screen.findByText("2026-03-05")).not.toBeNull();
+    expect(screen.queryByText("Gardening Annual")).toBeNull();
+    expect(screen.queryByText("Recently used")).toBeNull();
+  });
+
+  it("a With-class chip scopes the results and the create row carries the class", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [fictionId] });
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/Fiction" } });
+    await screen.findByText("Class: Fiction");
+    fireEvent.keyDown(screen.getByLabelText("Search..."), { key: "Enter" });
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Class: Fiction");
+    // The empty-query member listing: only the class's members.
+    expect(await screen.findByText("Dune")).not.toBeNull();
+    expect(screen.queryByText("Gardening Annual")).toBeNull();
+    // The create row carries the chip's class into the modal.
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Dune Messiah" } });
+    const createRow = await screen.findByText('Create "Dune Messiah"');
+    fireEvent.click(createRow);
+    const dialog = await screen.findByRole("dialog", { name: /new fiction/i });
+    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("Dune Messiah");
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await waitFor(() => {
+      const created = client.listPages().find((n) => deriveDisplayName(n) === "Dune Messiah");
+      expect(created).not.toBeUndefined();
+      expect(created!.classIds).toContain(fictionId);
+    });
+  });
+
+  it("a Blocks chip composes with a text search (pages drop out)", async () => {
+    const client = await seedClient();
+    const notes = await client.createObject({ isEmbedded: false, name: "Notes" });
+    await client.createObject({
+      isEmbedded: true,
+      parentId: notes,
+      contentAst: [{ type: "text", text: "quixotic block text" }],
+    });
+    await client.createObject({ isEmbedded: false, name: "Quixotic Page" });
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("Blocks"));
+    expect(document.querySelector(".filter-chips")?.textContent).toContain("Blocks");
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "quixotic" } });
+    expect(await screen.findByText("quixotic block text")).not.toBeNull();
+    expect(screen.queryByText("Quixotic Page")).toBeNull();
+  });
+
+  it("chips compose with the inline text prefixes", async () => {
+    const client = await seedClient();
+    await client.ensureDateChain("2026-03-05");
+    await createTitledClass(client, "Fiction");
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+    // The Daily chip AND `is_class:false` (a node, not a class): the day
+    // page is the only daily node and it is not a class — the conjunction
+    // holds; the class row drops out.
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "/" } });
+    await screen.findByText("Filters");
+    fireEvent.click(screen.getByText("Daily pages"));
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "is_class:false" } });
+    expect(await screen.findByText("2026-03-05")).not.toBeNull();
+    expect(screen.queryByText("Fiction")).toBeNull();
+  });
+});

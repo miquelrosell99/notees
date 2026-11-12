@@ -1,0 +1,97 @@
+@import "./fonts.css";
+@import "./variables.css";
+
+/* Tailwind (the shadcn bridge — see tailwind.config.ts). Preflight is
+   disabled: the app's co-located CSS owns element resets. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Preflight-lite: with preflight off, the `border-*` utilities set widths
+   but no style (preflight normally supplies border-style: solid). Scoped
+   to @layer base so feature CSS and utilities both override it. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-style: solid;
+    border-width: 0;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family-base);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+button:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--spacing-micro);
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  caret-color: var(--md-sys-color-on-surface);
+  border-radius: var(--shape-extra-large);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+::selection {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+::-webkit-scrollbar {
+  width: var(--shape-large);
+  height: var(--shape-large);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--md-sys-color-outline);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: var(--motion-duration-reduced-motion) !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: var(--motion-duration-reduced-motion) !important;
+    scroll-behavior: auto !important;
+  }
+}
+

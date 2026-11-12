@@ -1,0 +1,263 @@
+/* PropertyDefinitionsSection — the class's schema editor (the Capacities
+   type-panel analogue). Collapsed rows are identity-only (chevron + icon +
+   name) and truncate; the expanded row IS the card (header + fields on one
+   surface). Token-only CSS, adaptive values. */
+
+.nt-propdefs-empty {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-1) var(--spacing-5);
+}
+
+/* The row's fleet icon buttons carry the law-mandated 48px touch floor as
+   an invisible centered slop span; at 390px the slop of the rightmost
+   button extends a few invisible px past the section edge and would make
+   the section horizontally scrollable. Clip the horizontal excess at the
+   section boundary (clip, not hidden — no scroll container, vertical
+   overflow like the add popover and the expanded card stays visible). */
+.nt-propdefs .node-view-section__content {
+  overflow-x: clip;
+}
+
+.nt-propdefs-list {
+  list-style: none;
+  margin: 0 0 var(--spacing-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro);
+  min-width: 0;
+}
+
+/* The collapsed row: identity only, display-only ordering (alphabetical
+   by property name at render time — binding sequence retired). Everything truncates — the row can never force the sidebar
+   wider. */
+.nt-propdef-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-tiny) var(--spacing-2);
+  border-radius: var(--shape-small);
+  min-width: 0;
+}
+
+/* The hover-revealed right-side affordances (no row tint, no
+   grip): the EYE toggle (the node-row preview flag), the PIN toggle (the
+   tier membership), the COG (definition
+   settings) + the REMOVE × (the STANDARD fleet
+   ghost icon buttons; the classes are reveal hooks only). A PINNED row
+   shows its filled pin AT REST and a PREVIEW-FLAGGED row its filled eye —
+   the state reads without
+   hovering (the pin and the eye are state, not chrome). */
+.nt-propdef-preview,
+.nt-propdef-pin,
+.nt-propdef-cog,
+.nt-propdef-remove {
+  opacity: 0;
+}
+
+.nt-propdef-row:hover .nt-propdef-preview,
+.nt-propdef-row:hover .nt-propdef-pin,
+.nt-propdef-row:hover .nt-propdef-cog,
+.nt-propdef-row:hover .nt-propdef-remove,
+.nt-propdef-preview:focus-visible,
+.nt-propdef-pin:focus-visible,
+.nt-propdef-cog:focus-visible,
+.nt-propdef-remove:focus-visible {
+  opacity: 1;
+}
+
+.nt-propdef-pin--pinned,
+.nt-propdef-preview--on {
+  opacity: 1;
+}
+
+/* The row body: icon + name, flexing to fill and truncating. IDENTITY
+   DISPLAY ONLY — not a button (a text-looking row
+   is not clickable; the explicit hover-revealed COG is the affordance). */
+.nt-propdef-main {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--spacing-micro) var(--spacing-1);
+  border-radius: var(--shape-small);
+  font: inherit;
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-propdef-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-propdef-name {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+/* An inactive binding dims its identity (the only disabled cue). */
+.nt-propdef--inactive .nt-propdef-name,
+.nt-propdef--inactive .nt-propdef-icon {
+  opacity: 0.55;
+}
+
+/* The add-property popover: anchored under the AddPill, clamped to the
+   section width so it can never overflow the sidebar. */
+.nt-propdefs-add {
+  position: relative;
+}
+
+.nt-propdef-picker {
+  position: absolute;
+  top: calc(100% + var(--spacing-1));
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.nt-propdef-picker ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(50vh, 24lh);
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.nt-propdef-picker li > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: var(--spacing-xxs) var(--spacing-2);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-button);
+  color: var(--md-sys-color-on-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-propdef-picker li > button:hover,
+.nt-propdef-picker li.is-active > button {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-propdef-picker li > button:focus-visible {
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.nt-propdef-picker-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-propdef-picker-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-propdef-picker-type {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-xs);
+}
+
+.nt-propdef-picker-empty {
+  padding: var(--spacing-xxs) var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-propdef-picker-create {
+  width: 100%;
+  border: none;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: transparent;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-primary-hover);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-propdef-picker-create:hover,
+.nt-propdef-picker-create.is-active {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-propdef-picker-create:focus-visible {
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* The Inherited group: read-only rows attributed to their source class.
+   Same criterion as the direct rows: identity display + hover-revealed
+   COG inside one flex row. */
+.nt-propdef-inherited-row {
+  min-width: 0;
+}
+
+.nt-propdef-inherited-rowinner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-tiny) var(--spacing-2);
+  border-radius: var(--shape-small);
+  min-width: 0;
+}
+
+.nt-propdef-inherited-rowinner:hover .nt-propdef-cog,
+.nt-propdef-inherited-rowinner .nt-propdef-cog:focus-visible {
+  opacity: 1;
+}
+
+.nt-propdef-inherited-main {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--spacing-micro) var(--spacing-1);
+  border-radius: var(--shape-small);
+  font: inherit;
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-propdef-source {
+  flex-shrink: 0;
+  margin-left: auto;
+  max-width: 45%;
+  min-width: 0;
+}
+
+.nt-propdef-source .pill__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

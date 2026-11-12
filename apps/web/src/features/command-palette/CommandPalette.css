@@ -1,0 +1,173 @@
+/**
+ * CommandPalette styles — the palette skin over the shared modal chrome.
+ * Fixed-position dialog at ~top 18vh, 560px wide, keyboard-first.
+ */
+
+.nt-palette-backdrop {
+  align-items: flex-start;
+  padding-top: 18vh;
+}
+
+.nt-palette {
+  width: var(--modal-width-lg);
+  max-height: 60vh;
+  overflow: hidden;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3);
+}
+
+.nt-palette-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 0 var(--spacing-2);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-background);
+}
+
+/* The applied `/`-filter chips ride under the search field, inset to the
+   results list padding. */
+.nt-palette-chips {
+  padding: 0 var(--spacing-1);
+}
+
+.nt-palette-results {
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-1);
+}
+
+.nt-palette-group-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-1);
+}
+
+.nt-palette-group-label {
+  font: var(--font-label-small);
+  letter-spacing: var(--letter-spacing-label);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-palette-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-micro);
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: var(--font-size-base);
+  color: var(--md-sys-color-on-surface);
+  padding: var(--spacing-2);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+}
+
+.nt-palette-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-palette-item:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+/* The palette cursor is a genuine active state: ArrowUp/Down moves it and
+   mouse hover drives it (onMouseEnter sets activeIndex) — so the active row
+   keeps primary-container while hovered (the hover ruling's combined-rule
+   pattern; the plain :hover above serves the non-active transient). */
+.nt-palette-item[data-active="true"],
+.nt-palette-item[data-active="true"]:hover {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.nt-palette-item-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-palette-item-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-palette-item-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Containing-page label on block content hits. */
+.nt-palette-item-meta {
+  flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-2xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-palette-snippet {
+  padding-left: calc(0.9em + var(--spacing-2));
+}
+
+.nt-palette-searching {
+  padding: var(--spacing-2);
+  text-align: center;
+  font-size: var(--font-size-2xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-palette-empty {
+  padding: var(--spacing-6) var(--spacing-4);
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.nt-palette-footer {
+  display: flex;
+  gap: var(--spacing-4);
+  justify-content: center;
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+}
+
+/* The "Search all for …" handoff row: the last row below the result
+   sections, carrying the query to the full-page /search surface. */
+.nt-palette-search-all {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-2) var(--spacing-1) 0;
+  border: none;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-palette-search-all:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}

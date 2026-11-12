@@ -1,0 +1,113 @@
+/* CardsBoard — the cards view's grouped board: property-dimension columns + card drops. */
+
+.board {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-2);
+}
+
+.board-column {
+  flex: 0 0 clamp(16rem, 22vw, 20rem); /* token-gate: constant board column width clamp ruling (16rem/20rem column min/max), not a scale step */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: var(--layout-size-sm);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--md-sys-color-surface-container-low);
+  padding: var(--spacing-2);
+}
+
+.board-column--over {
+  border-color: var(--md-sys-color-primary);
+}
+
+.board-column__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 0 var(--spacing-1);
+}
+
+.board-column__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.board-column__toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.board-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-2);
+}
+
+.board-column__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The column count: the fleet Badge (neutral pill) owns the look — the class
+   keeps only the row layout. */
+.board-column__count {
+  flex-shrink: 0;
+}
+
+.board-column__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-height: var(--spacing-10);
+}
+
+.board-column__empty {
+  min-height: var(--spacing-10);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-sm);
+}
+
+.board-card {
+  cursor: grab;
+}
+
+.board-card:active {
+  cursor: grabbing;
+}
+
+.board-card--dragging {
+  opacity: 0.4;
+}
+
+.board-ghost {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow-md);
+  max-width: clamp(16rem, 22vw, 20rem); /* token-gate: constant board column width clamp ruling (16rem/20rem column min/max), not a scale step */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

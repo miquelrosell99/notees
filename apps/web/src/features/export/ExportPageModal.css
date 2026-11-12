@@ -1,0 +1,194 @@
+/**
+ * ExportPageModal styles (format cards, collapsible options,
+ * read-only markdown preview, right-aligned export actions). Token-only:
+ * every value resolves to a custom property from variables.css.
+ */
+
+/* ── Body ── */
+.export-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-height: 26.25rem; /* token-gate: constant export-modal body min-height ruling (26.25rem/420px), not a scale step */
+}
+
+/* ── Format cards ── */
+.export-modal__formats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); /* token-gate: constant export format-card column min ruling (9.5rem/152px), not a scale step */
+  gap: var(--spacing-2);
+}
+
+.export-modal__format-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-1);
+  text-align: center;
+  min-width: 0;
+}
+
+.export-modal__format-card[aria-disabled="true"] {
+  opacity: var(--opacity-40);
+  cursor: not-allowed;
+}
+
+.export-modal__format-card-icon {
+  font-size: var(--font-size-lg);
+  line-height: 1;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The selected signal is the shared Card's card--selected register
+   (primary-container fill + primary border) — the same register as the
+   Dropdown's selected option, already applied via the Card's `selected`
+   prop; no local overlay. */
+
+.export-modal__format-card-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+  overflow-wrap: anywhere;
+}
+
+.export-modal__format-card-reason {
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
+/* Rendered PDF preview (P1) */
+.export-modal__pdf-preview {
+  width: 100%;
+  min-height: 22.5rem; /* token-gate: constant export preview min-height ruling (22.5rem/360px), not a scale step */
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-surface-container);
+}
+
+/* ── Options ── */
+.export-modal__options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.export-modal__options-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  width: 100%;
+}
+
+/* The layout radios + page-size select ride the same Options surface as the
+   checkbox rows: label left, compact controls right, checkbox-row height. */
+.export-modal__select-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: 1lh;
+}
+
+.export-modal__select-label {
+  font: var(--font-label-medium);
+  color: var(--md-sys-color-on-surface);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+/* The dropdown stays a compact control — the kit container defaults to
+   width:100% (and .dropdown is flex:1, so a width on .dropdown loses):
+   shrink the CONTAINER and the trigger follows its content. */
+.export-modal__select-row .dropdown-container {
+  width: auto;
+}
+
+.export-modal__radio-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.export-modal__radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  white-space: nowrap;
+}
+
+/* ── Preview area ── */
+.export-modal__preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-height: 0;
+}
+
+/* Text preview (Markdown) */
+.export-modal__preview {
+  width: 100%;
+  min-height: 22.5rem; /* token-gate: constant export preview min-height ruling (22.5rem/360px), not a scale step */
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  padding: var(--spacing-3);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  color: var(--md-sys-color-on-surface);
+  resize: vertical;
+  box-sizing: border-box;
+  tab-size: 2;
+}
+
+.export-modal__preview:focus {
+  outline: none;
+  border-color: var(--md-sys-color-outline);
+}
+
+.export-modal__preview--loading {
+  opacity: var(--opacity-40);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Static note in place of the preview for the Word card — a .docx is a
+   binary OOXML package; every text-serializable card previews its own
+   plaintext in the textarea above instead. */
+.export-modal__preview-note {
+  margin: 0;
+  padding: var(--spacing-3);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+/* ── Error ── */
+.export-modal__error {
+  padding: var(--spacing-2) var(--spacing-3);
+  background: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
+  color: var(--md-sys-color-error);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+}
+
+/* ── Footer layout (right-aligned actions) ── */
+.export-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  width: 100%;
+}

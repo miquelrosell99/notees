@@ -1,0 +1,94 @@
+/**
+ * Config translation..
+ *
+ * Maps the user-facing GraphEnginePhysicsConfig to raw numeric GraphEngineConfig.
+ */
+
+import type { GraphEnginePhysicsConfig, GraphEngineConfig } from './types.js';
+
+const PHYSICS_PRESETS: Record<GraphEnginePhysicsConfig['preset'], Partial<GraphEngineConfig>> = {
+  sparse: {
+    springStrength: 0.018,
+    idealDistance: 130,
+    clusterRepelStrength: 2700,
+    localRepelStrength: 2800,
+    clusterSpacing: 450,
+    componentSpacing: 1000,
+  },
+  balanced: {
+    springStrength: 0.025,
+    idealDistance: 100,
+    clusterRepelStrength: 2000,
+    localRepelStrength: 2400,
+    clusterSpacing: 350,
+    componentSpacing: 800,
+  },
+  compact: {
+    springStrength: 0.040,
+    idealDistance: 70,
+    clusterRepelStrength: 1100,
+    localRepelStrength: 1100,
+    clusterSpacing: 200,
+    componentSpacing: 500,
+  },
+  clustered: {
+    springStrength: 0.022,
+    idealDistance: 110,
+    clusterRepelStrength: 3400,
+    localRepelStrength: 3400,
+    clusterSpacing: 400,
+    componentSpacing: 900,
+  },
+};
+
+/** Translate user-facing config to raw physics constants. */
+export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEngineConfig {
+  const preset = PHYSICS_PRESETS[user.preset]!;
+  const clusterMult = user.clustering ? 1.8 : 1.0;
+  const sepMult = 0.5 + ((user.clusterSeparation ?? 65) / 100) * 1.5;
+
+  return {
+    seed: 42,
+    springStrength: user.linkCountAttraction
+      ? (preset.springStrength ?? 0.025) * 1.8
+      : (preset.springStrength ?? 0.025),
+    idealDistance: preset.idealDistance ?? 100,
+    // Cohesion strong enough to hold a community against local repulsion.
+    clusterStrength: 0.006 * clusterMult,
+    clusterRepelStrength: (preset.clusterRepelStrength ?? 2000) * clusterMult,
+    // Soft shell: ~1.5% of the long-range repulsion at full overlap.
+    clusterShellStrength: (preset.clusterRepelStrength ?? 2000) * clusterMult * 0.015,
+    // The separation slider (0–100) scales the preset gap (0.5×–2×).
+    clusterMargin: (preset.clusterSpacing ?? 350) * sepMult,
+    clusterSpacing: preset.clusterSpacing ?? 350,
+    localRepelStrength: (preset.localRepelStrength ?? 3000) * (user.clustering ? 1.4 : 1.0),
+    localRepelRadius: 500,
+    // Slider 0–100 → 0 to 0.02. Per-node spring toward origin — deliberately
+    // gentle: stronger gravity crushes cluster separation (it pulls every
+    // community toward the same point and re-creates the hairball).
+    componentCenterStrength: (user.centralGravity / 100) * 0.02,
+    componentSpacing: preset.componentSpacing ?? 800,
+    // Energy-gated convergence: per-node alpha decays exponentially and the
+    // graph freezes when every node is quiet and still (see engine.ts). The
+    // 0.02 decay cools 4× faster than
+    // 0.005 — alpha reaches alphaMin in ~265 ticks instead of ~1050, so the
+    // layout unfolds but the wobble ends in seconds, not minutes.
+    alphaDecay: 0.02,
+    alphaMin: 0.005,
+    // Fresh-engine starting activity (warm starts pass 0.2 via the physics
+    // config; default full unfold). Topology updates/reheats ignore this.
+    initialAlpha: user.initialAlpha ?? 1.0,
+    // Mean per-tick displacement² under which the graph counts as still
+    // (≈0.01 px/tick RMS — sub-pixel, and dt-aware via the integrator).
+    settleEnergyEps: 1e-4,
+    settleTicks: 30,
+    influenceRadius: 400,
+    reheatAlpha: 0.5,
+    drag: 0.9,
+    maxVelocity: 10,
+    dt: 0.5,
+    bhTheta: 1.0,
+    linkCountAttraction: user.linkCountAttraction,
+    useMass: user.massAccumulation === true,
+  };
+}

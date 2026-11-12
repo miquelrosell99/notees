@@ -1,0 +1,563 @@
+/**
+ * Cross-device favorites/recents tests:
+ *
+ *  - core client: getPrefs/patchPrefs against a mocked HTTP layer (server
+ *    answers vs offline fallback to the device-local cache, tagged `source`);
+ *  - the nodePrefs store: server-wins load with device-only merge, legacy
+ *    recordRecent broadcast synced upward, star toggle push;
+ *  - Sidebar: Favorites section renders the server copy, the row star toggle
+ *    writes through, recents sync on open;
+ *  - the store toggle: favorites push + sync (the header star retired —
+ *    favorites are set from the sidebar / context menu);
+ *  - worker RPC: getPrefs/patchPrefs through handleMessage (memory fallback).
+ */
+
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+
+import {
+  WorkspaceClient,
+  mergeFavoriteToggle,
+  mergeRecentOpen,
+  type CardsAlgorithm,
+} from "../src/core/workspace-client/index.js";
+import {
+  ensureNodePrefsLoaded,
+  getCardsAlgorithm,
+  resetNodePrefsForTests,
+  reorderNodeFavorites,
+  setCardsAlgorithm,
+  toggleNodeFavorite,
+  useNodePrefs,
+} from "../src/features/settings/nodePrefs.js";
+import { Sidebar } from "../src/ui/app/Sidebar.js";
+import { recordRecent, removeRecent } from "../src/features/sidebar/recentPages.js";
+import type { AnyClient } from "../src/ui/app/Sidebar.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+const SERVER = "https://notees.example.com";
+const CREDENTIAL = "nt_testsession";
+
+const PAGE_ALPHA = "0192b000-0000-7000-8000-0000000000a1";
+const PAGE_BETA = "0192b000-0000-7000-8000-0000000000b2";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+beforeEach(() => {
+  localStorage.clear();
+  resetNodePrefsForTests();
+});
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+async function seedClient(options: { serverUrl?: string; apiKey?: string } = {}): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+    ...(options.serverUrl !== undefined ? { serverUrl: options.serverUrl } : {}),
+    ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+/**
+ * fetch stub routing /api/auth/me + /api/me/prefs. `handler` speaks PREFS
+ * OBJECTS; the wire speaks the plan-07 opaque blob — these tests run keyless
+ * (no master key in custody), so the blob is the unwrapped JSON and the
+ * stub wraps/unwraps transparently.
+ */
+function stubPrefsFetch(
+  handler: (init: { method: string; prefs: Record<string, unknown> | undefined }) => unknown,
+  options: { identity?: { id: string } } = {},
+) {
+  const calls: Array<{ url: string; method: string; body: string | undefined }> = [];
+  const mock = vi.fn(async (url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    const body = typeof init?.body === "string" ? init.body : undefined;
+    calls.push({ url: String(url), method, body });
+    if (String(url).endsWith("/api/auth/me")) {
+      // The client's operator-key resolution: a user account row by default.
+      return new Response(JSON.stringify(options.identity ?? { id: "user-1" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    const incoming =
+      body === undefined
+        ? undefined
+        : (JSON.parse(body) as { blob?: string }).blob !== undefined
+          ? (JSON.parse((JSON.parse(body) as { blob: string }).blob) as Record<string, unknown>)
+          : (JSON.parse(body) as Record<string, unknown>);
+    const answer = handler({ method, prefs: incoming });
+    if (answer instanceof Error) return new Response(answer.message, { status: 503 });
+    const prefs = answer as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        blob: JSON.stringify({
+          v: 1,
+          favorites: prefs.favorites ?? [],
+          recents: prefs.recents ?? [],
+          cardsAlgorithm: prefs.cardsAlgorithm ?? "fsrs",
+          adsApiToken: prefs.adsApiToken ?? "",
+        }),
+        updatedAt: 1,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  });
+  vi.stubGlobal("fetch", mock);
+  return calls;
+}
+
+// ---------------------------------------------------------------------------
+// Core client: REST + offline fallback
+// ---------------------------------------------------------------------------
+
+describe("WorkspaceClient getPrefs/patchPrefs (HTTP layer)", () => {
+  it("getPrefs returns the server copy and refreshes the device cache", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    stubPrefsFetch(() => ({
+      favorites: [PAGE_ALPHA],
+      recents: [PAGE_BETA, PAGE_ALPHA],
+      adsApiToken: "ads-secret-token",
+    }));
+    const prefs = await client.getPrefs();
+    expect(prefs).toEqual({
+      favorites: [PAGE_ALPHA],
+      recents: [PAGE_BETA, PAGE_ALPHA],
+      cardsAlgorithm: "fsrs",
+      // Server-only by design: it round-trips through getPrefs but never
+      // lands in the device-local cache.
+      adsApiToken: "ads-secret-token",
+      source: "server",
+    });
+    expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
+    expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA, PAGE_ALPHA]);
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("fsrs");
+    // The ADS token is server-only — no device cache key exists for it.
+    expect(localStorage.getItem("notees.prefs.adsApiToken")).toBeNull();
+  });
+
+  it("patchPrefs PUTs the merge patch and returns the server answer", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const calls = stubPrefsFetch(({ method, prefs }) => {
+      expect(method).toBe("PUT");
+      return { ...(prefs ?? {}) };
+    });
+    const prefs = await client.patchPrefs({ favorites: [PAGE_ALPHA] });
+    expect(prefs.source).toBe("server");
+    const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
+    expect(prefsCalls).toHaveLength(1);
+    // Plan-07: the wire carries ONE opaque blob (unwrapped here — keyless).
+    expect(JSON.parse((JSON.parse(prefsCalls[0]!.body!) as { blob: string }).blob)).toEqual(
+      expect.objectContaining({ favorites: [PAGE_ALPHA] }),
+    );
+    // The device cache followed the server answer.
+    expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
+  });
+
+  it("patchPrefs sends a provided adsApiToken in the PUT body and returns it merged", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const calls = stubPrefsFetch(({ method, prefs }) => {
+      expect(method).toBe("PUT");
+      return { ...(prefs ?? {}) };
+    });
+    const prefs = await client.patchPrefs({ adsApiToken: "ads-secret-token" });
+    expect(prefs.source).toBe("server");
+    expect(prefs.adsApiToken).toBe("ads-secret-token");
+    const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
+    expect(prefsCalls).toHaveLength(1);
+    expect(JSON.parse((JSON.parse(prefsCalls[0]!.body!) as { blob: string }).blob)).toEqual(
+      expect.objectContaining({ adsApiToken: "ads-secret-token" }),
+    );
+    // Server-only: the token never lands in the device-local cache.
+    expect(localStorage.getItem("notees.prefs.adsApiToken")).toBeNull();
+  });
+
+  it("patchPrefs carries cardsAlgorithm to the server and the device key", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const calls = stubPrefsFetch(({ method, prefs }) => {
+      expect(method).toBe("PUT");
+      return { ...(prefs ?? {}) };
+    });
+    const prefs = await client.patchPrefs({ cardsAlgorithm: "sm2" });
+    expect(prefs.source).toBe("server");
+    expect(prefs.cardsAlgorithm).toBe("sm2");
+    const prefsCalls = calls.filter((call) => call.url === `${SERVER}/api/me/prefs`);
+    expect(JSON.parse((JSON.parse(prefsCalls[0]!.body!) as { blob: string }).blob)).toEqual(
+      expect.objectContaining({ cardsAlgorithm: "sm2" }),
+    );
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
+  });
+
+  it("offline (unreachable server): reads return the cached copy, writes persist locally", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    stubPrefsFetch(() => new Error("down"));
+    localStorage.setItem("notees.favorites", JSON.stringify([PAGE_ALPHA]));
+    const read = await client.getPrefs();
+    expect(read).toEqual({
+      favorites: [PAGE_ALPHA],
+      recents: [],
+      cardsAlgorithm: "fsrs",
+      // The offline fallback never carries the server-only ADS token.
+      adsApiToken: "",
+      source: "local",
+    });
+    const write = await client.patchPrefs({ recents: [PAGE_BETA] });
+    expect(write.source).toBe("local");
+    expect(write.recents).toEqual([PAGE_BETA]);
+    expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA]);
+  });
+
+  it("offline-first client (no REST config): always the device-local cache", async () => {
+    const client = await seedClient();
+    localStorage.setItem("notees.favorites", JSON.stringify([PAGE_BETA]));
+    const read = await client.getPrefs();
+    expect(read.source).toBe("local");
+    expect(read.favorites).toEqual([PAGE_BETA]);
+    const write = await client.patchPrefs({ favorites: [PAGE_ALPHA, PAGE_BETA] });
+    expect(write.source).toBe("local");
+    expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA, PAGE_BETA]);
+  });
+
+  it("the operator API key never probes /api/me/prefs (the server 401s it by design): local answers, zero prefs calls", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: "operator-key" });
+    const calls = stubPrefsFetch(
+      () => ({ favorites: [PAGE_ALPHA], recents: [], updatedAt: 1 }),
+      { identity: { id: "operator" } },
+    );
+    localStorage.setItem("notees.favorites", JSON.stringify([PAGE_BETA]));
+    const read = await client.getPrefs();
+    expect(read).toEqual({
+      favorites: [PAGE_BETA],
+      recents: [],
+      cardsAlgorithm: "fsrs",
+      adsApiToken: "",
+      source: "local",
+    });
+    const write = await client.patchPrefs({ recents: [PAGE_ALPHA] });
+    expect(write.source).toBe("local");
+    expect(write.recents).toEqual([PAGE_ALPHA]);
+    // Exactly one request in total: the operator-key resolution (auth/me).
+    // No /api/me/prefs call — the known-401 probe is gone.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe(`${SERVER}/api/auth/me`);
+  });
+
+  it("the operator-key resolution is cached: repeated prefs reads resolve auth/me once", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: "operator-key" });
+    const calls = stubPrefsFetch(
+      () => ({ favorites: [], recents: [], updatedAt: 1 }),
+      { identity: { id: "operator" } },
+    );
+    await client.getPrefs();
+    await client.getPrefs();
+    await client.patchPrefs({ favorites: [PAGE_ALPHA] });
+    expect(calls.filter((call) => call.url.endsWith("/api/auth/me"))).toHaveLength(1);
+  });
+});
+
+describe("prefs merge helpers", () => {
+  it("mergeFavoriteToggle adds and removes preserving order", () => {
+    expect(mergeFavoriteToggle([PAGE_ALPHA], PAGE_BETA)).toEqual([PAGE_ALPHA, PAGE_BETA]);
+    expect(mergeFavoriteToggle([PAGE_ALPHA, PAGE_BETA], PAGE_ALPHA)).toEqual([PAGE_BETA]);
+  });
+
+  it("mergeRecentOpen fronts, dedupes, and caps at 50", () => {
+    const list = Array.from({ length: 50 }, (_, i) => `0192b000-0000-7000-8000-${i.toString(16).padStart(12, "0")}`);
+    const next = mergeRecentOpen(list, PAGE_ALPHA);
+    expect(next[0]).toBe(PAGE_ALPHA);
+    expect(next).toHaveLength(50);
+    expect(mergeRecentOpen([PAGE_ALPHA, PAGE_BETA], PAGE_ALPHA)).toEqual([PAGE_ALPHA, PAGE_BETA]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// nodePrefs store
+// ---------------------------------------------------------------------------
+
+type FakePrefs = {
+  favorites: string[];
+  recents: string[];
+  cardsAlgorithm: CardsAlgorithm;
+  adsApiToken: string;
+  source: "server" | "local";
+  updatedAt?: number;
+};
+
+function fakeClient(overrides: {
+  getPrefs?: () => Promise<FakePrefs>;
+  patchPrefs?: (patch: unknown) => Promise<FakePrefs>;
+} = {}): import("../src/features/settings/nodePrefs.js").PrefsClient {
+  return {
+    getPrefs:
+      overrides.getPrefs ??
+      (async () => ({
+        favorites: [],
+        recents: [],
+        cardsAlgorithm: "fsrs",
+        adsApiToken: "",
+        source: "local" as const,
+      })),
+    patchPrefs:
+      overrides.patchPrefs ??
+      (async (patch: unknown) => ({ ...((patch as object) ?? {}), source: "local" as const }) as FakePrefs),
+  };
+}
+
+describe("nodePrefs store", () => {
+  it("load: the server copy wins; device-only ids merge ahead (nothing clobbered)", async () => {
+    localStorage.setItem("notees.recents", JSON.stringify([PAGE_BETA]));
+    const pushed: unknown[] = [];
+    const client = fakeClient({
+      getPrefs: async () => ({
+        favorites: [PAGE_ALPHA],
+        recents: [PAGE_ALPHA],
+        cardsAlgorithm: "fsrs",
+        adsApiToken: "",
+        source: "server",
+      }),
+      patchPrefs: async (patch) => {
+        pushed.push(patch);
+        return { ...(patch as object), source: "server" } as FakePrefs;
+      },
+    });
+    ensureNodePrefsLoaded(client);
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
+    });
+    // Device-only BETA landed ahead of the server's list; the merge pushed back.
+    expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA, PAGE_ALPHA]);
+    expect(pushed.length).toBeGreaterThan(0);
+    expect(JSON.parse(localStorage.getItem("notees.recents")!)).toContain(PAGE_BETA);
+  });
+
+  it("a legacy recordRecent broadcast syncs the recents list upward", async () => {
+    const patches: unknown[] = [];
+    const client = fakeClient({
+      patchPrefs: async (patch) => {
+        patches.push(patch);
+        return { ...(patch as object), source: "server" } as FakePrefs;
+      },
+    });
+    // Mount the hook so the store listens (a Sidebar would do this in-app).
+    function Probe() {
+      useNodePrefs(client);
+      return null;
+    }
+    render(<Probe />);
+    await act(async () => {
+      recordRecent(PAGE_ALPHA);
+    });
+    await waitFor(() => expect(patches.length).toBeGreaterThan(0));
+    expect((patches[0] as { recents: string[] }).recents[0]).toBe(PAGE_ALPHA);
+  });
+
+  it("toggleNodeFavorite pushes the new favorites list", async () => {
+    const patches: unknown[] = [];
+    const client = fakeClient({
+      patchPrefs: async (patch) => {
+        patches.push(patch);
+        return { ...(patch as object), source: "server" } as FakePrefs;
+      },
+    });
+    toggleNodeFavorite(client, PAGE_ALPHA);
+    await waitFor(() => expect(patches.length).toBeGreaterThan(0));
+    expect((patches[0] as { favorites: string[] }).favorites).toEqual([PAGE_ALPHA]);
+    expect(JSON.parse(localStorage.getItem("notees.favorites")!)).toEqual([PAGE_ALPHA]);
+  });
+
+  it("offline push failure keeps the device-local write and warns", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = fakeClient({
+      patchPrefs: async () => {
+        throw new Error("offline");
+      },
+    });
+    function Probe() {
+      useNodePrefs(client);
+      return null;
+    }
+    render(<Probe />);
+    await act(async () => {
+      recordRecent(PAGE_BETA);
+    });
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA]);
+  });
+
+  it("getCardsAlgorithm defaults to fsrs and follows the shared copy", async () => {
+    await expect(getCardsAlgorithm()).resolves.toBe("fsrs");
+    setCardsAlgorithm("sm2");
+    await expect(getCardsAlgorithm()).resolves.toBe("sm2");
+  });
+
+  it("setCardsAlgorithm writes the device key, broadcasts notees:prefs, and pushes to the server", async () => {
+    const patches: unknown[] = [];
+    const client = fakeClient({
+      patchPrefs: async (patch) => {
+        patches.push(patch);
+        return { ...(patch as object), source: "server" } as FakePrefs;
+      },
+    });
+    ensureNodePrefsLoaded(client);
+    await waitFor(() => expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("fsrs"));
+
+    const events: string[] = [];
+    window.addEventListener("notees:prefs", () => events.push("notees:prefs"));
+    setCardsAlgorithm("sm2");
+
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
+    expect(events).toEqual(["notees:prefs"]);
+    await waitFor(() => expect(patches.length).toBeGreaterThan(0));
+    expect((patches.at(-1) as { cardsAlgorithm?: string }).cardsAlgorithm).toBe("sm2");
+    await expect(getCardsAlgorithm()).resolves.toBe("sm2");
+  });
+
+  it("setCardsAlgorithm offline keeps the device-local write and warns", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = fakeClient({
+      patchPrefs: async () => {
+        throw new Error("offline");
+      },
+    });
+    ensureNodePrefsLoaded(client);
+    setCardsAlgorithm("sm2");
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(localStorage.getItem("notees.prefs.cardsAlgorithm")).toBe("sm2");
+    await expect(getCardsAlgorithm()).resolves.toBe("sm2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sidebar integration
+// ---------------------------------------------------------------------------
+
+function renderSidebar(client: AnyClient) {
+  return render(
+    <Sidebar
+      client={client}
+      user={null}
+      offline={false}
+      showSettings={false}
+      onOpenSettings={() => {}}
+      selectedPageId={null}
+      activeNav="pages"
+      onSelectNav={() => {}}
+      onOpenPage={() => {}}
+      onSignOut={() => {}}
+    />,
+  );
+}
+
+describe("Sidebar favorites/recents", () => {
+  it("renders the Favorites section from the server prefs copy", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    stubPrefsFetch(() => ({ favorites: [pageId], recents: [], updatedAt: 1 }));
+    renderSidebar(client);
+    await screen.findByText("Alpha");
+    // The section header exists and the row rendered inside it.
+    expect(screen.getByText("Favorites")).toBeTruthy();
+  });
+
+  it("Favorites always renders — empty shows the placeholder line", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    stubPrefsFetch(() => ({ favorites: [], recents: [], updatedAt: 1 }));
+    renderSidebar(client);
+    await screen.findByText("Favorites");
+    expect(screen.getByText(/No favorites yet/)).toBeTruthy();
+  });
+
+  it("star toggle on a row writes the new list to the server", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Beta" });
+    const calls = stubPrefsFetch(({ method, prefs }) =>
+      method === "PUT" ? { ...(prefs ?? {}) } : { favorites: [], recents: [pageId], updatedAt: 1 },
+    );
+    renderSidebar(client);
+    await screen.findByText("Beta");
+    fireEvent.click(screen.getByRole("button", { name: "Add to favorites" }));
+    await waitFor(() => {
+      const put = calls.find((call) => call.method === "PUT");
+      expect(put).toBeDefined();
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { favorites: string[] }).favorites).toEqual([pageId]);
+    });
+  });
+
+  it("reorderNodeFavorites writes the drag-sorted order to the server", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const a = await client.createObject({ isEmbedded: false, name: "A" });
+    const b = await client.createObject({ isEmbedded: false, name: "B" });
+    const calls = stubPrefsFetch(({ method, prefs }) =>
+      method === "PUT"
+        ? { ...(prefs ?? {}) }
+        : { favorites: [a, b], recents: [], updatedAt: 1 },
+    );
+    renderSidebar(client);
+    await screen.findByText("A");
+    reorderNodeFavorites(client, [b, a]);
+    await waitFor(() => {
+      const put = calls.find((call) => call.method === "PUT");
+      expect(put).toBeDefined();
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { favorites: string[] }).favorites).toEqual([b, a]);
+    });
+  });
+
+  it("opening a page (recordRecent) lands in the sidebar Recents and syncs", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Gamma" });
+    const calls = stubPrefsFetch(() => ({ favorites: [], recents: [], updatedAt: 1 }));
+    renderSidebar(client);
+    await act(async () => {
+      recordRecent(pageId);
+    });
+    await screen.findByText("Gamma");
+    await waitFor(() => {
+      const put = calls.find((call) => call.method === "PUT");
+      expect(put).toBeDefined();
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { recents: string[] }).recents).toEqual([pageId]);
+    });
+  });
+
+  it("removing a recent from the row menu syncs the removal", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Delta" });
+    const calls = stubPrefsFetch(({ method, prefs }) =>
+      method === "PUT" ? { ...(prefs ?? {}) } : { favorites: [], recents: [pageId], updatedAt: 1 },
+    );
+    renderSidebar(client);
+    const row = (await screen.findByText("Delta")).closest("li")!;
+    fireEvent.contextMenu(row, { clientX: 8, clientY: 8 });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Remove from recents/i }));
+    await waitFor(() => {
+      const put = calls.find((call) => call.method === "PUT");
+      expect(put).toBeDefined();
+      expect((JSON.parse((JSON.parse(put!.body!) as { blob: string }).blob) as { recents: string[] }).recents).toEqual([]);
+    });
+  });
+
+  it("the device-local removeRecent path still works without a client", () => {
+    recordRecent(PAGE_ALPHA);
+    recordRecent(PAGE_BETA);
+    removeRecent(PAGE_ALPHA);
+    expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA]);
+  });
+});

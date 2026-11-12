@@ -57,10 +57,12 @@ services:
 
   notees-web:
     image: ${NOTEES_WEB_IMAGE:-ghcr.io/miquelrosell99/notees-web:latest}
-    # Repo split 2026-11-05: the web client image builds from the
-    # miquelrosell99/notees-web repo (docker build -f apps/web/Dockerfile .)
-    # — this repo ships the sync server only; pull the web image or build it
-    # from its own checkout.
+    # Re-merged 2026-11-12 (ADR-001): both images build from this repo
+    # (docker build -f apps/web/Dockerfile .). Server-only stacks skip the
+    # web client entirely — the service sits behind the `web` profile
+    # (`docker compose --profile web up -d`); the default profile is the
+    # sync server alone.
+    profiles: ["web"]
     container_name: notees-web
     ports:
       - "${NOTEES_WEB_HTTP:-0.0.0.0:8378}:80"

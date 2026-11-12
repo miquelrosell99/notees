@@ -1,0 +1,740 @@
+/**
+ * Text-property blocks list: a multi/single text
+ * property renders as ONE row whose values are the carrier blocks
+ * themselves (a blocks list, never repeated label entries), and Enter
+ * applies the property semantics — multi registers the new sibling as the
+ * next value; single nests a child block under the carrier.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { act, fireEvent, render } from "@testing-library/react";
+import { useEffect, useState } from "react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import {
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+} from "@notees/domain";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { PropertiesTable } from "../src/features/metadata/index.js";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+});
+
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+/** Click into the nth editable block inside the container; return its editor. */
+function clickIntoBlock(container: HTMLElement, index = 0): HTMLElement {
+  const contents = container.querySelectorAll<HTMLElement>(".nt-block-content");
+  const target = contents[index];
+  if (target === undefined) throw new Error(`no .nt-block-content at index ${index}`);
+  fireEvent.click(target);
+  const editor = target.querySelector<HTMLElement>(".nt-block-text");
+  if (editor === null) throw new Error("editor did not mount after click");
+  return editor;
+}
+
+const flushWrites = (): Promise<void> => act(async () => {});
+
+function authoredTextRows(client: WorkspaceClient, nodeId: string, schemaId: string) {
+  return client
+    .getEffectiveProperties(nodeId)
+    .filter((row) => row.propertySchemaId === schemaId && row.source === "authored");
+}
+
+describe("text properties as a blocks list", () => {
+  it("multi values render as ONE row of editable carrier blocks", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first line" }] });
+    const carrierB = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "second line" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+    await client.setProperty(pageId, schemaId, { nodeId: carrierB }, 1);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    const rows = container.querySelectorAll(".nt-property-text");
+    expect(rows.length).toBe(1);
+    // The carriers render through the locked outline collection — one
+    // collection per row, each carrier a root BlockRow.
+    const collections = container.querySelectorAll(".nt-property-textcell .node-collection--outline");
+    expect(collections.length).toBe(1);
+    expect(
+      container.querySelector(`.nt-property-textcell [data-block-id="${carrierA}"]`),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(`.nt-property-textcell [data-block-id="${carrierB}"]`),
+    ).not.toBeNull();
+    // The label appears once — values are blocks, not repeated entries.
+    expect(container.querySelectorAll(".nt-property-text .nt-property-name").length).toBe(1);
+  });
+
+  it("multi: Enter on a value registers the new sibling as the next value", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "alpha" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    const editor = clickIntoBlock(container, 0);
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await flushWrites();
+    await flushWrites();
+
+    const rows = authoredTextRows(client, pageId, schemaId);
+    expect(rows.length).toBe(2);
+    const newValue = rows.find((row) => row.idx === 1);
+    expect(newValue).toBeDefined();
+    const newId = (newValue!.value as { nodeId: string }).nodeId;
+    // The new value's block is a SIBLING of the carrier (a child of the page).
+    expect(client.getNode(newId)?.parentId).toBe(pageId);
+  });
+
+  it("single: Enter nests a child block under the carrier (no new value)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "one value" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    const editor = clickIntoBlock(container, 0);
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await flushWrites();
+    await flushWrites();
+
+    // No second value row…
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+    // …and the carrier gained a child block (the value's new line).
+    const children = client.getChildren(carrier);
+    expect(children.length).toBe(1);
+  });
+
+  it("carrier blocks render NO breadcrumb trail inside the property cell (the row already names its property)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first line" }] });
+    const carrierB = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "second line" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+    await client.setProperty(pageId, schemaId, { nodeId: carrierB }, 1);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    // A trail above a value block would name the very node the cell already
+    // renders on — noise, never context.
+    expect(container.querySelector(".nt-property-textcell .outline-row__breadcrumbs")).toBeNull();
+  });
+
+  it("a dead carrier whose node is gone auto-unsets (the slot returns to empty)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    await client.setProperty(pageId, schemaId, { nodeId: "0192a000-0000-7000-8000-000000000099" }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    await flushWrites();
+
+    // No lingering dead cell — the value is unset. (The table host re-renders
+    // on its own subscription; here we assert the client state, the truth the
+    // next render reflects.)
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+  });
+
+  it("a dead ref to a node that still exists keeps the re-author cell", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    // A page (is_embedded) is a real node that no longer renders as an
+    // inline block — the recovery cell, not auto-unset.
+    const promoted = await client.createObject({ isEmbedded: false, name: "Promoted" });
+    await client.setProperty(pageId, schemaId, { nodeId: promoted }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+    const input = container.querySelector<HTMLInputElement>(".nt-property-textcell .nt-property-value");
+    expect(input).not.toBeNull();
+    expect(input!.placeholder).not.toBe("Type something");
+
+    fireEvent.change(input!, { target: { value: "resurrected" } });
+    fireEvent.blur(input!);
+    await flushWrites();
+    await flushWrites();
+
+    const rows = authoredTextRows(client, pageId, schemaId);
+    expect(rows.length).toBe(1);
+    const revived = (rows[0]!.value as { nodeId: string }).nodeId;
+    expect(revived).not.toBe(promoted);
+    expect(client.getNode(revived)?.parentId).toBe(pageId);
+    const first = client.getNode(revived)?.contentAst[0] as { text?: string } | undefined;
+    expect(first?.text).toBe("resurrected");
+  });
+});
+
+describe("auto-unset of contentless text values", () => {
+  it("a carrier with no content and no children is unset when the row renders over it", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    // The unset trashes the now-unreferenced carrier (getNode hides trashed).
+    expect(client.getNode(carrier)).toBeUndefined();
+  });
+
+  it("a carrier with content keeps its value", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "kept" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+  });
+
+  it("a carrier with empty content but a child keeps its value", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
+    await client.createObject({ parentId: carrier, contentAst: [{ type: "text", text: "child line" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+  });
+
+  it("a carrier emptied while its editor holds the caret is kept; leaving the row unsets it", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "soon gone" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    const editor = clickIntoBlock(container, 0);
+    expect(document.activeElement).toBe(editor);
+
+    // The flush lands (select-all + delete): the carrier is now contentless,
+    // but the caret is still in the row — the value survives.
+    await act(async () => {
+      await client.updateObject(carrier, { contentAst: [{ type: "text", text: "" }] });
+    });
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+
+    // Leaving the row (focus moves outside) runs the pass: the value is
+    // unset and the carrier trashed.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    act(() => {
+      outside.focus();
+    });
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    expect(client.getNode(carrier)).toBeUndefined();
+  });
+
+  it("an empty scalar value auto-unsets", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Citekey", type: "text" });
+    await client.setProperty(pageId, schemaId, "", 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+  });
+
+  it("the trailing ghost's fresh empty carrier survives while the row holds focus", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    // The multi row trails the platform realize ghost (the empty-state cell's
+    // twin — never an AddPill), scoped to the row's textcell.
+    const ghost = container.querySelector<HTMLElement>(
+      ".nt-property-text .nt-property-textcell > .nt-property-ghost",
+    );
+    expect(ghost).not.toBeNull();
+    const realize = ghost!.querySelector<HTMLButtonElement>(".nt-ghost-row__add");
+    expect(realize).not.toBeNull();
+    expect(realize!.textContent).toBe("+ Add block");
+    // The retired AddPill rode as a direct child of the textcell; the ghost
+    // replaced it (the row-end add-CLASS pill is block chrome, untouched).
+    expect(container.querySelector(".nt-property-textcell > button.pill--add")).toBeNull();
+    // A real click focuses the button — inside the row — so the pass must
+    // not unset the empty value the click is about to mint.
+    act(() => {
+      realize!.focus();
+    });
+    fireEvent.click(realize!);
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(2);
+    // The minted carrier is the fresh value; the DOM catches up on the
+    // subscribed host's re-render (this host table carries no subscription
+    // of its own — the established idiom in this file).
+  });
+
+  it("realizing the trailing ghost lands the caret in the new carrier's editor (subscribed host)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+
+    // The PageView/NodeView hosts subscribe and re-render the panel on store
+    // changes; probe that contract so the fresh-carrier hand-off is asserted
+    // end to end.
+    function SubscribingHost() {
+      const [, bump] = useState(0);
+      useEffect(() => client.subscribe(() => bump((v) => v + 1)), [client]);
+      return <PropertiesTable client={client} nodeId={pageId} />;
+    }
+    const { container } = render(<SubscribingHost />);
+    const realize = container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!;
+    act(() => {
+      realize.focus();
+    });
+    fireEvent.click(realize);
+    await flushWrites();
+    await flushWrites();
+
+    // The realize minted the value AND opened the block editor on it (the
+    // fresh-carrier effect — the Enter/Add caret contract).
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(2);
+    expect(container.querySelector(".nt-property-textcell .nt-block--editing")).not.toBeNull();
+  });
+
+  it("no trailing ghost on single-value rows, empty multi rows, or read-only", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const singleSchema = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const multiSchema = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "one value" }] });
+    const carrierB = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "valued" }] });
+    await client.setProperty(pageId, singleSchema, { nodeId: carrier }, 0);
+    await client.setProperty(pageId, multiSchema, { nodeId: carrierB }, 0);
+
+    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    const ghostsOf = (schemaId: string) => {
+      const row = [...container.querySelectorAll<HTMLElement>("li.nt-property-text")].find((li) =>
+        li.querySelector(`[data-property-schema-id="${schemaId}"]`),
+      );
+      if (row === undefined) throw new Error(`no row for ${schemaId}`);
+      return [...(row.querySelector(":scope > .nt-property-textcell") as HTMLElement).children].filter((el) =>
+        el.classList.contains("nt-property-ghost"),
+      ).length;
+    };
+    // The valued multi row trails exactly one ghost; the single-value row
+    // trails none (its empty state owns the cell's own ghost).
+    expect(ghostsOf(multiSchema)).toBe(1);
+    expect(ghostsOf(singleSchema)).toBe(0);
+
+    // Read-only: the valued multi row trails none at all.
+    rerender(<PropertiesTable client={client} nodeId={pageId} readOnly />);
+    await flushWrites();
+    expect(ghostsOf(multiSchema)).toBe(0);
+
+    // An EMPTY multi row (assigned, no values) shows only the cell's own
+    // realize ghost — no trailing duplicate.
+    rerender(<PropertiesTable client={client} nodeId={pageId} />);
+    await client.unsetProperty(pageId, multiSchema, 0);
+    await client.assignProperty(pageId, multiSchema);
+    await flushWrites();
+    rerender(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    expect(ghostsOf(multiSchema)).toBe(1);
+  });
+});
+
+describe("the '+ Add property' assignment (unbound text)", () => {
+  /** Drive the real panel flow: open the picker, pick the schema. The host
+   *  table carries no store subscription of its own (the rows do), so the
+   *  rerender stands in for the surrounding view re-rendering — the moment
+   *  the new TextPropertyRow mounts. */
+  async function addViaPanel(
+    container: HTMLElement,
+    /** Re-render the mounted host with current client state (the host table
+     *  has no store subscription of its own — the rows do); this is the
+     *  moment the new TextPropertyRow mounts. */
+    rerenderHost: () => void,
+    label: string,
+  ): Promise<void> {
+    const addButton = container.querySelector<HTMLButtonElement>(".nt-add-property .pill--add");
+    expect(addButton).not.toBeNull();
+    fireEvent.click(addButton!);
+    const option = [...container.querySelectorAll<HTMLButtonElement>(".nt-add-property-popup li button")].find(
+      (button) => button.querySelector(".nt-add-property-name")?.textContent === label,
+    );
+    expect(option).toBeDefined();
+    fireEvent.click(option!);
+    await flushWrites();
+    await flushWrites();
+    rerenderHost();
+  }
+
+  function assignedRows(client: Awaited<ReturnType<typeof seedClient>>, pageId: string, schemaId: string) {
+    return client.getEffectiveProperties(pageId).filter(
+      (row) => row.propertySchemaId === schemaId && row.source === "assigned",
+    );
+  }
+
+  it("a text add ASSIGNS the schema without a value — the row renders the ghost row", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+
+    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
+
+    // No value was authored (no placeholder carrier exists at all) — the
+    // declaration alone renders the row.
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    const assigned = assignedRows(client, pageId, schemaId);
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0]!.value).toBeNull();
+    // The empty state is the platform ghost row (the muted "+ Add block"
+    // affordance), awaiting the first click.
+    const ghost = container.querySelector<HTMLElement>(".nt-property-textcell .nt-property-ghost");
+    expect(ghost).not.toBeNull();
+    const add = ghost!.querySelector<HTMLButtonElement>(".nt-ghost-row__add");
+    expect(add).not.toBeNull();
+    expect(add!.textContent).toBe("+ Add block");
+  });
+
+  it("clicking the ghost row authors the first carrier — the value lands", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+
+    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
+
+    // A real click focuses the button — inside the row — so the auto-unset
+    // pass keeps the freshly minted empty carrier (the Add-pill precedent).
+    const add = container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!;
+    act(() => {
+      add.focus();
+    });
+    fireEvent.click(add);
+    await flushWrites();
+    await flushWrites();
+
+    // The row carries its own store subscription — the mint reflects without
+    // a host rerender. (Forcing one here would remount the just-opened block
+    // editor, drop focus from the row, and let the auto-unset pass reclaim
+    // the still-empty carrier.)
+    const rows = authoredTextRows(client, pageId, schemaId);
+    expect(rows).toHaveLength(1);
+    const carrier = (rows[0]!.value as { nodeId: string }).nodeId;
+    expect(client.getNode(carrier)).toBeDefined();
+    // The assigned-empty shadow row is gone — the authored row wins.
+    expect(assignedRows(client, pageId, schemaId)).toHaveLength(0);
+  });
+
+  it("walking away from the minted-but-empty carrier reclaims the slot — the assignment stands, no fabricated value", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+
+    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
+
+    // Without a click nothing authors — the declaration alone stands.
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    expect(assignedRows(client, pageId, schemaId)).toHaveLength(1);
+
+    // Clicking the ghost row mints an EMPTY carrier — the block editor opens
+    // on it and the row holds focus, so the value survives…
+    const add = container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!;
+    act(() => {
+      add.focus();
+    });
+    fireEvent.click(add);
+    await flushWrites();
+    await flushWrites();
+    expect(authoredTextRows(client, pageId, schemaId)).toHaveLength(1);
+
+    // …but walking away without typing lets the auto-unset pass reclaim the
+    // slot (unset + trash): the assignment stands, no fabricated value.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    act(() => {
+      outside.focus();
+    });
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    expect(assignedRows(client, pageId, schemaId)).toHaveLength(1);
+  });
+
+  it("the class-bound add flow keeps working (the binding's empty row appears; the add assigns idempotently)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const classId = await client.createClass("Document");
+    await client.setClassProperty(classId, schemaId, {});
+    await client.assignClass(pageId, classId);
+
+    const { container, rerender } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await addViaPanel(container, () => rerender(<PropertiesTable client={client} nodeId={pageId} />), "Summary");
+
+    // Still no value anywhere — the bound-empty row renders (via the
+    // assignment or the binding, either way the ghost row awaits the first
+    // click).
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    const ghost = container.querySelector<HTMLElement>(".nt-property-textcell .nt-property-ghost");
+    expect(ghost).not.toBeNull();
+  });
+});
+
+describe("citekey row: the empty-default placeholder + the regenerate affordance", () => {
+  /** The minimal source family: the `source` class, the citekey schema in
+   *  its SEED shape (`defaultValue: ""` — the scalar-empty default row the
+   *  placeholder fix targets), authors + publicationDate, all bound on the
+   *  base. */
+  async function seedSourceFamily(client: WorkspaceClient): Promise<void> {
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.source, {
+      id: SYSTEM_CLASS_UUIDS.source,
+    });
+    const SOURCE = SYSTEM_CLASS_UUIDS.source;
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.citekey,
+      name: "Citekey",
+      type: "text",
+      scopeClassIds: [SOURCE],
+      defaultValue: "",
+    });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.authors,
+      name: "Authors",
+      type: "text",
+      multi: true,
+      scopeClassIds: [SOURCE],
+    });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.publicationDate,
+      name: "Publication date",
+      type: "datetime",
+      scopeClassIds: [SOURCE],
+    });
+    for (const key of ["citekey", "authors", "publicationDate"] as const) {
+      await client.setClassProperty(SOURCE, SYSTEM_PROPERTY_UUIDS[key], {});
+    }
+  }
+
+  /** The one property row li carrying the given schema id. */
+  function rowOf(container: HTMLElement, schemaId: string): HTMLElement {
+    const row = [...container.querySelectorAll<HTMLElement>("li.nt-property")].find((li) =>
+      li.querySelector(`.nt-property-name[data-property-schema-id="${schemaId}"]`),
+    );
+    if (row === undefined) throw new Error(`no row for ${schemaId}`);
+    return row;
+  }
+
+  it("a default-sourced scalar-empty row renders the ghost row (the citekey seed shape)", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    // An empty default is an empty field: the SAME platform ghost row a
+    // bound-but-empty row rides (the muted "+ Add block" affordance, no
+    // dark field chrome).
+    const citekeyRow = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey);
+    const ghost = citekeyRow.querySelector<HTMLElement>(".nt-property-ghost");
+    expect(ghost).not.toBeNull();
+    const add = ghost!.querySelector<HTMLButtonElement>(".nt-ghost-row__add");
+    expect(add).not.toBeNull();
+    expect(add!.textContent).toBe("+ Add block");
+    // The first click still mints the carrier through the same path as the
+    // bound-but-empty cell: the value lands as the carrier {nodeId} ref.
+    act(() => {
+      add!.focus();
+    });
+    fireEvent.click(add!);
+    await flushWrites();
+    await flushWrites();
+    const rows = authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(rows).toHaveLength(1);
+    const carrier = client.getNode((rows[0]!.value as { nodeId: string }).nodeId);
+    expect(carrier).toBeDefined();
+  });
+
+  it("the regenerate button renders as the ghost row's trailing action on a source node — and nowhere else", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    const citekeyRow = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey);
+    const button = citekeyRow.querySelector<HTMLButtonElement>(
+      'button[aria-label="Regenerate citekey"]',
+    );
+    expect(button).not.toBeNull();
+    // The affordance rides the ghost row as its TRAILING action (the
+    // searchbox clear-x pattern — still at the field's right edge).
+    expect(button!.closest(".nt-property-ghost")).not.toBeNull();
+    // The authors row (also a text row on the same node) carries none.
+    expect(
+      rowOf(container, SYSTEM_PROPERTY_UUIDS.authors).querySelector(
+        'button[aria-label="Regenerate citekey"]',
+      ),
+    ).toBeNull();
+  });
+
+  it("the regenerate button is absent on a non-source node carrying citekey", async () => {
+    const client = await seedClient();
+    // A GLOBAL citekey schema (no source class at all): a plain page may
+    // carry an authored value, but the lineage keying keeps the affordance
+    // off — never a hardcoded node set.
+    const schemaId = await client.createPropertySchema({ name: "Citekey", type: "text" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.setProperty(pageId, schemaId, "manual", 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    expect(
+      rowOf(container, schemaId).querySelector('button[aria-label="Regenerate citekey"]'),
+    ).toBeNull();
+  });
+
+  it("click regenerates from the current metadata, collision-suffixed, through the row's property.set path", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.authors, "Lovelace, Ada", 0);
+    const { year: y1843 } = await client.ensureDateChain("1843-01-01");
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.publicationDate, { nodeId: y1843 }, 0);
+    // A sibling already holding the natural render — the deterministic
+    // a-suffix must disambiguate.
+    const siblingId = await client.createObject({
+      isEmbedded: false,
+      name: "Whatever",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setProperty(siblingId, SYSTEM_PROPERTY_UUIDS.citekey, "lovelace1843notesonthe", 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    fireEvent.click(
+      rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLButtonElement>(
+        'button[aria-label="Regenerate citekey"]',
+      )!,
+    );
+    await flushWrites();
+    await flushWrites();
+
+    // The write lands through property.set: an AUTHORED scalar row on the
+    // citekey schema with the pattern-rendered, collision-suffixed value.
+    const rows = authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.value).toBe("lovelace1843notesonthea");
+  });
+
+  it("a re-click with unchanged metadata rewrites the same value (the node's own citekey stays out of the collision scan)", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "Notes on the Analytical Engine",
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.authors, "Lovelace, Ada", 0);
+    const { year: y1843 } = await client.ensureDateChain("1843-01-01");
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.publicationDate, { nodeId: y1843 }, 0);
+    await client.setProperty(sourceId, SYSTEM_PROPERTY_UUIDS.citekey, "lovelace1843notesonthe", 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    fireEvent.click(
+      rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLButtonElement>(
+        'button[aria-label="Regenerate citekey"]',
+      )!,
+    );
+    await flushWrites();
+    await flushWrites();
+
+    const rows = authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.value).toBe("lovelace1843notesonthe");
+  });
+
+  it("empty metadata (no authors, no title, no date) renders the button disabled", async () => {
+    const client = await seedClient();
+    await seedSourceFamily(client);
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      classIds: [SYSTEM_CLASS_UUIDS.source],
+    });
+
+    const { container } = render(<PropertiesTable client={client} nodeId={sourceId} />);
+    const button = rowOf(container, SYSTEM_PROPERTY_UUIDS.citekey).querySelector<HTMLButtonElement>(
+      'button[aria-label="Regenerate citekey"]',
+    );
+    expect(button).not.toBeNull();
+    expect(button!.disabled).toBe(true);
+    // The no-op is honest: clicking a disabled button writes nothing.
+    fireEvent.click(button!);
+    await flushWrites();
+    expect(authoredTextRows(client, sourceId, SYSTEM_PROPERTY_UUIDS.citekey)).toHaveLength(0);
+  });
+});

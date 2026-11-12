@@ -1,0 +1,271 @@
+/**
+ * View-transform tests: block collapse and prose mode over PageView (jsdom).
+ * Both are display-only transforms per SCHEMA.md — collapse is session-local
+ * state that hides a subtree from rendering; prose mode flattens
+ * bullets/indents and HONORS collapse (folded
+ * subtrees hide, the chevron start-anchors the row — hover-revealed,
+ * persistent at rest while collapsed — and only the indent-line rail stays
+ * outline-only). Neither writes to the store. The prose/cards modes ride the
+ * per-page device preference (`viewMode.nodeBlocks.<pageId>`) — the switcher
+ * moved to the App-level NodeView chrome, so a directly
+ * rendered PageView hosts no header switcher to click.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { PageView } from "../src/ui/PageView.js";
+import { writeViewModePref } from "../src/ui/viewPrefs.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+});
+
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+/** Page with a childless root block and a root block holding a two-level subtree. */
+async function seedTreePage(client: WorkspaceClient): Promise<string> {
+  const pageId = await client.createObject({ isEmbedded: false, name: "Transforms" });
+  await client.createObject({
+    parentId: pageId,
+    contentAst: [{ type: "text", text: "leaf root" }],
+  });
+  const parent = await client.createObject({
+    parentId: pageId,
+    contentAst: [{ type: "text", text: "parent" }],
+  });
+  const child = await client.createObject({
+    parentId: parent,
+    contentAst: [{ type: "text", text: "nested child" }],
+  });
+  await client.createObject({
+    parentId: child,
+    contentAst: [{ type: "text", text: "grandchild" }],
+  });
+  return pageId;
+}
+
+function blockTreeEl(container: HTMLElement): HTMLElement {
+  const el = container.querySelector<HTMLElement>(".nt-block-tree");
+  if (el === null) throw new Error("no .nt-block-tree rendered");
+  return el;
+}
+
+/** Text queries scoped to the body tree: the panelled main layout's context
+ *  column derives a TOC from short one-line blocks, so body texts also ride
+ *  the rail chrome — tree assertions scope to the tree itself. */
+function treeByText(container: HTMLElement, text: string): HTMLElement {
+  return within(blockTreeEl(container)).getByText(text);
+}
+
+function treeQueryByText(container: HTMLElement, text: string): HTMLElement | null {
+  return within(blockTreeEl(container)).queryByText(text);
+}
+
+/**
+ * Click the first "Collapse block" chevron in document order (the root-level
+ * parent in the seeded tree). After it collapses, the nested chevron unmounts,
+ * so the matching "Expand block" button is unique again.
+ */
+function collapseRootParent(): void {
+  const first = screen.getAllByRole("button", { name: "Collapse block" })[0];
+  if (first === undefined) throw new Error("no collapse chevron rendered");
+  fireEvent.click(first);
+}
+
+describe("block collapse", () => {
+  it("hides the entire subtree when collapsed and re-renders it on expand", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Sanity: both descendant levels render inside nested children containers.
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeByText(container, "grandchild")).not.toBeNull();
+    expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
+
+    collapseRootParent();
+
+    // The whole subtree disappears from the DOM; the block itself stays.
+    expect(treeByText(container, "parent")).not.toBeNull();
+    expect(treeQueryByText(container, "nested child")).toBeNull();
+    expect(treeQueryByText(container, "grandchild")).toBeNull();
+    expect(container.querySelector(".nt-block-children")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand block" }));
+
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeByText(container, "grandchild")).not.toBeNull();
+    expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
+  });
+
+  it("collapse state is device-persisted per page: folds survive a remount", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const first = render(<PageView client={client} pageId={pageId} />);
+
+    collapseRootParent();
+    expect(treeQueryByText(first.container, "nested child")).toBeNull();
+    first.unmount();
+
+    // A fresh mount of the same page restores the fold from localStorage.
+    const second = render(<PageView client={client} pageId={pageId} />);
+    expect(treeQueryByText(second.container, "nested child")).toBeNull();
+    expect(treeByText(second.container, "parent")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
+
+    // Expanding persists too.
+    fireEvent.click(screen.getByRole("button", { name: "Expand block" }));
+    expect(treeByText(second.container, "nested child")).not.toBeNull();
+    second.unmount();
+    const third = render(<PageView client={client} pageId={pageId} />);
+    expect(treeByText(third.container, "nested child")).not.toBeNull();
+  });
+
+  it("the indent rail folds EACH child individually: one click folds every child's subtree (owner untouched), a second unfolds", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const rail = blockTreeEl(container).querySelector<HTMLElement>(".nt-block-children__rail");
+    if (rail === null) throw new Error("no indent rail rendered");
+
+    // One click: the nested child's subtree folds, but its row stays, and
+    // the OWNER's own expansion is untouched (its chevron still collapses).
+    fireEvent.click(rail);
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeQueryByText(container, "grandchild")).toBeNull();
+    expect(treeByText(container, "parent")).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "Collapse block" }).length).toBe(1);
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
+
+    // Second click: everything unfolds.
+    fireEvent.click(rail);
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeByText(container, "grandchild")).not.toBeNull();
+    expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
+  });
+
+  it("renders a chevron only on blocks that have children", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const tree = blockTreeEl(container);
+    // Exactly the two parents (root parent + nested child) get a chevron.
+    expect(tree.querySelectorAll(".nt-block-chevron").length).toBe(2);
+
+    // The childless root block's row has no chevron — only the plain bullet
+    // plus the drag-handle grip that every row carries.
+    const leafRow = treeByText(container, "leaf root").closest(".nt-block-row");
+    expect(leafRow).not.toBeNull();
+    expect(
+      within(leafRow as HTMLElement).queryByRole("button", { name: /collapse block|expand block/i }),
+    ).toBeNull();
+    expect(within(leafRow as HTMLElement).getByTitle("Drag to move")).not.toBeNull();
+  });
+
+  it("does not enter edit mode when the chevron is clicked", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    collapseRootParent();
+
+    // Read-mode content stays; no contentEditable editor mounts in the row.
+    expect(container.querySelector(".nt-block-text")).toBeNull();
+    expect(treeByText(container, "parent")).not.toBeNull();
+  });
+
+  it("writes nothing to the store and leaves the tree data intact", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const updateSpy = vi.spyOn(client, "updateObject");
+    const createSpy = vi.spyOn(client, "createObject");
+    const moveSpy = vi.spyOn(client, "moveObject");
+    const deleteSpy = vi.spyOn(client, "deleteObject");
+    const treeBefore = JSON.stringify(client.getBlockTree(pageId));
+
+    render(<PageView client={client} pageId={pageId} />);
+    collapseRootParent();
+    fireEvent.click(screen.getByRole("button", { name: "Expand block" }));
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(moveSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
+    // Display state only: the underlying tree is untouched.
+    expect(JSON.stringify(client.getBlockTree(pageId))).toBe(treeBefore);
+  });
+});
+
+describe("prose mode", () => {
+  it("honors collapse: the chevron start-anchors the row and the folded subtree hides", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    // The NodeView switcher's seam: the per-page device preference.
+    writeViewModePref(`nodeBlocks.${pageId}`, "prose");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(true);
+    // The two parents get a chevron exactly as in outline.
+    expect(container.querySelectorAll(".nt-block-chevron").length).toBe(2);
+    // The indent-line rail stays outline-only: prose flattens the indents.
+    expect(container.querySelector(".nt-block-children__rail")).toBeNull();
+  });
+
+  it("reads the same collapse set — prose hides the fold, outline round-trips nothing lost", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    collapseRootParent();
+    expect(treeQueryByText(container, "nested child")).toBeNull();
+
+    // Prose: the device preference re-renders the page in place.
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "prose"));
+
+    // Honored, not ignored: the hidden subtree stays hidden in prose, and
+    // the persistent chevron is the collapsed indicator.
+    expect(treeQueryByText(container, "nested child")).toBeNull();
+    expect(treeByText(container, "parent")).not.toBeNull();
+    const expand = screen.getByRole("button", { name: "Expand block" });
+    expect(expand.closest(".nt-block")?.classList.contains("nt-block--collapsed")).toBe(true);
+
+    // Clicking the prose chevron unfolds, exactly as in outline.
+    fireEvent.click(expand);
+    expect(treeByText(container, "nested child")).not.toBeNull();
+
+    // Fold it again, then flip back to outline: the session set is intact.
+    fireEvent.click(screen.getAllByRole("button", { name: "Collapse block" })[0]!);
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "outline"));
+    expect(treeQueryByText(container, "nested child")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
+  });
+});

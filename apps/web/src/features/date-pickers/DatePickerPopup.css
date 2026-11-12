@@ -1,0 +1,255 @@
+/**
+ * DatePickerPopup Styles
+ * Reuses calendar-* classes from CalendarPopup where possible
+ */
+
+/* ==================== Container ==================== */
+.date-picker-popup {
+  position: fixed;
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--elevation-2);
+  padding: var(--spacing-3);
+  /* --z-floating: transient popups fly above the modal band (a date picker
+     can open from a property row inside a dialog). */
+  z-index: var(--z-floating);
+  min-width: var(--layout-size-4xl);
+}
+
+/* ==================== Text Input ==================== */
+.date-picker-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+}
+
+.date-picker-text-input {
+  flex: 1;
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  outline: none;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-picker-text-input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ==================== Parsed Preview ==================== */
+.date-picker-preview {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-primary);
+  padding: 0 var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+  min-height: var(--font-size-lg);
+}
+
+.date-picker-preview--invalid {
+  color: var(--md-sys-color-error);
+}
+
+/* ==================== Selected Date Indicator ==================== */
+
+/* Selected-day styles live in CalendarPopup.css, which DatePickerPopup reuses. */
+
+/*
+ * Container, header, weekday and day-cell styles are shared with the top-bar
+ * calendar via CalendarPopup.css (imported by DatePickerPopup.tsx). Only the
+ * type-a-date input + preview above the grid are date-picker-specific.
+ */
+
+.date-picker-popup .calendar-today-btn {
+  min-height: var(--height-sm);
+  min-width: var(--height-sm);
+}
+
+/* ==================== Insert Error ==================== */
+.date-picker-error {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-error);
+  padding: var(--spacing-1) var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+  background: var(--md-sys-color-error-container);
+  border-radius: var(--shape-small);
+  overflow-wrap: break-word;
+}
+
+/* ==================== Two-zone body (calendar + side column) ==================== */
+.date-picker-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+}
+
+.date-picker-calendar {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ==================== Text input ==================== */
+.date-picker-input-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ==================== Header (month ⌄ / year ⌄ + ‹ ›) ==================== */
+.date-picker-header {
+  margin-top: var(--spacing-2);
+}
+
+.date-picker-header .calendar-title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-micro);
+}
+
+/* ==================== Side column ==================== */
+.date-picker-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-width: 10ch;
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding-left: var(--spacing-3);
+}
+
+.date-picker-side-title {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.date-picker-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.date-picker-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  background: none;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-picker-suggestion:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.date-picker-suggestion--active {
+  color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+/* ==================== Switch / slot rows ==================== */
+.date-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+}
+
+.date-picker-row-label {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.date-picker-time-row {
+  justify-content: flex-start;
+}
+
+.date-picker-time-input {
+  inline-size: 6ch;
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-small);
+  outline: none;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-picker-time-input:focus {
+  border-color: var(--md-sys-color-primary);
+}
+
+/* ==================== Range slot rows ==================== */
+.date-picker-slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.date-picker-slot-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+}
+
+.date-picker-slot-btn {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: start;
+  transition:
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-picker-slot-btn:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.date-picker-slot-btn--target {
+  border-color: var(--md-sys-color-primary);
+}
+
+/* ==================== Remove ==================== */
+.date-picker-remove {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-error);
+  background: none;
+  border: none;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: 0;
+  padding-top: var(--spacing-2);
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-picker-remove:hover {
+  background: var(--md-sys-color-hover-overlay);
+}

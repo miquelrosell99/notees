@@ -1,0 +1,151 @@
+/**
+ * MainContentFrame styles — the panelled main-content
+ * composition generalized out of PageView's private grid. Token-only
+ * (variables.css). The panel cards KEEP their established class names
+ * (.nt-page-context / .nt-page-side-panel — the raised-card registers the
+ * nodeview introduced); the layout classes are the frame's own. The middle
+ * cell carries NO width cap — the host wraps its children in its own cap
+ * when it wants one (PageView's journal measure rides .nt-nodeview-body in
+ * app.css) and full-bleed when it doesn't. The scrollbar seam: a host's scroll box scrolls at its own right edge — beside
+ * the right side pane — with the text cap centered inside it (the panelled
+ * nodeview: .nt-page-content scrolls full cell width, the 46rem cap rides
+ * .nt-nodeview-body inside it).
+ */
+
+/* The frame root: fills the host's panelled surface (the nodeview page,
+   a future hub) so the body row below can pin the top bar and stretch the
+   columns between it and the card bottom. */
+.nt-main-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The body row: the left panel card beside the content column beside the
+   right panel card (three columns; the nodeview's swap
+   the usually-open properties panel balances the main sidebar from the
+   right, the usually-closed context panel tucks in on the left).
+   The body OWNS the outer inset too ("the panels implementation, padding and positioning and style should be
+   global/universal, not per view styled"): the horizontal padding below is
+   the window/card-edge → panel-card gap, the SAME measure the panelled
+   nodeview's host shell used to carry per view (`.nt-page--panelled`'s
+   padding-left/right, var(--spacing-4)) — the calendar had duplicated that
+   host register, the Sources hub had none (the "I see no gap" screenshot).
+   Hosts must NOT double-pad: every frame host's wrapper drops its
+   horizontal copy and each host's top bar carries its own inset (the bar
+   is chrome, not panel). The compact adaptation below keeps the inset
+   (stacked panels ride the same side padding). */
+.nt-main-frame__body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  padding: 0 var(--spacing-4);
+  flex: 1;
+  min-height: 0;
+}
+
+/* Compact adaptation (audit 2026-10-19 — the 390px Critical): below the
+   medium breakpoint the two panel cards' minima (13rem + 15rem = 28rem)
+   outrun the content card and the middle column, squeezed to zero,
+   vanishes while the panels clip. The body stacks instead: content first,
+   then the panels — each a full-width block the body scrolls past. */
+@media (width <= 768px) {
+  .nt-main-frame__body {
+    flex-direction: column;
+    gap: var(--spacing-3);
+    overflow-y: auto;
+  }
+
+  .nt-main-frame__content {
+    order: -1; /* the content leads on compact; panels follow */
+    align-self: auto;
+    flex: none;
+  }
+
+  .nt-page-side-panel,
+  .nt-page-context {
+    flex: none;
+    width: 100%;
+    align-self: auto;
+    max-height: none;
+  }
+}
+
+/* The middle cell: stretches between the panel cards, hosts the view's
+   own body (its scroller, its cap, its chrome). No width cap here — the
+   host's wrapper carries it. */
+.nt-main-frame__content {
+  align-self: stretch;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The raised-card panels: each sidebar rides INSIDE the
+   main content card wearing the SAME card element the container itself
+   wears (.nt-page-card, PageCard.css: hairline frame, --shape-card radius,
+   --shadow-elevation-1) — a card nested in a card, not a column split by a
+   continuous vertical divider. The cards stop a spacing-3 step above the
+   card bottom (one step more than the top bar's own spacing-2 below
+   itself — the bar is chrome, the panels are surfaces). The fill is
+   --md-sys-color-sidebar-card: the same surface in light, one tone lighter
+   in dark so the cards stand out. */
+.nt-page-side-panel {
+  /* The flex-basis rides the custom property: the host may override the
+     column width per view (the calendar's mini-month sets
+     var(--layout-size-8xl)), undefined falls back to
+     the register default. */
+  flex: 0 0 var(--nt-side-panel-width, clamp(13rem, 24%, 22rem)); /* token-gate: constant side-panel flex-basis clamp ruling (13rem/22rem panel min/max), not a scale step */
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  overflow-y: auto;
+  margin-bottom: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+}
+
+/* The context column register: same card element as the properties panel
+   AND the main content container (see above): the very card the container
+   wears, nested inside it; the old full-height divider retired. */
+.nt-page-context {
+  flex: 0 0 var(--nt-context-panel-width, clamp(15rem, 26%, 22rem)); /* token-gate: constant context-panel flex-basis clamp ruling (15rem/22rem panel min/max), not a scale step */
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+}
+
+/* The canonical panel-CONTENT register ("the style
+   should come from the main content component, and the views just define
+   what the content of each sidebar is"): the pane chrome — the card's
+   padding, its scroll, the column rhythm — belongs to the frame's cards
+   above; a view whose panel is ONE content column (the hub panes) rides
+   this class on its content root and owns nothing but its content
+   internals — no per-pane padding, no per-pane scroll. The register
+   mirrors the context card's own flex column (same gap) so a single
+   column reads exactly like the nodeview's multi-widget column.
+   PageView/CalendarView keep riding the cards' own flex column directly
+   (their content is widgets + layout seams like the footer's
+   margin-top:auto pin) — the lift leaves them pixel-identical. The frame
+   deliberately does NOT wrap panel content itself: a wrapper would break
+   those seams, so the register is opt-in on the host's content root. */
+.nt-main-frame__panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-height: 0;
+}

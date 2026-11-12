@@ -1,0 +1,184 @@
+/**
+ * Property value display helpers shared by the table and cards views:
+ * the read-only text projection of an EffectiveProperty, per value shape
+ * (select ids → option labels via the schema registry, node-typed values →
+ * the target's display name, multi values joined).
+ */
+
+import type {
+  ClientPropertySchema,
+  EffectiveProperty,
+} from "@/core/workspace-client/index.js";
+import { datetimeValueText, titleOf, type TitleClient } from "../../ui/dateDisplay.js";
+
+/**
+ * The structural client shape property flattening needs — the title seam's
+ * TitleClient plus the schema registry (select option labels). Both full
+ * clients (WorkspaceClient/WorkerClient, the AnyClient union) satisfy it;
+ * the displayTemplate title branch synthesizes it from the seam's resolvers
+ * so node-typed values inside a template resolve through the same funnel.
+ */
+export type PropertyDisplayClient = TitleClient & {
+  listPropertySchemas(): ClientPropertySchema[];
+};
+
+export function isEmptyPropertyValue(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === "string") return value === "";
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.keys(value as Record<string, unknown>).length === 0;
+  return false;
+}
+
+function optionLabel(client: PropertyDisplayClient, schemaId: string, optionId: unknown): string {
+  if (typeof optionId !== "string") return String(optionId);
+  const schema = client.listPropertySchemas().find((s) => s.id === schemaId);
+  const option = schema?.options?.find((o) => o.id === optionId);
+  return option?.label ?? optionId;
+}
+
+function isSelectionType(type: string | undefined): boolean {
+  return type === "select" || type === "multi_select";
+}
+
+/** Node-typed schemas (datetime/object/asset): values are node refs — canonical
+ *  `{ nodeId }` objects or, on v1-migrated data, BARE uuid strings (SCHEMA.md
+ *  PB2 read-leniency: legacy encodings ride the log and every display reads
+ *  them as refs). Scalar-typed schemas never take this path. */
+const NODE_TYPED_SCHEMAS = new Set(["datetime", "object", "asset"]);
+
+function nodeRefText(client: PropertyDisplayClient, value: unknown): string {
+  // Accepts both the canonical { nodeId } ref and the legacy bare-uuid
+  // string; an unrecognized shape answers "" (callers fall back honestly).
+  const nodeId =
+    typeof value === "string"
+      ? value
+      : typeof value === "object" && value !== null
+        ? (value as { nodeId?: unknown }).nodeId
+        : undefined;
+  if (typeof nodeId !== "string") return "";
+  // Never a bare UUID: archived/trashed targets keep
+  // their name via the raw read; a permanently deleted target (no row at
+  // all) reads empty like the unrecognized-shape case above.
+  return titleOf(client, nodeId, { read: "fallback", empty: "untitled" }) ?? "";
+}
+
+/** datetime range display: `start → end`, either side open → `…`; refs resolve
+ *  like the scalar node-typed branches (bare-string leniency included).
+ *  Null when the value is not range-shaped. */
+function dateRangeText(client: PropertyDisplayClient, value: unknown): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  const range = value as { start?: unknown; end?: unknown };
+  if (!("start" in range) && !("end" in range)) return null;
+  const side = (end: unknown): string => {
+    const ref =
+      typeof end === "string"
+        ? end
+        : typeof end === "object" && end !== null
+          ? (end as { nodeId?: unknown }).nodeId
+          : null;
+    if (typeof ref !== "string") return "…";
+    // Same never-a-bare-UUID contract as nodeRefText.
+    return titleOf(client, ref, { read: "fallback", empty: "untitled" }) ?? "";
+  };
+  return `${side(range.start)} → ${side(range.end)}`;
+}
+
+/**
+ * SCHEMA.md "Number formats": display-only formatting for number values.
+ * Values stay exact in the log — this shapes render only. `numberDecimals`
+ * cuts the fraction with `numberRounding` (default "round" = half away from
+ * zero, per Intl's default); `numberPad` zero-pads the integer part to N
+ * digits ("0001"). Anything non-finite or non-numeric passes through.
+ */
+export function formatNumberValue(
+  value: number,
+  schema:
+    | { numberPad?: number | null; numberDecimals?: number | null; numberRounding?: string | null }
+    | null
+    | undefined,
+): string {
+  if (schema === undefined || schema === null) return String(value);
+  let v = value;
+  if (schema.numberDecimals !== null && schema.numberDecimals !== undefined) {
+    const factor = 10 ** schema.numberDecimals;
+    const rounding = schema.numberRounding ?? "round";
+    const scaled =
+      rounding === "floor"
+        ? Math.floor(v * factor)
+        : rounding === "ceil"
+          ? Math.ceil(v * factor)
+          : rounding === "truncate"
+            ? Math.trunc(v * factor)
+            : Math.round(v * factor);
+    v = scaled / factor;
+  }
+  let text = String(v);
+  if (schema.numberPad !== null && schema.numberPad !== undefined) {
+    const [intPart = "", fracPart] = text.split(".");
+    const sign = intPart.startsWith("-") ? "-" : "";
+    const digits = sign ? intPart.slice(1) : intPart;
+    const padded = digits.padStart(schema.numberPad, "0");
+    text = sign + padded + (fracPart !== undefined ? `.${fracPart}` : "");
+  }
+  return text;
+}
+
+/** The plain-text display of one property value ("" when unset). */
+export function propertyDisplayText(client: PropertyDisplayClient, prop: EffectiveProperty | undefined): string {
+  if (prop === undefined || isEmptyPropertyValue(prop.value)) return "";
+  const value = prop.value;
+  const schemaType = prop.schema?.type;
+  const nodeTyped = schemaType !== undefined && NODE_TYPED_SCHEMAS.has(schemaType);
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        if (isSelectionType(schemaType)) return optionLabel(client, prop.propertySchemaId, entry);
+        if (typeof entry === "boolean") return entry ? "☑" : "☐";
+        if (typeof entry === "number") return formatNumberValue(entry, prop.schema);
+        // Node-typed schemas (datetime/object/asset) resolve refs; scalar
+        // strings ride as authored text (multi-text — the authors family —
+        // never routed through the ref resolver, where a non-uuid string
+        // would flatten to "").
+        if (nodeTyped) return nodeRefText(client, entry);
+        if (typeof entry === "string") return entry;
+        return JSON.stringify(entry) ?? "";
+      })
+      .filter((text) => text !== "")
+      .join(", ");
+  }
+  if (isSelectionType(schemaType)) return optionLabel(client, prop.propertySchemaId, value);
+  if (schemaType === "boolean") return value === true ? "☑" : "☐";
+  if (schemaType === "datetime") {
+    // The unified union rides the slot formatter (point `label HH:MM`,
+    // range `start → end` with `…` for open sides).
+    const text = datetimeValueText(value);
+    if (text !== null) return text;
+  }
+  const range = dateRangeText(client, value);
+  if (range !== null) return range;
+  // A canonical { nodeId } ref resolves unconditionally (any schema shape);
+  // a bare string resolves on node-typed schemas (legacy v1 encoding).
+  if (typeof value === "object" && value !== null) {
+    const resolved = nodeRefText(client, value);
+    return resolved !== "" ? resolved : (JSON.stringify(value) ?? "");
+  }
+  if (nodeTyped && typeof value === "string") return nodeRefText(client, value);
+  if (typeof value === "number") return formatNumberValue(value, prop.schema);
+  if (typeof value === "string") return value;
+  return JSON.stringify(value) ?? "";
+}
+
+/**
+ * The external navigation target of an email value: email
+ * values become `mailto:`. The retired `url` property type kept no
+ * click-to-open affordance — a legacy url value renders as plain text and a
+ * bare http(s) URL inside it linkifies through the markdownLinks grammar
+ * (the only link affordance). Null when the value is not a non-empty string —
+ * nothing to link.
+ */
+export function propertyLinkHref(type: string | undefined, value: unknown): string | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  if (type === "email") return `mailto:${value.trim()}`;
+  return null;
+}

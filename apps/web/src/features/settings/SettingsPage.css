@@ -1,0 +1,416 @@
+/**
+ * SettingsPage styles — the full settings surface rendered in the PageCard
+ * slot: a sidebar section nav beside the content area. The section bodies
+ * compose the shared settings row chrome from settingsModal.css; only the
+ * page frame lives here.
+ */
+
+.settings-page {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-6);
+  /* Symmetric inset (the asymmetric steps read broken —
+     top/bottom must match the sides). The section nav rides the card's
+     left edge; the content column caps and centers itself below. */
+  padding: var(--spacing-4);
+}
+
+/* ==================== Section Nav ==================== */
+
+.settings-page__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  flex: 0 0 auto;
+  min-width: 14ch;
+  position: sticky;
+  top: 0;
+  padding-right: var(--spacing-4);
+  border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.settings-page__nav-item {
+  display: flex;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  /* Echoes the card corner: 20px card radius minus the 12px inset. */
+  border-radius: var(--shape-large);
+  background: none;
+  font: var(--font-label-large);
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-page__nav-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.settings-page__nav-item--active {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.settings-page__nav-item:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+/* ==================== Content ==================== */
+
+.settings-page__content {
+  flex: 1;
+  min-width: 0;
+  /* The reading cap for settings rows: past ~900px the label/control rows
+     over-stretch (the layout-size token, a genuinely constant dimension).
+     Centered inside the remaining space — the capped column must not hug
+     the nav rail. */
+  max-width: var(--layout-size-14xl);
+  margin-inline: auto;
+}
+
+/* Narrow: the nav becomes a horizontal scroll row above the content. The
+   page is columnar now — the children must stretch to the container width;
+   the shell's align-items: flex-start would size them to their max-content
+   (the widest settings row), overflowing the viewport sideways. */
+@media (width <= 768px) {
+  .settings-page {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-4);
+  }
+
+  /* The content column must fill the shell — without an explicit width the
+     columnar flex context resolves it to the section's max-content, and the
+     PageCard clips the overflow (rows lose their trailing actions). */
+  .settings-page__content {
+    width: 100%;
+  }
+
+  .settings-page__nav {
+    flex-direction: row;
+    overflow-x: auto;
+    width: 100%;
+    min-width: 0;
+    position: static;
+    padding-right: 0;
+    padding-bottom: var(--spacing-2);
+    border-right: none;
+    border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  }
+
+  .settings-page__nav-item {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+/* ==================== Accent Color Swatches ==================== */
+/* (Relocated from the retired UserSettingsModal.css — the picker lives on
+   the full page now.) */
+.settings-accent-options {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.settings-accent-swatch {
+  position: relative;
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: var(--border-width-thick) solid transparent;
+  cursor: pointer;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* The hover/press feedback rides state layers (the 2026-10-15 re-audit
+   removed the IconPickerPopup's hover-scale; hover-scale is not in the
+   tactile map). The accent fill is the inline seed color, so the layer
+   composes as an inset ::after overlay instead of a background swap. */
+.settings-accent-swatch::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--border-width-thick));
+  border-radius: 50%;
+  background: var(--md-sys-color-hover-overlay);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-accent-swatch:hover::after,
+.settings-accent-swatch:active::after {
+  opacity: 1;
+}
+
+.settings-accent-swatch:active::after {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+.settings-accent-swatch:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.settings-accent-swatch--active {
+  border-color: var(--md-sys-color-primary);
+  box-shadow: var(--shadow-focus-ring-primary-container);
+}
+
+/* Monochrome previews ink, not grey — the value is theme-dependent and lives
+   in variables.css (--md-sys-color-swatch-monochrome), mirroring the
+   [data-accent="monochrome"] accent overrides. */
+.settings-accent-swatch--monochrome {
+  background-color: var(--md-sys-color-swatch-monochrome);
+}
+
+/* ==================== Sync Server Section ==================== */
+/* The known-servers selection list: one card row per remembered address —
+   radio + (current row only) the Current pill and the Disconnect button,
+   trash on every row. The current row's trash REMOVES the address (which
+   implies the sign-out); Disconnect alone un-selects and keeps the address. */
+
+.settings-server-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) 0;
+}
+
+.settings-server-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: var(--md-sys-color-surface-container-low);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-server-row:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+/* The trailing chrome (flag pill, disconnect, trash) wraps as one unit on
+   narrow screens instead of clipping — the row goes two-line with the
+   actions pinned right. */
+.settings-server-row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-left: auto;
+}
+
+/* The radio grows to absorb the row width so long URLs truncate instead of
+   pushing the flag pill and the actions off the card. */
+.settings-server-row__radio {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-server-row__radio .radio-label-wrapper {
+  min-width: 0;
+}
+
+.settings-server-row__radio .radio-label {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The flag pill rides the accent (primary-container IS the accent-tinted
+   surface and follows the chosen accent). It is a status flag, not an
+   action: no hover/press feedback, no pointer — the Pill primitive's
+   clickable affordances are switched off. */
+.settings-server-row__flag {
+  flex-shrink: 0;
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  cursor: default;
+  pointer-events: none;
+}
+
+/* The delete button is quiet at rest and inks danger on hover. */
+.settings-server-row__trash {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.settings-server-row__trash:hover {
+  color: var(--md-sys-color-error);
+}
+
+/* The dashed "Add server" affordance rides the list's row padding. */
+.settings-server-add {
+  padding: var(--spacing-1) var(--spacing-3) 0;
+}
+
+/* The add-server dialog: help text above the URL field. */
+.settings-server-modal .settings-section__description {
+  margin: 0 0 var(--spacing-3) 0;
+}
+
+/* ==================== About Section ==================== */
+.settings-about {
+  text-align: center;
+  padding: var(--spacing-4);
+}
+
+.settings-about__logo {
+  width: var(--spacing-16);
+  height: var(--spacing-16);
+  margin-bottom: var(--spacing-2);
+}
+
+.settings-about__name {
+  font: var(--font-title-large);
+  color: var(--md-sys-color-on-surface);
+  margin: 0 0 var(--spacing-1) 0;
+}
+
+.settings-about__description {
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  margin: 0;
+}
+
+.settings-about__copyright {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  margin: var(--spacing-3) 0 0 0;
+}
+
+/* ==================== Settings Links ==================== */
+.settings-links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--shape-large);
+  font: var(--font-label-large);
+  color: var(--md-sys-color-primary);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-link:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* ==================== Privacy Card ==================== */
+.settings-privacy-card {
+  padding: var(--spacing-4);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+}
+
+.settings-privacy-card__text {
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  margin: 0;
+}
+
+/* ==================== Support Section ==================== */
+.settings-support-channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.settings-support-channel {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  text-decoration: none;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-support-channel:hover {
+  background: var(--md-sys-color-surface-container);
+  border-color: var(--md-sys-color-primary);
+}
+
+.settings-support-channel:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--spacing-micro);
+}
+
+.settings-support-channel__icon {
+  flex-shrink: 0;
+  font-size: var(--icon-size-lg);
+  color: var(--md-sys-color-primary);
+  display: inline-flex;
+  align-items: center;
+}
+
+.settings-support-channel__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-support-channel__name {
+  font: var(--font-body-medium);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+.settings-support-channel__description {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.settings-support-channel__arrow {
+  flex-shrink: 0;
+  font-size: var(--icon-size-md);
+  color: var(--md-sys-color-on-surface-variant);
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The ADS credential editor (Account → ADS Token): the password-styled
+   field + the save row with its inline notice. Token-only. */
+.settings-ads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  max-width: 40ch;
+}
+
+.settings-ads__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.settings-ads__notice {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}

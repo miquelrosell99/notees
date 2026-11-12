@@ -1,0 +1,626 @@
+/**
+ * TableView — the collection table (token-only).
+ *
+ * The table look recovery. The original NodeTable ("bordered", size md)
+ * registered: a BOXED table — border-collapse separate, a 1px
+ * outline-variant outer border with the shape-medium radius, surface cells
+ * (no zebra) with per-cell right/bottom hairlines forming the grid; a
+ * header row on the surface-variant wash — 600-weight muted labels,
+ * sticky, with the sortable hover tint; row hover painting every cell
+ * hover-overlay; the selected row wearing the same hover-overlay wash;
+ * a sticky select-checkbox column with the row-gutter shadow; and the
+ * sort register: direction arrows on every sorted column plus the
+ * multi-sort priority index. The newer machinery stays: inline editing, the
+ * tri-state header checkbox, CSV/Excel export, ImportTableModal, and the
+ * ROW_WINDOW paging.
+ */
+
+.nt-table-wrap {
+  overflow-x: auto;
+}
+
+.nt-table {
+  width: 100%;
+  /* Fixed layout: the colgroup's widths are the columns'
+     exact shares — resizable and default-sized by construction; cell
+     content wraps inside its lane instead of renegotiating the table
+     (auto layout fought the drag by re-expanding from content). A crowded
+     table overflows the wrap horizontally (overflow-x below). */
+  table-layout: fixed;
+  /* Separate borders + zero spacing — the boxed grid renders from
+     per-cell hairlines, and the rounded corners clip. */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-base);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+}
+
+/* The resize drag: the col-resize cursor rides the whole table and text
+   selection drops, so the live-reflowing column reads as the feedback. */
+.nt-table--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* The header register: the surface-variant wash, sticky, 600-weight muted
+   labels, cell hairlines forming the grid's top edge. Fixed layout clips
+   at the lane (a column dragged narrower than its nowrap label cuts at the
+   divider; the sort button's title carries the full name). */
+.nt-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-10);
+  text-align: left;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-variant);
+  border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding: var(--spacing-2) var(--spacing-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.nt-table thead th:last-child {
+  border-right: none;
+}
+
+/* Body cells: the surface wash + the grid hairlines. Fixed layout: content
+   wraps inside its lane (break-word catches words longer than the share)
+   instead of renegotiating the column. */
+.nt-table td {
+  background: var(--md-sys-color-surface);
+  border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding: var(--spacing-2) var(--spacing-3);
+  vertical-align: middle;
+  overflow-wrap: break-word;
+}
+
+.nt-table td:last-child {
+  border-right: none;
+}
+
+/* --hoverable: the row hover paints every cell. */
+.nt-table tbody tr:hover > td {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nt-table-sort:disabled {
+  cursor: default;
+}
+
+.nt-table-sort:not(:disabled):hover {
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-table-sort--active {
+  color: var(--md-sys-color-primary);
+}
+
+/* The column-resize divider: an 8px hit area at the
+   header's right edge (inside the th — the sticky header clips overflow,
+   and the th's right padding keeps it off the sort button's text). At
+   rest it shows a hairline on hover/focus only; the drag itself is live
+   (the column reflows under the pointer). */
+.nt-table-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--spacing-2);
+  cursor: col-resize;
+  touch-action: none;
+  z-index: var(--z-20);
+}
+
+.nt-table-resize:hover,
+.nt-table-resize:focus-visible {
+  background: var(--md-sys-color-primary);
+  outline: none;
+}
+
+/* Multi-sort: the priority index rides the sort icon. */
+.nt-table-sort-index {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--md-sys-color-outline);
+}
+
+/* The name cell IS a block row: the icon, the block row, and the pinned Open button share one
+   flex lane; the block row takes the rest of the cell and the title wraps
+   inside it (the retired name button's block-flex max-width contract moves
+   here). */
+td.nt-table-name .nt-table-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+/* The title row root is the OUTLINE GRID by construction (the bullet-gutter
+   template columns, app.css .nt-block) — inside a table cell that grid sets
+   the cell's min-content to the fixed gutter tracks and the auto-layout
+   column collapses to gutter width. Inside the cell the row rides plain
+   block flow and the column sizes from the title text (live probe
+   2026-10-21 — one-word-per-line wrapping at ~50px). */
+td.nt-table-name .nt-block--title {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The page-headline typography stays in the page header (the card-title
+   precedent) — the cell rides the table's own font. */
+td.nt-table-name .nt-page-title {
+  font: inherit;
+}
+
+.nt-table-name-icon {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  display: inline-flex;
+}
+
+.nt-table-created {
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-table-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.nt-table-chip {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  border: var(--border-width-default) solid currentColor;
+  border-radius: var(--radius-full);
+  padding: 0 var(--spacing-2);
+  white-space: nowrap;
+}
+
+.nt-table-select {
+  font: inherit;
+  color: inherit;
+  /* fields ride the cell chrome — no border. */
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-micro) var(--spacing-1);
+  max-width: 100%;
+}
+
+.nt-table-select:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-table-select:focus,
+.nt-table-select:focus-visible {
+  outline: none;
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-table-select:focus-visible {
+  /* Keyboard focus gets the accent ring — visually distinct from hover. */
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.nt-window-more {
+  margin-top: var(--spacing-2);
+}
+
+/* Toolbar (column selector + sort configurator panels). */
+
+.nt-table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-1);
+}
+
+/* Live-selection chrome ("Export selected"): count + export button
+   sit left of the export/columns/sort controls. */
+.nt-table-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-right: auto;
+}
+
+.nt-table-selection__count {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-table-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: var(--layout-size-3xl);
+  max-height: var(--layout-size-xl);
+  overflow-y: auto;
+}
+
+.nt-table-panel__title {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--spacing-1) var(--spacing-2) 0;
+}
+
+.nt-table-panel__hint {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0 var(--spacing-2);
+}
+
+.nt-table-panel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+}
+
+.nt-table-panel__row:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-table-panel__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-table-panel__action {
+  border: none;
+  background: none;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--shape-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.nt-table-panel__action:hover:not(:disabled) {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-table-panel__action:disabled {
+  opacity: var(--opacity-40);
+  cursor: default;
+}
+
+.nt-table-panel__add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding-top: var(--spacing-1);
+}
+
+.nt-table-panel__add-item {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.nt-table-panel__add-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-table-panel__reset {
+  border: none;
+  background: none;
+  padding: var(--spacing-1);
+  border-radius: var(--shape-small);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.nt-table-panel__reset:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-table-panel__check {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.nt-table-panel__check:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Inline cell editing + selection. */
+
+.nt-table-input {
+  font: inherit;
+  color: inherit;
+  /* super-clean fields — the content sits directly in the
+     cell, no chrome (was: a primary-colored outlined input). */
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-micro) var(--spacing-1);
+  width: 100%;
+  min-width: var(--width-col-min);
+}
+
+.nt-table-input:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-table-input:focus,
+.nt-table-input:focus-visible {
+  /* Super clean while editing too: no outline, a whisper of surface. */
+  outline: none;
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-table-input:focus-visible {
+  /* Keyboard focus gets the accent ring — visually distinct from hover. */
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* The text-property cell: the value IS a carrier block,
+   rendered through the name cell's title BlockRow — no input chrome. The
+   empty cell is the muted schema-name placeholder (the NodeCell precedent):
+   one click creates the carrier and lands in the editor. */
+.nt-table-text-empty {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.nt-table-text-empty:hover {
+  color: var(--md-sys-color-primary);
+}
+
+/* The carrier's title row root is the OUTLINE GRID by construction (the
+   name-cell caveat, app.css .nt-block): inside a fixed-layout td the grid
+   sets the cell's min-content to the gutter tracks — the cell wrapper and
+   the row take plain block layout instead, and the page-title typography
+   yields to the table font. */
+td .nt-table-text-cell {
+  display: block;
+  min-width: 0;
+}
+
+td .nt-table-text-cell .nt-block--title {
+  display: block;
+  min-width: 0;
+}
+
+td .nt-table-text-cell .nt-page-title {
+  font: inherit;
+}
+
+.nt-table-date {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-table-date:hover {
+  color: var(--md-sys-color-primary);
+}
+
+/* The muted placeholder of an EMPTY node/date cell (the panel "Select"
+   precedent) — an empty value still reads as a field. */
+.nt-table-date-placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+/* The sticky select column — pinned left with the row-gutter shadow;
+   the header cell rides the surface-variant wash above the body cells. */
+.nt-table th.nt-table-select-col,
+.nt-table td.nt-table-select-col {
+  width: var(--icon-size-2xl);
+  min-width: var(--spacing-10);
+  max-width: var(--spacing-10);
+  padding: 0 var(--spacing-2);
+  text-align: center;
+  position: sticky;
+  left: 0;
+}
+
+.nt-table td.nt-table-select-col {
+  z-index: var(--z-5);
+  box-shadow: var(--shadow-table-row-gutter);
+}
+
+.nt-table thead th.nt-table-select-col {
+  z-index: var(--z-15);
+}
+
+/* url/email cells: read-only values navigate (mailto: for email). */
+.nt-table-link {
+  color: var(--md-sys-color-primary);
+  text-decoration: none;
+}
+
+.nt-table-link:hover {
+  text-decoration: underline;
+}
+
+/* The selected row: the same hover-overlay wash as the row hover (not a
+   primary-container fill). */
+.nt-table-row--selected > td {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* The keyboard-nav highlight (the single-select containers — the Sources
+   hub's items table): the active row wears a stronger wash so the arrow-key
+   selection reads against the checkbox multi-select's lighter one. */
+.nt-table-row--active > td {
+  background: var(--md-sys-color-secondary-container);
+}
+
+/* The shared selection-export chrome (cards/board toolbars use the
+   same classes): count + Export selected…, quiet until a selection exists. */
+.selection-export {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-right: var(--spacing-2);
+}
+
+.selection-export__count {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+/* The Created/Updated day-page link retired: date text
+   never navigates — the pinned Open button owns the day-page jump. */
+
+/* The open-arrow retired with the pinned OpenButton —
+   navigation rides the button on every cell that offers it. */
+
+/* The name cell and the single-value node/date property cells host the
+   pinned Open button: relative positioning makes the cell the anchor (the
+   property cells opt in via :has() — the td renders before the cell
+   decides a value exists). The button's lane is reserved ONLY while the
+   cell is engaged — at rest the text rides the full cell width; when the
+   button appears the cell padding grows and the (wrapping) text moves out
+   of its way, the class-pill × idiom. */
+td.nt-table-name,
+td:has(> .nt-table-node > .nt-table-open-btn) {
+  position: relative;
+  transition: padding-right var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+td.nt-table-name:hover,
+td.nt-table-name:focus-within,
+td:has(> .nt-table-node > .nt-table-open-btn):hover,
+td:has(> .nt-table-node > .nt-table-open-btn):focus-within {
+  padding-right: calc(var(--button-icon-only-visible-sm) + var(--spacing-2));
+}
+
+/* The node/date cell content rides one flex row: the value button (the
+   picker trigger) takes the lane and wraps its target name; the button
+   pins at the cell edge above. */
+.nt-table-node {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-table-node > .nt-table-date,
+.nt-table-node > .nt-dateslot__button,
+.nt-table-node > .nt-table-text-cell {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* The Created/Edited stamp rides the flex lane as a nowrap ellipsis span:
+   when the hover state reserves the Open button's lane (the td padding
+   grows), a stamp too long for the remaining width ellipsizes instead of
+   overflowing into the button — the bare-text nowrap overflow the owner
+   caught on hover ("navigation button spacing is wrong,
+   it overlaps"). */
+.nt-table-stamp {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The Open button — the "Open workspace" twin (ghost sm, right arrow),
+   pinned to the cell's right edge regardless of the text content. Hidden
+   at rest like the pill's ×, revealed on cell hover / focus-within /
+   button focus. Centered without a transform so the
+   press-scale utility keeps working. The td-qualified selector is
+   deliberate: the fleet Button's icon-only `relative` utility (same
+   specificity, later source) would otherwise beat a bare class and keep
+   the button in-flow (found by the live probe 2026-10-20). */
+td.nt-table-name .nt-table-open-btn,
+td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--spacing-1);
+  margin-block: auto;
+  opacity: 0;
+}
+
+td.nt-table-name:hover .nt-table-open-btn,
+td.nt-table-name:focus-within .nt-table-open-btn,
+td.nt-table-name .nt-table-open-btn:focus-visible,
+td:has(> .nt-table-node > .nt-table-open-btn):hover .nt-table-open-btn,
+td:has(> .nt-table-node > .nt-table-open-btn):focus-within .nt-table-open-btn,
+td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn:focus-visible {
+  opacity: var(--opacity-100);
+}
+
+/* The empty scalar cell's placeholder rides the muted italic idiom (the
+   "Empty" state placeholder). */
+.nt-table-input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+/* The asset cell's annotations popup — the
+   AnnotationsSection rides a fixed min-width card so the add-annotation
+   form keeps its shape outside the metadata panel. */
+.nt-table-annot-popup {
+  min-width: 22rem; /* token-gate: constant asset-annotations popup min-width ruling — one-off popup width, not a scale step */
+  max-width: min(32rem, calc(100vw - var(--spacing-4))); /* token-gate: constant asset-annotations popup max-width ruling — one-off popup width, not a scale step */
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
+  box-shadow: var(--shadow-md);
+}

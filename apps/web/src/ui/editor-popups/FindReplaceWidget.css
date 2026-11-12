@@ -1,0 +1,110 @@
+.find-replace-widget {
+  position: fixed;
+  top: calc(var(--topbar-height) + var(--spacing-2));
+  right: var(--spacing-2);
+  /* --z-floating: transient popups fly above the modal band. */
+  z-index: var(--z-floating);
+  /* The elevated popup register: a floating widget
+     rides surface-container-high + level-2 shadow — surface-bright blended
+     into the content behind (this was the flagged elevation audit). */
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  box-shadow: var(--elevation-2);
+  padding: var(--spacing-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+  min-width: min(var(--layout-size-8xl), calc(100vw - var(--spacing-4)));
+  max-width: calc(100vw - var(--spacing-4));
+}
+
+.find-replace-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+}
+
+.find-replace-input {
+  flex: 1;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-button);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.find-replace-count {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  min-width: var(--spacing-8);
+  text-align: center;
+}
+
+.find-replace-btn {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+}
+
+.find-replace-btn:hover:not(:disabled) {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.find-replace-btn:disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.find-replace-btn.active {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border-color: var(--md-sys-color-primary);
+}
+
+.find-replace-btn.btn--icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--button-icon-only-xs);
+  height: var(--button-icon-only-xs);
+  padding: 0;
+}
+
+.find-replace-close {
+  font-weight: 600;
+}
+
+.find-replace-expand {
+  padding: var(--spacing-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.find-replace-spacer {
+  width: var(--icon-size-xl);
+  flex-shrink: 0;
+}
+
+/* ─── Block-tree match highlight ──────────────────────────────────
+   Applied imperatively by the widget to [data-block-id] rows inside the
+   page root. */
+
+.find-replace-hit {
+  background: color-mix(in srgb, var(--md-sys-color-primary-container) 55%, transparent);
+  border-radius: var(--shape-small);
+}
+
+.find-replace-current {
+  background: var(--md-sys-color-primary-container);
+  border-radius: var(--shape-small);
+}

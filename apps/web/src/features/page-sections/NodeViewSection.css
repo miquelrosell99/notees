@@ -1,0 +1,144 @@
+/**
+ * components/nodes/NodeViewSection.css). Class names unchanged.
+ *
+ * Adaptations for the current shell:
+ *    it gains width/font/background resets and keeps the same hover/focus
+ *    treatment;
+ *    the shell has no right-sidebar sections).
+ */
+
+.node-view-section {
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  /* One step tight: spacing-2 is the HEADER's clearance
+     under the hairline — the hairline is THIS section's own top border (its
+     separator; it renders iff the section does), and the breathing room
+     above the hairline is the stack's job: the host's chromeless
+     nt-page-section-stack container spaces its section children
+     (margin-top: spacing-4, collapsing between siblings). */
+  padding-top: var(--spacing-2);
+}
+
+.node-view-section__header-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.node-view-section__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-2);
+  margin: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--shape-small);
+}
+
+/* The hover effect lives on the collapse ARROW, not the whole header.
+   The child combinator scopes it to THIS header's toggle — a nested
+   section's header is a descendant, and the bare descendant selector
+   highlighted every nested toggle on the outer header's hover. */
+.node-view-section__header:hover > .node-view-section__toggle {
+  background: var(--md-sys-color-hover-overlay);
+  border-radius: var(--shape-small);
+}
+
+.node-view-section__header:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.node-view-section__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.node-view-section__chevron {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* The rotation is scoped to the section's OWN header chevron (child
+   combinator on the header row): the bare descendant form matched every
+   NESTED section's chevron too — a collapsed per-row Properties panel
+   inside an expanded section (the linked-references rows are the live
+   case) rendered rotated in both states. */
+.node-view-section.expanded > .node-view-section__header-row .node-view-section__chevron {
+  transform: rotate(90deg);
+}
+
+.node-view-section__title-area {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.node-view-section__icon {
+  display: flex;
+  align-items: center;
+  color: var(--md-sys-color-primary);
+  flex-shrink: 0;
+}
+
+.node-view-section__title {
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The header count chip: the fleet Badge (neutral pill) owns the look — the
+   class stays as the host/test hook. */
+.node-view-section__count {
+  flex-shrink: 0;
+}
+
+/* The header's trailing action — the section-scoped create affordance
+: icon-only, quiet, rides the header row's far right. */
+.node-view-section__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.node-view-section__action:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.node-view-section__action:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+/* Align content with the section title (after toggle button + gap). */
+.node-view-section__content {
+  padding: var(--spacing-1) 0 var(--spacing-2) var(--spacing-7);
+}
+
+.node-view-section.collapsed .node-view-section__content {
+  display: none;
+}

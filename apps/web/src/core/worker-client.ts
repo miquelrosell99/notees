@@ -1,0 +1,1519 @@
+/**
+ * WorkerClient — main-thread proxy for the store Web Worker with the same
+ * public surface as WorkspaceClient, so App can swap the in-process client
+ * for the worker-backed one without UI changes.
+ *
+ * The worker owns the only store. Reads are synchronous here, so they are
+ * served from a small local cache keyed by method+args; the worker posts a
+ * {type:"changed"} notification after every local apply and sync completion
+ * (coalesced worker-side), and the proxy then re-fetches the
+ * impacted cache keys — in ONE multiRead round-trip per drain, and only the
+ * keys the change payload actually invalidates — and notifies its own
+ * subscribers. A first read of an unseen key returns the empty default and
+ * kicks a refresh, so the UI converges on the next notification.
+ */
+
+import { startTransition } from "react";
+
+import type { ContentAst, OpPayload, WorkspaceFeature } from "@notees/protocol";
+import type { CardSrsState, SrsAlgorithm, WorkflowOpStep } from "@notees/domain";
+import type { GraphOptions, GraphTopology, MergePlanSummary, PathRow } from "@notees/store";
+import type { CompileOptions } from "@notees/query";
+import type {
+  ArchivedEntry,
+  AssetInfo,
+  AssetUploadResult,
+  BlockTreeNode,
+  ClassBinding,
+  ClientEdge,
+  ClientNode,
+  ClientPropertySchema,
+  ChangeNotification,
+  ClientWriteOp,
+  ConflictHistoryEntry,
+  CreateAnnotationInput,
+  CreateObjectInput,
+  CreatePropertySchemaInput,
+  DeleteObjectOptions,
+  DatetimeValueInput,
+  EffectiveProperty,
+  OperationFeedEntry,
+  PageSummary,
+  PropertyRowShell,
+  QueryAggregateResult,
+  QueryRunResult,
+  ReferenceEntry,
+  SearchPageResult,
+  SearchSnippetData,
+  SetClassPropertyInput,
+  SyncStatusSnapshot,
+  TrashedEntry,
+  UpdateObjectInput,
+  UpdatePropertySchemaInput,
+} from "./workspace-client/index.js";
+import {
+  createAnnotation,
+  type PrefsPatch,
+  type SectionView,
+  type UserPrefs,
+  type UserPrefsSource,
+} from "./workspace-client/index.js";
+import { fetchAndOpenAsset, fetchAssetDataUrl, sealAndUploadAsset } from "./workspace-client/asset-transport.js";
+import { pullServerPrefs, pushServerPrefs } from "./workspace-client/prefs-rest.js";
+import {
+  readDevicePrefList,
+  readDevicePrefScalar,
+  writeDevicePrefList,
+  writeDevicePrefScalar,
+} from "./workspace-client/prefs.js";
+import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
+import type { MigrationPlanReport } from "./migrations/registry.js";
+import { isReadUnchanged } from "./workspace-client/read-revisions.js";
+import type {
+  WorkerInitMessage,
+  WorkerRequestMessage,
+  WorkerResponseMessage,
+} from "../worker/worker-core.js";
+
+/**
+ * Invalidation class for a cached read key, consulted only for content-only
+ * changes with a known affected set (`structural === true` — with or without
+ * an affected set — and unknown scope invalidate every key and never reach
+ * this table; a structural payload's affected set scopes ROW re-renders,
+ * not cache keys, because a move's vacated side is not reconstructible
+ * post-apply):
+ *
+ *  - "change": read embeds titles/link marks from anywhere with no
+ *    scope parameter (search) — any content edit may alter it.
+ *  - "structure": read resolves definitions/membership (class chains, pure
+ *    node-snapshot functions like effectiveNodeIcon) — only
+ *    listing-affecting ops invalidate it. roots/listPages qualify too:
+ *    under title-is-content their ORDER is COALESCE(name, id) with name
+ *    always NULL, so a content edit cannot reorder them, and every title
+ *    surface that renders their rows reads the title via a scope-classed
+ *    per-node read (getNode/getDisplayName) — a pooled row's own title is
+ *    never rendered.
+ *  - "scope": read is parameterized by a node/class id — invalidated when
+ *    the id is in the (ancestor-expanded) affected set. args[0] is the id.
+ *    The reference family qualifies: a content op's ChangeSummary carries
+ *    every mention/link edge target (the store unions previous + desired
+ *    targets into affectedNodeIds), so an edge touching P lands P in the
+ *    set, and an edit inside P's subtree lands P via ancestor expansion.
+ *    Accepted staleness: a freshly TYPED mention-shaped literal of P's name
+ *    elsewhere (no edge yet) appears in P's unlinked list only on the next
+ *    change touching P or a listing-affecting op.
+ *  - absent (default): invalidate on any change — the conservative fallback.
+ */
+const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
+  // Node-scoped reads (args[0] = the node/class id).
+  getNode: "scope",
+  getNodeRaw: "scope",
+  // NOT scope: the derivation resolves MENTION TARGETS' names, and
+  // a rename of T touches only T's scope — every node whose title mentions T
+  // would keep the stale name. Content-global invalidation, like search.
+  getDisplayName: "change",
+  getPage: "scope",
+  getChildren: "scope",
+  getChildPages: "scope",
+  getBacklinkCount: "scope",
+  getChildPageCount: "scope",
+  getEffectiveProperties: "scope",
+  getPropertyRowShells: "scope",
+  getAssetInfo: "scope",
+  getAnnotationsForAsset: "scope",
+  getClassParents: "scope",
+  getClassChildren: "scope",
+  getDirectClassChildren: "scope",
+  getClassMembers: "scope",
+  getClassMemberCount: "scope",
+  getClassBindings: "scope",
+  getBlockTree: "scope",
+  // Node-scoped reference reads: the edge-target inclusion invariant (above)
+  // covers both directions — an edge landing on P, or an edit inside P's
+  // subtree. Row freshness rides the scope-classed getNode per-row re-read
+  // (ReferenceList).
+  getBacklinks: "scope",
+  // The recency ranking can reorder on ANY edge write (a new link anywhere
+  // may displace row N) — content-global, like search.
+  recentLinkTargets: "change",
+  getLinkedReferences: "scope",
+  getReferences: "scope",
+  getReferenceCount: "scope",
+  getUnlinkedReferences: "scope",
+  getUnlinkedReferenceCount: "scope",
+  // The forward-path walk: a hop can be authored ANYWHERE (a typed link
+  // whose candidateSpans newly include the node, an embed_ref on a far-away
+  // page) and neither produces an edge row targeting the node, so the
+  // edge-target inclusion invariant does not cover the discovery side —
+  // the conservative content-global class (the resolveAlias precedent).
+  getForwardPaths: "change",
+  // Node-alias reads: a chain link ANYWHERE (args[0]'s chain is not an
+  // ancestor relation of the affected set) may change the answer — the
+  // conservative content-global class is the honest one.
+  resolveAlias: "change",
+  aliasNodesOf: "change",
+  // Content-global reads: titles and typed link marks flow in from anywhere.
+  search: "change",
+  getSearchSnippet: "change",
+  resolveNodeByName: "change",
+  getPropertyReferences: "change",
+  getCoverReferences: "change",
+  // The page listings: see the "structure" class above for why content
+  // edits cannot reorder them and why title freshness survives.
+  listPages: "structure",
+  listPageSummaries: "structure",
+  roots: "structure",
+  // External-id mappings (importer/sync plugins): externalRefsOf is keyed
+  // by the node id — the applier's ChangeSummary carries the mapped node
+  // ids on set (previous + new carrier on a move) and delete, so the
+  // scope class covers both directions. resolveExternalRef is keyed by an
+  // opaque ref string that never appears in an affected set: any change
+  // may alter what the ref resolves to, so the honest class is the
+  // content-global one (the resolveAlias precedent).
+  externalRefsOf: "scope",
+  resolveExternalRef: "change",
+  // Structural-global reads: definitions/membership/pure-of-args functions.
+  listClasses: "structure",
+  classIcons: "structure",
+  effectiveClassIcons: "structure",
+  listPropertySchemas: "structure",
+  listFeatureRows: "structure",
+  getFeatureInstanceCount: "structure",
+  isFeatureEnabled: "structure",
+  effectiveNodeIcon: "structure",
+  effectiveNodeColor: "structure",
+  effectiveClassColor: "structure",
+  effectiveClassIcon: "structure",
+  effectiveClassParentlessBlock: "structure",
+  // The class registry column: class.update is listing-affecting (structural),
+  // so the structure class converges it — same trust as the parentlessBlock
+  // resolver it mirrors.
+  getClassDisplayTemplate: "structure",
+  // The extends-aware projection of the same column (the title seam's
+  // template axis): same structural trust as the own-column read.
+  resolveEffectiveDisplayTemplate: "structure",
+};
+
+export interface WorkerClientOptions {
+  /** Credential: operator API key or account session token (server accepts both). */
+  serverUrl: string;
+  apiKey: string;
+  workspaceId: string;
+  sqlWasmUrl: string;
+  /**
+   * The sqlite-wasm asset URL — when set (and the OPFS VFS initializes) the
+   * worker persists through the VFS instead of whole-file sql.js exports.
+   */
+  sqliteWasmUrl?: string;
+  /** Offline-first mode: no server, edits stay on the device. */
+  offline?: boolean;
+  /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+  workspaceKey?: Uint8Array;
+  /**
+   * Engine sync-phase messages from the worker ("Fetching latest
+   * snapshot…", "Catching up… N operations", "Synced") — the connecting
+   * screen renders them as progress. Not an RPC response.
+   */
+  onSyncPhase?: (phase: string, message: string) => void;
+  /**
+   * Engine catch-up progress from the worker ({applied, total} per page) —
+   * the connecting screen renders it as a progress bar + percentage. Not an
+   * RPC response.
+   */
+  onSyncProgress?: (applied: number, total: number) => void;
+  /** Test seam: supply a fake worker instead of spawning the real one. */
+  spawn?: () => Worker;
+}
+
+export class WorkerClient {
+  private readonly worker: Worker;
+  private readonly workspaceId: string;
+  /** Server REST access for the main-thread asset upload/download calls. */
+  private readonly serverUrl: string;
+  private readonly apiKey: string;
+  private readonly offline: boolean;
+  private nextId = 1;
+  private readonly pending = new Map<
+    number,
+    { resolve: (value: unknown) => void; reject: (error: Error) => void }
+  >();
+  private readonly listeners = new Set<(change: ChangeNotification) => void>();
+  private readonly cache = new Map<string, unknown>();
+  /**
+   * Read-cache convergence, dirty-set style: every seeded key (and every
+   * cached key on a worker "changed") lands here and a batched macrotask
+   * drain fetches them all. The previous in-flight/queue design could strand
+   * a key seeded while a refresh was finishing (in-flight but queue already
+   * drained) — every boot-time seed landed exactly there and the synced
+   * workspace rendered as an empty sidebar with zero errors.
+   */
+  private readonly refreshDirty = new Set<string>();
+  private refreshScheduled = false;
+  private refreshRunning = false;
+  private closed = false;
+
+  private constructor(
+    worker: Worker,
+    workspaceId: string,
+    serverUrl: string,
+    apiKey: string,
+    offline: boolean,
+    onSyncPhase?: (phase: string, message: string) => void,
+    onSyncProgress?: (applied: number, total: number) => void,
+  ) {
+    this.worker = worker;
+    this.workspaceId = workspaceId;
+    this.serverUrl = serverUrl;
+    this.apiKey = apiKey;
+    this.offline = offline;
+    this.onSyncPhase = onSyncPhase;
+    this.onSyncProgress = onSyncProgress;
+    worker.onmessage = this.handleMessage;
+  }
+
+  private readonly onSyncPhase: ((phase: string, message: string) => void) | undefined;
+  private readonly onSyncProgress: ((applied: number, total: number) => void) | undefined;
+
+  /** Spawn the worker, post init, and wait until the store is booted. */
+  static async create(options: WorkerClientOptions): Promise<WorkerClient> {
+    const worker =
+      options.spawn?.() ??
+      new Worker(new URL("../worker/store-worker.ts", import.meta.url), { type: "module" });
+    const client = new WorkerClient(
+      worker,
+      options.workspaceId,
+      options.serverUrl,
+      options.apiKey,
+      options.offline === true,
+      options.onSyncPhase,
+      options.onSyncProgress,
+    );
+    const init: WorkerInitMessage = {
+      sqlWasmUrl: options.sqlWasmUrl,
+      ...(options.sqliteWasmUrl !== undefined ? { sqliteWasmUrl: options.sqliteWasmUrl } : {}),
+      workspaceId: options.workspaceId,
+      serverUrl: options.serverUrl,
+      apiKey: options.apiKey,
+      offline: options.offline === true,
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
+    };
+    await client.call("init", [init]);
+    return client;
+  }
+
+  getWorkspaceId(): string {
+    return this.workspaceId;
+  }
+
+  // --- RPC plumbing ------------------------------------------------------------
+
+  private handleMessage = (event: MessageEvent): void => {
+    const message = event.data as
+      | WorkerResponseMessage
+      | (ChangeNotification & { type: "changed" })
+      | { type: "syncPhase"; phase: string; message: string }
+      | { type: "syncProgress"; applied: number; total: number };
+    if ("type" in message && message.type === "changed") {
+      this.handleChanged(message);
+      return;
+    }
+    if ("type" in message && message.type === "syncPhase") {
+      // Progress push — NOT an RPC response; never touches the pending map.
+      this.onSyncPhase?.(message.phase, message.message);
+      return;
+    }
+    if ("type" in message && message.type === "syncProgress") {
+      // Catch-up progress push — NOT an RPC response either.
+      this.onSyncProgress?.(message.applied, message.total);
+      return;
+    }
+    const response = message as WorkerResponseMessage;
+    const entry = this.pending.get(response.id);
+    if (entry === undefined) return;
+    this.pending.delete(response.id);
+    if (response.error !== undefined) entry.reject(new Error(response.error));
+    else entry.resolve(response.result);
+  };
+
+  /**
+   * Incremental cache invalidation: a structural or scope-unknown
+   * change dirties every cached key; a content-only change dirties only the
+   * keys its affected set (ancestor-expanded) touches — scoped reads (the
+   * reference family via edge-target inclusion), plus the content-global
+   * class (search embeds titles and link marks from anywhere).
+   */
+  private handleChanged(change: ChangeNotification & { type: "changed" }): void {
+    // The payload rides to subscribers (notify runs after the refresh
+    // drain): scoped subscribers (e.g. PageView's page-containment pre-filter)
+    // decide per notification whether the change concerns them.
+    this.lastChange = change;
+    const structural = change.structural === true;
+    const affected = change.affectedNodeIds;
+    const full = structural || affected === undefined;
+    const affectedSet = full ? null : new Set(affected);
+    // A scoped payload with an empty affected set means "nothing is stale"
+    // (status flips, no-op sync cycles): run the notify cycle for
+    // subscribers, but dirty no cache keys.
+    if (affectedSet !== null && affectedSet.size === 0) {
+      this.scheduleRefresh();
+      return;
+    }
+    for (const key of this.cache.keys()) {
+      if (full || this.isKeyInvalidated(key, affectedSet!)) {
+        this.refreshDirty.add(key);
+      }
+    }
+    this.scheduleRefresh();
+  }
+
+  private isKeyInvalidated(key: string, affectedSet: Set<string>): boolean {
+    let method: string;
+    let args: unknown[];
+    try {
+      [method, args] = JSON.parse(key) as [string, unknown[]];
+    } catch {
+      return true; // unparseable key: conservatively invalidate
+    }
+    const kind = READ_INVALIDATION[method] ?? "change";
+    if (kind === "change") return true;
+    if (kind === "structure") return false;
+    const scopeId = args[0];
+    return typeof scopeId === "string" && affectedSet.has(scopeId);
+  }
+
+  private call(method: string, args: unknown[]): Promise<unknown> {
+    if (this.closed) return Promise.reject(new Error("WorkerClient: closed"));
+    const id = this.nextId++;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      const message: WorkerRequestMessage = { id, method, args };
+      this.worker.postMessage(message);
+    });
+  }
+
+  // --- read cache -------------------------------------------------------------------
+
+  private cachedRead<T>(method: string, args: unknown[], empty: T): T {
+    const key = JSON.stringify([method, args]);
+    if (this.cache.has(key)) return this.cache.get(key) as T;
+    this.cache.set(key, empty);
+    this.refreshDirty.add(key);
+    this.scheduleRefresh();
+    return empty;
+  }
+
+  /** Batched on a macrotask so a render burst seeds once and drains once. */
+  private scheduleRefresh(): void {
+    if (this.refreshScheduled) return;
+    this.refreshScheduled = true;
+    setTimeout(() => {
+      this.refreshScheduled = false;
+      void this.drainRefresh();
+    }, 0);
+  }
+
+  private async drainRefresh(): Promise<void> {
+    if (this.refreshRunning) return; // the running drain re-checks dirty keys before exit
+    this.refreshRunning = true;
+    try {
+      // Loop: reads seeded mid-drain mark themselves dirty and are fetched too.
+      while (this.refreshDirty.size > 0) {
+        const batch = Array.from(this.refreshDirty).filter((key) => this.cache.has(key));
+        this.refreshDirty.clear();
+        if (batch.length === 0) continue;
+        // ONE round-trip for the whole batch instead of an awaited
+        // RPC per key: a keystroke used to cost hundreds of postMessage
+        // round-trips through the worker.
+        try {
+          const results = (await this.call("multiRead", [batch])) as unknown[];
+          if (!Array.isArray(results) || results.length !== batch.length) {
+            throw new Error(
+              `multiRead returned ${Array.isArray(results) ? results.length : "a non-array"} results for ${batch.length} keys`,
+            );
+          }
+          batch.forEach((key, index) => {
+            // Delta refresh: the worker answers READ_UNCHANGED for keys
+            // whose revision stamp is unchanged since its last serve — the
+            // cached value stays (read-revisions.ts).
+            if (!isReadUnchanged(results[index])) {
+              this.cache.set(key, results[index]);
+            }
+          });
+        } catch (error) {
+          // Keep the previous values; the next "changed" retries. Surface the
+          // failure loudly, though: a silent stale cache is how real outages
+          // hid (an FTS5 snapshot restore made every search return [] with
+          // zero console output). The message crosses the worker RPC
+          // boundary, so the original stack stays on the worker — the
+          // engine logs it there.
+          const methods = batch.map((key) => {
+            try {
+              return (JSON.parse(key) as [string])[0];
+            } catch {
+              return key;
+            }
+          });
+          console.error(
+            `WorkerClient: read "${methods.join('", "')}" failed; keeping the cached values:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
+      this.notify();
+    } finally {
+      this.refreshRunning = false;
+      // Keys seeded after the last batch but before the finally (or while a
+      // wedged call delayed this drain) get another drain.
+      if (this.refreshDirty.size > 0) this.scheduleRefresh();
+    }
+  }
+
+  // --- read API (served from the cache; converges via "changed") -------------------------
+
+  getNode(id: string): ClientNode | undefined {
+    return this.cachedRead("getNode", [id], undefined);
+  }
+
+  getNodeRaw(id: string): ClientNode | undefined {
+    return this.cachedRead("getNodeRaw", [id], undefined);
+  }
+
+  /**
+   * Uncached raw-node read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time existence guards (the seed
+   * deploy's no-op checks) ride this: a cold or dirty cache key answers the
+   * undefined default synchronously, which would re-stamp rows that exist
+   * in the store but not yet in the cache.
+   */
+  async getNodeRawFresh(id: string): Promise<ClientNode | undefined> {
+    return (await this.call("getNodeRaw", [id])) as ClientNode | undefined;
+  }
+
+  getDisplayName(id: string): string | null {
+    return this.cachedRead("getDisplayName", [id], null);
+  }
+
+  /**
+   * Uncached display-name read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time find-or-create decisions (the
+   * connector capture's read-later lookup) ride this.
+   */
+  async getDisplayNameFresh(id: string): Promise<string | null> {
+    return (await this.call("getDisplayName", [id])) as string | null;
+  }
+
+  effectiveClassColor(classId: string): string | null {
+    return this.cachedRead("effectiveClassColor", [classId], null);
+  }
+
+  effectiveClassIcon(classId: string): string {
+    // Never null — the class default is the chain's tail; "" seeds the cache
+    // until the worker refresh lands (Icon renders nothing for empty).
+    return this.cachedRead<string>("effectiveClassIcon", [classId], "");
+  }
+
+  /** Extends-aware parentlessRole "block" demote — the
+   * resolver the domain role predicates take for the parentless cascade
+   * branch. */
+  effectiveClassParentlessBlock(classId: string): boolean {
+    return this.cachedRead<boolean>("effectiveClassParentlessBlock", [classId], false);
+  }
+
+  /** The class's OWN displayTemplate (the `class` registry column, store
+   * schema v36 — the node row is not a carrier): NULL = never set, "" = the
+   * explicit opt-out. Deploy-time convergence reads it; display goes through
+   * the store's extends-aware resolver. */
+  getClassDisplayTemplate(classId: string): string | null {
+    return this.cachedRead<string | null>("getClassDisplayTemplate", [classId], null);
+  }
+
+  /**
+   * Uncached own-column displayTemplate read — one raw RPC straight to the
+   * store (the getChildrenFresh precedent). Deploy-time convergence reads
+   * THIS, never the render cache: a cold-cache `getClassDisplayTemplate`
+   * seeds null, and null is exactly the "never set" sentinel — the cached
+   * read would emit a clobbering update on a cold deploy of a class whose
+   * template a user set.
+   */
+  async getClassDisplayTemplateFresh(classId: string): Promise<string | null> {
+    return (await this.call("getClassDisplayTemplate", [classId])) as string | null;
+  }
+
+  /** The class's EFFECTIVE displayTemplate — the store's extends-aware
+   *  resolver (own non-empty wins; own "" opts out and stops; NULL walks the
+   *  extends chain nearest-first). The title seam's template axis reads
+   *  this. */
+  resolveEffectiveDisplayTemplate(classId: string): string | null {
+    return this.cachedRead<string | null>("resolveEffectiveDisplayTemplate", [classId], null);
+  }
+
+  effectiveNodeIcon(node: {
+    icon: string | null;
+    classIds: string[];
+    isClass: boolean;
+    isEmbedded: boolean;
+    parentId: string | null;
+  }): string | null {
+    return this.cachedRead(
+      "effectiveNodeIcon",
+      [
+        {
+          icon: node.icon,
+          classIds: node.classIds,
+          isClass: node.isClass,
+          isEmbedded: node.isEmbedded,
+          parentId: node.parentId,
+        },
+      ],
+      null,
+    );
+  }
+
+  effectiveNodeColor(node: { color: string | null; classIds: string[] }): string | null {
+    return this.cachedRead(
+      "effectiveNodeColor",
+      [{ color: node.color, classIds: node.classIds }],
+      null,
+    );
+  }
+
+  getPage(id: string): ClientNode | undefined {
+    return this.cachedRead("getPage", [id], undefined);
+  }
+
+  listPages(): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("listPages", [], []);
+  }
+
+  /**
+   * The lean page-listing read (PageSummary rows, title pre-flattened) —
+   * same invalidation class as listPages: a content edit cannot reorder
+   * the listing, and a pooled row's own title is never rendered.
+   */
+  listPageSummaries(): PageSummary[] {
+    return this.cachedRead<PageSummary[]>("listPageSummaries", [], []);
+  }
+
+  roots(): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("roots", [], []);
+  }
+
+  /** The Trash hub's read: soft-trashed subtree roots, newest first. */
+  listTrashed(): TrashedEntry[] {
+    return this.cachedRead<TrashedEntry[]>("listTrashed", [], []);
+  }
+
+  /** The Archived surface's read: archived nodes (no trash row), newest first. */
+  listArchived(): ArchivedEntry[] {
+    return this.cachedRead<ArchivedEntry[]>("listArchived", [], []);
+  }
+
+  /** Archived CLASS nodes (the class picker's dimmed enable matches). */
+  listArchivedClasses(): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("listArchivedClasses", [], []);
+  }
+
+  listClasses(): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("listClasses", [], []);
+  }
+
+  /** The narrow id → icon read behind the UI icon maps. */
+  classIcons(): ReadonlyMap<string, string | null> {
+    return this.cachedRead<ReadonlyMap<string, string | null>>("classIcons", [], new Map());
+  }
+
+  /** The chain-resolved id → effective icon read (#1 follow-up). */
+  effectiveClassIcons(): ReadonlyMap<string, string | null> {
+    return this.cachedRead<ReadonlyMap<string, string | null>>("effectiveClassIcons", [], new Map());
+  }
+
+  getClassParents(classId: string): string[] {
+    return this.cachedRead<string[]>("getClassParents", [classId], []);
+  }
+
+  /**
+   * Uncached extends-parents read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time convergence guards (the seed
+   * deploy's extends check) ride this: a cold or dirty cache key answers []
+   * synchronously, which would re-stamp an edge that exists in the store.
+   */
+  async getClassParentsFresh(classId: string): Promise<string[]> {
+    return (await this.call("getClassParents", [classId])) as string[];
+  }
+
+  getClassChildren(classId: string): import("@/core/workspace-client/index.js").ClientNode[] {
+    return this.cachedRead("getClassChildren", [classId], []);
+  }
+
+  getDirectClassChildren(classId: string): import("@/core/workspace-client/index.js").ClientNode[] {
+    return this.cachedRead("getDirectClassChildren", [classId], []);
+  }
+
+  getClassMembers(classId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getClassMembers", [classId], []);
+  }
+
+  /**
+   * Uncached class-members read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time find-or-create decisions (the
+   * connector capture's URL dedupe / read-later lookup) ride this: a cold or
+   * dirty cache key answers [] synchronously, which would duplicate a node
+   * that exists in the store but not yet in the cache.
+   */
+  async getClassMembersFresh(classId: string): Promise<ClientNode[]> {
+    return (await this.call("getClassMembers", [classId])) as ClientNode[];
+  }
+
+  /** The classed-nodes section badge (same membership projection as a COUNT). */
+  getClassMemberCount(classId: string): number {
+    return this.cachedRead<number>("getClassMemberCount", [classId], 0);
+  }
+
+  getClassBindings(classId: string): ClassBinding[] {
+    return this.cachedRead<ClassBinding[]>("getClassBindings", [classId], []);
+  }
+
+  /**
+   * The class's OWN registry rows — no extends inheritance, no seed-spec
+   * fallback (the deploy-path existence read; see WorkspaceClient).
+   */
+  getRegistryBindings(classId: string): ClassBinding[] {
+    return this.cachedRead<ClassBinding[]>("getRegistryBindings", [classId], []);
+  }
+
+  /**
+   * Uncached registry-bindings read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time existence guards (the seed
+   * deploy's binding no-op checks) ride this: a cold or dirty cache key
+   * answers [] synchronously, which would re-stamp binding rows that exist
+   * in the store.
+   */
+  async getRegistryBindingsFresh(classId: string): Promise<ClassBinding[]> {
+    return (await this.call("getRegistryBindings", [classId])) as ClassBinding[];
+  }
+
+  getEffectiveProperties(id: string): EffectiveProperty[] {
+    return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
+  }
+
+  /**
+   * Uncached effective-properties read — one raw RPC straight to the store
+   * (the getChildrenFresh precedent). Write-time decisions (the connector
+   * capture's per-member url row in the URL dedupe) ride this.
+   */
+  async getEffectivePropertiesFresh(id: string): Promise<EffectiveProperty[]> {
+    return (await this.call("getEffectiveProperties", [id])) as EffectiveProperty[];
+  }
+
+  getPropertyRowShells(id: string): PropertyRowShell[] {
+    return this.cachedRead<PropertyRowShell[]>("getPropertyRowShells", [id], []);
+  }
+
+  /** Nodes carrying an authored value for the schema (the PropertyView references). */
+  getPropertyReferences(schemaId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getPropertyReferences", [schemaId], []);
+  }
+
+  /** Nodes whose coverAssetId wire field points at the asset (the Cover badge). */
+  getCoverReferences(assetId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getCoverReferences", [assetId], []);
+  }
+
+  /** Asset metadata for a node reference (derived node_asset rows). */
+  getAssetInfo(id: string): AssetInfo | undefined {
+    return this.cachedRead<AssetInfo | undefined>("getAssetInfo", [id], undefined);
+  }
+
+  /** Highlight-classed annotations whose highlight_asset links this asset node. */
+  getAnnotationsForAsset(assetId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getAnnotationsForAsset", [assetId], []);
+  }
+
+  listPropertySchemas(): ClientPropertySchema[] {
+    return this.cachedRead<ClientPropertySchema[]>("listPropertySchemas", [], []);
+  }
+
+  /**
+   * Uncached property-schema registry read — one raw RPC straight to the
+   * store (the getChildrenFresh precedent). Write-time decisions (the
+   * classed-create flush's staged-kind re-derivation — a datetime row staged
+   * from a cold cache as text would be a lawless property write) ride this.
+   */
+  async listPropertySchemasFresh(): Promise<ClientPropertySchema[]> {
+    return (await this.call("listPropertySchemas", [])) as ClientPropertySchema[];
+  }
+
+  getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
+    return this.cachedRead<BlockTreeNode[]>("getBlockTree", [pageId, depth], []);
+  }
+
+  search(query: string, limit?: number): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("search", [query, limit ?? null], []);
+  }
+
+  /**
+   * True while `query`'s cached search read has been seeded but not yet
+   * refreshed from the worker. A cache miss and a real no-match BOTH read
+   * `[]` synchronously — the pending state is the only way a caller can
+   * tell "results loading" from "no results".
+   */
+  searchPending(query: string): boolean {
+    return this.refreshDirty.has(JSON.stringify(["search", [query, null]]));
+  }
+
+  /**
+   * Cursor-paginated ranked search: raw RPC (not the read cache —
+   * the cache key would include the cursor, so a load-more could never reuse
+   * the first page anyway). `cursor` is the previous page's `nextCursor`.
+   */
+  searchPage(query: string, opts?: { limit?: number; cursor?: string | null }): Promise<SearchPageResult> {
+    return this.call("searchPage", [query, opts ?? null]) as Promise<SearchPageResult>;
+  }
+
+  /**
+   * Match-context snippet for one node + query. Served from the
+   * read cache like `search`: the first read seeds null and converges on the
+   * worker's "changed" notification.
+   */
+  getSearchSnippet(
+    nodeId: string,
+    query: string,
+    opts?: { maxTokens?: number; ellipsis?: string },
+  ): SearchSnippetData | null {
+    return this.cachedRead<SearchSnippetData | null>("getSearchSnippet", [nodeId, query, opts ?? null], null);
+  }
+
+  /** Name→id resolution: exact display-name match; null when unknown. */
+  resolveNodeByName(name: string): string | null {
+    return this.cachedRead<string | null>("resolveNodeByName", [name], null);
+  }
+
+  /**
+   * Property value history feed — async RPC into the worker's
+   * WorkspaceClient (the REST call needs no store; the worker owns the REST
+   * config). Rejects with the feed error when the server is unreachable.
+   */
+  async fetchOperationsFor(objectId: string, propertySchemaId: string): Promise<OperationFeedEntry[]> {
+    return (await this.call("fetchOperationsFor", [objectId, propertySchemaId])) as OperationFeedEntry[];
+  }
+
+  /**
+   * Per-node version history feed — async RPC into the worker's
+   * WorkspaceClient (same REST-owned-by-the-worker contract as the property
+   * feed). Rejects with the feed error when the server is unreachable.
+   */
+  async fetchNodeHistory(nodeId: string): Promise<OperationFeedEntry[]> {
+    return (await this.call("fetchNodeHistory", [nodeId])) as OperationFeedEntry[];
+  }
+
+  getChildren(id: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getChildren", [id], []);
+  }
+
+  /**
+   * Uncached children read — one raw RPC straight to the store, bypassing
+   * the render cache (which can answer a cold key with the empty default
+   * before the refresh round-trip). Write-compositions that plan reparents
+   * from the child list (extractBlockToPage) ride this: a stale [] would
+   * silently drop the child moves.
+   */
+  async getChildrenFresh(id: string): Promise<ClientNode[]> {
+    return (await this.call("getChildren", [id])) as ClientNode[];
+  }
+
+  /**
+   * Live-query bridge (async RPC; an invalid AST rejects with the worker's
+   * Error message — the view renders the "invalid query" placeholder).
+   */
+  runQueryAst(rawAst: unknown, options?: CompileOptions): Promise<QueryRunResult> {
+    return this.call("runQueryAst", [rawAst, options]) as Promise<QueryRunResult>;
+  }
+
+  /** Aggregation counterpart of runQueryAst (grouped grid for aggregated ASTs). */
+  runAggregateAst(rawAst: unknown, options?: CompileOptions): Promise<QueryAggregateResult> {
+    return this.call("runAggregateAst", [rawAst, options]) as Promise<QueryAggregateResult>;
+  }
+
+  getBacklinks(id: string): ClientEdge[] {
+    return this.cachedRead<ClientEdge[]>("getBacklinks", [id], []);
+  }
+
+  /** Recently linked mention targets, newest incoming link first (palette home). */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }> {
+    return this.cachedRead<Array<{ id: string; linkedAt: string | null }>>("recentLinkTargets", [limit], []);
+  }
+
+  /**
+   * The terminal of a node-alias chain (the navigation seam — unresolved
+   * seeds as the id itself, converging on the worker's refresh).
+   */
+  resolveAlias(id: string): string {
+    return this.cachedRead<string>("resolveAlias", [id], id);
+  }
+
+  /** Every live alias page of the node (the title-row aliases listing). */
+  aliasNodesOf(id: string): import("@/core/workspace-client/index.js").ClientNode[] {
+    return this.cachedRead("aliasNodesOf", [id], []);
+  }
+
+  getLinkedReferences(id: string): ReferenceEntry[] {
+    return this.cachedRead<ReferenceEntry[]>("getLinkedReferences", [id], []);
+  }
+
+  getReferences(id: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getReferences", [id], []);
+  }
+
+  getReferenceCount(id: string): number {
+    return this.cachedRead<number>("getReferenceCount", [id], 0);
+  }
+
+  getUnlinkedReferences(id: string): ReferenceEntry[] {
+    return this.cachedRead<ReferenceEntry[]>("getUnlinkedReferences", [id], []);
+  }
+
+  getUnlinkedReferenceCount(id: string): number {
+    return this.cachedRead<number>("getUnlinkedReferenceCount", [id], 0);
+  }
+
+  /** The Forward path section's read — the directed consumer walk (lazy behind the first expand). */
+  getForwardPaths(id: string, depthCap?: number): PathRow[][] {
+    return this.cachedRead<PathRow[][]>(
+      "getForwardPaths",
+      depthCap !== undefined ? [id, depthCap] : [id],
+      [],
+    );
+  }
+
+  getChildPages(id: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getChildPages", [id], []);
+  }
+
+  getBacklinkCount(id: string): number {
+    return this.cachedRead<number>("getBacklinkCount", [id], 0);
+  }
+
+  getChildPageCount(id: string): number {
+    return this.cachedRead<number>("getChildPageCount", [id], 0);
+  }
+
+  /** Feature-toggle read — absent row means enabled (default on). */
+  isFeatureEnabled(feature: WorkspaceFeature): boolean {
+    return this.cachedRead<boolean>("isFeatureEnabled", [feature], true);
+  }
+
+  /**
+   * Uncached feature-toggle read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time guards (the seed deploy's
+   * feature-enable check) ride this: a cold or dirty cache key answers the
+   * default-on synchronously.
+   */
+  async isFeatureEnabledFresh(feature: WorkspaceFeature): Promise<boolean> {
+    return (await this.call("isFeatureEnabled", [feature])) as boolean;
+  }
+
+  /** Toggled feature rows only (untoggled features are absent, not listed). */
+  listFeatureRows(): Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }> {
+    return this.cachedRead<Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }>>("listFeatureRows", [], []);
+  }
+
+  /** Active instance count across the feature's managed classes (the disable confirmation). */
+  getFeatureInstanceCount(feature: WorkspaceFeature): number {
+    return this.cachedRead<number>("getFeatureInstanceCount", [feature], 0);
+  }
+
+  /** External-id mapping read (importer/sync plugins): ref -> node id, null when unmapped. */
+  resolveExternalRef(ref: string): string | null {
+    return this.cachedRead<string | null>("resolveExternalRef", [ref], null);
+  }
+
+  /** Every live external ref mapped to the node, sorted (many refs per node). */
+  externalRefsOf(nodeId: string): string[] {
+    return this.cachedRead<string[]>("externalRefsOf", [nodeId], []);
+  }
+
+  // --- write API & sync (RPC; the worker's "changed" drives the cache refresh) --------
+
+  async createObject(partial: CreateObjectInput): Promise<string> {
+    return (await this.call("createObject", [partial])) as string;
+  }
+
+  /**
+   * The generic batch-write gesture as ONE RPC: N composed ops apply in one
+   * worker pass and journal as ONE undo entry (labeled `opts.verb`) — the
+   * per-op awaited chains this replaces cost a round-trip each. Ops apply in
+   * order; placement anchors may reference ids created earlier in the batch
+   * (caller-assigned ids, parents before children). Returns the created node
+   * id per op (`undefined` for non-creates), in op order.
+   */
+  async applyOps(
+    ops: ClientWriteOp[],
+    opts: { verb?: string } = {},
+  ): Promise<Array<string | undefined>> {
+    return (await this.call("applyOps", [ops, opts])) as Array<string | undefined>;
+  }
+
+  async updateObject(id: string, fields: UpdateObjectInput): Promise<void> {
+    await this.call("updateObject", [id, fields]);
+  }
+
+  /** Archive / unarchive a node (object.update {active}). */
+  async setArchived(id: string, active: boolean): Promise<void> {
+    await this.call("setArchived", [id, active]);
+  }
+
+  /**
+   * The classed-create gesture: an archived class un-archive + the
+   * object.create + the staged property writes ride ONE worker-side undo
+   * batch (the modal cannot ship a closure across the RPC, so the gesture
+   * is a concrete data payload).
+   */
+  async beginClassedCreate(input: {
+    classId: string;
+    title: string;
+    unarchive: boolean;
+    properties?: Array<{ propertySchemaId: string; value: unknown; idx?: number }>;
+  }): Promise<string> {
+    return (await this.call("beginClassedCreate", [input])) as string;
+  }
+
+  async deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void> {
+    await this.call("deleteObject", [id, opts]);
+  }
+
+  /** Empty the trash (trash.empty — permanently delete every trashed subtree root). */
+  async emptyTrash(): Promise<void> {
+    await this.call("emptyTrash", []);
+  }
+
+  /** Restore a trashed node and its subtree (object.restore). */
+  async restoreObject(id: string): Promise<void> {
+    await this.call("restoreObject", [id]);
+  }
+
+  /** Reparent a node (outliner indent/outdent; `afterId`/`beforeId` = sibling placement). */
+  async moveObject(
+    id: string,
+    parentId: string | null,
+    afterId?: string,
+    beforeId?: string,
+  ): Promise<void> {
+    await this.call("moveObject", [id, parentId, afterId, beforeId]);
+  }
+
+  /** OR-set class membership add (the `#` / `+` set gesture). */
+  async assignClass(id: string, classId: string): Promise<void> {
+    await this.call("assignClass", [id, classId]);
+  }
+
+  /** OR-set class membership remove (the class chip's × gesture). */
+  async unassignClass(id: string, classId: string): Promise<void> {
+    await this.call("unassignClass", [id, classId]);
+  }
+
+  async reorderClasses(id: string, classIds: string[]): Promise<void> {
+    await this.call("reorderClasses", [id, classIds]);
+  }
+
+  async assignTag(id: string, tagId: string): Promise<void> {
+    await this.call("assignTag", [id, tagId]);
+  }
+
+  async unassignTag(id: string, tagId: string): Promise<void> {
+    await this.call("unassignTag", [id, tagId]);
+  }
+
+  /** Create a class (class.create); returns the new class id. */
+  async createClass(
+    name: string,
+    opts?: {
+      icon?: string;
+      color?: string;
+      id?: string;
+      description?: string;
+      parentlessRole?: "page" | "block";
+      displayTemplate?: string;
+    },
+  ): Promise<string> {
+    return (await this.call("createClass", [name, opts])) as string;
+  }
+
+  /** Replace a class's full extends parent set (class.setExtends, m2m). */
+  /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
+  async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
+    await this.call("setFeatureEnabled", [feature, enabled]);
+  }
+
+  /** Add a node to a collection (collection.member.add, OR-Set add-wins). */
+  async addCollectionMember(collectionId: string, objectId: string): Promise<void> {
+    await this.call("addCollectionMember", [collectionId, objectId]);
+  }
+
+  /** The class-level parentlessRole render contract. */
+  async updateClassParentlessRole(
+    classId: string,
+    parentlessRole: "page" | "block" | null,
+  ): Promise<void> {
+    await this.call("updateClassParentlessRole", [classId, parentlessRole]);
+  }
+
+  /** The class-level displayTemplate (registry column, store v36): string
+   * presence-writes — "" is the explicit opt-out — null clears. */
+  async updateClassDisplayTemplate(classId: string, template: string | null): Promise<void> {
+    await this.call("updateClassDisplayTemplate", [classId, template]);
+  }
+
+  /** Write a feature's settings record (workspace.feature.set {enabled: true, settings}). */
+  async setFeatureSettings(feature: WorkspaceFeature, settings: Record<string, unknown>): Promise<void> {
+    await this.call("setFeatureSettings", [feature, settings]);
+  }
+
+  /** Write an external-id mapping (external_ref.set, LWW by HLC per ref). */
+  async setExternalRef(ref: string, nodeId: string): Promise<void> {
+    await this.call("setExternalRef", [ref, nodeId]);
+  }
+
+  /** Remove an external-id mapping (external_ref.delete). */
+  async removeExternalRef(ref: string): Promise<void> {
+    await this.call("removeExternalRef", [ref]);
+  }
+
+  async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
+    await this.call("setClassExtends", [classId, parentClassIds]);
+  }
+
+  /** Upsert a class → property-schema binding (class.property.set, patch). */
+  async setClassProperty(
+    classId: string,
+    propertySchemaId: string,
+    fields: SetClassPropertyInput,
+  ): Promise<void> {
+    await this.call("setClassProperty", [classId, propertySchemaId, fields]);
+  }
+
+  /** Remove a class → property-schema binding (class.property.unset). */
+  async unsetClassProperty(classId: string, propertySchemaId: string): Promise<void> {
+    await this.call("unsetClassProperty", [classId, propertySchemaId]);
+  }
+
+  /** Create a property schema (propertySchema.create); returns the new id. */
+  async createPropertySchema(input: CreatePropertySchemaInput): Promise<string> {
+    return (await this.call("createPropertySchema", [input])) as string;
+  }
+
+  /** Patch a property schema (propertySchema.update — name/options/dates). */
+  async updatePropertySchema(
+    propertySchemaId: string,
+    fields: UpdatePropertySchemaInput,
+  ): Promise<void> {
+    await this.call("updatePropertySchema", [propertySchemaId, fields]);
+  }
+
+  /** Soft-delete a property schema (propertySchema.delete — the PG3 convert flow). */
+  async deletePropertySchema(propertySchemaId: string): Promise<void> {
+    await this.call("deletePropertySchema", [propertySchemaId]);
+  }
+
+  /** Author a property value (property.set) — shadows any derived default. */
+  async setProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: unknown,
+    idx?: number,
+    metadata?: Record<string, unknown>,
+    elementId?: string,
+  ): Promise<void> {
+    await this.call("setProperty", [objectId, propertySchemaId, value, idx, metadata, elementId]);
+  }
+
+  /** Clear an authored property value (property.unset). */
+  async unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void> {
+    await this.call("unsetProperty", [objectId, propertySchemaId, idx]);
+  }
+
+  /** Assign a property without a value (property.assign — the row renders empty). */
+  async assignProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    await this.call("assignProperty", [objectId, propertySchemaId]);
+  }
+
+  /** Remove a node→property assignment (property.unassign) — authored values survive. */
+  async unassignProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    await this.call("unassignProperty", [objectId, propertySchemaId]);
+  }
+
+  /** Clear every authored value of one property, keeping the assignment (property.empty). */
+  async emptyProperty(objectId: string, propertySchemaId: string): Promise<void> {
+    await this.call("emptyProperty", [objectId, propertySchemaId]);
+  }
+
+  /**
+   * The workflow-toggle gesture: the domain plan's steps applied as ONE
+   * undo-journal batch worker-side (worker-safe single RPC — the
+   * reviewCard precedent; the closure cannot cross the boundary).
+   * Existence-checked per step at apply time; resolves with the
+   * applied/skipped counts.
+   */
+  async applyWorkflowSteps(steps: WorkflowOpStep[]): Promise<{ applied: number; skipped: number }> {
+    return (await this.call("applyWorkflowSteps", [steps])) as { applied: number; skipped: number };
+  }
+
+  /** Append the card.review audit-history op (never journaled — the writes domain's contract). */
+  async recordCardReview(payload: OpPayload<"card.review">): Promise<void> {
+    await this.call("recordCardReview", [payload]);
+  }
+
+  /** The grade gesture: the next SRS state written as ONE undo-journal batch (worker-safe single RPC). */
+  async reviewCard(input: {
+    cardId: string;
+    stateAfter: CardSrsState;
+    algorithm: SrsAlgorithm;
+  }): Promise<void> {
+    await this.call("reviewCard", [input]);
+  }
+
+  /** Ensure the year/month/day chain for a date; returns the three node ids. */
+  async ensureDateChain(
+    isoDate: string,
+  ): Promise<{ year: string; month: string; day: string }> {
+    return (await this.call("ensureDateChain", [isoDate])) as {
+      year: string;
+      month: string;
+      day: string;
+    };
+  }
+
+  /**
+   * Set a datetime value (SCHEMA.md "Datetime" — the unified date type):
+   * a point `{iso, time?}` or a range `{start, end}` of day inputs, either
+   * side open. The chain ensure + precision-cased ref ride the worker.
+   */
+  async setDatetimeProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: DatetimeValueInput,
+    idx?: number,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.call("setDatetimeProperty", [objectId, propertySchemaId, value, idx, metadata]);
+  }
+
+  /** Create an annotation on an asset (composed write over the RPC primitives). */
+  createAnnotation(input: CreateAnnotationInput): Promise<string> {
+    return createAnnotation(this, input);
+  }
+
+  // --- assets (REST upload/download on the main thread; the link op runs in
+  // the worker, which owns the store) ----------------------------------------
+
+  /** Upload file bytes to the server's CAS asset store (POST /api/assets). */
+  async uploadAsset(file: Blob, filename: string): Promise<AssetUploadResult> {
+    // The REST channel never enters the worker — this runs on the main
+    // thread, same as the in-process client (seal + POST ride the shared
+    // transport recipe).
+    return sealAndUploadAsset(this.serverUrl, this.apiKey, this.workspaceId, file, filename);
+  }
+
+  /** Record an uploaded asset on a node (asset.attach op, enqueued in the worker). */
+  async attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
+    await this.call("attachAsset", [objectId, asset]);
+  }
+
+  /**
+   * Merge in worker mode: the server's merge route (the local planner +
+   * one-undo-batch application is the in-process client's path — the
+   * worker owns the store but the duplicates merge rides the route so the
+   * relay sees one total-ordered plan, the MergeNodesModal precedent
+   * gating that surface to the in-process client). `dryRun` returns the
+   * plan summary without writing — the modal's preview. After the real
+   * merge the caller pulls so the local projection catches up.
+   */
+  /**
+   * Merge in worker mode: the worker owns the store, so the planner runs
+   * THERE (no server merge route — plan-07 retired it).
+   */
+  async planMergeSummary(sourceId: string, targetId: string): Promise<MergePlanSummary> {
+    return (await this.call("planMergeSummary", [sourceId, targetId])) as MergePlanSummary;
+  }
+
+  async mergeNodes(sourceId: string, targetId: string): Promise<MergePlanSummary> {
+    return (await this.call("mergeNodes", [sourceId, targetId])) as MergePlanSummary;
+  }
+
+  // --- content migrations (the keyed-side runner — F3; uncached RPCs) -------------
+
+  /** True when the workspace is keyed — the engine seals every write (the surface's hint copy). */
+  async isKeyedWorkspace(): Promise<boolean> {
+    return (await this.call("isKeyedWorkspace", [])) as boolean;
+  }
+
+  /** The content-class migrations pending on this workspace (each core's `isPending` probe). */
+  async listPendingMigrations(): Promise<MigrationPlanReport[]> {
+    return (await this.call("listPendingMigrations", [])) as MigrationPlanReport[];
+  }
+
+  /** The dry-run report for one migration — counts + conflict rows, zero writes. */
+  async planMigration(id: string): Promise<MigrationPlanReport> {
+    return (await this.call("planMigration", [id])) as MigrationPlanReport;
+  }
+
+  /**
+   * Run one migration client-side: plan against the local UNSEALED store,
+   * payload-validate, commit as ONE undo batch through the single enqueue
+   * seam — the engine seals + pushes the ops on a keyed workspace like any
+   * write. Uncached: the pending list is derived state that flips with the
+   * run itself.
+   */
+  async runMigration(id: string): Promise<MigrationPlanReport> {
+    return (await this.call("runMigration", [id])) as MigrationPlanReport;
+  }
+
+  /** Download an asset's bytes (workspace key); the export engine's include-assets read. */
+  async fetchAssetBytes(assetId: string): Promise<Blob> {
+    return fetchAndOpenAsset(this.serverUrl, this.apiKey, this.workspaceId, assetId);
+  }
+
+  /** Download an asset's bytes (workspace key) and open them in a new tab. */
+  async downloadAsset(assetId: string): Promise<void> {
+    const blob = await fetchAndOpenAsset(this.serverUrl, this.apiKey, this.workspaceId, assetId);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+  }
+
+  /** An image asset's bytes as a data URL (card covers / thumbnails). */
+  async getAssetDataUrl(assetNodeId: string): Promise<string | null> {
+    // Bypass the synchronous read cache: cachedRead seeds the EMPTY value and
+    // fills it on a macrotask, so a same-tick consumer (this async path reads
+    // getAssetInfo synchronously inside) would always see undefined and the
+    // thumbnail cache would pin the null for the session — covers rendered
+    // "No image bytes" even with complete data (2026-10-04). Await the worker
+    // read directly; this path is already async.
+    const info = (await this.call("getAssetInfo", [assetNodeId])) as AssetInfo | undefined;
+    if (info === undefined || !info.mimeType.startsWith("image/")) return null;
+    return fetchAssetDataUrl(this.serverUrl, this.apiKey, this.workspaceId, info.assetId);
+  }
+
+  /** No-op when the worker already booted this workspace (init bootstraps it). */
+  async bootstrapWorkspace(workspaceId: string): Promise<void> {
+    await this.call("bootstrapWorkspace", [workspaceId]);
+  }
+
+  // --- session undo journal (the journal lives worker-side, per tab) --------------
+
+  /** Availability + the "Undo <verb>"/"Redo <verb>" labels for chrome. */
+  undoState(): Promise<UndoUiState> {
+    return this.call("undoState", []) as Promise<UndoUiState>;
+  }
+
+  /** The browsable history (oldest-first) behind the jump-to menu. */
+  undoHistory(): Promise<UndoHistoryEntry[]> {
+    return this.call("undoHistory", []) as Promise<UndoHistoryEntry[]>;
+  }
+
+  /**
+   * The graph-view topology projection. Uncached by design — the
+   * graph view debounces its own reloads on `subscribe` notifications, and a
+   * workspace-scale projection must never ride the key-value cache.
+   */
+  graphTopology(options?: GraphOptions): Promise<GraphTopology> {
+    return this.call("graphTopology", [options ?? null]) as Promise<GraphTopology>;
+  }
+
+  /** Undo the most recent journaled local write; false when the journal is empty. */
+  async undo(): Promise<boolean> {
+    return (await this.call("undo", [])) as boolean;
+  }
+
+  /** Redo the most recently undone entry; false when the redo stack is empty. */
+  async redo(): Promise<boolean> {
+    return (await this.call("redo", [])) as boolean;
+  }
+
+  /** One push+pull cycle against the relay. */
+  async sync(): Promise<void> {
+    await this.call("syncOnce", []);
+  }
+
+  async push(): Promise<void> {
+    await this.call("push", []);
+  }
+
+  async pull(): Promise<void> {
+    await this.call("pull", []);
+  }
+
+  /** Wire the WS acceleration path in the worker. */
+  async startRealtime(): Promise<void> {
+    if (this.offline) return; // nothing to subscribe to
+    await this.call("startRealtime", []);
+  }
+
+  async stopRealtime(): Promise<void> {
+    await this.call("stopRealtime", []);
+  }
+
+  /** Engine + outbox + realtime state for the footer status indicator. */
+  async status(): Promise<SyncStatusSnapshot> {
+    return (await this.call("status", [])) as SyncStatusSnapshot;
+  }
+
+  /**
+   * Recent semantic sync conflicts: raw RPC (not cached) — the
+   * sync details modal reads it on open and on worker notifications.
+   */
+  async conflictHistory(): Promise<ConflictHistoryEntry[]> {
+    return (await this.call("conflictHistory", [])) as ConflictHistoryEntry[];
+  }
+
+  /**
+   * Per-user UI prefs (favorites/recents, server-side). Plan-07: the REST
+   * call is MAIN-THREAD here (not RPC'd into the worker) because the prefs
+   * blob wraps/unwraps with the account master key, and custody never
+   * enters the worker. Same device-local cache fallback, tagged `source`.
+   */
+  async getPrefs(): Promise<UserPrefs & { source: UserPrefsSource }> {
+    if (!(await this.isOperatorKey())) {
+      const prefs = await pullServerPrefs(this.serverUrl, this.apiKey);
+      if (prefs !== null) return { ...prefs, source: "server" };
+    }
+    return {
+      favorites: readDevicePrefList("favorites"),
+      recents: readDevicePrefList("recents"),
+      cardsAlgorithm: readDevicePrefScalar("cardsAlgorithm"),
+      adsApiToken: "",
+      source: "local",
+    };
+  }
+
+  /** Merge-patch per-user UI prefs (see WorkspaceClient.patchPrefs). */
+  async patchPrefs(patch: PrefsPatch): Promise<UserPrefs & { source: UserPrefsSource }> {
+    const merged: UserPrefs = {
+      favorites: patch.favorites ?? readDevicePrefList("favorites"),
+      recents: patch.recents ?? readDevicePrefList("recents"),
+      cardsAlgorithm: patch.cardsAlgorithm ?? readDevicePrefScalar("cardsAlgorithm"),
+      adsApiToken: patch.adsApiToken ?? "",
+    };
+    if (patch.favorites !== undefined) writeDevicePrefList("favorites", patch.favorites);
+    if (patch.recents !== undefined) writeDevicePrefList("recents", patch.recents);
+    if (patch.cardsAlgorithm !== undefined) writeDevicePrefScalar("cardsAlgorithm", patch.cardsAlgorithm);
+    if (!(await this.isOperatorKey())) {
+      const prefs = await pushServerPrefs(this.serverUrl, this.apiKey, merged);
+      if (prefs !== null) return { ...prefs, source: "server" };
+    }
+    return { ...merged, source: "local" };
+  }
+
+  /** The operator key owns no user server-side — never PUT prefs with it. */
+  private operatorKey: Promise<boolean> | null = null;
+  private isOperatorKey(): Promise<boolean> {
+    this.operatorKey ??= (async () => {
+      try {
+        const response = await fetch(`${this.serverUrl.replace(/\/$/, "")}/api/auth/me`, {
+          headers: { "X-API-Key": this.apiKey },
+        });
+        if (!response.ok) return false;
+        return ((await response.json()) as { email?: string }).email === "API key";
+      } catch {
+        return false;
+      }
+    })();
+    return this.operatorKey;
+  }
+
+  // --- node-scoped hosted views (custom tabs — the prefs channel) -------------
+
+  /** The surface's custom views in tab order (REST through the worker). */
+  async listSectionViews(nodeId: string, sectionKey: string): Promise<SectionView[]> {
+    return (await this.call("listSectionViews", [nodeId, sectionKey])) as SectionView[];
+  }
+
+  /** POST a new view (appended; 409 = name collision). */
+  async createSectionView(input: {
+    nodeId: string;
+    sectionKey: string;
+    name: string;
+    queryAst: unknown;
+  }): Promise<SectionView> {
+    return (await this.call("createSectionView", [input])) as SectionView;
+  }
+
+  /** PATCH a view's name (404 = missing/foreign). */
+  async renameSectionView(
+    nodeId: string,
+    sectionKey: string,
+    viewId: string,
+    name: string,
+  ): Promise<SectionView> {
+    return (await this.call("renameSectionView", [nodeId, sectionKey, viewId, name])) as SectionView;
+  }
+
+  /** PATCH a view's query AST (the per-tab builder commit). */
+  async updateSectionViewAst(
+    nodeId: string,
+    sectionKey: string,
+    viewId: string,
+    queryAst: unknown,
+  ): Promise<SectionView> {
+    return (await this.call("updateSectionViewAst", [nodeId, sectionKey, viewId, queryAst])) as SectionView;
+  }
+
+  /** PUT the full ordered id list; sequences rewrite 0..n-1. */
+  async reorderSectionViews(
+    nodeId: string,
+    sectionKey: string,
+    orderedIds: string[],
+  ): Promise<SectionView[]> {
+    return (await this.call("reorderSectionViews", [
+      nodeId,
+      sectionKey,
+      orderedIds,
+    ])) as SectionView[];
+  }
+
+  /** DELETE a view (204; 404 = missing/foreign). */
+  async deleteSectionView(nodeId: string, sectionKey: string, viewId: string): Promise<void> {
+    await this.call("deleteSectionView", [nodeId, sectionKey, viewId]);
+  }
+
+  // --- notifications ----------------------------------------------------------------------
+
+  private lastChange: ChangeNotification = { revision: 0 };
+
+  subscribe(listener: (change: ChangeNotification) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /**
+   * The session's current store revision (the last ChangeNotification's
+   * counter): the render-path memo key for reads that must re-derive per
+   * store change but not per unrelated re-render. Mirrors
+   * WorkspaceClient.revision.
+   */
+  get revision(): number {
+    return this.lastChange.revision;
+  }
+
+  private notify(): void {
+    // De-prioritize the refresh-driven render: the drain completes
+    // on a worker message / macrotask where React would otherwise render
+    // synchronously (performSyncWorkOnRoot) ahead of queued input. Inside a
+    // transition, keystrokes and clicks win the next frame.
+    startTransition(() => {
+      for (const listener of this.listeners) listener(this.lastChange);
+    });
+  }
+
+  /** Terminate the worker; pending calls reject. */
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.worker.terminate();
+    for (const entry of this.pending.values()) {
+      entry.reject(new Error("WorkerClient: closed"));
+    }
+    this.pending.clear();
+    this.listeners.clear();
+  }
+}

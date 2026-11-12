@@ -1,0 +1,1149 @@
+/**
+ * CommandPalette — Ctrl/Cmd+K command surface (plus the topbar search
+ * trigger, via the `open` prop). A fixed-position modal (~top 18vh, 560px)
+ * with an autofocused SearchField and a fuzzy subsequence filter over the
+ * section registry:
+ *
+ *  - Recently created  the five newest document-chrome nodes by createdAt
+ *               (the home's first section)
+ *  - Recently linked  the five nodes with the most recent incoming mention
+ *               (edge recency), chrome-filtered — the pages the current
+ *               work keeps pointing at. Read through the cache-versioned
+ *               client read `recentLinkTargets`, so the rows converge as
+ *               the worker cache warms (the old effect-snapshot reads
+ *               dropped every row on a cold cache)
+ *               Both sections' composition is the shared
+ *               `recentUseSections` helper — also the node picker's
+ *               empty-query listing (features/search-filters/recentUse.ts)
+ *  - Random     five pages picked on open via Fisher–Yates over the
+ *               already-loaded page list (asset-classed pages excluded); the
+ *               group label carries a ghost refresh button that re-shuffles
+ *               the SAME cached pool — deliberately no new worker query
+ *               (the ruling: extra projections starve the palette on
+ *               large workspaces). The pick is ids-only state; the display
+ *               rows resolve per render through the scope-classed reads, so
+ *               cold-cache convergence and post-pick deletions both land
+ *               without a re-open. Empty query only; exempt from the
+ *               seen-ids dedupe like Commands (#8)
+ *  - Date Pages date pages matching the query: formatted/raw keywords plus a
+ *               parsed-date suggestion ("feb 14" → the deterministic date
+ *               chain). The `is_daily:` prefix and the Daily pages chip
+ *               scope the whole palette to this section.
+ *  - Pages      (client.listPages, asset-classed pages excluded)
+ *  - Classes    (client.listClasses)
+ *  - Properties (client.listPropertySchemas; the host's `onOpenProperty`
+ *               hosts the PropertyView modal — a contribution point, like
+ *               `onOpenClassCreate`)
+ *  - Content    debounced ranked FTS (client.searchPage) with match
+ *               snippets; block hits carry their containing-page label
+ *               (label helper shared with the picker)
+ *
+ * Section order: the search sections rank Classes, Properties, Pages,
+ * Content (owner-mandated), then Date Pages and Commands; the empty-query
+ * home keeps Recently created → Recently linked → Random → Commands.
+ * Node rows carry their EFFECTIVE icon (client.effectiveNodeIcon — own
+ * icon, else the first class-chain icon, else the render-state default),
+ * not just the node's own icon. The flatten step is a stable sort
+ * on the mode-dependent group rank, so score order inside a group survives.
+ *  - Commands   the action registry: New page, New class… (#14, where the
+ *               host provides it), Add source… (the add-source dialog,
+ *               where the host provides it — offline hides the row), a
+ *               typed "Create page …" row, Merge nodes… (the general
+ *               multi-source merge dialog, where the host provides it — no
+ *               current node needed), Merge current
+ *               page into… (where the host provides it and the current node
+ *               is a mergeable page), Focus mode (#12), Condensed: enter /
+ *               exit (the condensed layer, where the host provides it and a
+ *               page is open), Toggle theme, Sign
+ *               out (a contribution point)
+ *
+ *  - `/` filter mode: a leading `/` swaps the results for
+ *    a Filters section — the filter kinds (Daily pages, Pages, Blocks,
+ *    Classes, With class…, Commands) narrowed by the slash text; classes the
+ *    text names surface directly, and the "With class…" row browses the full
+ *    class list. Applying an option renders it as a removable chip under the
+ *    search field and scopes the results: kind chips restrict the sections
+ *    (Commands = the action registry only), memberOf chips restrict every
+ *    node section to the class's members. Chips compose (AND), dedupe, and
+ *    Backspace on an empty query pops the last chip. The picker family
+ *    shares the model (`features/search-filters/filterModel.ts`).
+ *
+ * Full keyboard navigation: ArrowUp/Down cycles, Enter selects, Esc closes;
+ * the mouse hovers and clicks. Theme toggling dispatches the same
+ * data-theme/localStorage flip as ThemeToggle. Rendered through the shared
+ * modal chrome (Modal.css) with a palette skin on top.
+ */
+
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { SYSTEM_CLASS_UUIDS, chainNodeIds, rendersWithDocumentChrome } from "@notees/domain";
+
+import type { WorkerClient } from "@/core/worker-client.js";
+import type { ClientNode, PageSummary, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
+import type { UndoUiState } from "@/core/undo-journal.js";
+
+import { titleOf, titleOfNode, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import {
+  nearestDocumentChromeAncestor,
+  parentlessBlockResolverOf,
+  rendersAsInlineBlockOf,
+  rendersWithDocumentChromeOf,
+} from "../../ui/renderStateLabel.js";
+import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
+import { requestImport } from "../import/requestImport.js";
+import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
+import {
+  bestScore,
+  filterChipIcon,
+  filterChipLabel,
+  filterKey,
+  listClassOptions,
+  listFilterOptions,
+} from "../search-filters/filterModel.js";
+import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
+import { recentUseSections } from "../search-filters/recentUse.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { FilterChips } from "../../components/ui/kit/FilterChips.js";
+import { FilterMenu } from "../../components/ui/kit/FilterMenu.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
+import "./Modal.css";
+import "./CommandPalette.css";
+
+type AnyClient = WorkspaceClient | WorkerClient;
+
+/** The home sections' row count (the old Random section's slice size). */
+const HOME_SECTION_COUNT = 5;
+
+type Group = "Recently created" | "Recently linked" | "Random" | "Date Pages" | "Pages" | "Classes" | "Properties" | "Content" | "Commands";
+
+interface PaletteItem {
+  key: string;
+  group: Group;
+  label: string;
+  icon: string;
+  keywords: string;
+  /** Right-side hint — the containing page for block content hits. */
+  meta?: string | undefined;
+  /** Match-context excerpt under the label (the Content group). */
+  snippet?: SearchSnippetData | null;
+  run: () => void;
+  /**
+   * The Shift+Enter peek: node rows carry the right-rail
+   * peek; rows without it (actions, creation flows) ignore the chord.
+   */
+  peek?: (() => void) | undefined;
+}
+
+/** One action registry entry (contribution-point shape). */
+interface PaletteAction {
+  key: string;
+  label: string;
+  icon: string;
+  keywords: string;
+  run: () => void;
+}
+
+/** Snippet excerpt with the match spans highlighted (the shared nt-search-* styles). */
+function SnippetLine({ snippet }: { snippet: SearchSnippetData }) {
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  snippet.matches.forEach((match, index) => {
+    if (match.start > cursor) parts.push(snippet.text.slice(cursor, match.start));
+    parts.push(
+      <mark key={index} className="nt-search-mark">
+        {snippet.text.slice(match.start, match.start + match.length)}
+      </mark>,
+    );
+    cursor = match.start + match.length;
+  });
+  if (cursor < snippet.text.length) parts.push(snippet.text.slice(cursor));
+  return <span className="nt-search-snippet nt-palette-snippet">{parts}</span>;
+}
+
+/** One mdi glyph per property type (mirrors the Class View's TYPE_GLYPHS). */
+const PROPERTY_TYPE_GLYPHS: Record<string, string> = {
+  text: "mdi-format-letter-case",
+  number: "mdi-pound",
+  url: "mdi-link-variant",
+  email: "mdi-email-outline",
+  datetime: "mdi-calendar",
+  select: "mdi-form-select",
+  object: "mdi-target",
+  image: "mdi-image",
+  boolean: "mdi-check-circle-outline",
+};
+
+/** Containing-page breadcrumb for a block hit. */
+function containingPageLabel(client: AnyClient, node: ClientNode): string | null {
+  const page = nearestDocumentChromeAncestor(client, node);
+  return page !== undefined ? titleOfNode(page) || "Untitled" : null;
+}
+
+/**
+ * Fisher–Yates over a copy (the shufflePages precedent, #8) — pure with
+ * respect to the input so a refresh can re-shuffle the same cached pool.
+ */
+function shuffledIds(ids: readonly string[]): string[] {
+  const out = [...ids];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/**
+ * The Random section's display rows for the CURRENT pick (#8): ids only —
+ * the Fisher–Yates pick lives in the component's `randomIds` state, so a
+ * cache-version re-render never re-shuffles. Rows resolve through the
+ * scope-classed `client.getNode` AT CALL TIME: on the WorkerClient a cold
+ * id reads undefined on the first pass and the row materializes on the
+ * next cache-version bump (the old effect-snapshot dropped those rows for
+ * the whole open), and a node deleted since the pick drops out quietly.
+ * The icon rides the effective read (own icon → class-chain icon →
+ * render-state default), like every other node row.
+ */
+function pickRandomRows(
+  client: AnyClient,
+  pickedIds: readonly string[],
+  onOpenNode: (nodeId: string) => void,
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined,
+): PaletteItem[] {
+  const rows: PaletteItem[] = [];
+  for (const id of pickedIds) {
+    const page = client.getNode(id);
+    if (page === undefined) continue;
+    rows.push({
+      key: `random:${page.id}`,
+      group: "Random",
+      label: titleOfNode(page) || "Untitled",
+      icon: client.effectiveNodeIcon(page) ?? "mdi-file-document-outline",
+      keywords: rawDateKeywordOf(page),
+      run: () => onOpenNode(page.id),
+      peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar(page.id),
+    });
+  }
+  return rows;
+}
+
+function toIsoDate(parsed: { type: "day" | "month" | "year"; year: number; month?: number; day?: number }): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const month = parsed.month ?? 1;
+  const day = parsed.day ?? 1;
+  return `${parsed.year}-${pad(month)}-${pad(day)}`;
+}
+
+export function CommandPalette({
+  client,
+  open,
+  onRequestOpen,
+  onClose,
+  onOpenNode,
+  onOpenInSidebar = undefined,
+  onNewPage,
+  onOpenClassCreate = undefined,
+  onOpenProperty = undefined,
+  onOpenAddSource = undefined,
+  currentNodeId = undefined,
+  onOpenMerge = undefined,
+  onOpenMergeGeneral = undefined,
+  condensedActive = undefined,
+  onToggleCondensed = undefined,
+  onOpenSearch = undefined,
+  onSignOut,
+  undoState,
+  onUndo,
+  onRedo,
+  cacheVersion,
+}: {
+  client: AnyClient;
+  open: boolean;
+  /** Ctrl/Cmd+K when closed: the App lifts `open`, so ask it to open. */
+  onRequestOpen: () => void;
+  onClose: () => void;
+  onOpenNode: (nodeId: string) => void;
+  /**
+   * The Shift+Enter peek: node rows carry a right-rail
+   * peek alongside the plain Enter open. Rows without a peek (actions,
+   * creation flows, registry rows) keep Enter-only behavior.
+   */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
+  /** Create (and open) a new page; a title carries the palette query. */
+  onNewPage: (title?: string) => void;
+  /** #14 — open the class-creation modal (blank + system deploy); the row
+   *  appears only where the host provides it. */
+  onOpenClassCreate?: (() => void) | undefined;
+  /** Open the add-source dialog (DOI/ISBN/arXiv/PDF resolve → prefilled
+   *  create) — the row appears only where the host provides it (a
+   *  contribution point, like the class create). */
+  onOpenAddSource?: (() => void) | undefined;
+  /** Open a property schema's PropertyView inspector — the row appears only
+   *  where the host provides it (a contribution point, like the class create). */
+  onOpenProperty?: ((propertySchemaId: string) => void) | undefined;
+  /**
+   * The node currently open in the host — the merge action's source. The
+   * "Merge current page into…" row appears only where the host provides both
+   * this and `onOpenMerge`, and the current node is a mergeable page (a
+   * non-class node rendering with document chrome — classes and inline
+   * blocks are not mergeable).
+   */
+  currentNodeId?: string | undefined;
+  /** Open the merge-into modal for `currentNodeId` — a contribution point. */
+  onOpenMerge?: (() => void) | undefined;
+  /**
+   * Open the GENERAL multi-source merge dialog (any non-class node — no
+   * current node required) — a contribution point, like the class create.
+   * The row appears only where the host provides it.
+   */
+  onOpenMergeGeneral?: (() => void) | undefined;
+  /**
+   * The condensed layer: the "Condensed: enter/exit" row
+   * appears only where the host provides this and an eligible page is open
+   * (the host gates the callback on its selection) — the conditional-row
+   * pattern of the merge action. `condensedActive` names the row and icon
+   * (the active page's per-page pref, the TopBar toggle's twin surface).
+   */
+  condensedActive?: boolean | undefined;
+  onToggleCondensed?: (() => void) | undefined;
+  /**
+   * The full-page search handoff: with a non-empty query the footer row
+   * "Search all for …" appears and navigates to /search carrying the query
+   * — a contribution point, like the class create.
+   */
+  onOpenSearch?: ((query: string) => void) | undefined;
+  onSignOut: () => void;
+  /** The session undo journal state; rows appear only when available. */
+  undoState: UndoUiState;
+  onUndo: () => void;
+  onRedo: () => void;
+  /**
+   * Bumped by the App on every client notification: the sync sections re-read
+   * the client caches, and the debounced Content fetch re-runs so results
+   * never freeze at a stale page.
+   */
+  cacheVersion: number;
+}) {
+  const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  /**
+   * Random section (#8): the five PICKED IDS from the open-time pool, plus
+   * the pool they came from. The pool is captured once per open (the cached
+   * `listPages` read); refresh re-shuffles THAT list — deliberately no new
+   * worker query (the ruling: extra projections starve the palette on
+   * large workspaces). Only the ids are state: the display rows derive in
+   * a cache-versioned memo (pickRandomRows), so a cold-cache first pass
+   * converges when the worker's read cache lands instead of staying empty
+   * for the whole open (the old effect-snapshot bug), and a node deleted
+   * since the pick drops out without touching state.
+   */
+  const [randomIds, setRandomIds] = useState<string[]>([]);
+  const randomPoolRef = useRef<readonly string[]>([]);
+  /** Debounced FTS content group: tagged with the query they answer. */
+  const [contentItems, setContentItems] = useState<Array<PaletteItem & { queryTag: string }>>([]);
+  const [contentLoading, setContentLoading] = useState(false);
+  const contentGeneration = useRef(0);
+  /**
+   * `/` filter mode: the applied chips (compose AND, dedupe by filterKey)
+   * and the "With class…" browse sub-state (the class listing replaces the
+   * option list until a class is picked or the slash text is cleared).
+   */
+  const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
+  const [filterBrowse, setFilterBrowse] = useState<"options" | "classes">("options");
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Global Ctrl/Cmd+K toggle (capture so browser-default find-in-page loses).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (open) onClose();
+        else onRequestOpen();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onRequestOpen, onClose]);
+
+  // Query parsing: the `is_daily:` prefix scopes the palette to date pages;
+  // a leading `/` enters filter mode (the slash text narrows the filter
+  // options, the results list steps aside); the rest is the fuzzy/FTS text.
+  const filterMode = query.startsWith("/");
+  const narrowText = filterMode ? query.slice(1) : "";
+
+  // Chip state: kind chips gate whole sections; memberOf chips restrict
+  // every node section to the classes' members.
+  const chip = useMemo(
+    () => ({
+      daily: activeFilters.some((f) => f.kind === "daily"),
+      pages: activeFilters.some((f) => f.kind === "pages"),
+      blocks: activeFilters.some((f) => f.kind === "blocks"),
+      classes: activeFilters.some((f) => f.kind === "classes"),
+      commands: activeFilters.some((f) => f.kind === "commands"),
+      memberOf: activeFilters.flatMap((f) =>
+        f.kind === "memberOf" && f.classId !== undefined ? [f.classId] : [],
+      ),
+    }),
+    [activeFilters],
+  );
+  const anyChip = activeFilters.length > 0;
+  const memberOfSet = useMemo(() => new Set(chip.memberOf), [chip.memberOf]);
+  const hasMemberOf = chip.memberOf.length > 0;
+
+  const dailyOnly = /^is_daily:\s*/i.test(query) || chip.daily;
+  const text = filterMode ? "" : query.replace(/^is_daily:\s*/i, "").trim();
+  /** The empty-query home: no slash, no prefix, no chips — Recent/Random live here. */
+  const home = !filterMode && !dailyOnly && text === "" && !anyChip;
+
+  // The class cache doubles as the chip label/icon + filter menu source.
+  const classesCache = useMemo(() => client.listClasses(), [client, cacheVersion]);
+
+  // --- synchronous sections -------------------------------------------------
+
+  const syncItems = useMemo<PaletteItem[]>(() => {
+    const classes = classesCache;
+    const memberOfMatch = (node: { classIds: string[] }) =>
+      !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id));
+    // The Pages pool is role-filtered: block-role
+    // standalone nodes (flagged classes — assets included) stay out of the
+    // page listings; the "blocks" chip finds them. The pool rides the lean
+    // summaries read: rows resolve through the scope-classed per-node reads
+    // (titleOf/effectiveNodeIcon), never the pooled row's contentAst.
+    const pages = client
+      .listPageSummaries()
+      .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)))
+      .filter(memberOfMatch);
+    const themeIsDark = document.documentElement.dataset.theme !== "light";
+    const focusIsOn = document.documentElement.dataset.focus === "true";
+    const items: PaletteItem[] = [];
+    /** Fuzzy-pass one candidate pool into a group; `always` keeps rows on an empty query. */
+    const addFuzzy = (
+      group: Group,
+      pool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void; peek?: (() => void) | undefined; meta?: string }>,
+    ) => {
+      const matched = pool
+        .map((entry) => ({ entry, score: bestScore(text, entry.label, entry.keywords) }))
+        .filter((m): m is { entry: (typeof pool)[number]; score: number } => m.score !== null)
+        .sort((a, b) => b.score - a.score || a.entry.label.localeCompare(b.entry.label));
+      // Same node may enter one pool twice (a parsed-date suggestion AND the
+      // fuzzy pass both reach the chain's day page) — the higher score wins.
+      const seenInPool = new Set<string>();
+      for (const { entry } of matched) {
+        if (seenInPool.has(entry.id)) continue;
+        seenInPool.add(entry.id);
+        items.push({
+          key: `${group}:${entry.id}`,
+          group,
+          label: entry.label,
+          icon: entry.icon,
+          keywords: entry.keywords,
+          meta: entry.meta,
+          run: entry.run,
+          peek: entry.peek,
+        });
+      }
+    };
+
+    if (home) {
+      // The home sections push rows DIRECTLY (no fuzzy pass): the empty
+      // query matches everything, and addFuzzy's score-then-label re-sort
+      // would destroy the recency orderings these sections exist to show.
+      const pushRows = (group: Group, pool: Array<PageSummary | ClientNode>) => {
+        for (const node of pool) {
+          items.push({
+            key: `${group}:${node.id}`,
+            group,
+            label: titleOf(client, node.id) || "Untitled page",
+            icon: client.effectiveNodeIcon(node) ?? "mdi-file-document-outline",
+            keywords: rawDateKeywordOf(node),
+            run: () => onOpenNode(node.id),
+            peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(node.id),
+          });
+        }
+      };
+      // Recently created + Recently linked ride the shared recency
+      // composition (`recentUseSections`, also the node picker's empty-query
+      // listing): the chrome pool by createdAt, then distinct mention/tag
+      // edge targets by most recent incoming link — the linked arm
+      // pre-filtered to drop ids the created arm claimed. Ids resolve
+      // through the scope-classed getNode, so a cold WorkerClient cache
+      // drops the row on the first pass and materializes on the
+      // cache-version bump this memo re-runs (deps ride classesCache).
+      // Chrome-filtered + capped here; the flatten step's cross-group id
+      // dedupe is the helper's claim set.
+      const sections = recentUseSections(client, pages, HOME_SECTION_COUNT);
+      pushRows("Recently created", sections.created);
+      pushRows(
+        "Recently linked",
+        sections.linked
+          .filter((node) => rendersWithDocumentChrome(node, undefined, parentlessBlockResolverOf(client)))
+          .slice(0, HOME_SECTION_COUNT),
+      );
+    }
+
+    if (!chip.commands && !chip.classes && !chip.blocks && (dailyOnly || text !== "")) {
+      // Parsed-date suggestion: formatted keywords ("feb 14", "2026-02-09",
+      // "yesterday") map onto the deterministic date chain — offered even
+      // when the chain nodes do not exist yet (ensureDateChain creates them).
+      const parsed = text === "" ? null : parseDate(text);
+      const datePool: Array<{ id: string; label: string; keywords: string; icon: string; run: () => void; peek?: (() => void) | undefined }> = [];
+      if (parsed !== null) {
+        const iso = toIsoDate(parsed);
+        const ids = chainNodeIds(iso);
+        const refId = parsed.type === "year" ? ids.year : parsed.type === "month" ? ids.month : ids.day;
+        const pickChain = (chain: { year: string; month: string; day: string }): string =>
+          parsed.type === "year" ? chain.year : parsed.type === "month" ? chain.month : chain.day;
+        datePool.push({
+          id: refId,
+          label: `${client.getNode(refId) !== undefined ? "Open" : "Create"} date page: ${parsed.label}`,
+          keywords: text,
+          icon: "mdi-calendar",
+          run: () => {
+            onClose();
+            void client.ensureDateChain(iso).then((chain) => {
+              onOpenNode(pickChain(chain));
+            });
+          },
+          peek:
+            onOpenInSidebar === undefined
+              ? undefined
+              : () => {
+                  void client.ensureDateChain(iso).then((chain) => {
+                    onOpenInSidebar?.(pickChain(chain));
+                  });
+                },
+        });
+      }
+      for (const page of pages) {
+        if (!isDatePageNode(page)) continue;
+        datePool.push({
+          id: page.id,
+          // The title re-reads fresh per row (scope-classed getNode): the
+          // listPages pool is structure-classed, so a pooled row's own
+          // contentAst can lag a rename.
+          label: titleOf(client, page.id) || "Untitled",
+          icon: page.icon ?? "mdi-calendar",
+          // The raw compact label stays a keyword: display is formatted, but
+          // users still type YYYYMMDD to find a date page.
+          keywords: rawDateKeywordOf(page),
+          run: () => onOpenNode(page.id),
+          peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(page.id),
+        });
+      }
+      addFuzzy("Date Pages", datePool);
+    }
+
+    // Pages answer a non-empty query, the Pages chip — or a With-class chip
+    // alone (its members are the natural candidate set at an empty query).
+    if (!chip.commands && !chip.classes && !chip.blocks && !dailyOnly && (chip.pages || hasMemberOf || text !== "")) {
+      addFuzzy(
+        "Pages",
+        pages.map((page) => ({
+          id: page.id,
+          // Fresh per-row title read (scope-classed getNode) — the pool's
+          // own contentAst can lag a rename (listPages is structure-classed).
+          label: titleOf(client, page.id) || "Untitled page",
+          icon: client.effectiveNodeIcon(page) ?? "mdi-file-document-outline",
+          keywords: rawDateKeywordOf(page),
+          run: () => onOpenNode(page.id),
+          peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(page.id),
+        })),
+      );
+    }
+
+    if (!anyChip && !dailyOnly && text !== "") {
+      addFuzzy(
+        "Classes",
+        classes.map((cls) => {
+          // Fresh per-row title read (scope-classed getNode): the class pool
+          // is structure-classed, so a rename would otherwise leave both the
+          // label AND the fuzzy keywords stale.
+          const fresh = titleOf(client, cls.id);
+          return {
+            id: cls.id,
+            label: fresh || "Untitled class",
+            // The class row rides the effective read too: an iconless class
+            // still shows its render-state default, not a hollow glyph slot.
+            icon: client.effectiveNodeIcon(cls) ?? "mdi-shape-outline",
+            keywords: fresh ?? "",
+            run: () => onOpenNode(cls.id),
+            peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(cls.id),
+          };
+        }),
+      );
+      if (onOpenProperty !== undefined) {
+        // Property schemas are registry rows, not nodes; the type name stays
+        // a keyword so "date"/"select"/… finds the family.
+        addFuzzy(
+          "Properties",
+          client.listPropertySchemas().map((schema) => ({
+            id: schema.id,
+            label: schema.name,
+            icon: PROPERTY_TYPE_GLYPHS[schema.type] ?? "mdi-format-list-bulleted",
+            keywords: `${schema.type} property`,
+            run: () => onOpenProperty(schema.id),
+          })),
+        );
+      }
+    }
+
+    if (chip.classes && !chip.commands) {
+      // The Classes chip: only the class section answers.
+      addFuzzy(
+        "Classes",
+        classes.map((cls) => {
+          // Fresh per-row title read (scope-classed getNode): the class pool
+          // is structure-classed, so a rename would otherwise leave both the
+          // label AND the fuzzy keywords stale.
+          const fresh = titleOf(client, cls.id);
+          return {
+            id: cls.id,
+            label: fresh || "Untitled class",
+            icon: client.effectiveNodeIcon(cls) ?? "mdi-shape-outline",
+            keywords: fresh ?? "",
+            run: () => onOpenNode(cls.id),
+            peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(cls.id),
+          };
+        }),
+      );
+    }
+
+    // Action registry: static rows + a query-scoped typed creation +
+    // the session journal's Undo/Redo rows (present only when the
+    // journal has something to (re)apply; the row IS the label). With node
+    // chips active the registry would only be noise — only the Commands
+    // chip (or no chips at all) builds it. The typed create row needs a
+    // class path the palette's `onNewPage(title)` does not have, so it
+    // stays hidden under a memberOf chip.
+    if (!anyChip || chip.commands) {
+      const actions: PaletteAction[] = [
+        {
+          key: "new-page",
+          label: "New page",
+          icon: "mdi-file-plus-outline",
+          keywords: "new create page add",
+          run: () => onNewPage(),
+        },
+        ...(onOpenClassCreate !== undefined
+          ? [
+              {
+                key: "new-class",
+                label: "New class…",
+                icon: "mdiShapePlus",
+                keywords: "new create class add deploy system",
+                run: () => onOpenClassCreate(),
+              },
+            ]
+          : []),
+        ...(onOpenAddSource !== undefined
+          ? [
+              {
+                key: "add-source",
+                label: "Add source…",
+                icon: "mdi-book-plus-outline",
+                keywords: "add source citation reference bibliography doi isbn arxiv pdf import resolve",
+                run: () => onOpenAddSource(),
+              },
+            ]
+          : []),
+        {
+          key: "import",
+          label: "Import…",
+          icon: "mdiTrayArrowDown",
+          keywords: "import logseq markdown dump restore sqlite workspace",
+          run: () => requestImport(),
+        },
+        ...(onOpenMergeGeneral !== undefined
+          ? [
+              {
+                key: "merge-general",
+                label: "Merge nodes…",
+                icon: "mdiMerge",
+                keywords: "merge combine absorb nodes into",
+                run: () => onOpenMergeGeneral(),
+              },
+            ]
+          : []),
+        ...(onOpenMerge !== undefined && currentNodeId !== undefined
+          ? (() => {
+              const current = client.getNode(currentNodeId);
+              const mergeable =
+                current !== undefined &&
+                !current.isClass &&
+                rendersWithDocumentChromeOf(client, current);
+              return mergeable
+                ? [
+                    {
+                      key: "merge-page",
+                      label: "Merge current page into…",
+                      icon: "mdiMerge",
+                      keywords: "merge combine absorb move into",
+                      run: () => onOpenMerge(),
+                    },
+                  ]
+                : [];
+            })()
+          : []),
+        ...(text !== "" && !hasMemberOf
+          ? [
+              {
+                key: "create-titled",
+                // A bare year the date system doesn't claim reads as a year
+                // page ("Create year "1711""), not a generic numbered page.
+                label: isPlainYearQuery(text) ? `Create year "${text}"` : `Create page "${text}"`,
+                icon: "mdi-file-plus",
+                keywords: `new create page add ${text}`,
+                run: () => onNewPage(text),
+              },
+            ]
+          : []),
+        ...(undoState.undoLabel !== null
+          ? [
+              {
+                key: "undo",
+                label: undoState.undoLabel,
+                icon: "mdi-undo-variant",
+                keywords: "undo revert journal",
+                run: onUndo,
+              },
+            ]
+          : []),
+        ...(undoState.redoLabel !== null
+          ? [
+              {
+                key: "redo",
+                label: undoState.redoLabel,
+                icon: "mdi-redo-variant",
+                keywords: "redo repeat journal",
+                run: onRedo,
+              },
+            ]
+          : []),
+        {
+          key: "toggle-focus",
+          label: focusIsOn ? "Focus mode: exit" : "Focus mode: enter",
+          icon: focusIsOn ? "mdiFullscreenExit" : "mdiEyeOutline",
+          keywords: "focus mode distraction minimal writing dim",
+          run: () => {
+            toggleFocusMode();
+          },
+        },
+        ...(onToggleCondensed !== undefined
+          ? [
+              {
+                key: "toggle-condensed",
+                label: condensedActive === true ? "Condensed: exit" : "Condensed: enter",
+                icon: condensedActive === true ? "mdiUnfoldMoreHorizontal" : "mdiUnfoldLessHorizontal",
+                keywords: "condensed stretchtext excerpt summary layer view",
+                run: () => onToggleCondensed(),
+              },
+            ]
+          : []),
+        {
+          key: "toggle-theme",
+          label: themeIsDark ? "Toggle theme: switch to light" : "Toggle theme: switch to dark",
+          icon: themeIsDark ? "mdi-white-balance-sunny" : "mdi-weather-night",
+          keywords: "theme dark light appearance",
+          run: () => {
+            flipTheme();
+          },
+        },
+        {
+          key: "sign-out",
+          label: "Sign out",
+          icon: "mdi-logout-variant",
+          keywords: "sign out logout exit account",
+          run: () => onSignOut(),
+        },
+      ];
+      const matchedActions = actions
+        .map((action) => ({ action, score: bestScore(text, action.label, action.keywords) }))
+        .filter((m): m is { action: PaletteAction; score: number } => m.score !== null)
+        .sort((a, b) => b.score - a.score || a.action.label.localeCompare(b.action.label));
+      for (const { action } of matchedActions) {
+        items.push({
+          key: `action:${action.key}`,
+          group: "Commands",
+          label: action.label,
+          icon: action.icon,
+          keywords: action.keywords,
+          run: action.run,
+        });
+      }
+    }
+
+    return items;
+    // cacheVersion rides through classesCache (the memo re-derives the
+    // sections when the worker cache refreshes).
+  }, [client, classesCache, home, dailyOnly, text, chip, anyChip, hasMemberOf, memberOfSet, onOpenNode, onOpenInSidebar, onNewPage, onOpenClassCreate, onOpenAddSource, onOpenProperty, currentNodeId, onOpenMerge, onOpenMergeGeneral, onToggleCondensed, condensedActive, onSignOut, onClose, undoState, onUndo, onRedo]);
+
+  // --- `/` filter mode: the option list -------------------------------------
+
+  const filterOptions = useMemo<FilterOption[]>(() => {
+    if (!filterMode) return [];
+    return filterBrowse === "classes"
+      ? listClassOptions(classesCache, narrowText)
+      : listFilterOptions({ narrowText, classes: classesCache, mode: "palette" });
+  }, [filterMode, filterBrowse, narrowText, classesCache]);
+
+  const applyFilterOption = (option: FilterOption) => {
+    if (option.filter.kind === "memberOf" && option.filter.classId === undefined) {
+      // The "With class…" family row: swap the menu to the class browse.
+      setFilterBrowse("classes");
+      setQuery("/");
+      setActiveIndex(0);
+      return;
+    }
+    const key = filterKey(option.filter);
+    setActiveFilters((prev) =>
+      prev.some((f) => filterKey(f) === key) ? prev : [...prev, option.filter],
+    );
+    setQuery("");
+    setFilterBrowse("options");
+    setActiveIndex(0);
+  };
+
+  const chipItems = activeFilters.map((filter) => ({
+    id: filterKey(filter),
+    label: filterChipLabel(filter, classesCache),
+    icon: filterChipIcon(filter, classesCache),
+  }));
+
+  // --- Content section: debounced ranked FTS with snippets ------------------
+
+  useEffect(() => {
+    if (!open) return;
+    const mine = ++contentGeneration.current;
+    if (dailyOnly || text === "" || chip.commands || chip.classes) {
+      setContentItems([]);
+      setContentLoading(false);
+      return;
+    }
+    setContentLoading(true);
+    const timer = setTimeout(() => {
+      Promise.resolve(client.searchPage(text, { limit: 8 }))
+        .then((page) => {
+          if (contentGeneration.current !== mine) return;
+          const classes = client.listClasses();
+          const assetClassId =
+            classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
+          setContentItems(
+            page.nodes
+              .filter((node) => !node.classIds.includes(assetClassId))
+              .filter((node) => !chip.blocks || rendersAsInlineBlockOf(client, node))
+              .filter((node) => !chip.pages || rendersWithDocumentChromeOf(client, node))
+              .filter((node) => !hasMemberOf || node.classIds.some((id) => memberOfSet.has(id)))
+              .map((node) => ({
+                queryTag: text,
+                key: `content:${node.id}`,
+                group: "Content" as const,
+                label: titleOfNode(node) || "Untitled",
+                icon: rendersWithDocumentChromeOf(client, node)
+                  ? (client.effectiveNodeIcon(node) ?? "mdi-file-document-outline")
+                  : (client.effectiveNodeIcon(node) ?? "mdi-format-text"),
+                keywords: "",
+                meta: rendersAsInlineBlockOf(client, node)
+                  ? (containingPageLabel(client, node) ?? undefined)
+                  : undefined,
+                snippet: client.getSearchSnippet(node.id, text),
+                run: () => onOpenNode(node.id),
+                peek: onOpenInSidebar === undefined ? undefined : () => onOpenInSidebar?.(node.id),
+              })),
+          );
+        })
+        .catch(() => {
+          if (contentGeneration.current === mine) setContentItems([]);
+        })
+        .finally(() => {
+          if (contentGeneration.current === mine) setContentLoading(false);
+        });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [open, dailyOnly, text, chip, hasMemberOf, memberOfSet, client, onOpenNode, onOpenInSidebar, cacheVersion]);
+
+  // --- Random display rows ---------------------------------------------------
+  // Derived, never snapshotted. The pick (ids) is state from the open/refresh
+  // gesture; the rows resolve here through the scope-classed per-id reads, so
+  // the first cold-cache pass renders nothing and CONVERGES on the
+  // cache-version bump this memo re-runs — the old effect-snapshot kept the
+  // section empty for the whole open (every getNode answered undefined on a
+  // cold WorkerClient cache and the dropped rows were never re-derived).
+  const randomRows = useMemo(
+    () => (home ? pickRandomRows(client, randomIds, onOpenNode, onOpenInSidebar) : []),
+    [client, randomIds, cacheVersion, home, onOpenNode, onOpenInSidebar],
+  );
+
+  // Dedupe + flatten: the cross-group node-id dedupe, stale content pages
+  // (answered query ≠ current) dropped, content ids already surfaced as
+  // title/date matches skipped. A stable sort on the mode-dependent group
+  // rank then orders the sections (score order inside a group survives):
+  // search answers Classes → Properties → Pages → Content, then Date Pages
+  // and Commands; the empty-query home keeps Recently created → Recently
+  // linked → Random → Commands.
+  const filtered = useMemo(() => {
+    const seenIds = new Set<string>();
+    const out: PaletteItem[] = [];
+    const push = (item: PaletteItem) => {
+      // Commands carry no node id; Random re-picks per open and always shows
+      // its five — neither participates in the cross-group dedupe.
+      if (item.group !== "Commands" && item.group !== "Random") {
+        const id = item.key.slice(item.key.indexOf(":") + 1);
+        if (seenIds.has(id)) return;
+        seenIds.add(id);
+      }
+      out.push(item);
+    };
+    for (const item of syncItems) push(item);
+    if (home) out.push(...randomRows);
+    for (const item of contentItems) {
+      if (item.queryTag !== text) continue;
+      push(item);
+    }
+    const emptyQuery = home;
+    const groupRank = (group: Group): number => {
+      if (emptyQuery)
+        return group === "Recently created" ? 0 : group === "Recently linked" ? 1 : group === "Random" ? 2 : 3;
+      switch (group) {
+        case "Classes": return 0;
+        case "Properties": return 1;
+        case "Pages": return 2;
+        case "Content": return 3;
+        case "Date Pages": return 4;
+        default: return 5;
+      }
+    };
+    return out.sort((a, b) => groupRank(a.group) - groupRank(b.group));
+  }, [syncItems, contentItems, text, randomRows, home]);
+
+  /** One flat list drives the keyboard: filter options in `/` mode, results otherwise. */
+  const flatCount = filterMode ? filterOptions.length : filtered.length;
+  const clampedActive = Math.min(activeIndex, Math.max(0, flatCount - 1));
+
+  // Reset on open; keep the active row visible while arrowing. The Random
+  // pool + pick are captured here too — the cached page list, asset-classed
+  // pages excluded (the same read the Pages section uses); the display rows
+  // derive from the ids in the memo above. The chips and the filter browse
+  // reset with the query.
+  //
+  // Deps deliberately EXCLUDE the callbacks: App hands this component fresh
+  // inline arrow identities every render, and during a background catch-up
+  // the shell re-renders constantly — with them in the deps this reset ran
+  // on every render and wiped the typed query from under the user (found
+  // by the post-fix smoke: the fast boot left catch-up running through
+  // the search step). The open-transition + client change are the only
+  // moments that should reset the palette.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
+    setQuery("");
+    setActiveIndex(0);
+    setContentItems([]);
+    setActiveFilters([]);
+    setFilterBrowse("options");
+    // The random walk is a PAGES surface: block-role
+    // standalone nodes stay out of the page pool. Only the shuffled IDS are
+    // state — the rows resolve per render (the randomRows memo).
+    const pool = client
+      .listPageSummaries()
+      .filter((page) => rendersWithDocumentChrome(page, undefined, parentlessBlockResolverOf(client)));
+    randomPoolRef.current = pool.map((page) => page.id);
+    setRandomIds(shuffledIds(randomPoolRef.current).slice(0, HOME_SECTION_COUNT));
+  }, [open, client]);
+
+  useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>("[data-active='true']");
+    // jsdom implements no scrollIntoView — guard the optional call.
+    active?.scrollIntoView?.({ block: "nearest" });
+  }, [clampedActive]);
+
+  /**
+   * Random refresh (#8): re-shuffle the open-time pool — the same cached id
+   * list, never a fresh worker query.
+   */
+  const refreshRandomPages = () => {
+    setRandomIds(shuffledIds(randomPoolRef.current).slice(0, HOME_SECTION_COUNT));
+  };
+
+  if (!open) return null;
+
+  const select = (item: PaletteItem) => {
+    onClose();
+    item.run();
+  };
+
+  const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex((index) => (flatCount === 0 ? 0 : (index + 1) % flatCount));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((index) => (flatCount === 0 ? 0 : (index - 1 + flatCount) % flatCount));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (filterMode) {
+        const option = filterOptions[clampedActive];
+        if (option !== undefined) applyFilterOption(option);
+      } else {
+        const item = filtered[clampedActive];
+        if (item !== undefined) {
+          // Shift+Enter on a node row peeks it in the right rail instead of
+          // opening it; rows without a peek fall through
+          // to the plain select.
+          if (event.shiftKey && item.peek !== undefined) {
+            onClose();
+            item.peek();
+            return;
+          }
+          select(item);
+        }
+      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+    } else if (!filterMode && event.key === "Backspace" && query === "" && activeFilters.length > 0) {
+      // The token-field contract: Backspace on an empty query pops the last chip.
+      setActiveFilters((prev) => prev.slice(0, -1));
+    }
+  };
+
+  let lastGroup: PaletteItem["group"] | null = null;
+  let flatIndex = -1;
+
+  return (
+    <div className="nt-modal-backdrop nt-palette-backdrop" onClick={onClose}>
+      <div
+        className="nt-modal nt-palette"
+        role="dialog"
+        aria-label="Command palette"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          // The input handler covers focus-in-input; this covers focus that
+          // has Tabbed onto a row — Escape closes from anywhere inside.
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            onClose();
+          }
+        }}
+      >
+        <SearchField
+          autoFocus
+          className="search-field--borderless"
+          value={query}
+          placeholder="Search pages, classes, actions… (/ for filters · is_daily: for dates)"
+          aria-label="Command palette search"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setActiveIndex(0);
+            if (!event.target.value.startsWith("/")) setFilterBrowse("options");
+          }}
+          onKeyDown={onInputKeyDown}
+        />
+        <FilterChips
+          items={chipItems}
+          onRemove={(id) =>
+            setActiveFilters((prev) => prev.filter((filter) => filterKey(filter) !== id))
+          }
+          className="nt-palette-chips"
+        />
+        <div className="nt-palette-results" ref={listRef}>
+          {filterMode ? (
+            <FilterMenu
+              title={filterBrowse === "classes" ? "Classes" : "Filters"}
+              options={filterOptions}
+              activeIndex={clampedActive}
+              onSelect={(id) => {
+                const option = filterOptions.find((entry) => entry.id === id);
+                if (option !== undefined) applyFilterOption(option);
+              }}
+              onHover={setActiveIndex}
+            />
+          ) : (
+            <>
+              {filtered.map((item) => {
+                flatIndex += 1;
+                const index = flatIndex;
+                const groupLabel = item.group !== lastGroup ? item.group : null;
+                lastGroup = item.group;
+                return (
+                  <div key={item.key} className="nt-palette-group">
+                    {groupLabel !== null && (
+                      <div className="nt-palette-group-label-row">
+                        <span className="nt-palette-group-label">{groupLabel}</span>
+                        {groupLabel === "Random" && (
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            icon="mdiRefresh"
+                            aria-label="Refresh random pages"
+                            title="Refresh random pages"
+                            onClick={(event) => {
+                              // The row select gesture must not fire alongside.
+                              event.stopPropagation();
+                              refreshRandomPages();
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="nt-palette-item"
+                      data-active={index === clampedActive}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => select(item)}
+                    >
+                      <span className="nt-palette-item-top">
+                        <Icon path={item.icon} size={0.9} className="nt-palette-item-icon" />
+                        <span className="nt-palette-item-label">{item.label}</span>
+                        {item.meta !== undefined && (
+                          <span className="nt-palette-item-meta">{item.meta}</span>
+                        )}
+                      </span>
+                      {item.snippet !== null && item.snippet !== undefined && (
+                        <SnippetLine snippet={item.snippet} />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+              {contentLoading && <div className="nt-palette-searching">Searching content…</div>}
+              {filtered.length === 0 && !contentLoading && (
+                <div className="nt-palette-empty">
+                  {anyChip
+                    ? "Nothing matches these filters. Remove a filter or type to search within them."
+                    : "No results. Try a different search."}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        {text !== "" && onOpenSearch !== undefined && (
+          <button
+            type="button"
+            className="nt-palette-search-all"
+            onClick={() => {
+              onClose();
+              onOpenSearch(text);
+            }}
+          >
+            <Icon path="mdi-magnify" size={0.8} />
+            <span>Search all for "{text}"</span>
+          </button>
+        )}
+        <div className="nt-palette-footer">
+          <span>↑↓ navigate</span>
+          <span>↵ select</span>
+          <span>⇧↵ peek in sidebar</span>
+          <span>esc close</span>
+          <span>/ filters</span>
+          <span>is_daily: dates</span>
+        </div>
+      </div>
+    </div>
+  );
+}

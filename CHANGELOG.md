@@ -9,12 +9,34 @@ predating this file.
 
 ## 2026-11-12
 
+- **chore(repo): re-merge notees-sync + notees-web into this repo — ADR-001 ships.** The 2026-11-05 split's audience-scope rationale did not hold for this pair (self-hosted users pull images, not repos; the web client is unusable without the server), and web was the fleet's tightest vendor-pin consumer. The two path-filtered histories merge here with no vendor pin: `packages/*` + `apps/{server,web}` are one pnpm workspace, one gate, one changelog; both images (`notees-sync`, `notees-web`) publish from this repo (names unchanged); the web service moves behind a compose `web` profile for server-only stacks. The vendor-dispatch/vendor-bump automation shrinks to the CLI leg. Rollback: both child repos survive as archived mirrors. **Verification:** `pnpm install && pnpm -r build && pnpm test` green on the merged tree; see `.agents/decisions/ADR-001-merge-sync-and-web.md`.
 - **chore(ci): vendor-dispatch — a main push notifies notees-cli and notees-web so their vendor-bump workflows open the pin-bump PR automatically.** The split's standing overhead was hand-run pin bookkeeping in each vendoring client; `vendor-dispatch.yml` POSTs a `notees-sync-updated` `repository_dispatch` (carrying the pushed SHA) to both client repos on every main push, where their `vendor-bump` workflows pin `vendor/notees` at that SHA, rebuild the vendored packages, gate, and open the bump PR (green gate → squash-merge; red gate → the PR is the lockstep alarm). Requires the `VENDOR_DISPATCH_TOKEN` secret (fine-grained PAT, Contents: write on both client repos); without it the workflow is a silent no-op — each client's weekly scheduled vendor-bump run is the drift net. A failed dispatch never blocks the push. Verification: YAML parse clean on all three workflow files; the dispatch fires on the next main push, the weekly drift net covers anything missed before then.
+- **chore(ci): automated vendor-bump — the `vendor/notees` pin now bumps by PR, opened by `.github/workflows/vendor-bump.yml`.** notees-sync's `vendor-dispatch` fires a `notees-sync-updated` `repository_dispatch` on every sync main push; this workflow pins `vendor/notees` at the pushed SHA (manual `workflow_dispatch` takes an optional SHA; the Monday 04:17 UTC scheduled run re-pins to sync's `origin/main` as the drift net), rebuilds the vendored `@notees/*` dists, refreshes the lockfile, runs the gate (`pnpm --filter @notees/web typecheck && pnpm --filter @notees/web test`), prepends the changelog entry, and opens `vendor/bump-<sha>` — auto-squash-merged when the gate is green, left open as the lockstep alarm when red (`ci.yml`, including the css-token-drift job, also runs on the PR). The manual bump recipe stays for exceptional pins. Verification: YAML parse clean; changelog-insert path exercised against a scratch copy (fresh-date and same-date headings); the live run happens on the next sync main push or the next scheduled run.
+
+## 2026-11-10
+
+- **fix(web): the crypto-bound UI tests stop flaking on loaded CI runners —
+  the suite's testing-library async budget rises to 5s globally.** The
+  nightly ci went red twice on one flake class: a key mint / workspace
+  unlock runs production-strength scrypt before the asserted UI renders,
+  and the default 1000 ms testing-library `findBy`/`waitFor` timeout is
+  marginal on a contended 2-core runner (the failing runs were visibly
+  slow — 8m20s+ against the typical ~7m; the suite passes in full locally
+  on the same commits). The first red was the API-keys "copy it now"
+  dialog in `settings-page.test.tsx`; the follow-up dispatch then red-lit
+  the same class in `unlock-flow.test.tsx` ("KEYED") — per-assertion
+  patches are whack-a-mole, so `test/setup.ts` now sets
+  `configure({ asyncUtilTimeout: 5000 })` for every test, and the three
+  explicit timeouts the first attempt added revert to plain assertions.
+  No product code touched.
+
+## 2026-11-09
+
+- **chore(vendor): bump notees pin — readItLater + showInNodeRows land together; the Read-later toggle goes live.** The pin lands the sync repo's capture-API slice (`a887bf2`: the `readItLater` workspace feature, `POST /api/capture/web-page`, `capture.write`, `/word/` add-in statics) and the node-row-previews slice (`4eaa14c`: `class.property.set {showInNodeRows}`, fixture gate 51→54 with both slices' fixtures). Web-side follow-ups the bump activated: the Settings → Features **Read later** row now renders (the vendored id is known) — given a local enabled-state mirror so its controlled toggle flips without an external subscription (the sibling rows ride the modal's incidental re-renders; the row's own post-bump test caught the stale-second-flip); `protocol-batch`'s Features-tab pin extends to seven rows (5 families + journal + read later). Verification: full suite green — 3204/3204 (the pre-existing `calendar-timegrid` red that fails on main itself in this environment stays the only exception); `tsc --noEmit` clean; the vendored packages' dist rebuilt per the dev-condition law.
 
 ## 2026-11-08
 
 - **feat(protocol,store,domain,server): class.property.set gains showInNodeRows — the binding row's node-row preview flag (absent = false).** A flagged binding's property value renders in the node's ROW (the outliner line/chrome preview), not only in the properties panel; absent = no preview — the default, no log rewrite for old rows. The `pinned` additive precedent copied end-to-end: the strict payload gains the optional boolean (the applier COALESCE-patches it like `active`/`pinned`, row LWW by envelope HLC), the derived `class_property` table gains `show_in_node_rows` (store schema v36 → v37, a guarded ALTER — existing rows converge by default 0), and the domain seed manifests thread the field (`SystemPropertySpec.showInNodeRows`, `SYSTEM_EXTRA_CLASS_BINDINGS`, `TASK_FAMILY_SEED`, the `SystemSourceBindingRef` ref-object form) so the server seed + the applier ensure + the web self-heal emit it. Seed declarations (the node-row previews slice): the task family's taskStatus/taskDeadline, the event family's eventDate (meeting/trip inherit through the extends chain — the base rows never repeat per class) + meeting's location, birthday's eventDate extra row, and the source base family's authors/publicationDate (every source type-class inherits through extends) — everything else seeds without the preview; live workspaces converge by future `class.property.set` envelopes (no migration script back-fills old rows). Canonical fixture `class-property-node-rows.json` joins the lockstep corpus (fixture gate 50 → 51); LOCKSTEP-PENDING for the GTK/Flutter fixture vendoring + payload-key acceptance (the `pinned`/`active` precedent) — the GTK/Flutter/CLI seed-manifest check ran: the flag rides ordinary binding envelopes the clients receive through the log, no client manifest carries the slice. The binding-echo route (`POST /api/classes/:id/properties`) + OpenAPI + the op catalog carry the flag. Docs: SCHEMA.md "Class properties" (the binding law is now three flags), the root AGENTS.md invariant, WIRE.md (additive batch), `docs/developers/development.md` (the fixture count), `docs/developers/migrations.md` (the additive-column shape), the captured system-seed parity fixture. **Verification:** `pnpm test` full gate green — protocol 954 / domain 194 / store 1156 / sync 56 / query 328 / export 302 / server 457 (3447 total; +17/+1/+14/+1 across the touched suites); `tsc --noEmit` clean on protocol/domain/store/query/export and the server's `src/` — the pre-existing `packages/sync/test/snapshot-chunking.test.ts` vitest-mock typings red AND the pre-existing batch-A script reds (`scripts/migrate-pmid-property.mts` ×2 + `scripts/migrate-zotero-full-alignment.mts` ×3, missing imports — present at the fee22dd base, another slice's area; the batch-B scripts' 7 errors that base fixed stay fixed) are recorded, not fixed.
-
 - **fix(server): /word symlink-escape guard + read-later inbox liveness reconciliation.** Two review findings on the capture API + Word add-in slice, both closed TDD red-first. (1) `GET /word/*` re-applies its root-prefix contract on the real paths (`realpathSync` on both the root and the target, after the existing lexical check), so a symlink inside `NOTEES_WORD_ADDIN_DIR` pointing outside the dir answers 404 instead of streaming the outside file on the unauthenticated route (the route's documented traversal-refusal contract now covers link escapes too). (2) `ensureReadLaterCollection` no longer trusts the remembered relay.db `read_later_collection_id` blindly: the id is verified live (`node.is_active = 1`) on every capture; a trashed/missing inbox reconciles by name — a live `collection`-class node whose title is "Read later" rebinds the remembered id, otherwise a fresh one is stamped through the one write path — so a trashed inbox can no longer swallow readlater captures silently (the member add landed on an inactive node, invisible forever, no error) and the relay-rebuild stale-id case converges the same way. Verification: +3 tests (`word-addin.test.ts`: a symlink escaping the dir → 404 and the outside bytes never served; `capture.test.ts`: a trashed inbox — the next capture lands the member add on a live collection and re-remembers it; a pre-existing live "Read later" collection wins over creating a third); full server suite green (54 files / 481 tests).
 - **feat(server): web-page capture API + readItLater workspace feature + Word add-in statics.**
   - `POST /api/capture/web-page` — captures a page as a `web_page` source or into the read-it-later inbox; session Bearer or `capture.write`-scoped API key (the new scope); stamps `object.create`/`property.set`/`collection.member.add` envelopes through the one write path; idempotent per URL (a duplicate re-capture answers 201 with the existing id and stamps zero envelopes; a cross-mode re-capture promotes instead of duplicating — readlater adds the existing node to the inbox, source returns the node with no collection); 409 `e2ee_required` for encrypted workspaces; 403 `feature_disabled` on a disabled `readItLater` row; resolver enrichment from DOI/ISBN degrades gracefully (the capture's artifact is the page, not the metadata — raw doi/isbn always stamp).
@@ -22,109 +44,93 @@ predating this file.
   - `NOTEES_WORD_ADDIN_DIR` hosts the Word add-in statics at `/word/` (GET, auth-free by design; always registered, 404 when unconfigured).
   - The relay.db `workspace` row gains `read_later_collection_id` — server-local inbox bookkeeping, never log state.
   - Tests: 22 new tests across `capture.test.ts`, `capture-scope.test.ts`, `capture-inbox.test.ts`, `word-addin.test.ts`; OpenAPI + error-taxonomy coverage updated.
+- **fix(web): connector captures are cache-coherent — fresh reads for every write-time decision, a per-client single-flight queue, and no more redundant seed deploys.** The final whole-branch review's FIX-FIRST finding: `captureWebPage` made write-time decisions through the WorkerClient's eventually-consistent render cache, whose cold/dirty keys answer the empty default synchronously — so through the production client a capture cold-read the URL dedupe as no-match (duplicating `web_page` nodes for URLs the store already carried), minted a second "Read later" collection on back-to-back read-later captures, re-stamped the `web_page` seed deploy's envelopes on a cold boot (each redundant write journaled by the undo journal — undoing a capture could invert no-op deploy ops), and let two interleaved same-URL captures both pass the dedupe. Now: the capture's URL-dedupe and read-later find-or-create ride the clients' new `*Fresh` uncached read surface (`getClassMembersFresh` / `getEffectivePropertiesFresh` / `getDisplayNameFresh`, one raw RPC straight to the store — the `getChildrenFresh` precedent, mirrored on the in-process `WorkspaceClient` reads domains as Promise-returning aliases so both halves of the `AnyClient` union typecheck); `deploySystemClass`'s every no-op guard reads fresh too (`getNodeRawFresh` / `getClassParentsFresh` / `listPropertySchemasFresh` / `getRegistryBindingsFresh` / `isFeatureEnabledFresh` — a warm store is a complete no-op again, nothing journaled), alongside `ensureWeblinkExtendsSource`; the classed-create flush's staged-kind re-derivation and `ensureCitationFamily`'s schema-existence guard read the registry fresh (`listPropertySchemasFresh`, an optional seam on `QuickCreateClient` — minimal hosts fall back to their sync read, already fresh in-process) so a datetime row can never stage as text from a cold cache (the lawless-property-write failure the new tests caught red); and every capture serializes through a per-client single-flight promise chain (a `WeakMap<AnyClient, Promise>` keyed on nothing — the simplest lawful form), so a find-or-create read can never race another capture's writes. Pinned through the real RPC boundary — new `connector-capture-worker` suite drives a real `WorkerClient` (render cache and all) over a real `WorkerCore` store, with the store seeded behind the client's back: no duplicate `web_page` on a re-capture through a cold client, exactly one "Read later" collection across back-to-back captures, a warm-store capture issuing ZERO deploy write RPCs (the no-re-journaling pin — zero writes is the direct, stronger proxy), and two interleaved same-url captures answering the first node. Docs: `docs/README.md` (the Connector front-door row drops the stray "(in progress)" — the house vocabulary is Today/Designed: the tab relay is Today, the extension + direct REST capture are Designed, landing with the sync-server update). Verification: new `connector-capture-worker` 4/4 (red-first — all four failed against the old code, the datetime-as-text lawless write among them); `connector-capture` (in-process) still 4/4; full suite green except the pre-existing `calendar-timegrid` red that fails on main itself in this environment; `tsc --noEmit` clean.
+- **feat(web): the connector tab relay — an open Notees tab answers the Firefox connector's captures, and Read later lands as a toggle + an auto-created collection.** **The relay**: `features/connector/tabRelay.ts` is the page-side postMessage handshake — the extension's bridge passes a `notees-capture-request` into the open tab and the tab answers `notees-capture-response` on the same window; requests are honored only from the workspace's configured server origin (exact match — silence for everything else, except a logged-out tab answers `not_authenticated` so the caller can tell "no workspace here" from "no answer"), and three failure codes name every refusal — `not_authenticated` / `feature_disabled` / `failed`. Because the tab stamps the capture through its own sync engine, the relay is E2EE-transparent: the master key never leaves the tab and an encrypted workspace captures with zero plaintext surface; a locked workspace answers `failed` honestly. **The capture path**: `captureWebPage` writes the page as a `web_page`-classed node (title + `url` + `accessDate`) through the SAME classed-create pipeline as the add-source dialog — citation self-heal, one undo batch, the normal outbox push sealed by the sync engine on keyed workspaces — idempotent by URL (a re-capture returns the existing node, never duplicates it; an optional note becomes the node's first child block on creation only), and a fresh workspace self-heals by deploying the `web_page` seed class first (the offline-first twin of the server seed, a no-op on seeded workspaces). **The write seam**: `WorkspaceClientWrites.addCollectionMember` — the buildEnvelope/enqueueLocal idiom over the new `collection.member.add` domain op (OR-Set add-wins: a redundant re-add is a clean no-op), exposed through the client facade, the WorkerClient RPC proxy, and the worker-core case dispatch — a readlater capture rides it to add the page to the workspace's "Read later" collection, auto-created on first use. **The App hook**: `useTabRelay` gates on auth (logged-out → `not_authenticated`), the matching workspace feature, and the workspace key, and shows the confirmation toast in the tab that did the work. **The settings row**: Settings → Features gains **Read later** after Journal — a surfaces gate (not a class family), vendor-tolerant by ruling: the row appears once the sync-server update introduces the `readItLater` feature id, and until then the client treats read-later capture as enabled (the same absent-means-on default the Journal gate uses). The v1 honest edges hold: the collection IS the inbox — no dedicated inbox view, no unread markers. The connector's other half is deliberately not here: the direct REST capture endpoint (`POST /api/capture/web-page`), the `capture.write` key scope, and the collection's server-side bookkeeping land together with the sync-server update; the Firefox extension itself and the Word add-in are designed, sibling lanes in flight. Docs: `docs/features/connector.md`, `docs/features/read-it-later.md`, `docs/features/word.md` (new, with the docs/README.md front-door rows), `docs/feature-status.md` (the three rows). Verification: 5 new test files — `collection-member-write` (the membership seam: write, complement-op undo, clean redundant re-add), `connector-capture` (the web_page find-or-create + read-later membership), `tab-relay` (origin gating, the three error codes, the response contract), `tab-relay-app` (auth/feature/key gating + toast), `settings-readitlater-toggle` (the kit-only row + the vendor-tolerance ruling); full suite green except the pre-existing calendar-timegrid red that fails on main itself in this environment; `tsc --noEmit` clean.
+- **feat(web): class property bindings gain the "show in node rows" flag — the class page's eye toggle, and picker/search rows that preview the flagged values.** The sync half (`notees-sync` `a59c469` — rebased onto `fee22dd`; supersedes `5c6da13`, on branch `feat/node-row-property-previews`) adds the additive wire flag `showInNodeRows` on `class.property.set` (absent = false; store v37's `class_property.show_in_node_rows` column; seeds flag task→Status/Deadline, event→eventDate (+birthday's eventDate row), meeting→Location, the source family→Authors/Publication date, extends-aware). This slice is the client surface + the two render surfaces. **The client surface** (`workspace-client`): `ClassBinding` gains `showInNodeRows` (mapped in `mapClassBindingRow` off `show_in_node_rows`, selected by BOTH the extends-aware `getClassBindings` and the own-rows `getRegistryBindings`, read-synthesized for the system-seed fallback rows); `SetClassPropertyInput` + the write payload pass it through (the worker plumbing was already an opaque pass-through). The family manifests mirror the seeds so the web-side deploy/self-heal converges: `systemClassDeploy` threads the flag from the domain spec/extra/source-binding manifests, `taskFamily` flags Status/Deadline, `meetingFamily` flags eventDate/Location (+ the birthday class-local eventDate row), and the shared `familyEnsure` loop carries it on NEW binding rows only (existence-only, the `pinned` precedent). **The class page** (`PropertyDefinitionsSection`): each direct binding row gains the EYE toggle — ghost icon button (`mdi-eye`/`mdi-eye-outline`, filled at rest when flagged, hover-revealed otherwise, `aria-pressed`), writing `class.property.set {showInNodeRows}` — the fourth hover surface beside the pin, the cog, and the × (inherited rows stay read-only, the established contract). **The rows**: `NodeResultItem` (the `@`/`+`/search rows) renders one compact `" · "`-joined metadata line under the name when a node's classes bind ≥1 flagged property — derived from the client + node alone (no prop threading; `nodeRowPreview.ts`), off the row's existing fresh-read seam. Values ride the shared `propertyDisplayText` funnel (dates honor the precision — a year-precision Publication date renders the bare year; multi-values join `, `; relation values resolve to target names; class-bound defaults render like the panel shows them), empty values are omitted, and a line that ends up empty does not render; the crumb line is untouched. Performance contract: rows without a flagged binding pay nothing beyond the cached binding reads — the effective-values read happens only when a flag exists, and only flagged schemas' rows are formatted (spy-pinned). The seams degrade honestly: a client without them (a narrow context client) renders no line. Docs: `docs/features/classes.md` (the eye toggle + the flagged roster in the property-definitions paragraph), `docs/features/links.md` (the pickers' result-row paragraph — the metadata line). Verification: new `node-row-preview` suite 10/10 (the seeded task/event/source cases end-to-end through the real families — `2026-03-10 · Doing`, `2026-05-20`, `Benkler, Yochai, Weber, Steven · 2006`; unflagged-never-renders; all-empty → no line; relation resolution; seam-less degradation; the effective-read spy contract; inactive bindings contribute nothing) + `class-bindings` gains the wire round-trip (absent=false, patch-keeps, explicit-false writes) and the eye-toggle UI pins 13/13. The pin landed mid-flight on the sync branch's pre-rebase base (`5c6da13`), which predated the `fee22dd` "batch-B CLIs compile" fix — `tsc --noEmit` went red on the two vendor migration scripts (7 errors, all in `vendor/`, untouched here). The sync branch rebased (`a59c469`, on `fee22dd`+), the pin re-bumped, and the gate is green again with zero web-side changes, as predicted.
+
 ## 2026-11-07
 
 - **fix(scripts): the batch-B CLIs compile and run — the fleet-extraction leftovers.** The two batch-B migration scripts referenced identifiers the extraction never carried into the CLI shell: `migrate-cover-banner-alias.mts` used `DEFAULT_WORKSPACE` (undeclared — every sibling script carries the local const), `PlannedMove` and `VISIBLE_PREDICATE` (exported by the node-free core but never imported into the script — the type-only re-export does not bind locally), and both scripts called the core's `buildEnvelopes(workspaceId, plan, stamp, identity?)` with two arguments, dropping the now-required physical-clock stamp (batch A's pattern — the sibling CLIs pass `Date.now()`). Any of the three was a hard failure (`ReferenceError` / a `stamp: undefined` envelope the protocol zod gate rejects at build time); the web repo's typecheck — which follows its vendor-pinned rehearsal suites INTO these scripts — flagged all of them the day the pin landed. Mechanism: the house `DEFAULT_WORKSPACE` const, a local `VISIBLE_PREDICATE` + `type PlannedMove` import from `./lib/migrations/cover-banner-alias.ts` (the re-export contract the web rehearsal suite rides is unchanged), and `Date.now()` at both `buildEnvelopes` call sites. Docs: this entry. Verification: the web repo's `tsc --noEmit` is clean over the vendor-pinned graph again; the vendor-pinned rehearsal suites (`apps/web/test/migrate-cover-banner-alias.test.ts`, `migrate-attachments-asset-type.test.ts` — the re-exported planner/builder shapes, untouched) stay green; each fixed script's dry run exits 0 against an empty data dir with the house "nothing to do" line.
+- **feat(web): sidebar section headers carry a count badge — the total vs the visible rows is the "more below" signal.** Follow-on to the Recents-starvation fix below: a capped Favorites (5 visible rows) or a scrolled Recents gave no hint that entries hid below the fold. Now the shared `sidebarSection` shell accepts a `count` and renders it as a badge on the section header's right edge — the design-system count-badge register (9px-radius pill, 10px muted text, surface-variant fill, never accent-filled; `law/patterns.md`'s "PLAYLISTS 27" header). Wired on all three sections: Navigation names the visible hubs (12), Favorites names the total list (8 against 5 visible rows — the signal), Recents the listed entries (up to 20). The header becomes a flex row to right-anchor the badge; the toggle variant's existing register (HubSurfaces.css) carries identical values, so no visual shift where no badge renders. Docs: `docs/features/pages.md` (the badge sentence in the sidebar paragraph). Verification: the sidebar geometry probe re-run — badges render (headers read Navigation 12 / Favorites 8 / Recents 14), every allocation check still PROBE-PASS at 1440×1000 / 768×800 / 390×560 with captures; full web suite green; `tsc --noEmit` clean.
+- **fix(web): the sidebar stops starving Recents — a guaranteed floor, a capped Favorites, and a nav escape valve.** The Recents section was squeezed to ~2 visible rows in real workspaces: Navigation's 11 pinned rows plus an uncapped Favorites consumed the whole column, and Recents — the only scrollable region — got the leftover (`min-height: 0`). Now the allocation is structural, not incidental: **Recents keeps the free height but rides a min-height floor** of eight row-heights (`calc(var(--height-sm) * 8 + var(--spacing-1))` — six list rows + the header block), so it can never shrink below a usable size at any viewport height; **Favorites caps at five visible rows** (`nt-side-section--capped`, the list scrolls beyond) — pinning every favorited row forever was exactly what starved Recents; **the nav column scrolls as the escape valve** (`overflow-y: auto` on `nt-sidebar-nav` replaces the hidden overflow) when a viewport is too short to honor the floor plus the pinned sections, instead of silently shrinking Recents; and **the Recents slice rises 12 → 20 entries** — with guaranteed real space, a deeper history earns its keep. The sidebar-nav row register is untouched (no compact grid, no truncated labels); hover/active registers unchanged; token-only CSS throughout (the row-height token + one spacing step). Docs: `docs/features/pages.md` (the sidebar paragraph — the space-allocation sentence). Verification: a throwaway geometry probe (offline session, 14 recents, 8 favorites) at 1440×1000 / 768×800 / 390×560 — Recents ≥6 rows everywhere, Favorites capped at 5 of 8, the nav valve scrolls on the short viewport with 6 Recents rows visible after scrolling to it (PROBE-PASS, captures at /tmp/sidebar-*.png); full web suite green; `tsc --noEmit` clean.
+- **fix(web): the post-deploy smoke meets the E2EE keying era — `verify-min` self-resolves the admin email and fails loud when the encrypted path is unrunnable.** The stack now runs a keyed workspace, and the app deliberately refuses to unlock under an API-key session (the master key is password-derived; the locked screen names the account sign-in remedy) — the smoke still expected the retired Unlock button under the operator key, so an API-key run died on a 30s button timeout. Now: `NOTEES_ADMIN_EMAIL` resolves env-first then the fleet stack's host-local `.env` (the same source the api key + admin password files already come from — read into the process, never printed), so the account flow runs from the start and the full encrypted path (password unlock → decrypting replay → search hit) is the default gate; when a keyed stack is smoked with no reachable email (operator key, no env), the smoke fails FAST with an actionable message instead of timing out — a shallow PASS would skip the riskiest part of a deploy. The account-resume Unlock-modal flow is unchanged. Also recorded in `AGENTS.md` (the standing redeploy law this session exercised: rebuild + recreate via the live stack's own compose — release tags are for other users, never the fleet's own deployment). Verification: both modes run against the live stack — default (email from the stack .env) VERIFY-PASS through the real encrypted path; forced operator-key mode fails in ~14s with the actionable error, no timeout.
+- **feat(web): the focused block view wears the page view's panelled composition — the same top bar and both side panels for the active node.** The zoomed block surface used to compose its own bare in-flow `SurfaceTopBar` (menu only) above the capped `.nt-page` column: the bar missed every panelled register (the card-fill, the flush top gap, the frame's side inset — it floated inside the centered column) and the view carried NO panels, so it read broken next to any page. Now the main-surface focused view renders the SAME composition the page view does: the shared `MainContentFrame` with the page view's `NodeTopbar` (the context-panel toggle + the classes pills left, the outline/prose view switcher + the "…" node menu right — the switcher offering the focused view's honest pair only, the collection coerces everything else to outline — and the properties-panel toggle trailing) and BOTH panel columns carrying the FOCUSED node's data: the context column its local graph / Table of content / Activity / Version history / Comments, the right column the properties sidebar (its metadata). The panels ride the same app-wide device prefs (`pageSidePanelCollapsed` / `pageContextPanelCollapsed`) and the same focus-mode ruling as pages — one surface, one panel state. The compact (sections-layout) register rides the absolute corner like every compact page (the in-flow bar retires). Mechanism: `NodeView` composes the frame for the focused branch (`nt-node-view--panelled` shell — the `.nt-page--panelled` geometry generalized); `FocusedBlockView` gains a `panelled` prop dropping the `.nt-page` cap/padding inside the frame's middle-cell registers (`.nt-page-content` scrolls, `.nt-nodeview-body` carries the 46rem cap — the scroll-register rule now lists both panelled hosts). The hover-preview / embedded / rail-card surfaces are untouched (no `cornerMenu` → no chrome at all, as before). Docs: `docs/features/pages.md` (the block-row bullet — the zoomed view's chrome paragraph rewritten). Verification: new `render-cascade` pins (the main surface renders `.nt-node-view--panelled` + `.nt-node-topbar` with both panel toggles, the Blocks-view group, and the Node actions menu; the context column carries the focused node's graph/TOC/Activity/Version history/Comments; the properties sidebar renders; the toggles write the shared device prefs and persist across remounts; the compact register renders no bar/panels and rides the corner) + the `focus-mode` CSS-source spec re-anchored on the two-host scroll rule; full web suite 3169/3169 green (274 files), `tsc --noEmit` clean, the CSS-token gate CLEAN.
+- **chore(vendor): bump notees pin — the batch-B migration CLIs compile and run; the typecheck gate is green again.** The pin lands the sync repo's `fee22dd` (pushed to `notees-sync` main): the two batch-B migration scripts referenced identifiers the fleet extraction never carried into the CLI shell — `migrate-cover-banner-alias.mts` used an undeclared `DEFAULT_WORKSPACE`, `PlannedMove`, and `VISIBLE_PREDICATE` (a type-only re-export does not bind locally), and both scripts called the core's stamped `buildEnvelopes` with two arguments, dropping the required physical-clock stamp (a `stamp: undefined` envelope the protocol zod gate rejects) — hard failures the web repo's `tsc` surfaced the day the extraction pin landed (typecheck is not a CI job here, so the reds sat). Alongside the bump, the vendored packages' `dist` is rebuilt (the documented dev-condition law — the 2026-11-06 `repeat` seed existed in `domain/src` but not in its stale `dist`, so `tsc` read a `SYSTEM_PROPERTY_UUIDS` without the key three committed test files require). Web-side test fixes the fresh types surfaced: `blockrow-memo`'s indexed `parentId` gains its non-null assertion, the `focus-mode` scroll-rule CSS spec rides the new two-host selector (see the slice above). The vendor-pinned rehearsal suites (`migrate-cover-banner-alias` 5/5, `migrate-attachments-asset-type` 4/4) are unchanged and green through the pin; each fixed script's dry run exits 0 against an empty data dir with the house "nothing to do" line. The sync repo's own record carries the fix slice (`fee22dd`, changelog entry included). Verification: `pnpm --filter @notees/web typecheck` fully clean (the first clean run since the extraction pin), full web suite 3169/3169 green.
 
 ## 2026-11-06
 
 - **feat(scripts): the url-source-binding/cover-banner-alias/attachments-asset-type content migrations gain node-free planning cores — the client-side executor pattern, batch B (the fleet extraction closes).** The second extraction batch, identical mechanics to batch A (`scripts/lib/migrations/<name>.ts`, NODE-DEP-FREE by contract, `isPending`/`plan`/`buildOps`/stamped `buildEnvelopes`, the CLI delegating with byte-identical semantics). This batch's rehearsal suites live in the WEB repo (vendor-pinned: `apps/web/test/migrate-cover-banner-alias.test.ts`, `migrate-attachments-asset-type.test.ts` — the stamp argument lands at their next vendor bump); the sync-side smoke is each script's dry run against an empty data dir plus the full gate. With batches A+B the extracted set is seven cores — every append-only content-class migration that plans against a derived store. The remaining names on the content-class list are skipped BY ARCHITECTURE, recorded in `docs/developers/migrations.md` §1.A: the §B in-place rewrites (`migrate-url-type-to-text`, `migrate-retire-external-link`, `migrate-mention-custom-label`, `migrate-unified-datetime`, `migrate-color-tokens`) edit the stored log's envelopes directly and explicitly forbid compensation envelopes — no client write path can ever run them (and they are pre-keying-era history a keyed workspace never carries); `migrate-cover-to-asset` converges through the server's object REST API, not envelope planning; `migrate-date-pages-main` is a non-import-safe top-level script with no rehearsal suite — extraction would be a redesign, which the ruling forbids. Docs: `docs/developers/migrations.md` §1.A names the extracted set + the skip rationale. Verification: `pnpm test` full gate green (protocol 937 / domain 193 / store 1142 / sync 56 / query 328 / export 302 / server 456); the three rewritten scripts' dry runs exit 0 against an empty data dir with the house "nothing to do" lines.
-
 - **feat(scripts): the authors/pmid/zotero content migrations gain node-free planning cores — the client-side executor pattern, batch A.** The fleet extraction of the F3 pattern (Stage 1's proving core was meeting-date retirement): the pure planning core of each append-only content-class migration moves to `scripts/lib/migrations/<name>.ts` — NODE-DEP-FREE by contract (imports only the browser-safe workspace packages; authors-to-text's element-id mint rides Web Crypto's `getRandomValues` instead of `node:crypto`'s `randomFillSync` — the same crypto-random source under Node 22 and every browser), exporting `isPending(store)` (each CLI's "nothing to do" arms inverted — a missing seed class node is the citation ensure's job, never the migration's), the planner (verbatim move), a wire-neutral op-triple builder (`buildOps`, the shape a keyed client stamps with its session constants through the normal write path — no new crypto, no wire change), and the envelope builder (`buildEnvelopes(workspaceId, plan, stamp, identity?)` — the pre-extraction shape with the physical clock and the actor/device/client constants made parameters, defaulting to the CLI's historical `MIGRATION_IDENTITY`). The CLIs keep their exact shapes by delegating (scratch build, applier gates, backup, ingest, verify all stay); the rehearsal suites stay green as the pins — the in-process ones (`migrate-pmid-property`, `migrate-zotero-full-alignment`) gain the stamp argument at their existing `buildEnvelopes` calls, the spawn-only one (`migrate-authors-to-text`, including its pre-migration-snapshot review-focus rehearsal) is unchanged. Semantics untouched everywhere: the plan, the op set, the ordering, and the refusal-before-planning are byte-identical. Skipped as entangled (recorded, not redesigned): none in this batch. Docs: `docs/developers/migrations.md` §1.A's node-free-core paragraph already names the pattern; each core's header carries the contract. Verification: `pnpm test` full gate green (protocol 937 / domain 193 / store 1142 / sync 56 / query 328 / export 302 / server 456 — the three rehearsal suites among them).
-
 - **feat(scripts): meeting-date retirement gains a node-free planning core — the client-side executor pattern.** Why: a keyed workspace's content-class migrations cannot run server-side (the sealed prefix is invisible to a server-side plan — the refusal the dev-ops contract names), so the remedy the refusal message promises needs the migration's planning logic to run INSIDE a keyed client; that logic lived embedded in a node-only CLI script (better-sqlite3 + RelayStorage + fs imports), unimportable by a browser. Mechanism: the migration's pure planning core moves to `scripts/lib/migrations/meeting-date-retirement.ts` — NODE-DEP-FREE by contract: it imports only from `packages/protocol/src` (types + `newEnvelope`) and `packages/domain/src` (the system UUID tables) plus a TYPE-ONLY `Store` (erased at runtime — the better-sqlite3 adapter never loads through this file), and exports `isPending(store)` (exactly `!planIsEmpty(plan(store))` — the surface's listing probe), `planMeetingDateRetirement(store)` (verbatim move), `buildRetirementOps(plan)` (the new wire-neutral primitive — `{opType, payload, affected}` triples, the shape a client stamps with ITS session constants through the normal write path, so the sync engine seals and pushes it like any write: no new crypto, no wire change), and `buildRetirementEnvelopes(workspaceId, plan, stamp, identity?)` (the pre-extraction builder's shape with the physical-clock stamp and the actor/device/client constants made parameters — defaulting to `MIGRATION_IDENTITY`, the CLI's historical constants). The CLI (`scripts/migrate-meeting-date-retirement.mts`) keeps its exact shape by delegating (scratch build, applier simulation, backup, ingest, verify all stay; the protocol validation gate moves to the core as `validateRetirementEnvelopes`). Semantics untouched: the plan, the op set, the ordering, and the refusal-before-planning are byte-identical; the rehearsal suite is the pin. Docs: the script header + the core's header (the node-free contract, the F3 proving-pattern role). Verification: `apps/server/test/migrate-meeting-date-retirement.test.ts` gains the direct-core pin (the script's planner/builder ARE the core's functions; the core's plan against the same store deep-equals the script path's; the core's envelopes with the default identity + one stamp equal the script path's modulo the per-call `id`/`timestamp` mints, with actor/device/client + `{physical, logical}` hlc sequence asserted field-by-field; the op-triple primitive's opTypes/payloads/affected sets equal the envelopes'; `isPending` tracks `!planIsEmpty` before and after applying the envelopes) — the pre-existing three rehearsal tests (dry-run writes nothing; `--apply` converges the fresh hydration + idempotent second run) stay green unmodified in shape; full `pnpm test` gate green.
-
 - **feat(server): workspace creation accepts a client-chosen id — offline adoption publishes under its existing id.** Follow-up of the keying slice below: `POST /api/workspaces` gains an optional `id` (uuid) in the creation body — an offline-created workspace's local store is keyed by its id, so adoption must publish under THAT id, not a server-minted one (the store layer already accepted `input.id`, auth.ts). Mechanism: the route passes the id through to `createWorkspace`; a taken id (workspace row or relay log, via the existing `listAllWorkspaceIds` getter) answers 409 `conflict` BEFORE the mint — nothing is created or overwritten; the keying gate now reads the explicit id (`keyingRequiredFor(config, id)`), so `KEYING_EXEMPT_WORKSPACE_IDS` semantics apply unchanged, and the seeded fixture ids themselves stay mint-only-via-ingest (the store layer's loud refusal mapped to 422, never a 500). The clone route is untouched (it ignores `id` — a clone is always a FRESH workspace). Docs: the route's doc comment + the OpenAPI entry (the id field, the 409/keying_required error arms). Verification: +5 pins in `keying-gate.test.ts` (fresh explicit id → 201 + listed under that id, encrypted; a conflicting id → 409 with the incumbent's directory AND key row byte-unchanged; a non-exempt explicit id without a bundle → 422 `keying_required` before any mint; an allowlisted fixture id → exempt from the gate, refused at the mint as ingest-only; a malformed id → 422 `validation_failed`); `pnpm test` full gate green — server 455 tests (keying-gate 15 of the 455), the other suites untouched by this slice; `tsc --noEmit` clean on the app.
 - **feat(scripts): the keyed-workspace dev-ops contract — one shared scratch builder, the content-class declaration + refuse-before-planning, and a verify report that never hides the sealed boundary.** Why: keyed workspaces are the norm now (`NOTEES_REQUIRE_KEYED` defaults on, the entry below), and the server-side operator tooling must be honest about that boundary — a plan or a verify run that silently treats sealed content as absent is a lying tool. Mechanism: (1) `scripts/lib/scratch-store.ts` (beside `map-query-ast-v1-v2.ts` — the web repo's vendor-relative import untouched) is the ONE copy of the scratch builder — every `scripts/*.mts` carrying a local `buildScratchStore` (30+ byte-identical copies, drift waiting to happen) deleted its copy and rides the lib through a thin wrapper printing the house skip line via `onSkip`: a `sealed=1` latest snapshot never restores (the tail replay rebuilds the plaintext prefix), encrypted payloads skip the apply, StoreError skips count as pending, anything else still throws `tail apply failed at seq > N` — so a keyed workspace's sealed content is invisible to a server-side plan BY DESIGN, and a sealed latest snapshot no longer crashes the scratch build anywhere in the fleet (the recurrence migration met that NOTADB live). Behavior upgrade to note: the old local copies threw on ANY tail apply failure — the lib counts StoreError skips as pending and reports them (a plaintext tail failing on anything else still blocks loudly). (2) Each of the 35 scripts (32 `migrate-*` + `backfill-citekeys` + `import-zotero-rdf` + `repair-log-conformance`) exports `CONTENT_CLASS: MigrationContentClass` — 14 `"content"` (plans against the object graph) / 21 `"scaffolding"` (schema/binding rows every replica derives identically, per the verified classification) — and calls `refuseIfContentOnKeyed(dataDir, workspaceId, CONTENT_CLASS, name)` in its per-workspace loop BEFORE planning (the late adopters' refusals moved ahead of the plan, so a refused run never even hydrates): a `"content"`-class run refuses loudly against a keyed workspace — the sealed prefix is invisible to the plan — with the run-it-through-a-keyed-client remedy; `"scaffolding"` runs and unkeyed workspaces pass silent. `repair-log-conformance.mts`'s 3-arg variant reconciled WITHOUT breaking the lib's exported shape: the third parameter takes the `ScratchHooks` bag compatibly (`onSkip` OR `{onSkip, onApplyError}` — every existing call-site untouched), its per-envelope violation classification riding the new `onApplyError` hook (a failed op feeds `classify` and the build continues, the seq side-table staying local). (3) `verify-migration.mts`'s report line carries `sealed-invisible: S` — the count of encrypted payloads in the device's filtered set — a REPORT, never a fail criterion: PASS stays "every filtered envelope applied + pending === 0", exactly the set the check always covered (a real server can never hasApplied a sealed envelope — the derived apply skips it by design); one honest limit recorded: a sealed envelope riding the MIGRATION's own deviceId would still read unapplied → FAIL against a live server (the criteria stayed unchanged by design) — excluding sealed ids from the unapplied accounting is a future slice's criteria change. Housekeeping: the merged `fix/sealed-scratch-migration` remote branch deleted. No redeploy: `scripts/` is repo tooling, not the server image. Docs: `docs/developers/migrations.md` (the shared-scratch + keyed-guard paragraph in §1.A). Verification: `apps/server/test/scratch-store-lib.test.ts` pins the lib (plan-equivalence against a manual full-tail hydration; a sealed latest snapshot — no NOTADB, the plaintext tail replays into the same plan; the `onSkip` accounting — exactly one call with the counts, silent when nothing skipped; `keyedWorkspaceIds` after a `putWorkspaceKey`, table-absent, db-absent; the refusal's exact-message throw + both silent arms) and the refusal end-to-end (a keyed workspace staged via `AuthStorage.putWorkspaceKey` — the spawned dry-run refuses non-zero with the house message naming the class + the keyed-client remedy, ZERO envelopes appended, `latestSeq` unchanged, the unkeyed control passing and writing nothing); `apps/server/test/verify-migration.test.ts` gains the sealed-boundary pins (a sealed device envelope reports `sealed-invisible: 1` and still PASSes against a stubbed convergence endpoint — the report is never a fail; a plaintext set reports 0); every migration rehearsal/integration suite replays its envelopes through the shared helper UNMODIFIED; `pnpm test` green — protocol 937 / domain 193 / store 1142 / sync 56 / query 328 / export 302 / server 450; the pre-existing `packages/sync/test/snapshot-chunking.test.ts` typecheck red (vitest Mock variance, TS2322) is another slice's area — recorded, not fixed.
 - **feat(server): workspace keying is mandatory — NOTEES_REQUIRE_KEYED gates creation (default on), closing the privacy-first threat model against the host.** Why: E2EE shipped with keying as a creation-time option, and an unkeyed workspace was a plaintext workspace — the privacy-first threat model names the host/operator as an adversary, so creation was the hole: anything created without a key sat readable on the relay. Mechanism: `NOTEES_REQUIRE_KEYED` (config.ts `loadConfig`, default TRUE; `0`/`false` restores the legacy unkeyed creation for dev/test fleets) + the `keyingRequiredFor` gate (auth.ts): `POST /api/workspaces` and the clone route (`POST /api/workspaces/:id/clone`) require a `wrappedKey` bundle in the creation body — the gate precedes the mint (and the clone's snapshot read), so a refused creation leaves nothing to clean up, and without a bundle the answer is 422 `keying_required` (the pinned error taxonomy, errors.ts), pointing at the email+password sign-in that can mint one. The clone may reuse NOTHING of the source's key — a fresh bundle or the 422 — and a supplied bundle stores only after the clone's image install succeeds (a failed clone never orphans a custody row). The seeded demo fixtures (the smoke/test harness workspaces, which the server can never key itself) carry an explicit exemption: `KEYING_EXEMPT_WORKSPACE_IDS` (auth.ts), consulted only through `keyingRequiredFor` and passed explicitly by the relay's first-ingest mint (routes-relay.ts). The ~20 pre-existing bundle-less suites keep their shape through the test-hatch default — the shared test server boots `requireKeyed: false` (helpers.ts, the `NOTEES_REQUIRE_KEYED=0` value) — while the dedicated `keying-gate.test.ts` opts into `requireKeyed: true` for both routes and pins the config parsing (unset → on), the exact allowlist, and the 422-before-mint shape. Existing workspaces are UNAFFECTED: the gate only gates creation, and history written before keying stays plaintext — the operation log is immutable, keying applies from a workspace's creation, never retroactively. Docs: `docs/developers/deployment.md` (the security-posture paragraph, the env table, the designed-not-present bullet — E2EE shipped, the honest-history ruling). Verification: `pnpm test` green — protocol 937 / domain 193 / store 1142 / sync 56 / query 328 / export 302 / server 436 (3394 total; keying-gate 10 of the 436); the pre-existing `packages/sync/test/snapshot-chunking.test.ts` typecheck red (vitest Mock variance, TS2322) is another slice's area — recorded, not fixed.
-
 - **fix(scripts): migrate-repeat-property plans through a SEALED latest snapshot — the E2EE-keyed workspace stops crashing the scratch build.** The recurrence migration met its first keyed workspace live: the latest snapshot is a sealed blob (`sealed=1`, the checkpoint a keyed client uploads), and `buildScratchStore` restored it unconditionally — `SQLITE_NOTADB` ("file is not a database") aborted the dry run before any plan. The scratch build now mirrors the server's hydration ruling (workspace-store.ts, 2026-11-05): a sealed latest snapshot is never restored — the tail replay rebuilds the plaintext prefix from the log — and encrypted payloads skip the apply (`isEncryptedPayload`) with StoreError skips counting as pending, so a keyed workspace's sealed content is invisible to a server-side plan BY DESIGN (the skip count is printed, never silent); anything else that fails still blocks the migration. The migration converges what the server can see (pre-keying plaintext recurrence state) — post-keying sealed recurrence needs a keyed client-side path, a future slice. Docs: the script header's scratch-plan ruling. Verification: +1 rehearsal pin (a sealed latest snapshot over the seeded workspace — dry run exits 0, plans the same moves, no NOTADB), server suite green.
-
 - **feat(domain,store,protocol,scripts): recurrence becomes the dedicated Repeat property — the RR5 RRULE subset on an event+task-scoped text property, compute-on-read.** The implicit-metadata model leaked: recurrence hung off a datetime value's `metadata.repeat`, so ANY date value could secretly carry a series, the stored grammar (`<freq>[/<n>]`) couldn't express interval/weekday/monthday/ends, and the seeded `taskRecurrence` optionless select never carried an executable grammar at all. Recurrence now lives on the dedicated `repeat` TEXT property (fixed UUID …0003-…0013, single-value, seeded UNPINNED at LOCAL scope — `scopeClassIds: [event, task]`), never on date values; the driving date value's own day is the series anchor, derived at read time. **Grammar** (`packages/domain/src/recurrence.ts`, the RR5 subset of RFC-5545 `RRULE`): `FREQ` ∈ DAILY/WEEKLY/MONTHLY/YEARLY with `INTERVAL` (1..999), `BYDAY` (weekday list), `BYMONTHDAY` (1..31), and `COUNT`/`UNTIL` (mutually exclusive ends) — one canonical key order, fail-loud parse (`parseRecurrenceRule` throws `RecurrenceParseError`, prototype-keyed segments and prototype-valued FREQs rejected via Map-backed lookups), `formatRecurrenceRule` round-trips byte-identically; anything outside the subset (the retired `<freq>[/<n>]` grammar, BYSETPOS, WKST, …) is rejected outright. **The seed** (`packages/domain/src/seeds.ts`): the FIRST multi-class bind — `bindTo` widens to a class LIST, the schema seeds at the union scope with one bare binding row per class (`meeting` inherits eligibility through the extends chain); the withdrawn `taskRecurrence` placeholder (…0003-…0006 — optionless, never executable) has its UUID burned, never reused, while the task-family ensure keeps authoring the old schema for migrated workspaces until the migration converges. **The store** (`packages/store/src/appliers.ts` `ensureTaskFamilyRows`): every tasks-enabled store self-heals the task-side `repeat` binding row (the event side rides the seed envelopes + the migration; HLC-zeroed like the family rows above). **The wire + docs**: NO new op and no wire change — a Repeat value is an ordinary text property value, and the recurrence exceptions (`exdates`, `until`, `completedOccurrences`) are additive metadata on that same value, the existing metadata wire; SCHEMA.md "Recurrence" is rewritten normative (the Repeat property, the RR5 grammar, the Google-calendar edit/delete exception semantics, multi-day `endDate` spans staying on the date value, the legacy-convergence ruling); the canonical fixture `recurrence-property.json` joins the lockstep corpus (fixture gate 50 → 51). **Live convergence** rides `scripts/migrate-repeat-property.mts` (Path A, dry-run default — the entry directly below); `scripts/migrate-seed-pins.mts`'s `deriveSeedPinTargets` walks the widened multi-class `bindTo` (one pin target per bound class — future-correct; the repeat spec itself is unpinned). **GTK/Flutter lockstep:** no wire change — text property values and value metadata are existing wire — so no fixture-lockstep PR is owed; the GTK/Flutter/CLI clients pick the domain API changes up at their next vendor bump. Docs: SCHEMA.md (normative). Verification: recurrence grammar/expansion specs rewritten and extended in `packages/domain/test/recurrence.test.ts` (+ the seeds/system-seed pins), the new fixture's two gate assertions in the protocol suite, +1 store pin (the `ensureTaskFamilyRows` repeat-binding self-heal on a pre-recurrence store, with the existing family-binding assertion extended to the repeat row; the captured system-seed parity fixture regenerated), +1 server suite (the migration's four-phase rehearsal, entry below); protocol 937, domain 193, store 1142, sync 56, query 328, server 425 green; `tsc --noEmit` clean across the workspace except the pre-existing `packages/sync/test/snapshot-chunking.test.ts` vitest-mock typings red (predates this branch — another slice's area, untouched here).
-
 - **feat(scripts): migrate-repeat-property — legacy `metadata.repeat` converges onto the Repeat property.** The date-value recurrence model retires (SCHEMA.md "Recurrence", the legacy-convergence ruling): a datetime value carries no recurrence metadata at all. Live workspaces written under the old model converge by `scripts/migrate-repeat-property.mts` (Path A append, dry-run default): the withdrawn `taskRecurrence` select schema (…0003-…0006) soft-deletes, the dedicated Repeat schema (…0003-…0013, text, scopeClassIds [event, task]) creates at the seed shape with both binding rows, and each ELIGIBLE node's legacy grammar converts to the canonical RRULE (`legacyRecurrenceToRRule`, the anchor = the driving date value's own day — weekly → BYDAY on the anchor's weekday, weekdays → `BYDAY=MO,TU,WE,TH,FR`, monthly → BYMONTHDAY on the anchor's day-of-month) as the value of the new Repeat property, carrying the validated `exdates`/`until`/`completedOccurrences` moved off the date value, which re-commits verbatim with the four keys stripped (unrelated authored metadata rides through). The scope law holds: a Repeat `property.set` is only ever planned for a node whose class closure reaches event or task (the applier's R3 check would refuse otherwise) — an ineligible node gets only the metadata strip and is NAMED in the report; unconvertible arms (garbage grammar, a non-day anchor, an already-valued Repeat slot) are reported and left untouched, never silently dropped. The plan reads a scratch hydration of the converged log; every envelope passes the protocol zod gate, an applier-simulation on a throwaway scratch drops any rejected arm with a report (nothing half-migrates), and `--apply` backs up `relay.db` (or rides `--server http://localhost:8377`'s one-write-path append), ingests, and verifies from a fresh replay — canonical RRULEs, moved exceptions, the four keys stripped workspace-wide, the schema swap. Idempotent: a second run plans nothing. Docs: SCHEMA.md already names the migration (the Task-3 pass). Verification: `apps/server/test/migrate-repeat-property.test.ts` — the four-phase rehearsal (in-process plan/envelope pins incl. the shared HLC clock and op ordering; dry-run writes nothing; `--apply` + fresh-hydration end-state asserts for all four seeded arms — an eligible event, an eligible task with preserved unrelated metadata, an ineligible source reported-and-stripped repeat-free, and the …006→…0013 schema swap with both binding rows; a second `--apply` plans nothing), server suite green (425).
+- **chore(vendor): bump notees pin — the content-migration fleet extraction (7 node-free planning cores).** The sync repo's F3 Stage 3 lands: every append-only content-class migration now carries its planning core at `scripts/lib/migrations/<name>.ts` (NODE-DEP-FREE — a keyed client can run them through the normal write path), and the two vendor-pinned rehearsal suites here gain the new envelope-builder stamp argument (`buildEnvelopes(WS, moves/plan, 1729000000000)` in `migrate-cover-banner-alias` / `migrate-attachments-asset-type` — 5/5 and 4/4 green through the pin). The web runner's registry (Stage 2) still wires only the proving pattern; further cores register without vendor changes. The remaining content-class names are skipped by architecture (§B in-place log rewrites, a REST-driven migration, a non-import-safe script) — the rationale lives in the sync repo's migrations runbook §1.A. No `@notees/*` package change → no dist rebuild. Verification: full web suite green (see the run below); both updated rehearsal suites green in isolation.
+- **fix(web): a structural change now carries its affected set to row-level subscribers — a block create no longer force-renders every mounted row.** The follow-on to the icon/color stamp fix: `ClientContext.notify()` dropped the affected ids whenever a batch was listing-affecting, collapsing the payload to `{ structural: true }`, and `BlockRow`'s subscriber treats a payload without affected ids as scope-unknown → `forceRowRender` on EVERY mounted row for EVERY create (only coalesced bursts accidentally escaped, via the worker's merge producing an empty affected array). Now a listing-affecting batch KEEPS its ancestor-expanded affected set (bounded by `CHANGE_AFFECT_CAP`; an empty expanded set — evaluate-at-apply ops like `trash.empty` — keeps the scope-less shape): cache invalidation stays FULL by design (a move's vacated side is not reconstructible post-apply, so scoped key dirtying would serve stale listings — pinned in `worker-client.test.ts`), while rows scope re-renders to rows naming one of those ids. Since each outliner row's `SortableContext` is keyed by ITS childIds, a create in one subtree leaves sibling-subtree rows with stable tree AND context identity — zero renders. The worker's notification coalescer omits the empty affected key when merging scope-less structural payloads (an empty array would read as "known scope, nothing affected" and silence the conservative force); App's citekey watcher skips structural batches explicitly (semantics unchanged — structural used to arrive without affected ids). Contract documented in `types.ts`. Verification: new `apps/web/test/notification-payload.test.ts` (a create's payload carries the created id + its ancestors with `structural: true`; a content edit stays `structural: false`) + a `blockrow-memo` pin (a create inside one subtree renders zero rows of the sibling subtree — parent row included — while the affected chain renders and the new row mounts) + a `worker-client` pin (structural-WITH-affected still refetches every cached key); the neighboring op-lag guards (`read-invalidation-guard`, `pageview-render-filter`) and the breadth gate green. Same foreign full-suite reds as the previous slice (the parallel session's mid-flight vendor pin), same attribution.
+- **fix(web): workspace removal clears its custody key records — no forever-leaks.** The `notees-custody` IndexedDB's `workspaceKeys` store (the offline workspace's device-local key, the mandatory-keying slice) survived workspace delete and sign-out forever. Now custody tracks the workspace's lifecycle: `master-key-storage.ts` gains `deleteOfflineWorkspaceKey(workspaceId)` (missing record is a silent no-op) and `clearOfflineWorkspaceKeys()` (whole-store empty), and the `WorkspaceKeyStore` seam gains a `clear()` (the IDB impl rides `store.clear()`). Every removal surface calls them: the WorkspacesView delete confirm drops the deleted workspace's record right after the server DELETE, and `clearCryptoCustody` (sign-out, Disconnect & forget, API-key sign-in, rejected credential — every session end) empties the store alongside the master-key deletion; the workspace-registry has no per-workspace removal path (wholesale list replace only), so nothing to wire there. A workspace re-created or reopened after either mints a FRESH key — the old record is never resurrected. The earlier "records survive sign-out by design" ruling (Task 9, no account owns them) reverses here: records must not outlive their session. Docs: `docs/features/offline-and-sync.md` (the custody sentence). Verification: new `workspace-key-custody-cleanup` 6/6 (delete → fresh-key re-mint; per-record isolation; missing-record no-op; session-end empty + master still cleared; empty-store clear; the WorkspacesView delete confirm fires the DELETE AND clears the record) · the `offline-keying` sign-out pin re-targeted (empties the store, next open mints a fresh key) 11/11 · `master-key-persistence` 11 + `e2ee-config-gate` 2 + `keying-secure-context` 3 (the store fakes grow the `clear()` the interface now requires) stay green; final gate: full web suite 3146/3146 green (271 files), `tsc --noEmit` clean.
+- **feat(web): a migrations runner — content-class migrations execute client-side on keyed workspaces.** The server-side migration scripts refuse a "content"-class run against a keyed workspace (the sealed prefix is invisible to a server-side plan — the refusal copy names the remedy); this slice IS the remedy: the migration's NODE-FREE planning core (the sync repo's `scripts/lib/migrations/meeting-date-retirement.ts`, vendored at the extraction commit) runs against the client's local UNSEALED derived store, and the commit rides the client's normal write path — `buildEnvelope` stamps the session's actor/device/HLC and the single enqueue seam applies locally + enters the outbox, so the sync engine seals and pushes the ops on a keyed workspace exactly like any write. NO new crypto, NO wire change. **The registry** (`src/core/migrations/registry.ts`) is the per-core seam: each migration registers its `isPending(store)` probe, planner, wire-neutral op-triple builder, and a plan→report projection; the proving pattern (meeting-date retirement) is the one wired entry, further cores join by registration. **The client domain** (`WorkspaceClientMigrations`): `listPendingMigrations()` (each core's probe against the local store), `planMigration(id)` (the dry-run report — counts + the conflict rows, zero writes), `runMigration(id)` (a FRESH plan, the per-op payload-schema gate, then ONE undo-journal batch labeled "migration" through the enqueue seam); `WorkspaceClient` exposes all three plus `isKeyedWorkspace()`, and the WorkerClient gains the four matching uncached RPCs (`worker-core` cases included — the pending list flips with the run itself, so these deliberately bypass the read cache). The one type boundary is documented in code: the cores type `Store` against the vendored packages' SRC (the dev-condition dual identity — tsc reads dist through `@notees/*`) and `client-migrations` bridges `ctx.store` once. **The surface** (`MigrationsSection`, the Advanced block at the foot of the workspace settings' General tab, following the SourcesSettingsSection pattern): each pending migration is a row (title, the convergence copy, the report's counts + kept-for-review count) with a Review & run action — the dry-run modal shows the op count, the counts, and the conflict rows ("these values stay put — reported, never silently dropped"); the confirm commits and the section re-lists (empty → the block renders nothing). An UNKEYED workspace still lists a pending migration, with the hint that the server-side scripts can also run it (the refusal only fires keyed). Docs: `docs/features/offline-and-sync.md` gains the "Content migrations run where the content is readable" paragraph (the Migrations surface's user-facing story). Verification: new `migrations-runner` suite 3/3 — a pending KEYED workspace (MemoryTransport/MemoryRelay + sql.js harness, the pre-retirement state staged through the client's own write path) lists the migration, the dry-run shows the report, Run converges the local store (value on Event date, Meeting date value/binding gone, schema soft-deleted) and the pushed op set is exactly `[property.set, property.unset, class.property.unset, propertySchema.delete]` — every payload sealed (`isEncryptedPayload`) and carrying the SESSION actor/device, never the CLI migration identity; a converged workspace lists nothing and the surface renders empty; an unkeyed workspace lists the migration with the server-side hint. `tsc --noEmit` clean, `vite build` green, the CSS-token gate CLEAN. Vendor pin bumps to the extraction commit (the rehearsal-suite imports of the script are unchanged — the script re-exports the core).
+- **feat(web): offline-created workspaces get a publish offer on first online open — the F2 adoption UX replaces F1's silent auto-publish.** An offline-created workspace (the "Work offline" path: device-local custody key, content sealed with it) opened online against a server that has never seen it used to publish its key's wrap as a silent open-path side effect (F1's auto-PUT — which could never even land on a truly-unknown server: the PUT needs a membership row, so the wrap only stuck on a LATER open, after a relay write adopted the workspace keylessly). Now the connect PAUSES on an offer. The detection arm — online connect, key-route 404, custody holds the device key, the local store holds content (the seed-gate's `storeIsEmpty` idiom, probed from the persisted OPFS image by the new framework-free `local-store-content.ts`; a WAL sibling or a read failure counts non-empty rather than under-reporting; in-process mode persists nothing → empty) — throws `AdoptionOfferError` BEFORE any client or storage write, and the App renders `AdoptionOfferModal` (the UnlockWorkspaceModal pattern) over the connecting screen. **Confirming** POSTs the workspace CREATE under the workspace's EXISTING id — the vendored pin bumps to the sync repo's create-with-id (optional uuid, 409 on a taken id, the keying gate reading the explicit id; `auth-api.createWorkspace` gains the `id` pass-through) — with `wrapWorkspaceKey(master, deviceKey)` riding the payload: publish-not-mint, the T9 invariant (the wrap unwraps under the master to the byte-same custody key), and the caller reconnects so the open re-resolves as a normal keyed open (GET 200, no second offer) and the outbox backlog drains sealed. The create's **409** — the workspace is somehow server-known-but-keyless (a relay write adopted it earlier) — falls back to the established key PUT: F1's publish path keeps its home there, exercised from the confirm rather than the open. **Declining** ("Keep on this device") re-opens with `declinedAdoption`: plaintext, zero writes, nothing changes. An **empty local store** earns no offer at all — nothing to publish, the normal plaintext flow (the not-encrypted banner still offers keying). **API-key sessions**: the offer fires only on positive knowledge — the listing answered and does not know the workspace; an unreachable server's catch-miss is NOT knowledge, so no offer there — and renders the UnlockWorkspaceModal directional idiom: the publish action is replaced by "sign in with email + password" copy, since the confirm needs a master key (`confirmWorkspaceAdoption` refuses without one, honestly, never a raw wrap). Non-secure contexts keep the established `SECURE_CONTEXT_KEYING_COPY` arm, structurally unreachable in detection (no OPFS → no persisted content; no Web Crypto → no master). With the auto-PUT gone, the read-only-open ruling is fully restored: the open path makes NO writes — the adoption POST is a workspace CREATE, the sanctioned writer. Docs: `docs/features/offline-and-sync.md` (the "Work offline is keyed at rest" paragraph — the publish offer replaces "the first sync publishes the wrap"). Verification: new `adoption-offer` 14/14 (detection exactly-when pins with zero-write counts; confirm POSTs `{id: <existing>, name, wrappedKey}` with the unwrap+export byte-compare to the custody key; second open GET-200 with no second offer; 409→PUT fallback publishing the same wrap; no-master honest refusal; apikey listing-miss offer + unreachable-no-offer; modal copy/confirm/decline/error-surface/apikey-copy pins) · `offline-keying` rewritten to the offer semantics 11/11 (offer pause + zero writes; empty→plaintext; decline→plaintext zero writes; confirm+second-open; no-device-key→plaintext zero writes) · `master-key-persistence`/`e2ee-config-gate`/`keying-secure-context`/`not-encrypted-banner` untouched and green; final gate: full web suite 3159/3159 green (272 files), `tsc --noEmit` clean.
+- **fix(web): sign-out preserves custody records — cleanup rides workspace removal only.** Corrects the F1 slice two commits down, which also emptied the `workspaceKeys` store at session end (`clearCryptoCustody` → `clearOfflineWorkspaceKeys`). The controller ruling: the T9 "records survive sign-out by design" ruling STANDS — each offline workspace key protects content sealed under it (wire/outbox envelopes), and sign-out is a session boundary, not a workspace removal; clearing the records would orphan that content behind a fresh key (data-availability ruling). Reverted: `clearCryptoCustody` is back to master key + caches only, the `clearOfflineWorkspaceKeys` helper and the `WorkspaceKeyStore.clear()` seam are dropped (unused), and the `offline-keying` sign-out pin is restored to "records SURVIVE sign-out, the next open restores the SAME key". KEPT (the follow-up's actual scope): `deleteOfflineWorkspaceKey(workspaceId)` and the WorkspacesView delete confirm dropping the deleted workspace's record — a custody record never outlives its WORKSPACE; a re-create mints a fresh key. Module comments now state the split explicitly: sign-out deliberately preserves custody; cleanup rides workspace delete/forget. Docs: `docs/features/offline-and-sync.md` (the custody sentence — survives sign-out; deleting the workspace removes the record). Verification: `workspace-key-custody-cleanup` 4/4 (delete→fresh-key re-mint; per-record isolation; missing-record no-op; the WorkspacesView delete confirm fires the DELETE AND clears the record) · `offline-keying` 11/11 with the survive-sign-out pin restored · `master-key-persistence` 11 + `e2ee-config-gate` 2 + `keying-secure-context` 3 stay green (the fakes shed the reverted `clear()`); final gate: full web suite 3144/3144 green (271 files), `tsc --noEmit` clean.
+- **fix(web): workspace removal clears its custody key records — no forever-leaks.** The `notees-custody` IndexedDB's `workspaceKeys` store (the offline workspace's device-local key, the mandatory-keying slice) survived workspace delete forever. Now custody tracks the workspace's lifecycle: `master-key-storage.ts` gains `deleteOfflineWorkspaceKey(workspaceId)` (missing record is a silent no-op), and the WorkspacesView delete confirm drops the deleted workspace's record right after the server DELETE. A workspace re-created after the removal mints a FRESH key — the old record is never resurrected. (The slice initially also emptied the store at session end — REVERTED two commits up: sign-out preserves custody records, the T9 data-availability ruling stands.) The workspace-registry has no per-workspace removal path (wholesale list replace only), so nothing to wire there; the WorkspaceSwitcher has no forget/removal surface (switch-only). Docs: `docs/features/offline-and-sync.md` (the custody sentence). Verification: `workspace-key-custody-cleanup` (delete → fresh-key re-mint; per-record isolation; missing-record no-op; the WorkspacesView delete confirm fires the DELETE AND clears the record) · `offline-keying` 11/11 · `master-key-persistence` 11 + `e2ee-config-gate` 2 + `keying-secure-context` 3 stay green; final gate: full web suite 3144/3144 green (271 files), `tsc --noEmit` clean.
+- **fix(web): creating a block no longer re-executes every cached per-row icon/color read — the per-node effective icon/color resolvers stamp on a definitions-only family.** The symptom: a new block took seconds to appear in the UI. The measured cause (new `apps/web/test/create-refresh-breadth.test.ts` gate, 500-block page, realistic 1529-key session cache): ONE plain `object.create` re-served **1029 of 1529 cached reads (67%)** — 1000 of them the per-row `effectiveNodeIcon`/`effectiveNodeColor` reads, whose `c:` stamp rode the global `edges` counter, and `bumpLocal` bumps `edges` on EVERY `object.*` op. In the browser the worker re-execution plus the structured clone of ~1000 re-served values is the seconds the app felt. The soundness argument for the split: both resolvers consult only the arg-carried node fields (own icon/color, classIds — already part of the cache key) and class DEFINITIONS (the extends-chain walk) — never edges or class membership; the `edges` ride-along exists for class-membership reads (archival moves membership without touching the class families), which these are not. They now stamp `d:${classes}`, moved only by class.*/propertySchema.* ops, and a block create re-serves 29 keys (the page tree, the listing/edge/search families a create legitimately touches). Verification: the breadth gate pins both directions (unrelated create → all per-node icon/color reads `READ_UNCHANGED`, the page tree re-serves and contains the new row; a class-definition op DOES re-serve them) + a `read-delta` stamp-rule unit (object create/update/delete leave the family, `class.update` moves it); the slice's suites green. (The full-suite reds at this commit — the recurrence/calendar-family suites plus a few settings/auth pins — are the parallel sources/recurrence session's mid-flight vendor pin, which lacks the `repeat` seed those committed tests require, and its uncommitted sources/settings work; untouched by and unrelated to this slice. Every suite this slice touches is green in all three full runs.)
+- **feat(web): keying is mandatory — every new workspace is keyed at creation, the e2ee kill switch retires, and a legacy plaintext workspace gets the deliberate one-click path.** The server half shipped the creation keying gate (`NOTEES_REQUIRE_KEYED`, default on: a creation without a key bundle answers 422 `keying_required` — the vendor pin bumps to it); this slice makes the client agree and retires client-side opt-in for good. **Creation keying**: `crypto-custody.ts` gains `keyBundleForCreate()` — the session's master key in memory mints a fresh workspace key and wraps it under the master (the same generate + wrap minus the pre-flight PUT: the bundle rides the creation payload and the server stores it with the mint), or null when the session is keyless; `createWorkspace` gains the `wrappedKey?` pass-through (1..4096), and all five creation call sites resolve the bundle first — the Manage Workspaces modal, the switcher's create-from-query, both import flows, and the import modal's markdown-workspace step. A keyless session (API-key sign-in) has no master key to wrap with: the create POST fires WITHOUT a bundle and the SERVER decides — hatch on → the pinned 422 `keying_required` body, whose own directional sentence ("sign in with your email and password to create one") surfaces verbatim through each surface's existing error channel; hatch off (`NOTEES_REQUIRE_KEYED=0`) → the legacy unkeyed 201, so the documented escape hatch works again (the final-review fix wave dropped the client-side keyless pre-flight that had made creation impossible for API-key sessions on every surface, hatch off or on; a password session against a flipped-hatch server still surfaces the server's message verbatim). Keying is a secure-context requirement, stated honestly: Web Crypto's `subtle` surface is withheld on plain-http pages, so both the creation bundle and the offline workspace's at-rest keying assert the surface first and throw the pinned "This browser context has no Web Crypto — use HTTPS or localhost to key a workspace." instead of dying on a raw TypeError — and the boot form's **Work offline** button catches the rejection onto its existing error line instead of swallowing it (a dead button + an unhandled rejection before). **The kill switch retires**: `resolveWorkspaceKey` drops the `window.NOTEES_CONFIG.e2ee` gate entirely — absent/off/on key identically; the typed flag stays for container compat, inert (the entrypoint script still writes it when set, with a comment saying so). Deployments carrying a `NOTEES_E2EE` env become inert by design — the flag off behaves identically to the flag on because keying is unconditional; no stack `.env` change is needed or wanted. **Keying is deliberate**: opening (or uploading an asset into) a legacy plaintext workspace NEVER auto-keys it. `crypto-custody.ts` gains `readWorkspaceKey` — the read-only open-path resolver (fetch + unwrap, never generate/store; null on 404; fetch-free cache); `resolveWorkspaceKey` rides it and returns positive knowledge only (`plaintext: boolean` on `ConnectOutcome` — a key-route 404, or an API-key session's listing row reporting `encrypted: false`), the wrong-master arm keeps its confirmation-probe fail-loud behavior (GETs only), and `sealAssetIfKeyed` switches to the same resolver so an upload into plaintext stays plaintext. The PUT path exists exactly twice: at creation (the bundle) and the deliberate `ensureWorkspaceKey` call below. **Offline workspaces key at rest**: the account-less "Work offline" workspace used to be plaintext by construction — now `handleWorkOffline` calls `ensureOfflineWorkspaceKey(workspaceId)` BEFORE connecting (creation-time keying, not the forbidden open-time kind): the device-local custody DB `notees-custody` upgrades to version 2 with a `workspaceKeys` store (one record per workspace id, the Chromium-non-extractable-handle / Firefox-raw-bytes fallback pattern); these records survive sign-out (no account exists to orphan the sealed content on) and the open restores the key (`locked` is impossible — nothing to unwrap). When the workspace later connects under an email + password sign-in and the server has no wrap (GET 404), the EXISTING device key's wrap publishes under the master before any backlog pushes sealed — a publish, never a mint; a failed PUT warns and stays local-first. The client-side seeding of empty keyed workspaces now also runs when the offline transport's sync cycle rejects (around the deferred error, re-thrown unchanged), so a keyed offline store is never seedless. **The not-encrypted banner + one-click "Key this workspace"**: the no-auto-key ruling left a pre-keying workspace with no way to ever encrypt it, so the open says so and fixes it in one click. The kit `NotEncryptedBanner` (the `InProcessStoreBanner` pattern: `role="status"`, session-local dismiss, barrel-exported, token-only co-located CSS) renders only on POSITIVE plaintext knowledge; copy is pinned ("This workspace is not encrypted — new content is readable on the server."), and the Key action (App-level, the unlock-modal `onSubmit` pattern) runs master key → `ensureWorkspaceKey` (generate + wrap + PUT, 409-adoption intact) → re-`connect`, so the engine seals from here on. A keyless session gets the Key action disabled behind its own directional sentence ("Sign in with your email and password to key this workspace." — `WORKSPACE_KEYING_COPY`, distinct from the creation flow's), a failed keying keeps the banner open and names the error, and after the PUT lands the banner carries the honest "New content is encrypted. Content written before keying is not." — the log is immutable, so history written before keying stays readable to the server, and the notice names its workspace id so a switch never carries it elsewhere. **Docs**: `docs/getting-started.md` (the account-boot paragraph — creation keying, the server-deferred keyless arm + the hatch, the banner + keying sentence, the immutable-history ruling), `docs/features/offline-and-sync.md` ("Work offline" is keyed at rest — the engine boundary stated honestly: the wire/outbox/server seal, the local working copy stays plaintext, keying needs a secure context), `docs/philosophy.md` (the E2EE row drops the "slot" — every workspace is keyed); `NotEncryptedBanner`'s header comment documents the full prop contract. The sync repo's `docs/developers/deployment.md` §10 corrects the plain-HTTP "fully functional otherwise" over-promise — keying is a secure-context requirement (HTTP LAN access still reads/edits/syncs but cannot key/create; the sync server is unaffected). Verification: `create-keying` 6/6 (the 60-byte b64u bundle openable under the master; the create POST carries `wrappedKey`; keyless ⇒ the POST fires WITHOUT a bundle and the SERVER's 422 copy surfaces verbatim; the hatch-off legacy 201 stands; a flipped-hatch server's message verbatim) · `keying-secure-context` 3/3 (creation keying + the offline at-rest arm name the no-Web-Crypto cause, never a raw TypeError; the Work-offline rejection lands on the form's `role="alert"` error surface) · `e2ee-config-gate` rewritten to the flag matrix — absent/off/on key identically, the offline short-circuit pinned, the offline resolve covering both custody arms, both open shapes (plaintext: zero PUTs + `plaintext: true`; keyed: the 32-byte key) · `offline-keying` 11/11 (round-trip; same-key reopen; the Firefox bytes fallback; persist-failure warn-and-continue; sign-out keeps the key; the offline resolve pins; the wrap-publish pins — exactly one PUT wrapping THE device key, the second open riding GET-200 with no second PUT, PUT-failure local-first, no-device-key ⇒ plaintext + zero PUTs) · `crypto-custody` gains `readWorkspaceKey` 3/3 (404 → null + zero PUTs; 200 → unwrap + fetch-free cache; wrong master throws) · `asset-crypto` gains the no-lazy-PUT upload pin 7/7 · `not-encrypted-banner` 8/8 (banner-level copy/dismissal/failure pins; App-level — a key-route-404 open shows the banner with exactly ONE key-route GET, a keyed open shows none, Key this workspace PUTs exactly one wrap, reconnects, leaves the honest copy) · `client-seed` gains the keyed-offline seed pin · `settings-modals` 29 (both creation pins seed the master key and assert `objectContaining({ name, wrappedKey })`) · custody suites (`unlock-flow`, `master-key-persistence`, `asset-crypto`) untouched and green · final gate: full web suite 3134/3134 green (268 files), `tsc --noEmit` clean, `vite build` green, the CSS-token gate CLEAN.
+- **feat(web): the export modal previews every text format's own bytes — BibTeX/CSL JSON/HTML/LaTeX/JSON join Markdown in the copyable plaintext pane.** The gap: the modal rendered a live preview (and the Copy button source) only for the markdown card; selecting BibTeX/CSL JSON/JSON/HTML/LaTeX showed an honest but unhelpful static note, so a bibliography export was a blind download. Now the registry's web definitions carry an explicit `preview` kind — `"text"` / `"pdf"` / `"none"` — and every `"text"` card renders ITS OWN plaintext projection in the same read-only textarea: the engine's serializers expose the very string behind the download blob (`SubtreeFileExport.text`, populated for markdown/html/latex + the JSON archive + bibliography; docx and the client-PDF result stay binary with no text), and a new `exportSubtreeTextPreview` routes the modal's preview effect per format — markdown/html/latex render one document per selected root (a batch concatenates them the markdown `---` convention), the node-set formats (JSON archive, `.bib`, CSL JSON) project ONE document over the whole selection, exactly their delivery convention. The Copy button rides the same `previewContent` string for every text card, so what you see is what downloads and what lands on the clipboard; PDF keeps its blob-URL iframe and only Word (.docx) shows the static note (a binary OOXML package has no plaintext). The preview textarea's accessible name is now the per-format label (`"bibtex preview"`, `"csl json preview"`, … — lowercase, the markdown pin unchanged). Docs: `docs/features/exporting.md` (the preview paragraph), `docs/feature-status.md` (the Export row). Verification: export-bibliography 9 — two new pins (the BibTeX preview textarea carries the exact `@article{curie2024,` document that downloads, body blocks never entries, Copy enabled; the CSL JSON preview parses as the item array) + the card-availability pin; modals-overlays 28 — the static-note pin re-targeted to the Word card, new waits on the html/latex/json preview textareas (incl. the batch html concat of both roots' documents); `tsc --noEmit` clean.
+- **feat(web): recurrence becomes a deliberate Repeat surface — the dedicated Repeat property carries an RRULE (the RR5 subset), authored only from the Properties panel's Repeat row and the event-creation modal.** The implicit model leaked: recurrence hung off a datetime value's `metadata.repeat`, so ANY date value could secretly carry a series; the stored `<freq>[/<n>]` grammar couldn't express interval / weekdays / day-of-month / ends; and the ⟳ picker riding every generic date control made recurrence an accident of the date editor. The client half of the recurrence redesign (the core/wire half is the sync repo's repeat-property slice) lands in seven moves. **The pin**: `vendor/notees` bumps to the repeat-property seed + RR5 grammar (the dedicated `repeat` text property — single-value, union-scoped to event+task). **The rewire**: every calendar/task recurrence read and write moves to the Repeat property — new `features/calendar/repeatProperty.ts` is the seam (`repeatFactsOfNode` with the two-pass heavy-text read, `repeatTextOf` carrier resolution, `drivingDateRow` the anchor source, `repeatSummaryOf`, the writers `setRepeatRule`/`setRepeatMetadata`); `calendarRows` (`taskRowFacts`/`setTaskDone`/`recurringRowsOf`), `calendarRecurrence` (the Google scope semantics; the detached exception re-mints via `formatRecurrenceRule`; `copyEventNode` carries the Repeat property explicitly), `calendarViewUtils.repeatLabelOf`, and `calendarEventOps.isRecurringAt` ride it; corrupt rules/metadata still throw (fail loud). **The removals**: the ⟳ RepeatPicker (and its CSS) is deleted with every generic-date recurrence mount — the DatePickerPopup's Repeat row, the DateSlotControl's repeat rider + popup passthrough, the DatetimePropertyRow's popup wiring and both per-pill/per-cell mounts — a generic date property now offers date editing only, and authoring a series waits for the deliberate surfaces; the task-family ensure drops the withdrawn `taskRecurrence` placeholder (the family is five schemas + the project relation). **The deploy fix**: `deploySystemClass` strict-compared `spec.bindTo === key`, so the vendor seed's list-valued `bindTo: ["event","task"]` never matched and a client-side event-class deploy (the gallery path, offline-first workspaces that never synced the seed envelopes) silently authored no repeat schema or event binding — the generic-family filter is now a membership test over the normalized bindTo list, and the seeded-scope computation rides the same normalization (a list binds seed the UNION scope, never the deployed class alone — converging it would orphan the task side's eligibility; the task-side binding stays the store's `ensureTaskFamilyRows`). **The control**: the kit `RepeatControl` is the deliberate authoring surface both UIs compose — an off-state "Repeat" toggle ("Does not repeat"); switching on reveals the interval (1–999) + unit dropdown (days/weeks/months/years), seven weekday chips with the anchor's weekday preselected (weekly), the day-of-month prefilled from the anchor (monthly), an Ends radio (Never / after N occurrences / on a date), and a live summary line ("Every 2 weeks on Mon, Fri · ends after 10 occurrences"); the controlled contract funnels every edit through the kit's `validateRepeatDraft` — invalid drafts stay local, flag the offending input (`aria-invalid`), and announce the error in the summary's `aria-live` region instead of committing, so a cleared interval or an emptied chip set can never author a malformed rule; `repeatSummaryOf` relocates into the kit (`components/ui/kit/repeatSummary.ts`, the feature module re-exporting for compatibility). **The surfaces**: `features/metadata/RepeatPropertyRow.tsx` hosts the control as the Repeat property's own row on every properties surface — registered before the type dispatch in `GroupedPropertyRow` (repeat is a text schema; without the arm it would group into the carrier-block list) with both scalar row hosts guarded (`PropertiesTable` and `PropertiesSidebar` — the default text row can never render for repeat, whatever the data shape), keeping the ordinary panel chrome (the from-class hint, the hosts' own right-click menu — Value history… / Remove from node); with no resolvable driving date the toggle rests disabled behind "Set a date first", and every commit funnels through `setRepeatRule` (the exception metadata rides through untouched; re-picking the date leaves the rule verbatim). The event-creation modal gains the second surface — a **Repeat** toggle between the end-day/time row and the hint, off by default and reset to null on every open, revealing the same panel anchored on the start day (the weekly weekday preselect, the monthly day-of-month prefill, the until floor) and writing the canonical `RRULE:` on the system Repeat property right after the driving date write; the ghost's Enter quick create never authors a series — the deliberate-surface ruling is pinned (the modal is the only creation path that can author one). **Docs**: `docs/features/calendar.md` (the Repeating-events register — the two authoring surfaces + the full RR5 option set; the storage-model bullet), `docs/features/properties.md` (Repeat is a first-class row, not date chrome — the picker bullet loses its Repeat clause), `docs/features/tasks.md` (`completedOccurrences` rides the Repeat value's metadata). Verification: per-area RED→GREEN on the way in — the three recurrence suites rewritten to the repeat property (+ the `{nodeId}` carrier and the re-pick-preserves-rule pins) 67/67, the RepeatPicker-absence regression probe and the task-family seed pins at the removals cut, the `deploySystemClass` union-scope pins 8/8 with the neighboring deploy suites 48, the new `repeat-control` suite 24/24, the panel-row pins 10/10 in `recurrence.test.tsx`, the modal pins 12/12 in `event-create-modal` plus the deliberate-surface pin in `calendar-ghost-create`; final gate: full web suite 3092/3092 green (265 files), `tsc --noEmit` clean, `vite build` green, the CSS-token gate CLEAN.
 
 ## 2026-11-05
 
 - **feat(server,protocol): machine keys — an API key can open encrypted workspaces with no password, via the recovery-code custody shape.** The custody gap: an `nk_` key authenticates as its owner (and fetches the wrapped workspace key — user custody) but carries no key material, so every keyed client still needed the account password. Now a key minted with custody wraps the account MASTER key under a fast-scrypt key derived from its own token (`deriveMachineKey`/`machineKeyVerifierOf` protocol helpers; the token's ~190 bits are the defense), and the server stores only the opaque `{salt, wrap}` beside the api_key row — the token and the master key never reach custody storage. Minting is two-phase because the token shows once: `POST /api-keys` → `POST /api-keys/:id/custody` (session; idempotent, never overwrites); `GET /api-keys/self/custody` (the key authenticates ITSELF — sessions manage keys but never read material, the operator key is refused by the same user-custody rule as the workspace-key surface) hands the wrap to the holder, which unwraps locally — no password, ever, nothing cached. Revocation clears the wrap with the key. The key listing answers each row's `machine` flag; the wrap is AES-GCM self-authenticating, so the record carries no separate verifier (the recovery verifier exists to gate the server-side burn; a machine key's redeem is a local unwrap). Possession of a machine key IS possession of content — mint-time opt-in, composable with the existing scope sets (a read-only export bot decrypts only what it reads). GTK/Flutter adopt the custody routes through their vendor pins when they ship key management (recorded check; no client code now). Docs: OpenAPI (both routes + the listing flag), `docs/developers/architecture.md` §E2EE. Verification: +2 protocol pins (deterministic derivation pinned two ways + verifier HMAC distinct from the recovery formula; machine-key wrap round-trips with real crypto, wrong token fails the GCM tag), +1 server pin (the full two-phase flow with REAL crypto — mint → self-fetch → derive+unwrap reproduces the master bytes; human key 404; session 403; operator 403; idempotent re-install never overwrites; unknown 404; garbage 422; revoke clears custody and kills the key), protocol 18, auth 44 green.
-
 - **fix(server): hydration never restores a SEALED snapshot — a keyed workspace's writes stop 500ing after the first sealed checkpoint.** A keyed client's first sync uploads a sealed snapshot (the engine seals every checkpoint a keyed client uploads); the server's next ingest hydrated the workspace, and `hydrate` restored the newest snapshot unconditionally — `Store.restore` on sealed bytes throws `SQLITE_NOTADB`, the workspace queue wedged, and EVERY ingest for that workspace answered 500 (surfaced by the CLI's first keyed sync against a fresh keyed workspace; live-keyed deployments ride the same path on any projection wipe or server restart once a sealed checkpoint is the latest). The restore now skips a `sealed` row by the same rule the sweep already applies to sealed envelopes: the blob opens only under a workspace key the server does not hold; the tail replay rebuilds the projection's plaintext prefix from the log (sealed envelopes skip the apply, `pending` counts the gap). A plaintext latest snapshot (a server-built self-heal image, a pre-keying checkpoint) still restores — the gate is the row's own `sealed` flag, not the workspace's key row. Docs: `docs/developers/architecture.md` §server-side hydration. Verification: +1 pin in `apps/server/test/relay-snapshot.test.ts` (sealed latest snapshot + wiped projection + reopened server: the next ingest stays green and persists; red without the guard), relay-snapshot 26 green.
-
 - **fix(server): the relay's one write path applies before it persists — a rejected envelope never enters the stored log.** `WorkspaceManager.applyNow` persisted the batch to the relay log before applying it to the derived store, so a payload-semantic 422 (e.g. a wrong-typed `propertySchema.defaultValue`, which the route-level payload schema deliberately types `z.unknown()`) left the poison envelope in the log: every hydration, every self-heal sweep, and every fresh client's catch-up re-hit the unappliable envelope and re-quarantined it forever. The order flips: dedupe against the log without writing, apply in the store's one transaction (a mid-batch throw rolls back — the batch's valid envelopes roll back with it, and the writer's 422 is unchanged), persist only what applied. Sealed `$e` envelopes keep riding the log unapplied; duplicates and the WS batch-frame path are unchanged. Surfaced by the CLI local-first rewrite. Docs: `docs/developers/architecture.md` §the one-write-path invariant. Verification: +3 pins in `apps/server/test/relay-ingest-order.test.ts` (a mixed valid+poison batch 422s and NEITHER envelope appears in catch-up; the pipeline is unwedged — the valid envelope re-sent on its own lands and reads back; a sealed envelope still persists), server suite green (420 tests — the 4 pre-existing `migrate-authors-to-text` scratch-seed pins refuse any `--data-dir` outside `/tmp` by design, so they run only with the default tmpdir).
-
 - **fix(sync): the snapshot-upload watermark is durable — a restarted client stops re-uploading the projection.** `uploadedSnapshotHlc` was session-only, so whenever the relay's checkpoint carried a lower hlc than the device's own watermark (a lagging device's upload landing after ours, a backup restore), a long-lived web session self-healed after one cycle while a short-lived client (the CLI — a fresh engine per invocation) re-uploaded the whole projection on every invocation. The watermark now rides `PersistedSyncState` (app_meta): loaded in the constructor, saved after a successful upload, and reset durably on the restore-epoch wipe (the wiped relay needs the re-upload). Skipping the re-upload loses nothing the seq catch-up does not cover — snapshots are an optimization, never authority. The post-upload persist makes app_meta legitimately drift from a just-uploaded image (the watermark), so two byte-exact image pins re-anchor on restored content — app_meta is device-local bookkeeping, excluded from every convergence dump by the same rule. Surfaced by the CLI local-first rewrite. Docs: `docs/developers/architecture.md` §sync. Verification: +2 pins in `packages/sync/test/sync.test.ts` (a file-backed restart with the relay checkpoint dropped below the device's watermark — no second upload and the watermark persists in app_meta; a restore-epoch wipe resets it durably and the upload resumes for the new epoch), 2 byte-exact upload pins re-anchored on restored content (`crypto.test.ts`, `snapshot-chunking.test.ts`), sync 56 green.
-
 - **chore(scripts): retire the one-time citekey backfill.** `scripts/backfill-citekeys.mts` was a completed historical one-off (2026-10-29, the citekey-tracking slice) that imports `apps/web` source — no longer in this repo after the split — and carried no test coverage. Retired, not ported (its purpose is served: every existing source node on the relay already carries its generated citekey); the envelopes it appended stand on their own in the log.
-
 - **feat(web,server): the workflow-rules evaluator runs client-side (the plan-07 recorded debt).** Server probes retired with plan 07 — rules were inert coordination data. Now the web client evaluates them: `core/workflow-evaluator.ts` ports the retired server probe VERBATIM (git 7ca44bed2^) — trigger matching (object.create / property.set / the class.assign OR-Set carrier), the QueryAST criteria probe per affected-node candidate against the local derived store (`SELECT 1 FROM (<compiled>) q WHERE q.id = ?`), actions translated to their existing wire ops and written through the client's own write path with the "rules-engine" client claim, and the full loop policy: the causal chain (which rules fired upstream of an envelope) rides a map keyed by the action-envelope ids — a depth-1 echo matching a rule IN its chain records "skipped_loop", a rule OUTSIDE it "skipped_depth_cap", neither writes; a failing action write is an "actions_failed" audit row, never a batch failure. The engine gains an `onBatchApplied` callback (freshly-applied envelopes only — idempotent replays excluded) fired from the one apply funnel; `client-sync.ts` wires the evaluator (rules fetched from the existing GET /api/workflows with a 30 s cache, actions enqueued + pushed, runs buffered locally and synced through a NEW `POST /api/workflows/:id/runs` route — the run audit stays coordination data, now from every device). Scope guard held: the only UI is a status line in Settings → Sync ("N rules active — evaluated on this device"). Recorded divergence (the multi-device reality the server never had): every device seeing the echo writes its own identical-payload action envelopes — LWW same-value / OR-Set add-wins converge idempotently, with one audit row per device. Docs: OpenAPI, `docs/developers/architecture.md` §workflows. Verification: +7 parity pins in `apps/web/test/workflow-evaluator.test.ts` — the retired suite's exact scenarios (match → one rules-engine property.set + actions_written run; miss → nothing; class.assign carrier + skipped_loop echo + classIds-less create no-trip; self-re-match → skipped_loop with exactly one envelope ever; the A→B chain → skipped_depth_cap with B's action never written; failing write → actions_failed without throwing; disabled rule no-op) +1 server pin (the runs upload appends and reads back through GET runs, ghost 404, bad body 422); sync 54, server workflows 7, `tsc --noEmit` clean on both apps.
-
 - **feat(web,server): recovery codes — the only account-recovery path.** Settings → Security generates 8 codes (b64u, shown ONCE); the login screen's "Locked out?" path redeems one: it unwraps the master key, re-wraps it under a NEW password (the change-password keyFp sameness gate), and the server BURNS the code. The server stores only OPAQUE records — a new `recovery_code` table (`id = b64u(SHA256(code))`, per-code salt, the AES-GCM wrap of the master under `scrypt(code, salt)` — fast params, the code's entropy is the defense, an HMAC verifier); the plaintext code, the recovery key, and the master key never reach the server (the client owns all secrets; `wrapWorkspaceKey` verbatim for the wrap). Routes: `POST/GET /api/auth/recovery-codes` (session; installing a set REVOKES the previous), `GET /api/auth/recovery/:id` (public — the locked-out caller; serves salt + wrap only, the verifier stays server-side), `POST /api/auth/redeem-recovery` (public; login rate limits — a wrong verifier is 401 and the one-time code is NOT burned, then the keyFp sameness gate, then burn + install). Protocol: `deriveRecoveryKey` / `recoveryKeyVerifierOf` / `recoveryCodeIdOf` / `generateRecoveryCode` + the `RECOVERY_SCRYPT_PARAMS`. Web: `core/recovery.ts` (build/install/redeem), the Security settings card (status line + once-only listing), and the BootForm locked-out form (code + new password → "sign in with your new password"). Copy keeps the standing warning everywhere: lost password with no code = lost history. Docs: OpenAPI, `docs/api.md`, `docs/developers/architecture.md` §E2EE. Verification: +4 server pins (the full round-trip with REAL client crypto — install 8 → list exposes ids+stamps only → the public fetch carries no verifier and no code material → redeem burns and installs a same-fp record → a second redeem 404s; wrong verifier 401 unburned; different-key record 422 unburned; operator key refused + install revokes), +4 web pins (record building yields 8 distinct opaque records with code-derivable ids; the install POST carries no plaintext code; the redeem path unwraps and posts the matching verifier + a same-fp new record; a wrong code throws before any redeem POST), +2 protocol pins (deterministic derivation / stable id / fixed HMAC; the recovery-key wrap round-trips and a wrong code's key fails); server auth 43, protocol 16, settings-page 24, `tsc --noEmit` clean on both apps.
-
 - **feat(web,server): password change re-wraps the master key — `/api/auth/change-password` + a `keyFp` sameness gate.** The settings "Change Password" placeholder ships as a real flow: the current password unlocks the kdf record (`/auth/unlock` — wrong password is a form error), the SAME master key re-wraps under the new password client-side, and the session-authenticated route installs the new record — sessions and API keys stay valid (only the password wrap moves; other devices need the new password at next unlock). The footgun gate: the kdf record gains `keyFp` = b64u(HMAC-SHA256(master, "notees-key-fp")) — a non-secret fingerprint proving WHICH key a record wraps. `createKdfRecord` (protocol AND the server's mirror, one formula) emits it; the route REJECTS a new record whose `keyFp` differs from the stored one (422, loud — a mistyped new password would otherwise wrap a fresh random key and lock every other device out, unrecoverably), and legacy stored records without a fingerprint are accepted with a log-once warning. Protocol: `masterKeyFp(bytes)`, `importMasterKey(bytes, extractable?)` (the change flow's one sanctioned export), the `KdfRecord.keyFp` field (additive optional); the golden vector pins the exact fingerprint. Storage: additive `user.kdf_key_fp` column (guarded ALTER), `replaceKdfRecord`. Docs: OpenAPI, `docs/api.md`. Verification: +5 server pins (same-key install with the session still valid afterwards; wrong-current 401 with the record untouched; keyFp-mismatch 422 with the record untouched — the footgun stays shut; legacy no-fp accepted and upgraded; operator key refused), +3 web pins (valid change → unlock-then-change-password with a keyFp in the body and the success copy; a 422 message surfaces verbatim; a mismatched confirmation never reaches the network); the settings-page placeholder assertion re-pinned to the live card; protocol 14 (golden vector), server auth + openapi-coverage 44, `tsc --noEmit` clean on both apps.
-
 - **feat(web,server): the unlock re-prompt rides a session-less password check — `/api/auth/unlock` returns the kdf record ONLY.** The fail-loud unlock flow re-loginned through `/api/auth/login` to re-obtain the kdf record, minting an UNUSED server session on every unlock. New `POST /api/auth/unlock` ({email, password}): same scrypt verify (dummy-hash timing parity), the SAME per-IP counter and per-account lockout as login (it is a password oracle — the lockout is shared, so failures here lock login and vice versa), the same legacy-record kdf backfill, and a response of `{kdf}` — no token, no `session` row, ever (`AuthStorage.sessionCount()` pins it). The web client's modal now calls `unlock()`, re-derives the master key, and re-opens with the EXISTING credential carried on the refusal (`UnlockRequest.url`/`credential`) — the session-reload case reuses its still-valid remembered token, the API-key case keeps its key (the master key in custody is what seals the open, not the credential type). Docs: OpenAPI (the coverage gate), `docs/api.md` auth surface. Verification: +3 server pins (200 kdf-only with the sessions table byte-identical; 401 mints nothing; 5-failure lockout with the shared-login arm), the unlock-flow app suite pins the new wiring (the modal path calls `/api/auth/unlock` exactly once and ZERO `/api/auth/login` calls — the one login on record would be the initial setup); unlock-flow 6, auth + openapi-coverage 39 green, `tsc --noEmit` clean on the app.
-
 - **fix(scripts): verify-min's boot gate accepts the keyless-settled state of a sealed workspace.** The E2EE era changed the smoke's steady state: a keyless open of the sealed test workspace (operator-key sign-in) settles at ~420 chars of innerText — sealed content hidden, no locked banner (the banner rides the session-token resume path) — so the `innerText.length > 500` boot gate never fired and the smoke timed out before its own unlock flow could run. The gate now also passes on the locked-banner text itself; with `NOTEES_ADMIN_EMAIL` set the existing unlock flow drives the real encrypted path to full content. The fixture side: the smoke's `20180900` page (from the v1 migration) did not survive the E2EE sealing's snapshot restore — re-seeded in the test workspace through the real UI path as a page titled `2018/09 20180900` (found by the compact term, displaying the waited-for `2018/09`). Verification against the redeployed stack (`notees-web` rebuilt on the dedup slice): unlock → decrypting replay → shell settle → palette search all green, `VERIFY-PASS`.
-
 - **feat(sync,server): compact + chunked snapshot uploads — large workspaces upload checkpoints instead of 413ing into the skip latch.** The live workspace projects a sealed image past the relay's 512 MiB body cap (500+ MiB store, 321k envelopes), so every encrypted upload skipped for the session and no client checkpoint ever landed — each fresh device replayed the full log. Two shrink passes before any size decision: **compact** — `Store.compact()` (VACUUM on all three adapters) drops the replay's free pages from the serialized image, gated at 32 MiB raw so small stores don't pay for vacuuming; **chunk** — a sealed image still past 48 MiB rides a new multipart flow (`PUT /snapshot/data/part?workspaceId&upload&index`, ≤64 MiB parts staged under the data dir, boot-wiped for torn uploads, duplicate index 422; `POST /snapshot/data/commit?…&parts=N` concatenates 0..N-1, runs the SAME sanity gate and `sealed` flag as the single PUT, deletes the parts on success — unknown upload 404, parts mismatch 422, gate failure 422 with the parts left for a corrected retry). The engine's crypto branch compacts → seals → gzips per part (same transfer encoding), with the thresholds overridable per engine (`snapshotCompactThreshold` / `snapshotChunkThreshold` / `snapshotPartSize`); any failure keeps the best-effort contract (report once, retry next pull — no permanent latch). The keyless streaming path is untouched. Docs in the same pass: WIRE.md (the two routes), `docs/api.md` (the 413-skip paragraph rewritten), `docs/developers/architecture.md` (§E2EE). Verification: +5 server pins in `relay-snapshot.test.ts` (part+commit round-trip byte-identical to a single PUT over the gate threshold with the sealed flag; duplicate-index 422 non-destructive; parts-mismatch 422; unknown-upload 404; empty image rejected at commit with no checkpoint installed), +5 engine pins in `packages/sync/test/snapshot-chunking.test.ts` (compact called only at/above the threshold; ordered parts under one upload id + commit(count, sealed=true) with a decryptable reassembly; small image keeps the single sealed PUT; a failing part resolves sync, lands nothing, and retries on the next pull), +2 store pins (compact shrinks a delete-bloated image on BOTH adapters, survivor reads + restore round-trip honest); server 397, sync 54, store suite green; full gate below.
-
 - **refactor(web): the duplicate-logic sweep — nine shared helpers/hooks extracted from ~60 copy-pasted sites, plus one dead-code deletion.** A three-way audit (feature areas, UI core, client core) found the same recipes re-rolled across the app; all safe findings land in this slice, each extraction behavior-preserving (deliberately divergent sites left as-is, flagged in-code or below). **Role predicates**: the bound pair `rendersWithDocumentChromeOf` / `rendersAsInlineBlockOf` in `ui/renderStateLabel.ts` replaces the three-call `rendersWithDocumentChrome(node, parentRenderFacts(client, node), parentlessBlockResolverOf(client))` chain at ~27 sites (pickers, palette, SearchPage, PageView, NodeView, queryRun, pageVariant, CardsView, LinkEditModal, metadata rows) — the file's own doc warned that a missing resolver silently changes behavior; the bound form makes that impossible. **Containing-page ancestor walk**: `nearestDocumentChromeAncestor(client, node, { includeSelf? })` (64-guard parentId climb) unifies five copies (picker/palette breadcrumbs, CondensedLinksPopup, queryRun, calendarRows); two look-alikes were deliberately NOT merged — `sectionViewResolve.ts`'s flat-test version mirrors the compiler's pages-scope flattening, and the palette's summary-pool tests intentionally pass undefined parent facts. **Breadcrumb trio**: `features/pickers/nodeBreadcrumbs.ts` (`buildParentPath` / `buildContainingPagePath` / `getDisplayClasses`) replaces the verbatim 55-line copy shared by NodeSelector and SearchPage; titles standardized on `titleOf(client, id, { flatten: "chrome" })` (verified to subsume `titleOfNode` on the chrome axis). **Client core**: `walkExtendsChain` (one BFS behind `effectiveClassParentlessBlock` / `effectiveClassColor` / `classIconInChain`); `sealAndUploadAsset` / `fetchAndOpenAsset` / `fetchAssetDataUrl` in `asset-transport.ts` (the worker and in-process clients' asset recipes, each caller keeping its prologue); `slugifyName` (4 export sites); the `getPrefs`/`patchPrefs` REST+unwrap+write-through core in `prefs-rest.ts` (the operator-key PROBES intentionally left differing — email vs id check); `restJson` collapsing the 7 section-view CRUD methods (tolerant of 204/empty bodies — the DELETE arm surfaced this in `section-views.test.tsx`); `blobBytes` local copies deleted in favor of the exported original. **Class families**: `classview/familyEnsure.ts` — a spec-driven authoring loop (`FamilyPropertySpec` + `ensureFamilySchemas`/`familySchemasPresent`) replaces the duplicated ~40-line loops in meetingFamily and taskFamily; cardFamily migrates too (its node-absent skip stays between the two phases); meeting's class-scoped schemas vs task/card's global scope is a call-site option, and the existence-only contract (existing schemas/bindings never re-patched, `pinned` rides new rows) is preserved byte-for-byte on the wire. **UI kit + templates**: `useClientVersion(client)` hook (the subscribe-and-bump-version boilerplate at ~10 sites, null-client safe); `useAnchoredPopup` (the flip-above/clamp/reposition layout effect shared by TriggerPopup, TemplateListPopup, FloatingToolbar, IconPickerPopup — the two divergent sites fit via options; the anchor rect re-reads per scroll/resize now instead of once per mount); hand-rolled dismissal migrated to the existing `usePopupDismissal` at 4 sites (TemplateListPopup's redundant double-dismissal removed; TriggerPopup keeps its parent-owned Escape via `closeOnEscape: false`; SelectionButton's raw-document Escape became the fleet interior-Escape pattern; DatePickerPopup's anchor check maps to `anchorRefs`); `useTemplateList` (the template member/sort/folded-filter derivation shared by the gallery and list popups — they keep their own keyboard nav, deliberately NOT `useKeyboardListNav`, whose reset-on-count-change contract doesn't fit); `foldSearch.ts` (`foldedQueryOf`/`foldedTextOf`/`foldedIncludes`) pins the fold-both-sides recipe at ~8 sites. **Dead code**: `normalizeUserPrefs` deleted from `core/workspace-client/prefs.ts` — repo-wide grep across web/server/cli/packages found only the definition (stale `dist/` bundles aside), never re-exported, superseded by `parsePrefsWire` in the prefs-blob slice. Known side effect of the dismissal migrations: the surfaces now carry the `data-fleet-popup` stamp while open (the fleet contract — silences the modal overlay's Escape, re-enables pointer events over modal-locked bodies). Verification: `tsc --noEmit` clean; every touched area's suites green (pickers/search-palette/capture/sidebar-menus/search-page 140, calendar/cards/alias/link/section neighbours 104, prefs+worker-protocol+export 95, class families 39, template/popup/sources/properties 411, section-views/node-prefs/worker-protocol 59); full suite below.
 - **feat(web,server): keyed workspaces fail loud — unlock modal at open, lock badges in the selector.** The keyless degrade retires: a keyed workspace opened without a usable key REFUSES the connect — `resolveWorkspaceKey` reports `locked` and `openStoreConnection` throws before any client is created or storage is written (no relay traffic, no plaintext passthrough), and the UnlockWorkspaceModal takes over immediately ("This workspace is encrypted — enter your password to open it."). Submit re-logins for a fresh kdf record, re-derives the master key, and re-opens with the fresh session token (the re-login also upgrades an API-key refusal into a sealed open); cancel returns to the workspace selector. The refusal covers both no-key shapes — the reload that dropped the memory-only master key, and the master present but the stored key failing to unwrap under it (account password changed elsewhere). API-key sessions have no password path: the workspaces listing now carries a per-workspace `encrypted` flag (`workspace_key` row exists; additive response change, operator directory included), the selector marks encrypted cards with a lock badge, and clicking one goes through the normal enter path — the connect refuses and the modal's copy directs to an email + password sign-in (form replaced by the direction copy, no dead password field). The EncryptedLockedBanner retires with the degrade it warned about (component, CSS, kit export gone). The engine's locked-skip sync semantics in `@notees/sync` stay untouched as the runtime safety net. Docs in the same pass: `docs/developers/architecture.md` (the fail-loud ruling replaces the keyless-degrade ruling), `docs/api.md` (the listing's encrypted flag). Verification: +1 server pin (the list carries encrypted true/false, membership view AND operator directory, before/after the key PUT), the unlock-flow app suite rewritten for the fail-loud contract (refusal: modal + zero relay calls + no shell; cancel → selector; wrong password → form error; right password → sealed open), +1 selector pin (the lock badge + the click riding onEnter); unlock-flow + settings-modals 35, server workspace-key-routes/auth/openapi-coverage 46 green, `tsc --noEmit` clean on both apps.
-
 - **feat(web): catch-up progress bar + percentage on the connecting screen.** The connecting screen's "Catching up… N operations" text becomes a real progress bar + percentage: the engine's `onPullProgress` ({applied, total} per catch-up page) rides the syncPhase seam end-to-end — engine → `ClientContext.userOnSyncProgress` (in-process) or the worker's `{type:"syncProgress"}` postMessage (`WorkerClient` routes it to the option, never the RPC table) → `ConnectOptions.onSyncProgress` → `useWorkspaceConnection`'s `connectProgressFraction` (clamped 0–1, `total ≤ 0` → null, cleared when the phase leaves catching-up). The bootstrap surface extracts into `ui/app/ConnectingScreen.tsx`, composing the kit `LoadingScreen` (no hand-rolled bar): a live fraction renders "Catching up… N%" (floored) with the kit's bar at that width; before the first payload the count text shows with the plain spinner. The progress denominator also fixes a real engine bug: `totalRemaining` counts the current page (relay-storage contract), so `applied + totalRemaining` double-counted — a single-page pull capped at exactly 50%, multi-page asymptoted to ~99.7%; the total now subtracts the page's own envelopes (still creeping upward when the log grows mid-replay, clamped at the UI). Verification: +3 pins (`sync-progress-routing` — the push routes to the option and never touches the RPC pending map; `sync-progress-passthrough` — the corrected denominator pinned at 100%-of-completion; `connecting-screen` — count text vs percent label + bar width, floor + clamp both directions, error render), the syncPhase specs and the 49-case sync suite green; sync 49 / web suite green, `tsc --noEmit` clean on every touched file.
-
 - **fix(web): a query block with NO query token renders the unspecified state — "Set a query to see results.", not "invalid query".** `isUnspecifiedQueryAst` treated an ABSENT AST like a present-but-unparseable one: `parseRunAst(undefined)` → null → not-unspecified, so the run fired on nothing, failed loud, and the section rendered the invalid-query placeholder for a block that simply had no query yet — contradicting the function's own doc contract (an empty query means the user has not yet said what they are looking for; the Flutter P3 port caught the drift). An absent AST is now unspecified (the honest empty state, never run, export disabled); a PRESENT malformed AST still renders invalid-query with the error tooltip — the distinction is pinned both ways. Verification: new pin in `apps/web/test/query-node.test.tsx` (no-token block → the unspecified text, zero `.nt-query-invalid` nodes); the existing garbage-token pin in `page-invalid-query.test.tsx` keeps the invalid arm — query-node + page-invalid-query 23 green, `tsc --noEmit` clean on the app.
-
 - **perf(store): dynamic IN-list placeholders ride fixed chunk sizes; bench-replay gains out-of-order delivery, LWW contention, and poison-op coverage.** Review-follow-ups on the bulk-replay slice. (1) The appliers built `IN (${placeholders})` with one prepared-statement cache key per distinct list length, cycling the cache past its cap; all six varying-length sites (the soft-delete flip, the ~11-statement permanent-delete cascade, restore reactivation + class mirror, the exclusive-text carrier trash, the effective-read schema fetch, the stats ancestor closure) now ride a canonical ladder ([4, 16, 64, 256, 900] — padded with a no-match id, split past 900, which also closes the old sql.js 999-variable hole for huge subtrees). The cascade surfaced a real FK hazard — `node.parent_id` is enforced and cross-chunk deletes aren't exempt from immediate checks — so the permanent-delete cascade now orders the subtree deepest-first (pinned by a 950-child end-to-end test). Bench: 12,269 env/s at 100k, stateHash byte-identical. (2) `scripts/bench-replay.mts` gains `--mix classic|wide|both`: classic is byte-for-byte the old generator (its 100k stateHash `bdbad1ec` unchanged, keeping the headline comparable); wide adds 3 devices with rate-skewed clocks (real HLC inversions), LWW contention episodes (higher-HLC write delivered first), tag unassign→re-add churn, and payload-invalid poison ops rejected at the replay boundary (mirroring the server's ingest 422, counted as ingest-rejected skips) — classic 12,320 env/s beside wide 13,932 with 876 rejected poisons in one run. Verification: +3 store pins (cache-shape; the 950-child FK pin), 6 generator pins, store 1137 / sync 45 / server 395 / web 3010 green, `tsc` clean.
-
 - **fix(web): the sync content condition matches the compiler's full plaintext — body text, asset names, property values.** The compiler's `content` predicate LIKE-matches the derived FTS row (`packages/store/src/content.ts` `extractSearchPlaintext`: the mention-resolved excerpt + asset original names + text-ish property values, diacritic-folded at index time); the web sync evaluator matched TITLE-ONLY text, so a hosted view or transient filter with `content contains` matched body-adjacent text (asset names, property values, mention targets) through the probe/compiler path but not in the sync path. The sync arm now derives the same plaintext over the client read surface — a faithful port of the store's `contentPlaintext` (mention resolution cascades through `deriveDisplayName`, cycle-guarded exactly like the index-time resolver; asset names ride `asset_ref` tokens incl. quote/heading children, first name per asset) plus `propertyValuesPlaintext` (authored visible rows only — derived defaults do not index; a text carrier contributes the carrier's content plaintext one level deep; select/multi_select resolve to option labels with the raw-id fallback; numbers index in string form), whitespace-collapsed and folded at comparison time like `foldSearchText`. A node with no plaintext has no search row: SQL NULL semantics — every value op misses (the pre-existing `"" matches eq ""` hole closes). The `name` condition stays title-only (the compiler's `nameSql` contract — pinned). The row derivation extends the resolution client surface minimally: `getAssetInfo` (already on the concrete client) and `listPropertySchemas` (select option labels) join `SectionViewResolveClient`, memoized per refinement; probe-path leaves unchanged. Verification: three new parity specs in `apps/web/test/section-views.test.tsx` over the in-process client — same fixture rows (needle in a title / a text-property value / an attached asset's original name / a mention target's display name / nowhere) through the sync refinement (`applySectionView`) and the compiler (`runQueryAst`): `content contains` sync === compiler with all five plaintext sources (2 red pre-fix — sync returned only the title rows), `name contains` sync === compiler title-only (the property/asset/mention matches stay out), the non-match row matches neither; scoped gate green — the six filter/query/section suites 287 in the run, `tsc --noEmit` clean on the app, `@notees/query` 328 green (the compiler untouched). Docs in the same pass (`sectionViewResolve.ts` header bullet rewritten to the parity contract; `docs/features/queries.md` — the Content plaintext sentence).
-
 - **fix(web): name query rows offer only the working operator register.** Name conditions (the title-only register — rows enter the builder only via DSL parse or Raw-AST paste) rendered the content family's full operator list, including starts-with / ends-with / full-text — three choices `applyTextOperator` silently no-ops for name (the condition came back unchanged, a dead control). `operatorOptions` now keys off the condition type: a `name` row offers exactly is / is not / contains / does not contain / is set / is not set (the NameOp equivalents — eq/neq/contains/exists plus the not-wrap sugar), and every offered choice produces the corresponding name condition. Content rows keep the full register (starts/ends/fts pinned unchanged). Verification: two new pins in `apps/web/test/filter-block-model.test.ts` (the offered set is exact; each choice's morph asserted; the content register pinned) — 1 red pre-fix; filter-block-model 164 green, `tsc --noEmit` clean on the app.
-
 - **fix(web): the loading spinner renders its arc again — `cn` registers the custom border-width scale, so tailwind-merge stops eating `border-thick`/`border-extra-thick`.** Symptom: the Add-source dialog's Fetch button widened on click but showed no spinner — the spinner element mounted (the 300ms `useDelayedVisible` gate passed) yet the arc was invisible: computed `border-width: 0px`. Root cause in the class joiner (`src/utils/cn.ts`, clsx + tailwind-merge): the Spinner's `border-thick` is a custom width name the default parser classifies as a border COLOR, so the later `border-outline-variant` in the same `cn(...)` call won the conflict and tailwind-merge silently dropped the width — the same failure mode the file's existing `text-button` font-size registration documents (an unknown scale name mistaken for a color). The border-width names (`medium`/`thick`/`extra-thick`, the `tailwind.config.ts` scale, registered on all six sides) join the font-size names in the `classGroups` extension — width, style, and color utilities now live in their own conflict groups (the group's id is `border-w` in tailwind-merge 3.7). Every other `border-thick`/`border-extra-thick` citation rides the same fix (the lg Spinner, the Card dashed shell, the Slider thumb — all were one color utility away from the same silent drop). Verification: new `apps/web/test/cn-merge.test.ts` — the Spinner arc string keeps `border-thick` with its color utilities (3 red pre-fix), true conflicts still resolve both directions (width-vs-width, color-vs-color), the font-size registration pinned against regression (6 green post-fix); `tsc --noEmit` clean on the app.
-
 - **refactor(web): the recency composition is one shared helper — `recentUseSections` — and the node picker mirrors the palette home exactly (created section first, then linked).** Yesterday's picker fix merged the two recency arms into one MRU list ranked by each node's latest use; the picker should read like the command palette home instead. New `features/search-filters/recentUse.ts`: recently CREATED (the caller's chrome pool by `createdAt`, newest first) then recently LINKED (distinct mention/tag edge targets by most recent incoming link, `recentLinkTargets`), the linked arm dropping ids the created arm claimed — the palette's section recipe with role/cap filtering left to each caller (the palette chrome-filters + caps at five per section; the picker filters per search mode / scope tabs and pages with its display limit). Both surfaces ride it: the palette's home sections and the picker's empty-query listing, which now renders the palette's two captions — **Recently created** above the first arm, **Recently linked** spliced before the first row the created arm didn't claim (derived from the VISIBLE rows, so assigned-row hiding and the display limit can't dangle a caption; blocks mode, with no enumerable created pool, shows only the linked caption). The picker's per-arm listing moves out of the search memo into a data-only memo (`recentsListing`), so keystrokes no longer re-sort the pool — the memo lists the parentlessBlock resolver, which is a fresh closure per call, so the component memoizes it on the client first (an unstable identity there re-ran the listing per render and double-fired the ranked-index search per keystroke settle; `capture.test.tsx`'s one-search-per-pause pin caught it). The merge-by-latest-use ordering retires with the shared helper's claim-set dedupe. Verification: the pickers spec's recents block re-pinned to the section semantics (created arm in createdAt order; a linked page the created arm claimed rides the created section exactly once and never under "Recently linked"; a linked inline block surfaces the linked caption in all + blocks modes; opened-only nodes surface nowhere; honest empty + class-scoped member listing + classes picker unchanged) and the palette spec proves the home sections' composition unchanged (Recently linked still surfaces a too-old-for-created mention target); pickers 34, search-palette 39, merge-nodes 14, capture 31 green, `tsc --noEmit` clean on the app.
-
 - **fix(web): the node picker's empty-query "Recently used" list is recently USED (linked or created), not recently opened.** The picker read the device-local `notees.recents` list, which `App.openPage` writes on every page OPEN — so browsing shuffled the picker's top rows while pages you actually linked or created stayed buried (and blocks-mode recents rode opened blocks only). The listing now merges the store's two recency reads, each node ranked by its LATEST use: the link arm (`recentLinkTargets` — distinct mention/tag edge targets by most recent incoming link, alias-resolved) and the created arm (the document-chrome pool by `createdAt`, the palette home's "Recently created" recipe), deduped and MRU-ordered, then the existing role/scope filters (pages/blocks/all, scope tabs, exclude/assigned) apply unchanged. The caption stays "Recently used" — now truthful. Opening keeps feeding only the sidebar's Recents section (`notees.recents` is untouched); the picker no longer reads it, and the now-dead `readRecentIds` export drops from `features/sidebar/recentPages.ts`. `recentLinkTargets` joins the picker's client interface as a REQUIRED member and is declared on the outliner context's `OutlinerReader` (both full client classes already carried it — the declaration is structural-only, no runtime change); the merge modal's worker-RPC stub in `merge-nodes.test.tsx` grows the matching `recentLinkTargets: () => []` arm. Blocks mode keeps its honest-empty behavior: created blocks are not enumerable from the page pool, so only LINKED blocks surface there. Verification: the pickers spec's recents block rewritten around the new contract — MRU-by-latest-use merge ordering (a re-linked older create promotes it), opened-only pages/blocks proving `notees.recents` no longer feeds the picker (blocks mode honestly empty until a block is linked), the class-scoped member listing and the classes picker untouched; scoped gate green — pickers 34, search-palette 39, merge-nodes 14, `tsc --noEmit` clean on the app; the full-suite run's only reds sit in `node-prefs` HTTP-layer cases (files this slice never touches — in-flight in a parallel slice).
 - **perf(store,server,sync): the wipe-rebuild replay runs in an explicit bulk window — 100k synthetic envelopes replay 82 → ~12,100 envelopes/sec (~147x), the live 370k ≈ 90-minute rebuild becomes seconds.** Measured first, fixed second: `scripts/bench-replay.mts` generates a deterministic synthetic mixed log (journal chains, pages/blocks, classes, properties, tags, mentions, moves, trash/restores — no workspace data, per repo law) and replays it through the exact paths both sides take (server: one transaction per envelope; client: 1000-envelope pages; bulk: the new window). The 100k baseline profile named the costs: the per-op `node_stats` rebuild (`WITH RECURSIVE targeted…` ancestor-closure + descendant-count CTE on EVERY op — O(tree) per op, O(n²) on a journal-shaped workspace) at 80.6% of wall, and `applied_envelope`'s `COALESCE((SELECT MAX(seq)…), 0)+1` insert — a full growing-table scan per envelope, O(n²) over the replay — at 11.2%. Three fixes, each committed with before/after benchmark numbers and the store suite green: **(1) the bulk replay window** — `Store.beginBulk()`/`endBulk()` defers the two derived-only maintenance families (node_stats records ids only; the search index skips) to one end-of-rebuild pass (`rebuildAllNodeStats` rebuilds the whole table chunked; `reindexAllSearch` once), with `synchronous=OFF` inside the window (safe: the derived DB is disposable, a torn window rides the existing hasApplied/cursor resume, and `endBulk` runs its maintenance even after a mid-window failure so the tables never sit stale). Nothing in the appliers reads either table, so per-op apply semantics are untouched; online apply never enters the window. **(2) applyMany bookkeeping batching** — a cached MAX(seq) counter (the only writer, serialized applies) and one `sync_state` upsert per workspace per batch. **(3) prepared-statement wrapper caching** in the better-sqlite3 adapter (the adapter allocated a fresh JS wrapper per `prepare()` — tens per envelope). Wired into both full-replay paths: `WorkspaceManager.hydrate` (the sweep's incremental replay stays online) and `SyncEngine.resyncFromEpochChange` (nesting depth-counted; a mid-window snapshot restore abandons the window by design and the tail applies online — correct either way). 20k synthetic: the server path the benchmark models went 251 → 339 envelopes/sec with byte-identical state, the bulk path 251-equivalent → 13,731; 100k: 82 → 12,095 envelopes/sec (8.3s). The bulk tail's tables are the fixed point over the final state — where the online incremental path left stale rows, the tail heals them (the corpus surfaced one: the class-convert carrier converts a parented object to a class without rebuilding the ex-parent's stats row — pre-existing online staleness, the tail's value matches a direct query over the derived tables); the residue versus the incremental path is class-node stats rows, `stats.updated_at` freshness, search docid numbering, and search mention-label freshness (the online index snapshots a mention's target name at the source's last reindex — a rename never fans out; the tail resolves final names, the fresher read) — all in the `stats.ts`/`search.ts` seam comments and `docs/developers/architecture.md` §3. Review pass (same slice, before push): **(a)** `reindexAllSearch` cleared only the docid map before reindexing — on a populated index (every restart) `reindexNode`'s map-resolved DELETE matched nothing and each node gained a second FTS row; now the FTS table is cleared too (pin: corpus reindex over a populated index, no orphans). **(b)** torn-window safety is now literally on disk — `beginBulk` commits the `notees:bulk_window_open` app_meta marker before any bulk work, the next `Store.open` runs the total tail before serving reads (kill-simulation pin on a file-backed store), and a clean restart with no marker and no new envelopes skips the tail entirely (empty-window pin: the docid map rides through untouched, so a server restart over a converged store pays no full-table rebuild). **(c)** the visibility claim narrowed honestly: server-side windows are synchronous and unobservable, but the resync window spans network awaits — a mid-resync worker read CAN observe the deferred tables (accepted; a full resync invalidates wholesale). 100k bench after the marker work: 11,668 envelopes/sec (stateHash byte-identical to the pre-marker run), clean reopen 1 ms / 1 statement. **(d)** the deferral seams were process-global — two overlapping windows in one process silently shared flags; they are keyed by connection now (WeakSet), so interleaved windows on two stores defer and heal independently (pins at seam level and window level), and the bulkStats id collector the tail never read is gone. **(e)** `descendant_count` — the recursive column most likely wrong — is pinned for every corpus node against an independent JS BFS over `node_child_order`.
-
-
 - **fix(web): the sync property comparisons resolve value placeholders with the compiler.** The compiler resolves `{today}`-style tokens in property comparison bounds (`resolveValuePlaceholder`, the period start as a plain `YYYY-MM-DD`) for the value ops eq/neq/gt/gte/lt/lte — gate: string bound, op ∉ {contains, exists} (`compiler.ts`'s propertySql); the sync evaluator in `sectionViewResolve.ts` compared the raw token, so a hosted view filtering `due < {today}` matched yesterday's rows through the probe/compiler path but not in the sync path (and falsely matched future rows). The sync `propertyMatches` now resolves the bound through the same `resolveValuePlaceholder` against the run clock — the date arms' context — with the compiler's gate mirrored exactly, in `propertyMatches` only (the shared `valueMatches` helper stays raw so the between arm keeps its literal bounds: `propertyRangeSql` pushes from/to unresolved, parity there is literal). New parity spec in `apps/web/test/section-views.test.tsx`: same fixture rows through both paths (the sync refinement via `applySectionView`, the compiler via the store's `runQueryAst`) — `lt {today}` keeps the past and drops the future; `lte {today}` proves a literal `"{today}"` string IN THE DATA no longer matches (the pre-fix literal compare kept it); `between {today}…{today}` pins the raw-bound parity (only the literal-token row sits inside); `contains {today}` pins the op gate (raw substring, both paths). Verification: 2 red pre-fix (lt/lte), all 4 green post-fix; scoped gate green — the six filter/query/section suites 282 in the run, `tsc --noEmit` clean on the app, `@notees/query` 328 green (the compiler untouched, proven).
-
 - **feat(web): boolean query rows ride a single value selector — Page/Block, a class/not a class, true/false.** Owner ruling: the two-axis operator×value register on the boolean rows was semantically redundant — `isEmbedded`/`isClass` are non-nullable on the wire (the compiler's columns are `nullable: false`), so "is not block" ≡ "is page". The builder now offers the values directly in one selector: **Structural role** rows offer *Page (standalone)* / *Block (embedded in body)*, **Type** rows offer *A class* / *Not a class*, and the operator column renders NOTHING for these rows (`operatorOptions` returns empty; `FilterBlockBuilder` skips the dropdown column on an empty register). Negatives remain reachable via the group-level Exclude (NOT) wrapper and Raw AST pastes — the `applyOperator` not-wrap arms and `operatorOf`'s polarity read stay (they back those rows), pinned by the kept four-combination walk. **Boolean-typed property rows** fold the same way: the operator column offers only **is set** / **is not set** (the is-true/is-false operators retired from the register — is-true ≡ is set + true; the morphs survive on `applyOperator` for Raw-AST round-trips), and the value column is the true/false selector, now live on the set row too — picking true/false from "is set" re-materializes the value row (the ruling's set+value fold, a new `applyBooleanValue` model helper). Picking a boolean property in the schema dropdown seeds `value: true` (never a blank half-typed value). One pre-existing parity defect surfaced by the new pins and fixed in the same slice: the sync evaluator's property `exists` arm counted synthesized bound-but-empty/assigned virtual rows (declaration ≠ value — the compiler's effective CTE only ever carries real values), so "is not set" could match nothing on a bound property; `exists` now requires a non-null effective value. Verification: the coupling matrix gains the single-selector pins (no operator column at either value; the value write is the whole predicate; is-true/is-false/is set/is not set all reachable and stable) + two e2e builder pins (structural-role + type rows render no Operator dropdown and filter through the single selector; boolean property rows show only the set bits with the true/false selector), 11 red pre-fix; scoped gate green — filter-block-model 162, the six filter/query/section suites 278 in the run, `tsc --noEmit` clean on the app. Docs in the same pass (`docs/features/queries.md` — the boolean-row register sentence rewritten).
-
 - **fix(web): the query builder's structural-role operator and value selectors are orthogonal — is/is not no longer rewrites the boolean.** The v2 wire carries the Type (isClass) and Placement (isEmbedded) rows as independent axes — `op`/`not`-wrap for polarity, `value: "true"|"false"` for the role — but the Task-3 port kept v1's conflation in the filter-block model: `operatorOf` derived the operator from the value (so a Page row read "is not" before any choice) and `applyOperator` overwrote the value on an operator choice (so "is not" silently turned "is block" into "is not block", and picking a value flipped the operator back). Only two of the four combinations were reachable. Both arms now mirror the member/content/property orthogonality law: the operator column reads and applies ONLY the polarity ("is not" wraps in the group-level `not` sugar — the compiler negates a boolean nodeField generically — "is" returns the positive row), and the value selector's write stays value-only. Coupling audit of every remaining family, pinned by a matrix spec (`apps/web/test/filter-block-model.test.ts`): an operator choice never mutates the family's value payload and a value write never mutates the operator/polarity — member (all ten families, target verbatim), content/name (text rides the wrap), property scalar (value rides eq/neq/contains/comparators, not-contains wraps with it), date (timestamp rides is/is-not/comparisons/between; the raw-AST after/before arms carry it too), nodeField cover/banner/alias (the set bits ARE the register — no value column, pinned as the intentional single-axis case), and boolean properties (the value IS the predicate — is-true/is-false set the value and never wrap, pinned as the other intentional single-axis case). The audit surfaced two real defects beyond the reported one, fixed in the same slice under the same rule: (1) the property `between` morph read the carried payload from `condition.value` only, so re-picking "is between" on a between row wiped the lower bound (the date arm's `timestamp ?? from` precedence now mirrored: a between row keeps both bounds, an eq value carries into the range); (2) the property `operatorOf` ignored negation on the scalar arms, so a not-wrapped eq/contains row rendered its POSITIVE label — the negation invisible and choosing "contains" silently unwrapped it (eq/contains now read the polarity like the content family: not-wrapped eq renders "is not", not-wrapped contains renders "does not contain"). Structural-role end-to-end pin: is/page → is-not/page → is-not/block → is/block → is/page walks at the model level for both isEmbedded and isClass, each step asserting the untouched axis holds. Docs in the same pass (`docs/features/queries.md` — the operator↔value orthogonality sentence). Verification: the filter-block-model spec grows 139 → 156 cases (6 red pre-fix: the structural-role operator/value cells, the between-bounds cell, the property-negation-read cell, and the two four-combination walks); scoped gate green — filter-block-model 156, the filter/query/section neighbours (filter-builder/filter-query/filter-layer/section-views/query-node) 270 in the run, `tsc --noEmit` clean on the app.
+- **feat(web): the ACL table rides the fleet Checkbox and grants everything by default.** Owner feedback on the card layout: the raw `<input type=checkbox>` controls were too small, and creation should start with every permission enabled. Both land: the table now composes the kit `Checkbox` (the same Radix-based element the boolean property editors use, `size="md"` — no ad-hoc controls in feature code), and `selectedScopes` initializes to the full vocabulary. The default keeps the honest wire semantics: all-on IS full access — the mint omits the scope list entirely (so the key stays unrestricted as the vocabulary grows), and unchecking withholds a permission (the POST carries the remaining allow-list, 403 `scope_denied` on the wire). The form resets to all-on after each create; the footer copy reads "All permissions on = full access. Uncheck what this key may not do." Verification: settings-page 26 — the pins drive the kit checkboxes by role + accessible name (Radix button semantics), the default create posts exactly `{name}` (no scope list), unchecking Admin + Upload assets posts the six remaining scopes, `tsc --noEmit` clean, full gate 3061/3061 (JSON reporter).
+- **feat(web): the API-keys section gets its real layout — the create form is a card (name + password side by side, ACL checkbox table below), and revoked keys leave the list.** Owner feedback on the first cut: the form rendered as a broken horizontal strip (the flex-row form wrapping the chip fieldset into narrow columns), and a dozen revoked keys cluttered the list above it. Now: the form is a container card — a two-column grid row of Name + Your password (both required, submit stays disabled until both are filled), below it the permissions as a real ACL table (one row per permission, an Allow checkbox each, "All unchecked = full access" under it), the seal copy folded into the table footer, and the Create button bottom-left. The scope chips retire (chip CSS gone). The key list shows the live set only: revoked rows are filtered out (they are history, not inventory — revoke + inline confirm still work; a revoked row simply leaves the list on refresh). Verification: settings-page 26 — the api-keys pins drive checkboxes by role + accessible name, a seeded revoked key asserts absent from the list, the badge/table label collisions are pinned, `tsc --noEmit` clean.
+- **feat(web): custody by default — an API key is an API key; the human/machine split retires to "legacy keys" one day after it shipped.** The two-tier split (human keys authenticate but can't decrypt; machine keys opt into custody) was the conservative way to introduce custody — existing keys can't be retrofitted (the token shows once, so the wrap can only be built at mint) and day-one E2EE couldn't force password flows on every client. But as a steady-state product it was a wart: two key kinds, a checkbox, a matrix to reason about, for a distinction the owner's framing dissolves — "an api key is an api key. like in any other app." Now the settings mint installs custody for EVERY new key: the machine checkbox is gone, the create form always asks the seal password (checked like an unlock, used for the wrap on-device, never stored), and submit stays disabled until the name and the password are both in. A failed seal still reports honestly (the key exists but password-gates encrypted workspaces — revoke and retry). The badges flip to the new norm: custody-carrying keys wear nothing, keys minted before custody existed wear "password-gated (legacy)". Copy names the trade-off in one line: possession of a key is possession of what its scopes allow. Docs: `docs/api.md` (the machine-keys paragraph — custody is the default; legacy keys re-mint). Verification: settings-page 26 — the api-keys pins ride the custody-aware stub end to end (the legacy badge renders on pre-custody rows and nowhere else; the seal password gates submit; the unlock oracle is consulted with the account email; the installed wrap opens under a key derived from the once-shown token and reproduces the account master key's fingerprint; a scoped mint posts the exact scope list), `tsc --noEmit` clean.
+- **feat(web): the API-keys settings section ships the ACL scope chips and the machine-key opt-in — the "checkboxes are separate web work" debt from the scoped-keys slice, closed together with the custody slice.** Settings → Device Access (API keys): the create form gains an Access chip multi-select over the server's scope vocabulary (`objects.read/write`, `assets.read/write`, `search`, `export`, `admin` — an empty selection stays the unrestricted full-access default) and a Machine-key checkbox whose checked state reveals a password field ("seals the key — checked like an unlock, wrap stays on this device"). Each key row wears its badges: `machine` for custody-carrying keys, `full access` or the scope labels otherwise. The machine mint runs the two-phase custody flow under one Create click: `POST /api-keys` (the token shows once) → the password re-derives the master key on-device (`/auth/unlock` — the oracle check; the session working key is non-extractable by design, so the wrap rides the recovery-code/change-password extractable re-import pattern) → `buildMachineCustodyRecord` seals the master under a key derived from the token → `POST /api-keys/:id/custody` installs the opaque record. A custody failure is reported honestly (the key EXISTS but is human — "revoke it and retry"), never silently half-made. `vendor/notees` pin → `2bce845` (the machine-keys slice: custody routes + `deriveMachineKey`). Docs: `docs/api.md` (the scoped-keys paragraph loses its "separate web work" tail; a machine-keys paragraph). Verification: settings-page 26 — the api-keys mock gains the `scopes`/`machine` envelope shape (full-access + scope badges, chips render), scoped creation posts the exact scope list, the machine mint drives the real sequence against a custody-aware stub with REAL crypto (the unlock oracle consulted with the account email; the installed wrap opens under a key derived from the once-shown token and reproduces the account master key's fingerprint; the re-listed row wears the machine badge), `tsc --noEmit` clean.
+- **feat(web): Tauri v2 desktop shell — the web client gains a build target (the 2026-10-15 parked decision, un-parked 2026-11-05).** `src-tauri/` at the repo root: a MINIMAL Tauri v2 host — `tauri.conf.json` (productName "Notees", one 1440×900 window, `frontendDist` → the vite build's `apps/web/dist`, `devUrl` → the vite dev server with the web build riding `beforeDevCommand`/`beforeBuildCommand`), `Cargo.toml` (`tauri` 2, `tauri-plugin-opener` only), `src/lib.rs`/`main.rs` with zero custom native commands — the web app's own boot flow keeps owning server URL + login, and the store stays sql.js/OPFS in the webview (per `detectStoreMode`, degrading where a webview lacks OPFS) — NO native SQLite plumbing. Icons generated from `apps/web/public/app-icon-512.png` via `pnpm tauri icon`. Root scripts `tauri:dev`/`tauri:build` ride the pinned `@tauri-apps/cli` devDependency (2.12.4, lockfile committed). CI: `.github/workflows/desktop.yml` on `v*` tags + manual dispatch — tauri-action matrix over `windows-latest`/`macos-latest` building .msi/.dmg from the web build, uploaded as release artifacts (unsigned — a documented self-hosted-audience call; signing configured later). The shell is inert for the web build/test gate (nothing in `apps/web` changed). Verification on the scaffold host (no Rust toolchain, per policy not installed): `pnpm tauri info` parses the manifest + config; `pnpm tauri icon` regenerates the icon set; `pnpm build` + `pnpm test` green with the shell present — the FIRST REAL COMPILE of the Rust shell happens in CI (a `Cargo.lock` lands with that first green build). Docs: README "Desktop (Tauri)".
+- **feat(web): workflow-rules editor — workspace settings section over the client evaluator.** Workspace Settings gains an **Automation** tab (the "Workflows" label stays the vocabularies tab) with the full rules editor over the coordination API: the list renders each rule's name, trigger summary ("Node created" / "Property set" / "Class assigned"), active state (Badge + ToggleSwitch → PATCH enabled), and last-run status from the run audit (GET /workflows/:id/runs); create/edit rides a kit Modal whose fields exactly match the server's rule schema (name 1–120, trigger opType, the v2 QueryAST criteria as JSON, 1–10 actions of property.set {propertySchemaId, value, idx} | class.assign {classId}); client validation mirrors the server's shapes (strict parseQueryAst + no-aggregation + trial compile, uuid/length/count checks) for fast feedback while the server's own 422 message surfaces verbatim on submit; delete confirms first. Offline degradation: the last synced list stays rendered with a "rules sync when the server answers" note. New `core/workflow-rules-api.ts` carries the five REST calls with the vendored schema shapes; the section composes kit chrome only (Modal, TextField, Dropdown, CodeTextarea, ToggleSwitch, Badge, ConfirmationModal). Verification: 6 new pins in `apps/web/test/workflow-rules-section.test.tsx` (list render incl. last-run; create round-trip asserting the exact POST body; client-side validation before any network write; the server's 422 verbatim; toggle PATCH + delete confirm/DELETE; the offline note); web suite green, `pnpm build` green.
 
 ## 2026-11-03
 
 - **feat(web): token-value pinning closes the pixel-identity loop; token-gate hardening (multiline + `@supports`/`@container` conditions); border-ladder and role-neutral pulse vocabulary pass.** The sweep's re-pinned CSS tests assert token NAMES — revaluing a token in `variables.css` would pass them and silently break the pixel-identity the sweep guaranteed, and the gate never scans the token source by design. New `apps/web/test/css-token-values.test.tsx`: a sha256 over EVERY custom-property declaration in `variables.css` (any value change, addition, or removal fails — and cannot be silently re-accepted the way a vitest snapshot can) plus 50 named pins on the law-critical scales (spacing, border ladder, motion durations, breakpoints, the sweep's z tiers and role widths) so a failure NAMES the revalued token. Gate: condition blanking extends to `@supports`/`@container` and multiline conditions (the `s` flag + newline-preserving blank — a condition split across lines no longer leaks its px into the scan or shifts line numbers); 16 self-tests. Vocabulary: 3px accent border-lefts move from `--spacing-tiny` to `--border-width-extra-thick` (4 sites), the whiteboard stroke joins the border ladder (`--border-width-thick`), `--motion-duration-sync-pulse` → `--motion-duration-pulse` (role-neutral — the Sidebar sync badge and the calendar today marker share it), and the breakpoint trio comment marks phone/desktop as documentation-only (only `--breakpoint-tablet` has a JS reader, in `overlay-hooks.ts`). Verification: gate CLEAN tree-wide (exit 0), 16 self-tests green, +51 web cases (the pinning spec), scoped suites (view-modes/condensed neighbours — the vocabulary sites) green; full gate below.
-
 - **feat!: the query AST moves v1 → v2 — the 64-variant flat condition union folds into 6 parameterized types, with the comparator and the target mode as orthogonal wire axes.** The v1 type names smeared three independent concepts across the type system (`descendantOf` / `descendantOfAny` / `descendantOfQuery` / `descendantOfSelf` / `descendantSet` were one logical condition wearing five hats); v2 makes the axes explicit: `member` conditions carry `family` (ten node-target families: class, tags, links, referencePath, parent, child, childPath, page, parentPath, root) × `op` (`in`/`not-in` membership, `exists`/`not-exists` the family's emptiness read, class-only `exact`) × a `target` naming its mode (`ids` manual / `query` nested group / `self` the hosting page — the former `*Self` marker conditions become the `self` target mode); `content` folds `contentSet` (op `exists`), `property` folds `propertyBetween`/`propertyWithin` (ops `between`/`within`), `date` folds the ten `created*`/`updated*` types behind an explicit `field` axis, `nodeField` folds `isClass`/`isEmbedded` (riding `eq` with `"true"`/`"false"`) alongside the cover/banner/alias wire-field predicates. Negative membership flips ONLY the op (`in` ⇄ `not-in`) with the target carried verbatim — an operator choice never touches the target mode and a mode switch never touches the operator; the `not` group wrapper keeps sugaring the content/property/date negatives. `version` is the literal 2 and **v1 is rejected outright** — no dual-parse anywhere. Mechanism: `packages/protocol/src/query-ast.ts` rewritten (the strict zod grammar, `query-ast-v2.json` joins the lockstep corpus — one envelope carrying one of every v2 condition shape, fixture gate 49 → 50); `packages/query` ported (one `member` compiler arm dispatching family × op × target mode over the unchanged per-family SQL — equivalent queries emit equivalent SQL and params; the text DSL emits v2 shapes with the grammar text untouched); `@notees/query`'s sync evaluator, the web builder (the 20-family ConditionKind register stays — the operator column maps onto the member axes, the value column becomes the target-mode UI), the web consumers (sources/calendar/hub/query-node/pivot, the hosted-view writes), and the server parse points (`/api/query`, hosted-view validation, workflow criteria) all move to v2. Migration (Path B, the `migrate-is-embedded` class): `scripts/migrate-query-ast-v2.mts` rewrites every stored v1 query token + the `node_view.query_ast` / `workflow_rule.criteria` rows in place through the pure mapping (`scripts/lib/map-query-ast-v1-v2.ts`), re-validates every rewritten envelope against the strict v3 schemas before the write, trial-compiles each server row, backs up `relay.db`, drops snapshots + derived DBs, bumps `restore_epoch`, and marks `schema_meta`; the web color-group device store migrates at load and the section-views mirror drops v1 rows (re-hydrating from the migrated server). Lockstep: GTK/Flutter carry `queryAst` opaquely (the loose-record query token rides v2 tokens through untouched) — their arm is the fixture-list bump (49 → 50, byte-identical corpus) + a parse-through check; the CLI aligns by bumping its pinned `vendor/notees` submodule + release in its own repo; the GTK/Flutter query SURFACES (local compile/builder UI) port the 6-type grammar as follow-up phases, each reversing the matrix once instead of the 64-type matrix. Docs in the same pass: SCHEMA.md (the normative v2 grammar section + the `self`-mode placeholder ruling), `packages/query/README.md` (the 6-type conditions table + the family↔semantics compiler-contract table), `docs/features/queries.md`, `docs/developers/workflows.md`, `docs/developers/migrations.md`. Verification: protocol 923 green (fixture gate + the new fixture's two gate assertions; 145 pure-mapping cases in the colocated mapping suite), query 328 green (both store adapters), web 2904 green, server 449 green (including 5 migration-script e2e cases: dry-run distribution + read-only, apply + strict re-validation + epoch bump + marker + idempotent second run, workspace restriction, fail-loud foreign/unmapped tokens), store 1113 green (the corpus replays the new fixture through all three adapters); typechecks clean across the touched packages. No mixed window: old server/web reject v2 and new ones reject v1 — stack down → new images → `migrate-query-ast-v2.mts --apply` → restart.
-
 - **fix(web): the query builder's operator column stays live in Query and Self target modes — the negative choice negates the whole probe instead of blanking or discarding it.** Two defects in the filter-block model (`apps/web/src/features/collection/filterBlockModel.ts`), one per layer of the symptom "the operator only works in Manual mode": (1) the Child path operator went blank the moment the target mode left Manual — `operatorOf` read `descendantOf`/`descendantOfQuery`/`descendantOfSelf` as `is`/`is-not`, values absent from the family's `contains`/`does not contain` register, so the dropdown rendered empty (a select whose value is not among its options); the shapes now read the register's contains wording. (2) Choosing an operator on ANY dynamic (`*Query`) or self (`*Self`) row rewrote it into the family's STATIC shape — `applyOperator` routed those conditions through the static morphs, so "does not contain" on a Child path → Query row silently replaced the nested query with an empty manual list (same hazard across Links, Tags, Class, Parent, Child, Reference path, Page, Parent path, Root). A new `applyDynamicOperator` morph carries every dynamic/self family: the register's negative wraps the `*Query`/`*Self` condition in `not` (the compiler already negates the whole probe generically — "child path does NOT contain a node matching the subquery" is now expressible, the owner's ask), the positive unwraps, and only is set / is not set swap the target for the family's emptiness shape; the class row's `is not` now negates too (previously it kept the row positive). Static rows are untouched — the picked ids still carry across the manual morphs. Verification: new `apps/web/test/filter-block-model.test.ts` (135 cases: an every-family/every-mode invariant pinning `operatorOf` to the offered register, the mode-preserving morphs per family, the static carried-id regressions, the reported child-path-over-links-subquery scenario end to end); the filter neighbours green (`filter-block-model` / `filter-builder` / `filter-query` / `filter-layer` / `child-query` / `collection-section-skin`, 210 in the scoped run); `tsc --noEmit` clean on the app; docs in the same pass (`docs/features/queries.md`).
-
 - **feat(web): the CSS token-drift gate — `scripts/check-css-tokens.mjs` — plus the full magic-number sweep that brings every app stylesheet onto design tokens (479 violations → 0).** The inciting incident (same day): a collapsed-block badge's cancel margin was a bare `-8px` that had to equal a row flex `gap: 8px` by copy — two restatements of one value, exactly the drift the token system exists to prevent. The gate makes the class impossible to reintroduce: a dependency-free Node 22 scanner (with `node:test` self-tests) rejects law-owned literals in `apps/web/src/**/*.css` — colors (`#hex`/`rgb()` — the sweep found zero, the token law already held), motion (`ms`/`s`/`cubic-bezier`), spacing px, hardcoded rem duplicating the scale, and bare z-index numbers — behind an EXHAUSTIVE allowlist (0px, 1px hairlines, 48px in `min-*` tap targets, px in `@media` conditions, and per-site `/* token-gate: constant <reason> */` opt-outs that must name their contract, e.g. canvas hit-testing and placement-math geometry). The token definition file (`ui/variables.css`) is never scanned; CI gains a `css-token-drift` job (self-tests + gate, no install); the local command is in the development runbook. The sweep converted all 479 violations across 77 stylesheets in per-area commits (kit → ui core → app chrome → collection → calendar → page-sections → metadata/classview/node-menu → remaining features), pixel-identity the acceptance invariant — every new token equals the literal it replaced (16px root, no override exists), existing tokens never revalued, every stacking order preserved by exact-value z mapping onto the pre-existing z vocabulary. New tokens added: the breakpoint trio (`--breakpoint-phone/desktop` completing `--breakpoint-tablet`), `--spacing-5-5`, role-named widths (`--width-sidebar`, `--width-sidebar-drawer`, `--width-col-min`, `--import-list-max-height`), motion roles (`--motion-duration-sync-pulse/cover-pulse/reduced-motion`), and exact-value z tiers (`--z-6/60/70/80/neg-1`). Verification: the gate reports `CLEAN` tree-wide (exit 0) with 15 self-tests green; pre/post sweep captures at 1440/768/390 in light + dark against the test workspace confirm visual identity; full `pnpm typecheck && pnpm test` green; the collapsed-row indent probe stays at 0.00px delta. GTK/Flutter: not applicable (web CSS only).
-
 - **fix(web): collapsed blocks align with uncollapsed rows at rest — the hidden descendant-count badge no longer earns a flex gap.** `.nt-block-row` gaps its flex children by 8px; the collapsed-count wrapper (`apps/web/src/ui/BlockRow.css`) clips itself to `max-inline-size: 0` when hidden, but a zero-width flex item still collects its own gap — every collapsed row's text sat 8px right of its uncollapsed siblings. The wrapper now cancels that trailing gap (`margin-inline-end: calc(-1 * var(--nt-row-gap))`), with the row's `gap` itself promoted to the named `--nt-row-gap: var(--spacing-2)` — one source for both sides, token-sourced per the spacing scale, so the cancellation can never drift from the gap it cancels: at rest a collapsed row's text aligns exactly with a normal row's; on hover the reveal pushes the text right by exactly the pill's grown width (the designed "grows out of the bullet" read is unchanged — only the at-rest offset disappears). Verification: scoped gate (`apps/web` blockrow suite green — CSS-only change); pixel probe against the live stack confirms the rest-state text offset collapses to 0px.
-
 - **feat(store): tags are links — tag membership joins the reference edge index; graph gains a Tags family.** Owner ruling (three parts): (1) a tagged node links to its tag exactly as if the tag were mentioned in its content — the tag page's backlinks section lists every tagged source and the backlink badge counts it; (2) the dedicated Tags query condition stays the tag-only surface; (3) class assignment and inline `class_link` chips stay OUT of the index (membership is not a reference, either direction — Fork 3's "class marker, not a node link" reaffirmed). Mechanism: the single-writer edge derivation (`rebuildEdges`) gains a fourth vocabulary kind — `type='tag'`, one edge per tag, derived from the node's `tag_ids` (the tag OR-Set's own projection) — and both tag write paths re-derive edges in the same transaction: the `object.create` add carrier (the fresh create already rebuilt after `recomputeTagIds`; the re-issued-create convergence arm now rebuilds too, it previously skipped every tree side effect) and `tag.unassign` (previously re-derived `tag_ids` only — its change summary now carries the edge targets for the scope-classed cache invalidation). PB1 holds: the edge derives from the surviving membership row, never the tag node's liveness. Consumers need no query changes — `backlinksWithRollup`, the compiler's `Links`/`Link path` arms, and `referencesWithRollup` are type-agnostic over target-carrying rows, so tag edges flow through all of them (Link path's row-or-ancestor arm picks tags up — Logseq-style semantics composed with the ruling); `recentLinkTargets` (the palette's "Recently linked") now includes `tag` rows per the owner's amendment; the graph topology admits `tag` as a family (`GraphEdgeKind`), the web filter gains a **Tags** toggle (default on — old persisted prefs deep-merge the new key), tag edges ride the property tier of the zoom LOD, and the co-occurrence projections still key on mentions only. GTK aligns with no change — its derived store never built the reference edge index (no backlinks surface to feed; the vocabulary is derived state, picked up when a consumer ships). Flutter DOES port the edge index (`node_cache_repository.dart`) — its lockstep arm lands in the same slice (see the Flutter repo's changelog). Verification: +4 tag-edge cases in `packages/store/test/store.test.ts` (derive/untag/re-add + summary targets, backlinks + badge, PB1 trash-keeps, recentLinkTargets), +1 graph-topology case (tag family edge + the paired class-family exclusion; 648 store+graph tests green), +4 query cases in `packages/query/test/query.test.ts` (Links/Links-ANY/Link path through tag edges, class-never-links; 257 green), +1 web case in `apps/web/test/system-sections.test.tsx` (a tagged source appears on the tag page's Backlinks section; scoped suites green); docs in the same pass (`SCHEMA.md` ruling, `packages/query/README.md`, `docs/features/queries.md`, `docs/features/links.md`).
-
 - **feat(query): the builder's node-target mode switch gains a third mode, Self, and the modes rename to Manual / Query / Self.** The target-mode switch on the node-target families (Links, Link path — renamed from Reference path —, Parent, Child, Child path, Page, Parent path, Root, Class, Tags) previously toggled Static/Dynamic; it now offers **Manual** (picked nodes — the old static), **Query** (a nested query defining the target set — the old dynamic), and **Self** (the page the query sits on — the hosting page, resolved at run time, never the query block itself). Self is wire-level marker conditions — `linkedToSelf`, `referencePathOfSelf`, `parentOfSelf`, `childOfSelf`, `descendantOfSelf`, `pageOfSelf`, `ancestorInSelf`, `rootInSelf`, `classSelf`, `tagSelf` — one per family, each the family's single-anchor static form with the host id supplied at compile: `@notees/query` `CompileOptions.selfNodeId`, the deliberate re-introduction of the once-reserved `currentNodeId` slot (dead while "this page" was baked at write time — the hosting page is genuinely a run-time quantity). A `*Self` condition compiling without `selfNodeId` fails loud; run sites without a host (the server query API, the hub filters) do not offer the mode. The web run sites pass the containing page of the query's host node: query blocks (`QueryNodeSection`), section transient filters + hosted tabs (the `OutlinerContext` root / the hosted node), and the graph's local card (its anchor's page). All `*Self` leaves ride the probe path (`leafNeedsProbe`) — the store's compiler is the one evaluation. Help-text cleanup per the owner: the "(or matches a nested query)" tails drop from the add-menu descriptions, and the list families' operators align on **contains / does not contain** (Links, Tags, Link path, Child, Parent path — single-value Parent/Page/Root keep is / is not). GTK/Flutter carry `queryAst` opaquely (no grammar port), so no client lockstep; SCHEMA.md, `packages/query/README.md`, `docs/features/queries.md`, `docs/api.md` document the family and the host-less failure. Verification: +12 cases in `packages/query/test/query.test.ts` (every arm's membership, the fail-loud compile, the strict-parse acceptance — 303 in the package, green) and a new builder test pinning the Self flip (wire carries `linkedToSelf`, the probe receives `selfNodeId`) plus label updates in `apps/web/test/filter-builder.test.tsx` (30 in the file, green); +1 worker-passthrough case in `apps/web/test/query-node.test.tsx` pinning the `selfNodeId` compile context across the worker `invoke()` wire, both directions (21 in the file, green); scoped suites green (filter/query/section/graph neighbours, 101 + 79); `tsc --noEmit` clean on the touched files (two pre-existing `pmcid` errors and the E2EE slice's `crypto.ts` DOM-lib error belong to other in-flight slices, untouched here).
-
 - **feat(web): E2EE keying is behind an opt-in kill switch (`window.NOTEES_CONFIG.e2ee === "on"`, default off).** Workspace keying (the key routes, the custody fetch-or-create) runs ONLY with the flag exactly "on" — the docker entrypoint passes `NOTEES_E2EE` through to /config.js mirroring `NOTEES_SERVER_URL`. Default (absent/any other value) makes NO key-route call at all and preserves today's keyless plaintext open, including with a master key in memory. Rationale: no workspace gets encrypted before the sibling clients (GTK/Flutter) converge on the encrypted-fixture lockstep — plan 03. Verification: 4 new gate tests in `apps/web/test/e2ee-config-gate.test.ts` (absent/off → zero key-route fetches; "on" → key established; offline stays keyless); web suite green.
-
 - **feat(web)+fix(sync): the locked-workspace semantics and the unlock re-prompt land.** A session that reloaded without its master key now opens a keyed workspace KEYLESS with a first-class UI instead of a console warning: a sticky banner states the consequence (writes are plaintext, sealed remote changes are skipped) with an Unlock affordance; the unlock modal re-authenticates (account password → fresh kdf → `deriveMasterKey`), surfaces the server lockout distinctly (429 → "too many attempts"), and re-opens the workspace — the engine gets the provider on reconnect without a sign-out. The matching sync semantics fix lives in `@notees/sync`: with NO crypto provider, remote `$e` envelopes are skipped with a counted log warning BEFORE store validation (plaintext in the same batch applies, the cursor still advances over the skipped seqs — no more error-loop on the store's $e rejection); with a provider, decrypt failure still throws. Locked-state plumbing: `resolveWorkspaceKey` returns `{ key, locked }` → `ConnectOutcome.encryptedLocked` → the banner. Verification: +2 sync tests (mixed-batch keyless pull green + realtime cursor advance past skipped frames), +3 web tests (modal 429 mapping + wrong-password form error, and an App-level drive: setup → reload-drop → locked banner → wrong password → unlock → banner cleared); web 2902 + sync 42 green.
-
 - **feat(web,server,protocol): CAS asset encryption — sealed covers/attachments end-to-end.** Keyed clients encrypt asset bytes before upload (per-asset random 12-byte IV, blob `tag ‖ ct` — same convention as the payload slot; the IV is server-side asset metadata, NOT wire state, so no fixture/lockstep debt); the server stores a nullable `asset.iv` (additive migration) and trusts a declared-encrypted multipart upload (`encrypted`/`mimeType`/`iv`) with sniffing skipped only on that arm — a plaintext client cannot smuggle a declared type past sniffing. Downloads decrypt when the workspace key resolves; the IV rides the download as a header (`x-notees-asset-iv`, canonical metadata still at `/info`). Keyless stays honest both directions: uploads without a key are plaintext (`iv NULL`, sniffed as today); sealed downloads without a key render the AssetView fallback chip with the reason, never a corrupted render (decrypt failure names itself too). Rulings: CAS dedupe keys on ciphertext hash; the server-side zip export emits ciphertext (plan 07 retires that route). Verification: +2 protocol tests (round-trip, tamper/wrong-key), +3 server route tests (declared-encrypted round-trip incl. iv + `/info`, plaintext unchanged with `iv null`, malformed-iv 422), +6 web asset-crypto tests (seal/open round-trip, keyless passthrough both directions, sealed-without-key locked error, wrong-key decrypt failure); protocol 14 / server 457 / web 2916 green.
-
 - **feat(scripts): migrate-e2ee seals existing logs and assets (E2EE history migration).** The one-time operator migration for a deployment going encrypted: `scripts/migrate-e2ee.mts` rewrites every plaintext envelope payload to the reserved `{"$e": {iv, ct}}` slot (ids, HLCs, timestamps and ALL metadata preserved — only the payload changes; every payload strict-schema-validated before sealing) and seals every plaintext CAS asset (plan-05 layout, fresh per-asset IV in the asset row, file moved to the new content-hash path, `asset_ref` re-keyed). A `workspace_key` row is created per member workspace, wrapped under the account master key derived from the kdf record (`MIGRATE_E2EE_PASSWORD` env or a non-echoing prompt; verifier fail-fast, key memory-only). Client convergence rides the existing mechanism: `restore_epoch` bumped per workspace, stale snapshots + server-side derived stores pruned. Idempotent (already-sealed rows skipped and counted); `--dry-run` makes zero writes; `--verify` (read-only decrypt + schema-validate + asset reopen) is the only green signal. Operator sequence (script header + `docs/developers/migrations.md`): pause clients → dry-run → migrate → verify → flip `NOTEES_E2EE=on` → restart clients; rollback = restore the timestamped `relay.db` backup + assets. Verification: temp-dir integration harness `apps/server/test/migrate-e2ee.test.ts` (3 tests: the dry-run→migrate→verify→idempotence→client-shaped-decrypt transcript incl. non-member-workspace isolation and metadata preservation; wrong-password verifier abort; un-migrated verify refusal) — server 460 green.
-
 - **feat(server,web): server slimming — the content API retires (plan 07).** The server is now relay + auth + workspace-key routes + opaque assets + shares + coordination state + health: node CRUD, `/api/search`, `/api/query`, backlinks, effective-properties, the merge route, `export.zip`, and node location are GONE (the derived store still applies envelopes for snapshot/compaction bookkeeping; the OpenAPI inventory + coverage gate updated). The three kept content reads — `/resolve?name=`, `/classes`, `/properties/:id/values` — are KEY-GATED (a keyed workspace gets 404s; keyless keeps them for CLI/legacy compat). Web zero-capability-loss moves in the same pass: worker-mode merge plans/applies inside the worker (RPC, no server route), the workspace zip builds CLIENT-side from the connected workspace's local store (same bundle machinery + zip-roots exclusions; unopened workspaces can't export — a ruled trade), and deep links open the remembered workspace (the server location lookup was a content read; cross-workspace resolution degrades honestly). Per-user prefs collapse to ONE opaque blob — master-key-wrapped (`encryptBytes`) when a key is in memory, unwrapped JSON for keyless self-host (legacy four-column rows migrate at open); the ADS credential rides its own `x-ads-api-token` header when wrapped. Workflow post-ingest probes retire (the criteria probe was a derived-store read): rules + run audit stay coordination data; client-side evaluation is recorded debt — no web rule shapes exist to port (fallback ruling). Sibling check: GTK/Flutter call ZERO retired routes (local stores); the CLI is a full consumer of the retired API — recorded debt (its rewrite to relay+local-store is its own plan; until then CLI releases pin a pre-plan-07 server). Verification: web 2998 (incl. rewritten merge/export/deep-link prefs tests + prefs-wire wrap/unwrap), server 388 (retired-route suites deleted; kept features re-seeded through the relay), full `pnpm test` exit 0.
-
 - **feat(server,web): key-in-fragment public shares (plan 08, spec §4).** Public page shares can now be SEALED ARTIFACTS in the Standard Notes / Proton Drive pattern: the share dialog renders the subtree to self-contained HTML client-side (`@notees/export`), seals it with a fresh random 256-bit key, and PUTs ONLY the ciphertext (`PUT /api/shares/:token/artifact`, 5 MiB cap, admin-gated) — the decryption key never reaches any route; the published link carries it in its `#fragment`. `GET /s/:token` serves a self-contained VIEWER for artifact shares — one request, inline JS + WebCrypto, zero external dependencies: it reads `location.hash`, splits the embedded b64u blob (iv‖tag‖ct), and decrypts into a sandboxed iframe only AFTER GCM auth succeeds — a missing fragment, wrong key, or tampered artifact shows a clear error page, never a partial render (asset tokens stay placeholders: the artifact is text-only by construction). Legacy rows (no artifact) keep the server-rendered path untouched; revoke 404s both. The copy affordance preserves the fragment, and copying a sealed link WITHOUT the key warns it is undecryptable. Verification: server 395 (artifact round-trip incl. ciphertext-verbatim + viewer-shell assertions, re-publish replace, legacy path, revoke-both, fail-loud 404/422/401), web 3008 (seal round-trip via WebCrypto with the viewer's split, ciphertext-only PUT + fragment-URL pins, modal copy-preserves-fragment + no-key warning). Sibling debt (recorded, not built): GTK/Flutter in-app consumption of key-in-fragment URLs — opening in a browser works natively.
 
 ### E2EE key custody (web client + server)
-
 - Server: `workspace_key` table (one opaque wrapped-key string per workspace — the server never sees the master key or any unwrapped key) + member-scoped `GET/PUT /api/workspaces/:id/key` routes (OpenAPI-documented; non-member GET 404s so key existence is not revealed, PUT 403s; the operator API key gets 403 on both — keys are user custody). Seed shim: `ensureSeeded` seeds ONLY keyless workspaces; a keyed workspace is client-seeded (the server never writes plaintext seeds into it).
 - `@notees/domain`: shared `buildSystemSeedEnvelopes(stamp)` — the platform-fixed 916-op seed sequence stamped by either side (server shim: `client: "seed"`, deviceId "notees-server"; web client: its own actor/device through the E2EE boundary). Server payloads pinned by a pre-refactor parity capture (deep-equal, opTypes + payloads + affected ids).
 - Web client: `crypto-custody.ts` — master-key derivation at login from the kdf record (a wrong password fails loud at the verifier and aborts entry), `ensureWorkspaceKey` fetch-or-create (404 → generate + wrap + PUT; a stored key that does not open under the master fails with "wrong master key for this workspace"). Keys live in memory only and are cleared at every account boundary (sign-out, forget-server, rejected-credential boot clear, API-key sign-in). The raw workspace key threads main → worker (init message) into `keyCryptoProvider` at the only SyncEngine construction site; empty keyed workspaces are client-seeded through `engine.enqueue` (local-first, pushed sealed; two concurrent first-open devices converge — fixed seed node ids, create-on-existing no-op).
@@ -132,11 +138,9 @@ predating this file.
 - Verification: +14 server tests (3 storage, 8 route auth, 2 seed-gate, 1 seed-parity — 444 in the package), +15 web tests (8 custody, 2 login-flow, 1 key-bootstrap, 4 client-seed — 2760 in the package, `tsc` clean), domain rebuilt (dev condition); full `pnpm test` green.
 
 ### E2EE crypto core (TS reference)
-
 - `@notees/protocol` crypto module: scrypt master-key record (server-format parity), master/workspace key wrap-unwrap (WebCrypto AES-GCM, `wrapKey`), envelope payload encryption into the reserved `{"$e": {iv, ct}}` slot with `id.workspaceId` AAD binding, and snapshot-byte sealing. New canonical fixture `envelope-encrypted.json` extends the lockstep corpus — the gate asserts the slot shape and that the fixture key opens a payload validating against the op schema.
 - `@notees/sync`: optional `EnvelopeCrypto` boundary (`keyCryptoProvider(workspaceKey)`) — encrypts at the push boundary, decrypts before remote apply (keeps conflict detection and change-info exact), seals client snapshot uploads (streaming path bypassed under crypto) and opens snapshot downloads. Opt-in via `SyncEngineOptions.crypto`; no behavior change without it.
 - Store test harnesses open encrypted fixtures before replay; a golden-vector test pins client↔server record interop (node:crypto-built record unwraps; wrong password fails at the verifier). Verification: +12 protocol crypto tests (+ the fixture's two decrypt-and-validate gate assertions, fixture count 48 → 49), +6 sync crypto tests, store corpus replays the encrypted fixture decrypted (no new store cases — harness change); protocol/store/sync suites green (758 / 1100 / 40). GTK/Flutter convergence on `envelope-encrypted.json` is tracked lockstep debt due before any workspace enables encryption (key custody is a later phase).
-
 - **feat(web): the focused block view's root row Enter nests — never
   sibling-splits.** In the zoom view the focused block IS the parent of
   everything below it, so Enter on its own row (edit mode, outline grammar)
@@ -282,14 +286,12 @@ predating this file.
   domain 171 passed (9 files); server 395 passed (43 files, incl. the
   migrate-zotero-full-alignment + seed-pins e2e); store 1100 passed
   (20 files); web 2736 passed (242 files).
-
 - **feat(web): the bullet is the multi/single text-property discriminator.**
   Value rows are uniform between multi and single rows except the bullet:
   multi-value rows show it (a value list reads as blocks), single-value
   rows keep it hidden — a `nt-property-text--multi`/`--single` modifier on
   the row scopes the existing hide rule to single only. **Verification:**
   web property suites + css-token-drift green; full suite in the landing run.
-
 - **feat(web): uniform value-row chrome in the properties cell, a stable
   rest→edit swap, and the trailing ghost replaces Add.** The multi-value
   text rows rendered data-dependent chrome (backlink badge, collapse rail,
@@ -304,7 +306,6 @@ predating this file.
   favor of the platform GhostRow (realize mints the carrier and hands the
   caret to its editor; none on single-value/empty/read-only rows).
   **Verification:** web 2739 passed (244 files); typecheck clean.
-
 - **feat(web): the scalar property row's context menu + hidden root
   bullets.** The node context menu was unreachable from the scalar value
   row (the plain-string shape freshly authored values carry): the
@@ -317,7 +318,6 @@ predating this file.
   affordance). e2e at `apps/web/test/property-scalar-menu.test.tsx`.
   **Verification:** web suite green; typecheck clean; css-token-drift
   green.
-
 - **fix(web): kit SelectTrigger labels clip long titles with an ellipsis.**
   The trigger's value span had `min-w-0` but no overflow rule, so a long
   node title (the Edit Link modal's target line, any node-picker trigger)
@@ -333,7 +333,6 @@ predating this file.
   typecheck clean; link-convert,
   broken-link-create, node-link-label suites green (18 tests); deployed
   stack visually verified — the Edit Link target clips with "…".
-
 - **feat(web): empty text properties wear the ghost row — the dark field
   chrome is gone.** The empty-state cells of `TextPropertyRow`
   (bound-but-empty, assigned-empty, no-rows, and the default-sourced
@@ -349,7 +348,6 @@ predating this file.
   **Verification:** web suite green (property-bound-empty +
   text-property-blocks updated to the realize-click interaction); typecheck
   clean; css-token-drift green.
-
 - **feat(core+web): the task Status "Pending" is a class-supplied derived
   default — removing the task class drops an unchanged status, a changed one
   survives.** The owner's rule: a property value the class supplied and the
@@ -393,7 +391,6 @@ predating this file.
   (new: deleted-option default derives nothing), web task-cycle + task-family
   22 green (the assign arm authors no `property.set`; class-removal pair);
   migration e2e green; typecheck clean.
-
 - **feat(web): text property values render as block rows — scalars included.**
   The legacy plain-string cell (the shape freshly authored values carry —
   the resolver's direct create writes scalars) used to render as a boxed
@@ -408,7 +405,6 @@ predating this file.
   unchanged. **Verification:** web suite green (text-property-blocks,
   block-metadata updated to the block-row assertion, property
   bound-empty/drop/edit, css-token-drift); typecheck clean.
-
 - **feat(web): the add-source flow streamlined to paste → Fetch → preview →
   Create, an inline duplicate guard, and an OA-PDF Fetch on attachments.**
   **Direct create (the streamlining ruling):** the resolver path no longer
@@ -439,14 +435,12 @@ predating this file.
   threading). **Verification:** web suite green (add-source 32 incl. the
   fresh-workspace regression, quick-create 39, asset-attachments 21 incl.
   the new Fetch suite); typecheck clean on touched files; smoke.
-
 - **feat(web): the collapsed-block count pill reads "+N".** The additive
   plus disambiguates the bare number from the app's numbered-list markers
   (`1.` / `a.` / `i.` render in the same bullet position on list-styled
   blocks) and reads as "N more inside" at a glance; the tooltip keeps the
   words ("N blocks inside"). Verified: collapsed-count tests updated and
   green, live probe PROBE-PASS, verify-min VERIFY-PASS.
-
 - **fix(web): vertical alignment of the collapsed-block count pill.** The
   24px pill centered with `align-self: center` read ~3px low against the
   16px text baseline (the row rides `align-items: baseline`, so the text
@@ -457,7 +451,6 @@ predating this file.
   baseline row takes center + lift, no strut. Verified: live measurement
   probe (dot↔badge delta 1px), the hover-reveal probe still PROBE-PASS,
   css-token-drift + collapsed-count tests green.
-
 - **feat(web): hover-revealed descendant-count pill on collapsed
   blocks.** A collapsed block with children now answers "what's hiding
   under here?" without expanding it: hovering the row slides a small
@@ -480,7 +473,6 @@ predating this file.
   tests) green including the new `apps/web/test/collapsed-count.test.tsx`
   (recursive-vs-direct count, singular/plural tooltip, pill absent
   while expanded, subtree rows unmounted under a fold).
-
 - **feat(server,operations): apply-through-server migrations, the
   self-heal sweep, and an API-level migration verify.** The 2026-11-02 pmid
   migration post-check burned hours on false "not converged" readings —
@@ -518,7 +510,6 @@ predating this file.
   passed (incl. the new `apps/server/test/admin.test.ts` — operator auth,
   batch validation, idempotency, derived-converged-before-response, and the
   external-append sweep test); migration e2e green; full gate + smoke.
-
 - **feat(web): the unified multi-source merge modal — any non-class node,
   live dry-run preview, both store modes, palette + context-menu entries.**
   The node-merge UI generalized from the single fixed-source,
@@ -569,7 +560,6 @@ predating this file.
     context-menu entry incl. the host-queue round trip); the planner/
     client and `merge-duplicates-modal.test.tsx` suites pass untouched
     (7 tests). Typecheck green.
-
 - **feat(server,web,domain): the source resolver grows PMID + ADS bibcodes,
   an Unpaywall open-access-PDF step, and a two-step Add Source dialog.**
   **Resolver** (`apps/server/src/resolve-source.ts`): two new providers on
@@ -607,7 +597,6 @@ predating this file.
   (incl. the new PMID/ADS/Unpaywall resolve cases, the prefs column
   migration, the pmid migration e2e, the updated pins-count pins); web
   add-source/node-prefs/quick-create suites green + web typecheck clean.
-
 - **refactor(web): the journal toggle gates the surface at the route, not
   the view's affordances.** The journal feature flag's protocol semantics
   ("gates the journal SURFACES — the journal nav view, Today-page
@@ -644,7 +633,6 @@ predating this file.
     when the target crosses the boundary. Verified: `@notees/web`
     typecheck green, journals-view suite 20 green, routing
     suites green.
-
 - **feat(web): the journal's day entries wear the date header — weekday,
   Today, and ISO week on every day page, and a "No page" flag on ghost
   days.** The journal feed rendered each realized day as a plain embedded
@@ -694,7 +682,6 @@ predating this file.
     section), `.agents/skills/notees-development/SKILL.md` (the gate section
     rewrites to the two tiers), `.agents/skills/notees-development/references/development-workflow.md`
     (condensed mirror). Verified: docs-only slice — no code/test surface.
-
 - **fix(web,store,server): reviewed-minors batch — the block-dnd load-flake
   root-caused, plus eight small fixes and their pins.** Nine items, one pass:
 
@@ -767,7 +754,6 @@ predating this file.
   4), plus the item-1 loaded proof: 20/20 `nice -n 19` runs of
   block-dnd.test.tsx green (the un-fixed file fails ~10–20% under the same
   load).
-
 - **fix(web): the operator API key no longer probes `/api/me/prefs` — the
   known-401 on every operator-key boot is gone.** The per-user prefs route
   401s the operator key by design (routes-prefs' documented contract: "the
@@ -787,7 +773,6 @@ predating this file.
   incl. two new pins: zero prefs calls under the operator identity, the
   auth/me resolution cached across repeated reads) + `verify-min.mjs` →
   `console errors: none`.
-
 - **fix(web): the extends pill's "Remove from this node" writes the extends
   relation, not a membership unassign.** The pill menu's remove fell through
   to `removeClassDissolvingLinks` (a `class.unassign`) whenever the host
@@ -805,7 +790,6 @@ predating this file.
   menu suites (the 6 move-inline tests include the new regression: the
   production ExtendsRow's menu remove empties `getClassParents` and never
   touches classIds).
-
 - **feat(protocol,store,domain,web,server)!: the meetingDate property
   retires — a meeting IS-A event and carries the inherited eventDate.** The
   class-local "Meeting date" (…0003-000000000007, pinned) rendered next to
@@ -846,7 +830,6 @@ predating this file.
   per-adapter delete suite + the corpus replay), web meeting-family /
   system-class-deploy-bindings / remap-reunion-evento 26, server
   migrate-seed-pins 4 + the new migrate-meeting-date-retirement e2e 3.
-
 - **feat(web): Move inline — the class pill's right-click menu turns the
   pill into an inline chip.** The pill↔chip conversion pair completes: the
   chip menu's "Remove from inline" (chip → plain text, membership kept) now
@@ -868,7 +851,6 @@ predating this file.
   classes.md. Verification: web typecheck + 5 new tests in
   move-inline.test.tsx (menu shape, prepend + membership kept, empty
   content, idempotency, the non-membership/extends gate).
-
 - **refactor(web): the chip menu's removal rungs read in class terms — Remove
   from inline + Remove class.** The same-day follow-up to the Unlink/Remove
   slice: the chip's "Unlink" becomes **Remove from inline** (the chip turns
@@ -879,7 +861,6 @@ predating this file.
   against each other. Mentions are untouched: **Unlink** (visible text kept)
   and **Delete link**. Docs: outliner.md, classes.md. Verification: web
   typecheck + the link-convert / node-link-gestures suites (28 tests).
-
 - **feat(web): the node-link menu's class-chip rungs — Unlink and Remove
   replace the old Remove link.** The inline class chip's right-click menu
   previously offered a single "Remove link" that replaced the chip with plain
@@ -905,7 +886,6 @@ predating this file.
   typecheck + 28 tests in node-link-gestures / link-convert (renamed
   expectations + new chip-menu coverage: Unlink-before-Convert ordering,
   membership kept on Unlink, full dissolve + unassign on Remove).
-
 - **perf(web): `getPropertyRowShells` — the cheap SHELLS read for bulk
   property enumerations; heavy values defer.** The first-serve half of the
   payload audit: the read-delta protocol made refetches cheap, but
@@ -944,7 +924,6 @@ predating this file.
   fake-client updates; targeted suites green (property shells, read-delta,
   read-invalidation-guard, block-row/outline, calendar, buckets/hub, store
   property corpus incl. fixture convergence) + apps/web typecheck clean.
-
 - **perf(web): `listPageSummaries` — the lean page-listing read; title-only
   consumers stop shipping 25k content ASTs.** The payload audit's margin
   item, built on the owner's call: `PageSummary` (id, server-flattened
@@ -966,7 +945,6 @@ predating this file.
   rename convergence + READ_UNCHANGED repeat) and the coverage guard; full
   gate typecheck clean, 2640 green (the one red ui-primitives SearchField
   test remains the picker-slice regression, red at clean HEAD).
-
 - **feat(web): the remaining batch-write migrations — tables, recurrence,
   property conversion, whiteboard, quick-add, imports — one undo entry + one
   RPC each (the `applyOps` follow-through).** Table grid: `createTable`
@@ -995,7 +973,6 @@ predating this file.
   applied — matching the old per-op loops minus the round-trips. Gate:
   typecheck clean; 2637 green (the one red ui-primitives SearchField test is
   the committed picker-slice regression, red at clean HEAD, reported).
-
 - **feat(web): the generic `applyOps` batch-write primitive — every
   main-thread-driven multi-op gesture now rides ONE undo entry and ONE
   worker RPC.** The batch-write audit (commissioned with the op-lag
@@ -1028,7 +1005,6 @@ predating this file.
   red test (`ui-primitives` SearchField sm-variant) is a committed
   regression from the picker flush-lens slice at HEAD, verified failing
   on a clean HEAD worktree without these changes.
-
 - **fix(web): the anchored picker's search pill keeps its side padding —
   the flush lens retires.** The `@`/`#`/`+` picker's search bar zeroed the
   sm SearchField's left padding (a ui-primitives pin that rode the panel
@@ -1044,7 +1020,6 @@ predating this file.
   the focus to its search bar (verified live against the running build —
   the mechanism was sound; the jsdom spec pins it). Tests: the outliner
   editor's mention-focus spec.
-
 - **fix(web): the read-cache refresh goes delta — a structural gesture
   re-serves only what changed, not ~240MB.** Measured on the full-scale
   disposable workspace (59k nodes / 307k envelopes, browser probe on the
@@ -1076,7 +1051,6 @@ predating this file.
   and the oversized fallback, the READ_METHODS coverage guard, WorkerCore
   integration over real sql.js, sentinel wire round-trip). Full gate green
   (typecheck + 2634 web tests).
-
 - **feat(web): command palette home — Recently created → Recently linked →
   Random → Commands, and node rows carry their effective icon.** The
   empty-query home replaces the device-local Recent (MRU) section with two
@@ -1103,7 +1077,6 @@ predating this file.
   section specs (group order, createdAt ranking, mention-recency ranking
   with the too-old-for-created case, honest emptiness, the class-chain
   icon's sprite href) and the Random specs re-scoped to per-group rows.
-
 - **fix(web): multi-line paste — outline-preserving nesting, blank lines
   dropped, one write batch.** Three reported defects of the multi-line
   paste split, one root design each. (1) *Slow, one block at a time*: the
@@ -1172,7 +1145,6 @@ predating this file.
   research-workflow.md (step 5 + the export table row) and
   docs/features/sources.md (the hub-mode paragraph beside Duplicates). Zero
   protocol/wire surface; GTK/Flutter untouched (web chrome).
-
 - **feat(web,store): the "Forward path" page section — the first non-query
   system section (research-tier2 slice 5).** A page-level section showing
   where an idea went next: a derived, directed, cycle-safe walk over the
@@ -1215,7 +1187,6 @@ predating this file.
   row-click navigation, empty text, live-write re-derivation) +
   `apps/web/test/section-registry.test.tsx` stacks updated. GTK/Flutter/CLI
   untouched (web chrome + a store read they can adopt).
-
 - **feat(web): the synthesis-evidence lint — a suggestion-only dashed hint
   on thin synthesis pages (research-tier2 slice 4).** A `synthesis`-classed
   page whose embedded evidence set is empty or single-source shows a dashed
@@ -1240,7 +1211,6 @@ predating this file.
   non-synthesis nodes, suggestion-only (no write method fires, no button).
   GTK/Flutter/CLI untouched (web-only chrome). Docs:
   docs/workflows/research-workflow.md (the synthesis step names the hint).
-
 - **feat(web,server): the workflows mechanism's web executor + Settings →
   Workflows tab + `GET /api/features` (research-tier2 slice 2b).** The web
   half of the D2 ruling (one definition, two executors — the CLI mirrors the
@@ -1290,7 +1260,6 @@ predating this file.
   `features-route.test.ts` +4 (row projection, settings-null, absent-means-
   enabled, auth), store +2, domain 18 updated. GTK/Flutter/CLI untouched
   (the CLI executor slice comes later, per the plan).
-
 - **feat(domain): the workflows mechanism's domain layer — `question`/`plan`
   everyday seeds + the `@notees/domain` workflow registry with the pure
   op-plan builder (research-tier2 slice 2).** (1) Two new everyday system
@@ -1379,7 +1348,6 @@ predating this file.
   legitimately authors a citekey row when a source page opens — the
   global "no authored rows" assumption retired with the toggle). Full gate
   green (typecheck + 2616 web tests).
-
 - **feat(web): citekey tracking — open-backfill guard, metadata-change
   auto-update, and Zotero-parity pinning.** Three owner asks, one slice. (1)
   **Backfill**: a source-lineage page opened without a citekey now gets one
@@ -1414,7 +1382,6 @@ predating this file.
   rewrite, pinned/pinned:false semantics, empty-metadata and non-source/class
   no-ops, collision suffix, carrier-shape convergence) and UI (pin button
   placement/disabled/toggle round-trip, manual-edit auto-pin).
-
 - **fix(web): displayTemplate placeholders resolve by wire key and folded
   display name — the shipped "@{{citekey}}" source title renders on real
   seeded workspaces.** The render lookup matched placeholders against schema
@@ -1435,7 +1402,6 @@ predating this file.
   a deployed source with citekey "doe2024" renders "@doe2024" through
   `titleOf`), a domain fold pin; full gate green (typecheck + 2598 web
   tests).
-
 - **docs(protocol): the displayTemplate lockstep marker clears — LOCKSTEP
   SHIPPED 2026-10-29 (TS reference + GTK schema v24 + Flutter schema v40).**
   SCHEMA.md's `class-display-template.json` fixture line moves from
@@ -1445,7 +1411,6 @@ predating this file.
   law's gate — the Path A migration (`scripts/migrate-display-template.mts`)
   is unblocked for `--apply` once the CLI bumps its vendor pin. Docs-only
   slice (SCHEMA.md, one line).
-
 - **feat(web): the SectionSpec registry — every page section declared once,
   a variant's stack is a key list; placement is data.** The new
   `sectionRegistry` module holds all eight page sections as `{ key, render }`
@@ -1464,7 +1429,6 @@ predating this file.
   web tests, full chain). Slice 6 of the section skin conversion — the
   conversion is complete: all six collection-backed sections ride the skin
   and every page section rides the registry.
-
 - **feat(web): Created converts onto the CollectionSection skin — the last
   collection-backed section; the skin gains the resolve-on-mount seams it
   needed.** Three new skin props, each with this one consumer: `hideUntilResolved`
@@ -1482,7 +1446,6 @@ predating this file.
   section; full gate green (typecheck + 2540 web tests, full chain). Slice 5
   of the section skin conversion — every collection-backed section now rides
   the skin.
-
 - **feat(web): Classed nodes converts onto the CollectionSection skin — the
   class page's centerpiece sheds its hand-rolled filter/tab/toolbar
   wiring.** The section keeps what it owns: the availability-gated mode
@@ -1499,7 +1462,6 @@ predating this file.
   compose-through-skin assertion on the section helper; full gate green
   (typecheck + 2539 web tests, full chain). Slice 4 of the section skin
   conversion.
-
 - **feat(web): Backlinks and Unlinked mentions convert onto the
   CollectionSection skin — the reference sections' drift-prone wiring
   deletes; `ReferenceList` retires.** The skin gains `groupBy` (post-
@@ -1521,7 +1483,6 @@ predating this file.
   verb-backlinks, list-collapse-level, context-column) plus a
   compose-through-skin assertion on Backlinks; full gate green (typecheck
   + 2539 web tests, full chain). Slice 3 of the section skin conversion.
-
 - **feat(web): the first sections convert onto the CollectionSection skin —
   Extended by, Child pages, and the property References table.** The skin
   gains the last two composition hooks the conversions need: a `className`
@@ -1541,7 +1502,6 @@ predating this file.
   pinning the hidden-never-resolves contract and a compose-through-skin
   assertion per converted section; full gate green (typecheck + 2539 web
   tests, full chain). Slice 2 of the section skin conversion.
-
 - **feat(web): the section skin grows its conversion gaps — header
   action/count/hideHeader, refreshKey, resolve-on-mount, FilterQuery
   observation, and the hosted toolbar composed in the owner's register.**
@@ -1562,7 +1522,6 @@ predating this file.
   hosted register order, Save-as-tab on controlled hosted views); full gate
   green (typecheck + 2538 web tests, full chain). Slice 1 of the section
   skin conversion — no section converts yet.
-
 - **feat(web): ONE owner's register for every collection bar — the search
   field first, then buttons, then view mode, then the overflows — and a
   secondary-action tier behind a new kit "⋮ More actions" panel.** The
@@ -1587,7 +1546,6 @@ predating this file.
   rewritten to the register; screenshot-checked the Classes hub bar
   reading search · filter · sort · New class · switcher · "…"; full gate
   green (typecheck + 2531 web tests, full chain).
-
 - **fix(web): hub bars render their controls on one row, in the hosted
   collection's order.** The lifted-toolbar slice left the hub bar's actions
   wrapped on two rows at any width: the view switcher's `ViewToolbar` still
@@ -1636,7 +1594,6 @@ predating this file.
   (hub view rendering/empty-state/merge-refresh, the modal's dropdown +
   summary + standard legs + guard line, and the worker-route transport)
   — full gate green (build + typecheck + suite).
-
 - **feat(web): source duplicate grouping.** The detection half of the
   Zotero-like duplicates feature (the view + merge modal is the follow-up
   slice; the merge machinery already ships in the store package). New pure
@@ -1661,7 +1618,6 @@ predating this file.
   linkedAuthors familyName path, title-only collisions staying apart,
   singleton exclusion, the deterministic ordering, and input-shuffle
   invariance (full gate green: 5,465 tests across 312 files).
-
 - **feat(web): citekey regenerate button + empty-field placeholder + input
   hover/focus states.** The source property-field UX slice (three owner
   asks, one web pass). (1) The **Citekey** row of a source-lineage node
@@ -1691,7 +1647,6 @@ predating this file.
   `property.set`, the self-exclusion idempotency, and the disabled
   empty-metadata state (the text-property-blocks harness). Docs:
   `docs/features/sources.md`.
-
 - **feat(store): uuid exact-match in quick search.** Pasting a node uuid into
   any quick-search surface (the node picker, the command palette, the
   full-page search, `@`-mention suggestions — all four ride
@@ -1707,7 +1662,6 @@ predating this file.
   paste, exact-only fragment, unknown uuid, non-uuid regression, and the
   below-FTS dedupe/order against a title that embeds the uuid text. Docs:
   `docs/features/search.md`.
-
 - **docs(protocol): the class `displayTemplate` contract lands in SCHEMA.md,
   with the citekey-centric doc sweep.** The normative bullet joins SCHEMA.md
   "Node structure" in the `parentlessRole` idiom: `class.create`/`class.update`
@@ -1741,7 +1695,6 @@ predating this file.
   against the landed code (store `resolveEffectiveDisplayTemplate`, `apps/web/
   src/ui/displayTemplateTitle.ts`, `packages/domain/src/display-template.ts`,
   the migration's NULL-only plan); `pnpm typecheck` + `pnpm test` green.
-
 - **feat(protocol,store): class `displayTemplate` payload + derived column
   (store schema v36).** The wire slice: `class.create`/`class.update` gain the
   strict additive optional-nullable `displayTemplate` key (`z.string().max(1024).nullish()`)
@@ -1759,7 +1712,6 @@ predating this file.
   store.test.ts` (payload mapping, the re-issued-create COALESCE, the
   presence/present-null arms, the full inheritance walk incl. the tie-break
   and the `""` stop); the fixture-gate pin; protocol + store suites green.
-
 - **feat(domain): displayTemplate seed manifest + placeholder validation.**
   `SYSTEM_CLASS_DISPLAY_TEMPLATES` (packages/domain) is the single seed
   declaration: `source` ships `"@{{citekey}}"`, the seven media-type classes
@@ -1774,7 +1726,6 @@ predating this file.
   parentlessRole render-contract precedent). Verified: new domain suite block
   (the parse shapes, the unknown/empty/valid validation arms, the manifest
   contents); `pnpm --filter @notees/domain build` + the domain tests green.
-
 - **feat(server,web): seed + deploy displayTemplate on system classes.** The
   server seed (`buildSeedEnvelopes`) emits the manifest on the class.create
   envelopes — `""` IS a real entry, so the undefined check (not truthiness)
@@ -1788,7 +1739,6 @@ predating this file.
   envelopes carry the manifest, `""` included) + `apps/web/test/system-class-
   display-template.test.ts` (deploy emission, the NULL-only converge, the
   user-value never-overwrite); server + web suites green.
-
 - **test(query): pin citekey/author property-shorthand parsing.** The
   property-schema shorthand (`<schema>:<op>val`) resolves ANY schema name —
   `citekey:doe2024` and `author:doe` now ride it as ordinary property
@@ -1797,7 +1747,6 @@ predating this file.
   list updated to say so (dedicated relation-based `author:` semantics remain
   deferred — until then the shorthand answers). Verified: the query suite
   green.
-
 - **feat(store): search fan-out over authored property values.** A bare term
   in quick/global search and `@`-mention suggestions now also matches nodes by
   their **authored property values** — every schema, every type, no index
@@ -1828,7 +1777,6 @@ predating this file.
   means "no results" — the fan-out answers from the authored rows until the
   rebuild lands). `pnpm --filter @notees/store build`, `pnpm typecheck`,
   `pnpm test` all green (store 1057 passed).
-
 - **feat(web): class displayTemplate renders at the title seam, header opts
   out.** A node whose class carries a `displayTemplate` (`source`'s
   `"@{{citekey}}"`) now renders the RESOLVED template everywhere it is
@@ -1864,7 +1812,6 @@ predating this file.
   first-templated-class-wins, "off", class/date never templated);
   `pnpm --filter @notees/web build`, `pnpm typecheck`, `pnpm test` all
   green.
-
 - **feat(scripts): displayTemplate seed convergence migration.** The
   citekey-centric declaration (the `SYSTEM_CLASS_DISPLAY_TEMPLATES` seed
   manifest: `source`'s `"@{{citekey}}"` header template + the seven
@@ -1895,7 +1842,6 @@ predating this file.
   never-overwrite cases + the missing skip, dry-run-writes-nothing,
   apply-replays-clean + user rows survive + second-run idempotency); full
   gate green.
-
 - **feat(web): hub top bars carry the full collection toolbar — quick
   search, structured filters, and the view's sort control join the view
   switcher in every hub bar.** The hub chrome was sparse: a view-mode
@@ -1922,7 +1868,6 @@ predating this file.
   the bar, sort portal with no body-top row, live quick search + badge,
   empty-filter state, panel seat, structured filter through the run seam,
   Cards inheritance); full web suite 2529 green; typecheck green.
-
 - **feat(web): the journal's ghost entries carry the "Open page" navigate —
   navigating a ghost day realizes it.** The virtual entry's title row now
   wears the written entries' own Open-page button (the PageChrome embedded
@@ -1933,7 +1878,6 @@ predating this file.
   (reload, Today, mini-month picks) still creates nothing. Verified: new
   journals-view test (materialize + onOpenPage + zero children);
   journals-view suite 19 green; typecheck green.
-
 - **fix(web): NodeCard chrome polish — the rail top bar loses its surface,
   the header trail hugs the collapse chevron, and the actions popup steps
   up off the card.** Three owner-caught visuals: (1) the rail's top bar is
@@ -1949,7 +1893,6 @@ predating this file.
   header; it now rides `surface-container-high` + the elevation-2 shadow
   (the ContextMenu precedent), with a specificity-proof selector. Docs in
   the same pass.
-
 - **feat(web): the journal's empty-day placeholder becomes the outliner's
   ghost row, with the day class's own icon.** Two owner asks from the live
   app: the free-floating "Empty day — click to start" sentence read as
@@ -1967,7 +1910,6 @@ predating this file.
   Verified: journals-view suite green (materialize tests assert the born
   block; the structural test pins ghost + icon-resolution parity);
   typecheck green.
-
 - **feat(web): NodeCard polish — the header trail names the card's node,
   the card's sections start collapsed, and the peek gesture reaches the
   pills and the Open arrows.** Three owner asks on the landed rail cards:
@@ -2008,7 +1950,6 @@ predating this file.
   alignment probe reports identical title-row left edges for realized
   and virtual entries; journals-view suite green (the structural
   assertion pins the register); typecheck green.
-
 - **fix(web): the journal's virtual day entries align with their written
   neighbors and speak "empty", not "trash".** Two live-app defects: the
   unrealized day rendered the FULL day-page header (weekday line, week
@@ -2024,7 +1965,6 @@ predating this file.
   ensure's live-check), the trash hub stays the honest trash surface.
   Verified: journals-view suite green (incl. a structural assertion on
   the measure/icon/register); typecheck green.
-
 - **feat(web): picker create-row ordering, the link-edit modal's tab-only
   target, the focused view's top bar, and sidebar section icons — four
   small chrome rulings in one slice.** (1) The node picker's create row
@@ -2048,7 +1988,6 @@ predating this file.
   keeps the row below, Enter creates at index 0); editor-popups + node-link
   gestures + broken-link suites reworked to the tab-only modal (70 tests
   across the four files); typecheck green; full gate green.
-
 - **feat(web): the journal's empty-days toggle — empty days hide by
   default, the top-bar eye-pair button switch reveals them.** The
   permanent-address feed renders every calendar day, which makes long
@@ -2065,7 +2004,6 @@ predating this file.
   always render, hidden or not. Verified: journals-view suite (18 tests:
   default-hides, toggle reveals + persists, sentinel retirement inside /
   presence beyond the window); typecheck green.
-
 - **feat(web): the right rail's peek cards become NodeCard — solid surfaced
   cards with a hairline-separated header, an actions menu, and a recency
   order; the reorder drag is gone.** The rail's card stack rework:
@@ -2116,7 +2054,6 @@ predating this file.
   client-level lock test. **Lockstep complete: GTK (1099 green, pushed)
   + Flutter (815 green, pushed) converge on the same fixture
   (sha256-matched).**
-
 - **feat(web): the journal feed enumerates calendar days — every day
   renders an entry, realized or virtual (the permanent-address model).**
   The feed no longer lists existing day pages; it renders a contiguous
@@ -2135,7 +2072,6 @@ predating this file.
   virtual/realized mixes, pick-navigates-without-creating,
   start-affordance materializes, Today display-only, trashed-day restore,
   wire-delete lock) — green with the day-features suite.
-
 - **fix(web): journal feed entries render the day-page sections again —
   Tasks / Dated / Created.** `PageView` suppressed both `DayPageSections`
   and `CreatedSection` on embedded renders (the Oct-4 ruling assumed the
@@ -2146,7 +2082,6 @@ predating this file.
   same correction. Verified: new journals-view test (a feed entry renders
   the Dated/Created headers and lists their rows on expand); journals-view
   suite 14 green.
-
 - **feat(sync,store,web): streaming snapshot upload — the image crosses the
   wire without materializing in the JS/WASM heap.** The streamed-snapshot-
   restore proposal's last leftover: snapshot UPLOADS still serialized the
@@ -2167,7 +2102,6 @@ predating this file.
   client code needed. Verified: new sync tests (engine prefers/falls-back/
   cap arms, transport streaming gzip + duplex half), store adapter stream
   contract arms; full gate green.
-
 - **feat(store,web): sqlite-wasm OPFS-VFS store backend — snapshot restore
   stops holding the whole image in the WASM heap.** Third `StoreBackend`
   behind the `db.ts` seam (`packages/store/src/adapters/sqlitewasm.ts`, export
@@ -2195,7 +2129,6 @@ predating this file.
   architecture.md §6 (three adapters, staged restore), the module map,
   AGENTS.md's store line. Verified: store suite across all backends + the
   focused spec, full gate green.
-
 - **feat(relay,sync): gzip Content-Encoding on `/snapshot/data` (GET and
   PUT)** — streamed-snapshot-restore proposal (restore-time memory cliff),
   option 1 shipped standalone. SQLite images compress ~4–5× and the endpoint
@@ -2221,7 +2154,6 @@ predating this file.
   `snapshot-encoding.test.ts` (transport emits `Content-Encoding: gzip` with
   a gunzippable body when CompressionStream exists, identity fallback) —
   2/2; `pnpm typecheck && pnpm test` gate green.
-
 - **test(smoke): un-stale the verify scripts' snapshot comments and tighten
   the boot window 900 s → 600 s.** The three verify scripts still claimed the
   relay holds no snapshot and gave every fresh profile a full-log replay
@@ -2233,7 +2165,6 @@ predating this file.
   The streamed-snapshot-restore proposal (restore-time memory cliff: the
   whole image crosses into sql.js in one buffer, renderer OOM-crashed twice
   during the 2026-10-29 redeploy) lives in the internal proposals folder.
-
 - **fix(web): the portaled query-builder panel carries its full-line basis on
   its own modifier class.** The topbar panel-slot portal (below) moves the
   structured panel OUT of the inline toolbar's DOM subtree — and the
@@ -2248,7 +2179,6 @@ predating this file.
   — panel `x[655..1144]` = the bar's full width on its own line beneath the
   tabs+controls row, sort/search/filter flush in one right-justified group;
   `verify-min.mjs` VERIFY-PASS.
-
 - **chore(ci): release-docker concurrency, dispatch = build-verify only
   (sonarly semantics), nightly stagger** (fleet-pattern alignment, owner
   ruling). `.github/workflows/release-docker.yml`: workflow-level
@@ -2268,7 +2198,6 @@ predating this file.
   image-channel list updated to the new dispatch semantics (and the new cron).
   Verified: all three workflow YAMLs parse (`python yaml.safe_load`);
   `pnpm typecheck` green (no source touched).
-
 - **chore(ci): git-ref inputs + fail-loud dispatch guards on the docker
   workflows** (Logseq playbook). `.github/workflows/release-docker.yml`:
   new `git-ref` dispatch input (default `main` — tags, branches, or SHAs);
@@ -2286,7 +2215,6 @@ predating this file.
   guards. Verified: both YAML files parse (`python yaml.safe_load` — the
   gate can't run workflow YAML end-to-end locally); `pnpm typecheck` green
   (no source touched).
-
 - **fix(web): the hosted collection's query-builder panel spans the top bar
   side to side, and the sort button rejoins the control group.** The hosted
   NodeCollection's structured filter panel wrapped a line inside the topbar's
@@ -2309,7 +2237,6 @@ predating this file.
   the filter-layer suite (13 tests) green; live-stack probe before/after —
   the panel goes from a 282px right-hugging column to the bar's full width,
   the sort button flush with the search/filter group.
-
 - **feat(protocol): date-chain embedding lock — `object.update {isEmbedded}`
   fails loud on date nodes, and the web "Move to content" entry hides on
   them.** A date node's journal role is platform-fixed (document chrome), but
@@ -2335,7 +2262,6 @@ predating this file.
   fixture table, AGENTS.md's date-chain invariant. Verified: store 427 tests +
   protocol 700 tests + the new web spec green; GTK and Flutter gates green
   per their repos' changelogs.
-
 - **chore(ci): restructure GitHub Actions on the fleet RosellRamos pattern.**
   The CI/deploy pipeline moves from ad-hoc triggers to the fleet pattern.
   `.github/workflows/ci.yml`: `push: main` removed (the nightly cron covers
@@ -2396,7 +2322,6 @@ predating this file.
     (new), `apps/web/test/render-cascade.test.tsx` +
     `apps/web/test/share-modal.test.tsx` (stub alignment),
     `docs/features/cards.md` (the Making a card section).
-
 - **fix(web): review-session rulings — uuidv7 session ids, due+new queue,
   one-gesture grade undo (memorization cards slice).** Three review
   findings on the review session, fixed together. (1) The session id is
@@ -2425,7 +2350,6 @@ predating this file.
     + `review-session.test.tsx` (the exclusion + single-undo + sm2 pins),
     `docs/features/cards.md` + `docs/feature-status.md` (the due+new
     wording).
-
 - **feat(web): card review session — reveal + four-grade flow over due
   queues (memorization cards slice).** `/cards/review` ships: the Cards
   hub's Review hand-off (`notees.cards.session`) is consumed on mount
@@ -2477,7 +2401,6 @@ predating this file.
     `apps/web/test/review-queue.test.ts` + `review-session.test.tsx`
     (new), `apps/web/test/cards-routing.test.ts` +
     `sources-appbody.test.tsx` (the new AppBody props).
-
 - **feat(web): Cards hub — nav entry, due/fresh/later buckets,
   query-builder subsets, review actions (memorization cards slice).** The
   `/cards` hub ships (the Tasks-hub structure verbatim): every node classed
@@ -2520,7 +2443,6 @@ predating this file.
     `apps/web/src/features/collection/CollectionHub.tsx` (the
     `trailingAction` passthrough), `apps/web/test/cards-routing.test.ts` +
     `cards-buckets.test.ts` (new).
-
 - **feat(web): `ensureCardFamily` self-heal for the card-family property
   schemas (memorization cards slice).** The six SRS schedule schemas
   (`CARD_FAMILY_SEED` / `CARD_PROPERTY_UUIDS`, the …0004- property block)
@@ -2548,7 +2470,6 @@ predating this file.
   (typecheck + test).
   - **Files**: `apps/web/src/features/classview/cardFamily.ts` (new),
     `apps/web/test/card-family.test.ts` (new).
-
 - **docs(changelog): the card.review lockstep converged — GTK `506959d`,
   Flutter `c6f720e`.** Both client legs shipped on their
   memorization-cards-lockstep branches with `card-review.json`
@@ -2562,7 +2483,6 @@ predating this file.
   wire change, and the fixture itself deliberately untouched (byte-pinned
   across the three repos, a comment edit there would force a coordinated
   re-vendor).
-
 - **feat(server,web): `cards.algorithm` per-user preference (default fsrs)
   (memorization cards slice).** The memorization-cards scheduler choice
   rides the existing per-user prefs channel — coordination state beside the
@@ -2596,7 +2516,6 @@ predating this file.
     `apps/web/src/features/settings/nodePrefs.ts` (the
     `getCardsAlgorithm`/`setCardsAlgorithm` seam), `apps/web/test/
     node-prefs.test.tsx` (extended).
-
 - **feat(domain): SM-2 and FSRS-5 spaced-repetition scheduler
   (`nextCardState`, memorization cards slice).** The pure v1 scheduler
   behind `card.review`: one `CardSrsState` (due YYYY-MM-DD or null,
@@ -2616,7 +2535,6 @@ predating this file.
   - **Files**: `packages/domain/src/srs.ts` (new),
     `packages/domain/src/index.ts` (module export),
     `packages/domain/test/srs.test.ts` (new).
-
 - **feat(store): `card.review` applier + the `card_review` derived history
   table (memorization cards slice).** The temporary no-op dispatch seam
   becomes the real applier: `applyCardReview` validates membership-only,
@@ -2643,7 +2561,6 @@ predating this file.
     type), `packages/store/test/card-review.test.ts` (new),
     `packages/protocol/SCHEMA.md` (the normative section's projection
     bullet).
-
 - **feat(protocol): the `card.review` op — the SRS review record on the wire
   (memorization cards slice).** New strict payload schema `card.review`:
   `cardId`, `grade` (again/hard/good/easy), `algorithm` (sm2/fsrs), the full
@@ -2668,7 +2585,6 @@ predating this file.
     the pin block), `packages/protocol/fixtures/card-review.json` (new),
     `packages/store/src/appliers.ts` (the temporary dispatch seam),
     `packages/protocol/SCHEMA.md` (the normative section).
-
 - **feat(domain): the card class becomes the Memorization card, and the
   card-family SRS property schemas seed with it — memorization cards slice 1.**
   (1) The `card` system class renames its display name `Card` →
@@ -2692,7 +2608,6 @@ predating this file.
     description, the six UUIDs + SPECS + display names, `CARD_PROPERTY_UUIDS`,
     `CARD_FAMILY_SEED`), `packages/domain/test/seeds-cards.test.ts` (new),
     `packages/domain/test/domain.test.ts` (the …0004- block rule).
-
 - **feat(web): the Tasks hub joins the nestUnderParents family — a subtask
   nests under its parent task.** The Tasks hub passes `nestUnderParents`
   (the render-time nesting prop the Pages hub introduced): the outline nests
@@ -2772,7 +2687,6 @@ predating this file.
     gate — typecheck clean + whole suite green; 26 new tests (domain +1,
     store +16 across both adapters, server +6, web +3 — 213 web files /
     2466 tests, store 816, server 329, domain 138).
-
 - **feat(web): the Pages hub queries all page nodes — subpages are first-class
   items; nesting is display-time.** The Pages hub's underlying read was
   workspace ROOT pages, so a subpage surfaced only inside its parent's
@@ -2812,7 +2726,6 @@ predating this file.
     `apps/web/test/view-modes.test.tsx` (the rewritten all-pages specs + the
     opt-in boundary pin), `docs/features/views.md` (the ruling). Verified:
     full gate — typecheck clean + whole suite (213 files / 2461 tests).
-
 - **feat(web): the Pages hub carries the standard view switcher — outline,
   table and cards inline.** The Pages hub (workspace root pages) previously
   offered outline alone plus the immersive secondaries; it now rides the full
@@ -2827,14 +2740,12 @@ predating this file.
     mode switching, honest gating, the mention-armed graph, the lean Inbox/
     Classes pinning). Verified: web typecheck + full suite (212 files /
     2451 tests).
-
 - **fix(web): the tab indicator measures the text run only where Range rects
   exist.** The active-tab underline's text-run measurement called
   `Range.getBoundingClientRect()` unguarded; jsdom implements no Range
   rects, so every suite rendering the kit Tabs crashed (~35 files). The
   measurement now guards the API and keeps the label-rect fallback
   otherwise — no browser-path change.
-
 - **feat(web): the calendar view mode — the collection's items on a month
   grid, with an agenda strip.** A new registered collection view
   (`calendar`, label "Calendar", icon `mdi-calendar-month`, **secondary
@@ -2889,7 +2800,6 @@ predating this file.
     web typecheck; web suite 212 files / 2450 tests green.
   - **Docs**: `docs/features/views.md` (calendar in the registered set; the
     gate named; a "The calendar view" mechanics section beside the gantt's).
-
 - **feat(web): the gantt view mode — items as bars on a shared time axis.**
   A new registered collection view (`gantt`, label "Gantt", icon
   `mdi-chart-gantt`, **secondary tier**): items draw as bars positioned by a
@@ -2938,7 +2848,6 @@ predating this file.
     web typecheck; web suite 211 files / 2436 tests green.
   - **Docs**: `docs/features/views.md` (gantt joins the registered mode set;
     the date gate named).
-
 - **feat(web): the graph is a scoped collection view mode — availability-gated
   on links.** (1) The graph (registered `graph`, secondary tier) works as a
   collection view mode: hosted by a NodeCollection, the map's universe is the
@@ -2979,7 +2888,6 @@ predating this file.
   - **Docs**: `docs/features/graph.md` (the scoped variant: universe, the
     out-of-scope drop, where it appears), `docs/features/views.md` (graph
     joins the per-surface mode set; the gate named).
-
 - **feat(web): pivot graduates to a registry view mode, and the view
   registry gains availability gating.** (1) The pivot — previously a
   query-results-only transient mode on a raw kit `SelectionButton` — is a
@@ -3085,7 +2993,6 @@ predating this file.
   - **Clients**: GTK/Flutter/CLI lockstep slices ship in the sibling repos
     before the live migration runs (the clients' own branches; the CLI vendor
     pin bumps after the TS slice lands on main).
-
 - **fix(web): the active-tab underline centers on the TEXT, not the text +
   badge.** The kit Tabs' sliding indicator measured the padded tab button —
   a trailing count badge (the collection tabs' active-tab count) pulled the
@@ -3098,7 +3005,6 @@ predating this file.
   suite.
   - **Files**: `apps/web/src/components/ui/kit/Tabs.tsx` (the indicator
     measurement), `scripts/screenshots/indicator-probe.mjs` (new).
-
 - **fix(web): the NodeCollectionTopBar right cluster unifies, the page
   footer retires, and the backlink card's top padding tightens — owner
   round on the broken tabs/toolbar layout (2026-10-28).** (1) The topbar's
@@ -3137,7 +3043,6 @@ predating this file.
     `docs/features/pages.md`, the skills + `ui-primitives.md`,
     `scripts/screenshots/topbar-layout-probe.mjs` (new), tests:
     `focus-mode` (footer assertion flips).
-
 - **feat(web): the backlink card sheds its header, the gutter button IS the
   badge, and the collection chrome quietens — owner round on the
   block-backlinks card (2026-10-28).** (1) The block card's section header
@@ -3168,7 +3073,6 @@ predating this file.
     `SystemSections.tsx` (`defaultViewLabel`), tests: `node-view-section-chevron`
     (hideHeader spec), `packages/protocol/SCHEMA.md` + `docs/features/links.md`
     + `docs/feature-status.md` (the ruling).
-
 - **refactor(web): SelectionButton overflow is tier-declared per option, not
   count-derived.** The kit `SelectionButton` (the mode/view switcher
   primitive) previously split its options inline vs overflow from a
@@ -3199,7 +3103,6 @@ predating this file.
     and `apps/web/src/ui/QueryNodeSection.tsx` (count props removed),
     `apps/web/test/selection-button-tiers.test.tsx` (the tier spec — default
     inline, mixed tiers, the toggle active state, the all-secondary fail-soft).
-
 - **feat(web): a collapsible search field; the collection toolbar renamed
   and composed in a NodeCollectionTopBar; one count pill everywhere; the
   backlink gutter rides the standard toggle register.** Owner round
@@ -3243,7 +3146,6 @@ predating this file.
     `BlockRowDnD.css` (standard toggle), tests: `collapsible-search-field`
     (new), `filter-layer`, `filter-builder`, `query-node`,
     `slash-breadth`, `block-backlinks`.
-
 - **fix(web): a multi-line node link underlines EVERY line, not one.** The
   read-mode mention chip (`.nt-link`, a `<button>`) carried its dashed
   underline as `border-bottom`; on the button's fragmented inline box the
@@ -3260,7 +3162,6 @@ predating this file.
   - **Files**: `apps/web/src/ui/NodeLinks.css` (the `.nt-link` underline
     technique + comment), `apps/web/test/node-link-label.test.tsx` (the
     technique spec).
-
 - **refactor(web): `components/ui/fleet/` becomes `components/ui/kit/` — the
   in-app components stop wearing the design system's name.** "Fleet" names
   the cross-app RosellRamos design system (correct in the skill and
@@ -3273,7 +3174,6 @@ predating this file.
   - **Files**: `apps/web/src/components/ui/fleet/` → `…/kit/` (95 files),
     168 reference files across `apps/web/`, `AGENTS.md` (the UI-primitives
     law), `docs/developers/ui-primitives.md`, `.agents/design-overrides.md`.
-
 - **feat(web): the block backlink card sheds its noise — count-only gutter
   badge, filled surface, no in-card hairline, and a toggle-less section
   header.** Owner review of the just-shipped block-backlinks card (2026-10-28,
@@ -3297,7 +3197,6 @@ predating this file.
     (the prop plumbed), `apps/web/test/block-backlinks.test.tsx` (the toggle
     assertion), `packages/protocol/SCHEMA.md` + `docs/features/links.md` +
     `docs/feature-status.md` (the ruling).
-
 - **feat(web,protocol): the twelfth preset — mono, the theme-adaptive
   black/white — and a 4×3 color grid everywhere.** The Color › context-menu
   flyout gained the palette's eleventh preset plus a 4-column grid: 12 cells
@@ -3344,7 +3243,6 @@ predating this file.
     (comments), `apps/web/test/block-backlinks.test.tsx` (the laziness
     assertions re-leveled), `packages/protocol/SCHEMA.md` (the block
     right-gutter-toggle ruling).
-
 - **fix(web): a button is never taller than it is wide — the fleet Button
   gains the at-least-a-square width floor.** The "+N" classes trigger (a
   short "+1" label on the 26px-tall `xs` box) rendered as a tall sliver,
@@ -3409,7 +3307,6 @@ predating this file.
     the docs layout line.
   - **Verification**: docs-only slice — `pnpm typecheck` + `pnpm test` green
     (no wire, no fixtures, zero protocol surface touched).
-
 - **fix(web): the block row's "+N" classes popup becomes the full pill
   surface.** Three owner reports from the overflow popup (2026-10-28). (1)
   Its rows were bare icon+name lines with a permanent drag-handle grip and an
@@ -3443,7 +3340,6 @@ predating this file.
     pressed state, the add entry opening the picker with the host
     surviving), `docs/features/classes.md` (the popup's full-list exception
     to the never-two-references ruling).
-
 - **fix(web): the Color › submenu rides the kit picker's five-column grid.**
   The context-menu color flyout laid its swatches out as a wrapping flex
   row — eleven cells raggedly broke at the flyout's edge. The bare
@@ -3455,7 +3351,6 @@ predating this file.
   - **Files**: `apps/web/src/features/pickers/ColorPickerRow.css` (the bare
     grid rule), `apps/web/test/context-menu-color.test.tsx` (the grid
     contract spec).
-
 - **refactor(web): the app.css grab-bag dissolves into co-located CSS, one
   file per surface.** `ui/app.css` (3,812 lines — the pre-fleet catch-all)
   shrinks to its genuine remnant: the fonts/variables imports, the tailwind
@@ -3487,7 +3382,6 @@ predating this file.
   - **Contract for future edits** (also the header comment of each new
     file): edit the surface file, never re-expand `app.css`; the import
     list in `App.tsx` is ordered — keep it that way.
-
 - **feat(web): the node-link menu converts a class-targeted link between
   mention and inline class chip.** A node link whose target is a class node
   can wear either token form, and the link's right-click menu now flips it
@@ -3508,7 +3402,6 @@ predating this file.
     convert splice, Edit stays mention-only),
     `apps/web/test/link-convert.test.tsx` (new — both directions, label
     carry, the non-class gate).
-
 - **fix(web): node color edits reach every node, and the kit swatch button
   behaves like a button.** Four UI bugs on the color surfaces: (1) the icon
   picker's color swatch vanished when no color was set — `cssColorFor("")`
@@ -3536,7 +3429,6 @@ predating this file.
     optical alignment), `apps/web/test/context-menu-color.test.tsx` +
     `apps/web/test/pickers.test.tsx` (the set/clear/selected flyout tests,
     the empty-swatch placeholder tests).
-
 - **fix(web): a node-link chip renders the link elements inside its target's
   title.** A mention whose target title itself carried link elements (a
   nested mention, an inline class link, a markdown hyperlink) flattened the
@@ -3621,7 +3513,6 @@ predating this file.
   - **Verification**: `node-view-section-chevron` + `verb-backlinks` suites
     green; live probe against the rebuilt stack shows the collapsed row
     chevron unrotated and no verb badge at the row end.
-
 - **fix(web): the page hubs strip per-row properties and tags chrome — the
   list answers "which pages", not "what metadata".** Following the
   subpage-scoping slice, the Pages/Whiteboards/Inbox hubs now render rows
@@ -3634,7 +3525,6 @@ predating this file.
   neither the properties panel nor the tags row renders, the class pill
   does) proven non-vacuous (fails with the wiring off); hub suite 7/7.
   `docs/features/pages.md`'s page-list entry states the scoping.
-
 - **fix(web): the Pages/Whiteboards/Inbox hubs expand a page's subpage tree,
   never its inline body blocks.** The list view's flat path rendered every
   page row with ALL its live children (the `getChildren` read) — so the
@@ -3694,7 +3584,6 @@ predating this file.
   plan functions in-process, --apply lands the flags, second run plans
   nothing); `pnpm typecheck` + `pnpm test` green (web + server suites run
   explicitly).
-
 - **fix(web): unchecked boolean property checkboxes are visible on the
   panel card again.** The catalog checkbox border rides `border-outline`,
   tuned against the app surface — one tone darker than the sidebar card
@@ -3704,7 +3593,6 @@ predating this file.
   and keep the fleet hover contract (`border-primary`). Both panels (the
   properties sidebar and the in-flow metadata table) ride the same
   `.nt-property-boolean` hook. Verified: visual + full gate green.
-
 - **feat(web): property headers carry an icon — the stored schema icon, or
   a type-derived fallback (read-time, nothing stored).** Every property
   name row in the properties sidebar and the metadata table renders an icon
@@ -3721,7 +3609,6 @@ predating this file.
   suite (stored-wins, per-type map, fallbacks) + sidebar/table integration
   cases (type fallback renders, stored icon replaces it); `pnpm typecheck` +
   `pnpm test` green.
-
 - **fix(web,query): collection sorting — no "Default order" menu entry, the
   shell hubs open on Dates first, and every A–Z sort folds case.** Three
   reported confusions, one slice. (1) The list view's sort panel offered
@@ -3744,7 +3631,6 @@ predating this file.
   already did). Query package gains a both-adapters case-folding sort test;
   `docs/features/views.md`'s sort-button paragraph records the vocabulary
   and the case rule.
-
 - **fix(store,sync): poison-history quarantine covers missing-node ops, and a
   quarantined store can no longer upload snapshots — the broken-op incident
   closes.** A merge batch in the live log (server-planned duplicate merge,
@@ -3771,7 +3657,6 @@ predating this file.
   itself needed no rewrite: the server's derived projection had converged on
   every envelope, and the live repair replaces the poisoned client-uploaded
   snapshot with a healthy one rebuilt from that converged projection.
-
 - **fix(web): the "C" from-class badge now means one thing everywhere — the
   class definition supplies the property.** Before, the badge answered "does
   this row carry a value with a binding", so empty grouped-type rows (text,
@@ -3834,7 +3719,6 @@ predating this file.
   failure remains at HEAD: `relay-snapshot.test.ts` "PUT accepts a body
   past the global 128 MiB cap" fails identically on a clean HEAD
   checkout (reported, not this slice's).
-
 - **feat(server): the operator API key signs in — account-discovery reads
   accept it, so machines and the web client's API-key tab no longer need an
   account email.** The account plane was user-bound (session or per-user
@@ -3859,7 +3743,6 @@ predating this file.
   existing test that pinned the old 401 was repointed at session-only logout.
   Verified: `pnpm typecheck` + `pnpm test` green (all packages; server auth
   suite 37 tests incl. 4 new operator cases).
-
 - **fix(web): the Pages hub's "New page" header button retires — one
   canonical plain-page entry point.** The hub surface's top bar no longer
   carries its own New-page button: plain-page creation already lives in the
@@ -3876,7 +3759,6 @@ predating this file.
   names the real entry points. Verified: `pnpm typecheck` + `pnpm test`
   green (201 files / 2346 tests, incl. the reworked hub-create-buttons
   suite).
-
 - **docs(features): the sources page grows the property set + the CLI
   bibliography imports; a new assets page; queries.md verified current.**
   `docs/features/sources.md` gains the bibliographic property set (text
@@ -3907,7 +3789,6 @@ predating this file.
   planned contacts-management note has no settled model to label there and
   is deliberately not recorded. Verified: markdown sanity — every relative
   link in the touched pages resolves to an existing file; no code changed.
-
 - **feat(web): the side-panel + top-bar toggle are one linked component
   (`useSidePanel` / `SidePanelToggle`, fleet) — the journal's navigator
   toggle moves to the bar's far right, riding the panel's own side.** The
@@ -3932,7 +3813,6 @@ predating this file.
   (side→slot mapping, dock icon, pressed/label semantics, panel-null-when-
   closed), the rewritten frame-body-inset journal pins (trailing cluster +
   the linked collapse round-trip) — web 2346/2346, typecheck green.
-
 - **feat(store): FTS mention resolution cascades through link-bearing titles
   (schema v33).** Searching a node name already surfaced every node that
   LINKS to it — except across a block→block→page chain: document-chrome
@@ -3957,7 +3837,6 @@ predating this file.
   pins (the block→block→page chain matches the page name at every level; a
   mention cycle folds without hanging) — store 780/780, server 310/310,
   web 2339/2339, full repo typecheck green.
-
 - **fix(web,server): flattened name surfaces resolve bare node links, and the
   page-header icon anchors to the title's first row.** A block whose content
   carries a mention renders its chip fine in the editor (the live resolver),
@@ -3998,7 +3877,6 @@ predating this file.
   `BackendDownLock` — the test now pins the badge's `Sync: error` state and
   the lock's absence inside the grace window; App.tsx's stale banner comment
   updated).
-
 - **feat(sync): snapshot uploads have a pre-flight body guard — a projection
   at or over the limit is skipped, not transferred (completed and shipped in
   the 2026-10-27 web redeploy).** A fresh device full-catch-ups the whole log
@@ -4035,7 +3913,6 @@ predating this file.
   anchored picker zeroed the sm SearchField's inline padding (a 2026-10-22
   rail-alignment ruling) — the lens and clear button sat flush on the pill
   border; the override is removed and the sm register's spacing-2 applies.
-
 - **fix(sync): snapshot upload pre-flight body cap — skip at the limit
   instead of transferring a body the relay rejects.** The relay caps the
   snapshot PUT at 512 MiB (route-local limit); a projection at/over that
@@ -4049,7 +3926,6 @@ predating this file.
   snapshotOversizeReported latch; the 413 path stays as the backstop.
   TDD: pre-flight spec (no transport call, once-per-streak report,
   re-arm after an under-limit success), RED-verified. sync 28/28.
-
 - **fix(sync,web): console error dumps are capped at 4KB — a single unbounded
   log line could exceed any driver's frame limit.** The sync engine's status
   error (`[notees-sync] status=…: <stack>`) logged the raw error stack; during
@@ -4058,7 +3934,6 @@ predating this file.
   4096 chars at every worker-path console.error (sync engine, store worker;
   object args stay — CDP previews are already bounded). Verified: verify-min
   passes against the post-import workspace.
-
 - **feat(web): the node-creation modal is class-driven — EVERY class picked
   from the quick-create flow opens it, with the properties form loaded
   dynamically from the class's bound properties and values staged until
@@ -4107,7 +3982,6 @@ predating this file.
   writes nothing, auto-citekey, the DOI/ISBN/citekey duplicate warnings,
   the exact-title-match duplicate warning, the archived-class auto-enable,
   the resolver prefill) + the full web suite.
-
 - **fix(web): popups inside modals work — clickable, focusable, above the
   dialog, dismissed in LIFO order ("popups in modals don't work
   correctly, they can't be clicked, sometimes show below their modal").**
@@ -4166,7 +4040,6 @@ predating this file.
   (`law/spec.md` §7: popups opened from inside a modal must actually work).
   Not redeployed: a live migration is in flight (owner instruction) — the
   running stack picks this up on the next web rebuild.
-
 - **fix(web): the edit-thread overlay's deferred settle pass no longer
   crashes the frame when it races teardown — the blocking gate's recurring
   unhandled error is gone.** `EditThread`'s 220 ms settling re-measure (and
@@ -4181,7 +4054,6 @@ predating this file.
   disposed flag. Verified by the full web suite (197 files green twice in a
   row after the fix; pre-fix it failed 2/2 with the same error, attributed
   to two different tests).
-
 - **feat(web): the backend-down banner is gone — outage status lives on the
   avatar's sync badge, and a risk-gated lock replaces the banner→dismiss→lock
   ladder.** The
@@ -4207,7 +4079,6 @@ predating this file.
   the rewritten jsdom suite (silent inside the grace window, immediate lock
   on backlog threshold, self-tripping lock at the grace boundary under fake
   timers, escape hatch, recovery reset) plus the repo gate.
-
 - **fix(web): two links in one edit session no longer lose the first — the
   editor computes every content write from an authoritative committed-AST
   base instead of the (stale) React prop; plus two gesture latency cuts
@@ -4439,7 +4310,6 @@ predating this file.
   scope class + the classless-node no-op, the UNION confirm + post-edge
   eligibility, the picker surface, the eligible:false row surface) — green;
   full gate green.
-
 - **fix(store): merge plans apply clean on imported graphs — standalone
   children of embedded sources relocate, positional property refs re-address
   without a bogus elementId.** Both failure classes were hit by a real
@@ -4463,14 +4333,12 @@ predating this file.
   repro (legacy shape seeded directly, as the importer would), the
   no-page-role-ancestor guard, and the single-value positional-ref repro —
   all RED with the exact live errors first. Verified: package suite green.
-
 - **fix(export): the Logseq DB model skips logseq system SUBTREES, not just
   system roots.** Logseq's built-in help content lives in blocks parented
   under `:logseq.class/*`/`:logseq.property/*` system pages; the root-only
   skip left ~270 doc blocks importable as pages on a real-export rehearsal
   (now 347 system entities counted+skipped, 64 genuine root landings remain). TDD: fixture gains a doc block under the system class.
   Verified: package suite green (302).
-
 - **fix(web): collection-row breadcrumbs name the property a stored-through
   row lives in — and the text-property cell loses its noise trail.** Two
   sides of the same carrier truth. The node-backed text
@@ -4502,7 +4370,6 @@ predating this file.
   single-value schemas visibly double-written). Decode now dedupes per
   attribute by normalized value. TDD: fixture repeats a datom across two
   rows. Verified: package suite green (302).
-
 - **fix(export): the Logseq DB model skip-classification — system entities
   with uuids, and the real closed-value attr.** Two classification fixes from a real-export
   rehearsal: Logseq's built-in classes
@@ -4513,7 +4380,6 @@ predating this file.
   real export. Both now classified skipped (counted, never written).
   Verified: fixture gains a uuid-bearing `:logseq.class/Root`; package suite
   green (301).
-
 - **feat(web): the query results gain a transient PIVOT view mode.** The model
   ruling: the query selects the row set; every way of looking at it (list,
   table, pivot) is a transient mode, and since group-bys are never stored,
@@ -4532,14 +4398,12 @@ predating this file.
   wrapper deleted with it. Verified: two new specs in the query-node suite
   (count grid across two dimensions; sum measure + transience — no view
   record, AST untouched, list restored on switch); full gate green.
-
 - **feat(web): the toggle's checked state rides a primary thumb on a neutral
   track.** `ToggleSwitch` drops the checked-track fill (`bg-primary` flip) —
   the track keeps `surface-container-high` in both states and the thumb
   becomes the signal (`primary` when checked, `on-surface-variant` off),
   matching the fleet's quieter control register. Verified: the fleet
   ui-primitives + css-token-drift suites green.
-
 - **feat(web): query blocks are marked by the query system class — and the
   Queries hub is REMOVED.** The class/token
   question resolves the whiteboard way: the `query` system class (seeded
@@ -4568,7 +4432,6 @@ predating this file.
   (a class received purely through the log). Verified: gate green; the
   query-node suite seeds carry the class; the slash spec asserts class +
   token; the hub/guard suites retire with their subjects.
-
 - **feat(web): an empty query answers nothing — never the whole graph.** A query AST that specifies nothing (workspace scope,
   bare AND group, no aggregation — the `/query` starter shape) now renders
   "Set a query to see results." without running: `useQueryRun` gains an
@@ -4579,13 +4442,11 @@ predating this file.
   count badge, export disabled. Verified: new spec in the query-node suite
   (empty state, zero rows, disabled export); query-node / queries-hub /
   slash-breadth suites green.
-
 - **feat(web): the Queries hub leaves the nav sidebar.**
   The entry goes `menuOnly` — the hub opens from the account popup now (the
   Trash/Shares/Archived precedent; query blocks carry the saved-query surface
   in context), keeping its route and tab title. The account-popup spec gains
   the entry. Docs: queries.md + pages.md. Verified: sidebar suites green.
-
 - **feat(web): the overrides discussion lands — the fleet skill absorbs five
   app registers and the app absorbs one back.**
   Walking `.agents/design-overrides.md` one by one: **#1 Button extensions —
@@ -4607,7 +4468,6 @@ predating this file.
   app's design-overrides entries carry the ADOPTED / NOT ADOPTED
   annotations per item. Verified: 61 targeted specs; full web suite green;
   capture of an ON switch (green track, white thumb).
-
 - **chore(web): the fleet audit's tail closes — Chip/ToggleSwitch/TextField
   registers and the documentation pass (fleet audit 2026-10-26).** Code:
   `Chip` gains `disabled` + a `:focus-visible` ring (the template ships
@@ -4624,7 +4484,6 @@ predating this file.
   registration-reason comments. With this the audit's findings are fully
   closed: every divergence is either aligned or a recorded decision.
   Verified: targeted 32 specs; full web suite green; `tsc --noEmit` clean.
-
 - **feat(web): the fleet ListRow is extracted and seven duplicated row
   registers migrate onto it (fleet audit 2026-10-26, the TEMPLATE-GAP
   finding).** The skill's `ListRow` template was the only fleet-owned
@@ -4651,7 +4510,6 @@ predating this file.
   shell's component source. Verified: full web suite 2275/2275 (own run);
   `tsc --noEmit` clean; capture of the Trash hub (migrated rows: leading
   icon, 14px/600 primary, trailing stamp + actions).
-
 - **fix(web): the fleet audit's actionable findings land — a11y trio,
   hover/pressed drift batch, register hygiene (fleet audit 2026-10-26).**
   The two-agent sweep of every fleet component vs the skill templates
@@ -4686,7 +4544,6 @@ predating this file.
   `radius='md'` defaults get their design-overrides entry. The one
   deferred item: the ListRow extraction (7 surfaces) lands as its own
   slice next. Verified: gates below.
-
 - **feat(web+server): the query node becomes a nodecollection query builder
  — a block, not a widget.** A block carrying a
   `query` content token stays a normal, typeable row; the token renders
@@ -4720,7 +4577,6 @@ predating this file.
   289 + web suites incl. the rewritten `query-node` suite at 15 tests, the
   retargeted guard suite, and the de-scoped REST stubs); docs pass
   (queries/views/feature-status/architecture in the same slice).
-
 - **feat(web): the Import Workspace modal — the v1 import register ported to
   v2 plus the new Logseq DB source (owner-approved spec
   2026-10-26).** The command palette's "Import…" row (`mdiTrayArrowDown`)
@@ -4755,7 +4611,6 @@ predating this file.
   (10) — 38 green across the five import specs — and `tsc --noEmit` clean;
   docs: [features/import.md](features/import.md).
   No op types, no wire/model/seed changes — fixture gate not triggered.
-
 - **fix(web): import modal review — wasm locateFile, pass-2 isolation, dump
   tests, skip-info surfacing (review verdict: not mergeable until
   landed).** The Logseq DB decode gets the sql.js `locateFile` wasm URL (a
@@ -4775,7 +4630,6 @@ predating this file.
   `import-logseq-db-flow` (7), `notees-dump-flow` (10),
   `import-table-modal` (10), `progress` (6) — 56 green — and `tsc --noEmit`
   clean.
-
 - **feat(web): the button register becomes a borderless weight ladder
  (the bordered-neutral detour retires with the
   bordered-danger one).** `default`, `outline` (and the active-toggle
@@ -4793,7 +4647,6 @@ predating this file.
   targeted specs; full web suite green; `pnpm typecheck` 8/8; captures of
   the add-server dialog in BOTH themes (borderless Cancel still reads as
   a button on the warm-paper light theme).
-
 - **feat(web): destructive confirmations compose the soft danger register
  (resolves the audit's soft-vs-solid
   contradiction in the skill's favor).** `ConfirmationModal`'s danger
@@ -4806,7 +4659,6 @@ predating this file.
   ruling answers it. Verified: `ui-primitives` spec rewritten (pins
   `bg-error-soft`/`text-error`); 43 targeted specs green; capture of the
   disconnect confirm shows the soft register.
-
 - **test(server): the search-freshness contract pinned — acknowledged writes
   are immediately visible on every search surface (verified live: no server
   lag exists).** Reported as read-after-write staleness on `/api/search`,
@@ -4833,7 +4685,6 @@ predating this file.
   create spec red). Docs: the freshness contract stated in `docs/api.md`
   and the FTS runbook section. A future asynchronous indexer/debounce on
   the server turns these specs red — that is their job.
-
 - **feat(web): soft-danger register — translucent error wash + brighter red
   text — promoted to fleet law (incorporated into
   the rosellramos-design-system skill, templates v2.0.4).** The Portainer /
@@ -4857,7 +4708,6 @@ predating this file.
   Verified: targeted 55 specs; `pnpm typecheck` 8/8; full web suite green;
   skill `check-token-parity.mjs` OK; captures of the sync section at
   1440/390 show the soft Disconnect.
-
 - **feat(web): bordered buttons pick up a background; the danger default is
   now filled, not bordered.** The
   border-only danger sat on transparent — a naked outline. The danger
@@ -4873,7 +4723,6 @@ predating this file.
   `settings-page` / `class-bindings` / `css-token-drift` 64 specs green;
   captures of the sync section + the add dialog (filled Disconnect,
   backgrounded Cancel) at 1440/390.
-
 - **feat(web): the danger button register is bordered at rest.** The fleet `Button` danger variant sat on a
   transparent border — a red text with no outline, easy to miss as the
   destructive affordance. `border-transparent` → `border-error` in the
@@ -4885,7 +4734,6 @@ predating this file.
   Verified: `ui-primitives` / `settings-page` / `class-bindings` /
   `css-token-drift` 64 specs green; capture of the settings sync section
   confirms the outlined Disconnect.
-
 - **feat(query): the `name:` field matches node titles in the query DSL
 .** `name:value` is a title contains, `name:=value`
   / `name=value` exact title equality, `!=` negates, and a bare `name:` reads
@@ -4915,7 +4763,6 @@ predating this file.
   contrast with content contains, the untitled node), and
   `apps/server/test/query.test.ts` runs the arm end-to-end through
   `POST /api/query`; `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): the settings Sync rows become cards; Disconnect moves onto
   the current row.** Four asks in one slice: **(1)**
   the fleet `Radio` component centers the dot against the label — the
@@ -4940,7 +4787,6 @@ predating this file.
   `settings-page.test.tsx` 24 specs (disconnect keeps the address spec
   added; remove-current confirm renamed); captures 1440/768/390 + the add
   dialog; measured alignment in-app before/after.
-
 - **feat(web): the settings Sync section loses the redundant chrome — no
   current-server row, no inline connect form.** The "Current server + Connected" row duplicated the list's
   selected radio and **Current** pill, and the "Connect to a Different
@@ -4955,7 +4801,6 @@ predating this file.
   rewritten). Verified: `settings-page.test.tsx` (24 specs — the two status
   specs retire, two modal specs land: typed-URL connect with `aria-busy`
   assertion + disabled-until-URL); `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): the settings Sync section unifies the server, the disconnect
   action, and a remembered-servers radio list.**
   The Sync Server card now carries everything in one surface: the current
@@ -4976,7 +4821,6 @@ predating this file.
   device-local remember, radio-list connect, per-entry trash, current-row
   trash as confirmed disconnect, typed-URL remember); `pnpm typecheck` +
   `pnpm test` green.
-
 - **feat(web): the peek gesture extends to the page header title, the command
   palette, and the property-carrier cells.** The
   right-rail peek (Shift+click → sidebar card) already rode block bullets and
@@ -5002,7 +4846,6 @@ predating this file.
   grows to nine specs (four new surfaces, failing before the fix); the
   favorites/recents guard passes unchanged; `pnpm typecheck` + `pnpm test`
   green; live-stack probe after deploy.
-
 - **docs(design): the underline text-field ruling promoted from a Notees
   override to the fleet skill law.** The register split (underline form
   fields / boxed dense+settings / borderless cells) was recorded as a
@@ -5012,8 +4855,6 @@ predating this file.
   a deviation); `docs/developers/ui-primitives.md` keeps only the
   app-specific implementation notes (the global input radius/focus-ring
   opt-outs the fleet TextField performs).
-
-
 - **docs(design): the text-field register split is recorded**. Three fixed field registers — the fleet `TextField` is the
   underline variant (straight hairline via an explicit `rounded-none` zero
   of the global input radius; the accent underline + label IS the focus
@@ -5023,8 +4864,6 @@ predating this file.
   implemented and owner-reverted). Canonical home: `.agents/design-overrides.md`
   (the design-system override register) with the runbook note in
   `docs/developers/ui-primitives.md`.
-
-
 - **fix(web): the aliases row renders on class nodes too.** `AliasesRow`'s render gate used `rendersWithDocumentChrome`,
   which excludes classes by construction (the ClassView branch) — so on a
   class page the header's "Add aliases" action wrote the backward alias but
@@ -5032,7 +4871,6 @@ predating this file.
   `isClass` arm (the SearchPage / NodeSelector idiom): the CARRIER stays
   page-or-class-only (a block host renders no row, unchanged), the main may
   now be a class. Verified: `pnpm typecheck` green (no test covers the row).
-
 - **fix(web): the bullet peek gesture (Shift+click → right rail) works on
   every surface that renders block bullets ("shift click on
   block bullet to open in sidebar does not work").** The gesture reads
@@ -5058,7 +4896,6 @@ predating this file.
   — four specs (page body / focused view / rail card / floating window) that
   failed on the three unwired surfaces before the fix; `pnpm typecheck` +
   `pnpm test` green; the live-stack probe re-run after deploy.
-
 - **fix(web): the metadata panel's Aliases row renders on class nodes.** Adding an alias to a class node — the header's "Add aliases"
   action writes the backward alias there — updated nothing visible: the
   button retired once the alias existed and the panel never grew the row.
@@ -5075,7 +4912,6 @@ predating this file.
   picker's backward write through the worker cache) and the REMOTE direction
   (a second core authoring the alias, the open panel converging via the
   relay); `pnpm test` green.
-
 - **fix(store): parenting a parentless main node keeps it a page — the move
   acquires the standalone claim (treat-as-main).** Root
   cause: `object.move` never wrote `is_embedded`, and a node left parentless
@@ -5109,7 +4945,6 @@ predating this file.
   `pnpm typecheck` + `pnpm test` green; GTK gate (`pytest` + `ruff` +
   `mypy`) and Flutter gate (`flutter analyze` + `flutter test`) green on the
   ported slices.
-
 - **fix(web): tighten the surface top bar's vertical padding.** The owner flagged the surface top bar — the nodeview's at least —
   for too much top and bottom padding (the class chip floating in a tall
   bar). The stacking was real: the panelled page root's `spacing-2` top
@@ -5124,7 +4959,6 @@ predating this file.
   (Sources, Calendar, the standard hubs) inherit the same tightening; their
   horizontal-inset overrides are untouched. Verified: `pnpm typecheck` +
   `pnpm test` green.
-
 - **refactor(web): underline TextField fleet-wide + the Add source dialog
   composition.** The owner's annotated screenshot of the
   Add source dialog carried three items. **(1) The dialog composition** —
@@ -5168,7 +5002,6 @@ predating this file.
   main repaired both while this slice sat in review (b39755aef reverted the
   stray export hunk, 062bb4c97 fixed the migration script, and 452983f96
   landed the mention-name resolver the 3-arg form anticipated).
-
 - **fix(web): the list auto-collapse setting actually collapses — renamed,
   collection-wide, opt-out flag (owner scope correction).** The reported
   bug: "Auto-collapse nodes at this depth in linked references (0 =
@@ -5197,7 +5030,6 @@ predating this file.
   `collapse` flag keeps the legacy fold at level 0. Gate: `apps/web`
   typecheck clean for the touched files; the full-suite run stands in the
   repo gate.
-
 - **refactor(web): the resolver unwired from the class-pick popup — the
   palette is the magic wand.** Picking a source class
   in the New-node popup is Zotero's MANUAL entry creation again: the
@@ -5282,7 +5114,6 @@ predating this file.
   remain LOCKSTEP-PENDING: until they ship the `customLabel` acceptance, a
   wipe+resync on those clients stalls at the rewritten envelopes — the
   fixture is the convergence contract.
-
 - **fix(web): nodeview scrollbar rides beside the right side pane.** The
   panelled node view's scroll box was the capped content column
   (`.nt-nodeview-body` inside the centered 46rem `.nt-page-content`), so
@@ -5309,7 +5140,6 @@ predating this file.
   box overflows at full cell width, its right edge 16px (spacing-4) left of
   the Properties panel, while the centered 46rem text cap floats ~211px
   slack a side inside it.
-
 - **refactor(web): frame-owned body inset + split panel toggles.** Two owner points from the annotated screenshots, one
   slice. (1) The right-panel toggle moves to the FAR RIGHT END of the
   surface top bar: the panel toggles split by panel side — the LEFT-panel
@@ -5370,7 +5200,6 @@ predating this file.
   (asset resolution, `routeNewNodeClass`, the create-row reroute, the
   locked-class prefill) + add-source (locked class wins over the record's
   classKey).
-
 - **fix(web): Sources hub empty-state latch resets on first add (review
   follow-up).** The `libraryEmpty` latch in SourcesHub never reset — the
   effect returned early when rows appeared without `setLibraryEmpty(false)`
@@ -5379,7 +5208,6 @@ predating this file.
   remount. The early return now resets the latch; new test: empty library
   → first add through the client → the row renders in place, no remount.
   Gate: the six sources suites 71/71 + `tsc --noEmit` green.
-
 - **refactor(web): Sources hub shell — top-bar toolbar, panel toggles,
   frame-owned panel chrome.** Three owner
   points + one papercut, one slice. (1) The hub toolbar (search, count,
@@ -5428,7 +5256,6 @@ predating this file.
   the filter → switch → back round trip, mutation-checked against the
   fix) and the popstate `setSourcesQuery` seam's path gate. Gate:
   `pnpm typecheck && pnpm test` green.
-
 - **feat(web): Sources hub — detail pane (task 4 of the Sources hub
   plan).** The right pane ships the type-aware detail editor, composition
   only (always the system components): the TYPE CHIP rides the
@@ -5454,7 +5281,6 @@ predating this file.
   content path, Esc cancel, Open, delete confirm → trash → selection
   clear, Cancel keeps the node). Gate: `pnpm typecheck && pnpm test`
   green.
-
 - **feat(web): Sources hub — sortable, searchable items table + toolbar
   (task 3 of the Sources hub plan).** The middle pane ships: the items
   table RIDES the shared NodeCollection table view (never a
@@ -5491,7 +5317,6 @@ predating this file.
   filtered-set .bib/CSL-JSON payloads, the Add-source dialog, the settings
   shortcut); the task-2 citekey-sort test updates to the empties-last
   contract. Gate: `pnpm typecheck && pnpm test` green.
-
 - **feat(web): Sources hub — facet data + type facets pane (task 2 of the
   Sources hub plan).** The hub's data layer lands in
   `apps/web/src/features/sources/sourcesQuery.ts`: `buildSourcesAst` (the
@@ -5522,7 +5347,6 @@ predating this file.
   archived type is visibility, not absence); multi-type nodes dedupe to
   one table row by node id while answering every per-type facet view they
   carry. Gate: `pnpm typecheck && pnpm test` green.
-
 - **feat(web): Sources hub — route, shell, sidebar entry (task 1 of the
   Sources hub plan: the Zotero-parity library surface).** The `/sources`
   route registers in the nav table — a sidebar row with the bookshelf icon,
@@ -5540,7 +5364,6 @@ predating this file.
   Add-source button riding the shipped add-source flow · "Select a source").
   No data layer, table logic, or detail editor yet — those land in the
   follow-up slices. Gate: `pnpm typecheck && pnpm test` green.
-
 - **feat(web): views claim their full URL on load — /calendar/<zoom>
   rewrites to carry the day, and the root URL rewrites to the default view
  (the view-owns-its-URL law).** The calendar's claim
@@ -5553,10 +5376,6 @@ predating this file.
   path is never "/".
   - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
     the panel probe green.
-## 2026-10-24
-
-## 2026-10-24
-
 - **refactor(web): the node display-name family unifies into one funnel —
   `titleOf` / `titleOfNode` with four explicit axes.** The
   per-ruling proliferation of display-name helpers (`displayNameFromClient`,
@@ -5581,8 +5400,6 @@ predating this file.
   model/applier change, no fixtures, no client lockstep.
   - **Verification**: full monorepo typecheck green; the full test gate
     green, including the migrated `date-display` suite.
-## 2026-10-24
-
 - **feat(web): the agenda navigator steps month to month; calendar URLs
   take the compact YYYYMMDD day.** (1) The agenda's
   period chevrons move the anchor a whole calendar month (the day clamps —
@@ -5594,9 +5411,6 @@ predating this file.
   updated.
   - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
     the panel probe green.
-## 2026-10-24
-## 2026-10-24
-
 - **docs(AGENTS): the system-components law is codified.** ALWAYS the system components — unless the UI is genuinely
   one-of-a-kind, in which case it is created as an independent component
   under `components/ui/fleet/`, never ad-hoc styled markup in feature code
@@ -5605,8 +5419,6 @@ predating this file.
   ghost Button. Known candidates for a fleet audit sweep (the recurring
   scope sheet's buttons, the block context menu, the calendar title
   buttons) are noted for a follow-up pass.
-## 2026-10-24
-
 - **fix(web): the agenda's open-page arrow moves next to the header text and
   wears the fleet button register.** Two owner nits:
   the hover-reveal arrow rides DIRECTLY after the day meta (no far-right
@@ -5616,7 +5428,6 @@ predating this file.
   wrapper.
   - **Verification**: web suite green. Deployed: verify-min VERIFY-PASS +
     the panel probe green.
-## 2026-10-24
 - **refactor(web): day selection retires from the time grid (the owner's
   post-mortem); agenda day headers gain the hover open-page arrow.** (1) "Why would we want full day column selection?" —
   honest answer: inertia from the mini-month era, when selection WAS the
@@ -5631,8 +5442,6 @@ predating this file.
   - **Verification**: web suite green (the header spec flips to the
     no-selection register; a new agenda-arrow spec pins the open).
     Deployed: verify-min VERIFY-PASS + the panel probe green.
-## 2026-10-24
-
 - **fix(web): collection groupBy headers flatten markdown link spans in page
   titles.** A group header (the `groupByContainingPage`
   seam — collection outline, system sections, the calendar events panel) is
@@ -5646,7 +5455,6 @@ predating this file.
   - **Verification**: new regression pin in `apps/web/test/view-modes.test.tsx`
     (a containing page whose title IS a link span renders the group name as
     the bare label, never the URL); the full gate green.
-
 - **fix(domain,store,server,web): source binds only the shared base — each
   subclass carries its Zotero field set.** The
   source-library slice seeded ALL ~85 bibliographic pool properties with a
@@ -5721,9 +5529,6 @@ predating this file.
   from the number to the header cell.
   - **Verification**: web suite green (the spec flips to the split
     register). Deployed: verify-min VERIFY-PASS + the panel probe green.
-
-## 2026-10-24
-
 - **fix(scripts): migrations tolerate legacy unparseable saved views
   (live-dry-run discovery).** The task-8 authors migration's first live
   `--all` dry run died before any planning output: the meaning-flip
@@ -5770,7 +5575,6 @@ predating this file.
   `apps/web/test/calendar-ghost-create.test.tsx` (the snap math, the
   divider hit zone, Enter/Escape/empty confirms, the modal prefill, the
   resize drags, the selection move).
-
 - **feat(web): the calendar is URL-addressable — `/calendar/<zoom>/<day>`
 .** The calendar's zoom and
   selected day ride the URL: `/calendar/day`, `/calendar/week`,
@@ -5808,7 +5612,6 @@ predating this file.
   the title seam), the calendar-panel probe extended (URL claim after the
   sidebar entry + a `/calendar/week/2026-10-20` deep link boot in the same
   auth context asserting the week grid and the selected 20th).
-
 - **feat(web): Sources settings + the add-source flow (source-library
   slices 3–6 tasks 5–6, with both review rounds).** The Sources settings
   section under the workspace settings' Features tab — the first feature
@@ -5906,7 +5709,6 @@ predating this file.
   units; the settings-modals inert-controls test follows the moved control.
   Docs: SCHEMA.md "Sources as containers", classes.md's Sources section, the
   resolver client's taxonomy documented in its module header.
-
 - **feat(server): the metadata resolver — Crossref/OpenLibrary/arXiv +
   PDF → DOI extraction (source-library slices 3–6 tasks 3–4).** The
   identifier backbone of the add-source flow. `GET /api/resolve` grows its
@@ -5957,7 +5759,6 @@ predating this file.
   journal-article record shape, 404/500/timeout mapping, the pref gate,
   cache-hit single-fetch, OpenLibrary + arXiv happy paths. Docs: `docs/api.md`
   row + the OpenAPI route entry (the route-coverage gate).
-
 - **feat(export): bidirectional source tables + the dual-track read
   contract, and web .bib/CSL-JSON export (source-library slices 3–6
   tasks 1–2).** The export half of the source library. The pre-roster
@@ -6023,9 +5824,6 @@ predating this file.
     (the read contract marked SHIPPED), `docs/feature-status.md`, the
     changelog; the csl.ts/latex.ts "designed-not-built" headers now say
     shipped.
-
-## 2026-10-24
-
 - **fix(scripts): `migrate-source-library-roster` heals missing roster
   extends edges (live-drift discovery, source-library slice 1 task 7).**
   The live `--all` dry-run against the personal workspace refused the
@@ -6053,46 +5851,6 @@ predating this file.
     green: happy path (review focus #5 asserted), user-renamed titles
     skipped and untouched, poisoned paper node aborts pre-ingest at
     envelope 239/903 with zero writes. Full `pnpm test` green.
-
-## 2026-10-23
-- **feat(web): the calendar's Day/Week zooms become the Google time grid;
-  the Agenda zoom joins the ladder (owner register 2026-10-24).** (1) The
-  **TimeGrid** replaces both the Week block grid and the DayAgenda cards
-  column: a header row (weekday abbreviations + big day numbers, today
-  ringed), an **all-day band** above a constant 1-hour interval grid
-  (untimed events stack as chips; multi-day events paint ONE continuous bar
-  across their covered columns — membership: untimed OR crossing days),
-  and the 24-hour grid with timed events as absolutely-positioned cards
-  (top = start minutes, height = duration, a timed point = the 1h default;
-  overlapping events split side by side via interval-graph clustering in
-  `calendarViewUtils.clusterTimedEvents`). The red **now-line** rides
-  today's column (a once-a-minute tick). A **dblclick at an hour** opens
-  the event modal prefilled with that day AND hour (`EventCreateModal`
-  gains the `startTime` prefill). (2) The read model: `calendarRows`
-  gains `timeGridSplitForDays` (the band/grid membership + placement
-  facts), `agendaTimeLabelOf` (the Google multi-day labels), and
-  `calendarViewUtils` gains `minutesOfTime`/`timeOfMinutes`/
-  `daysBetweenIsos` — `eventRowsForDays`' contract is untouched. (3) The
-  block drag-move/context-menu/recurring-scope ops move into the shared
-  `calendarEventOps` (`useEventOps` + `BlockContextMenu` +
-  `RecurrenceScopeSheet`): a day move preserves the time-of-day and shifts
-  a range's slots; a timed drop re-anchors the start, preserving the
-  duration. (4) The **Agenda** ladder option (`AgendaView`): days with
-  events only in one windowed column (the journal's sentinel pattern;
-  extension scans exhaust a direction honestly), the big-number group
-  header ("24 OCT, SAT", today filled-circle), the red now-line under
-  today's header, the "15:00" / "All day" / "Until 18:00" multi-day time
-  labels, row click opens. The navigator steps a week in Week and Agenda.
-    - **Verification**: web typecheck green; new calendar-timegrid suite
-      (band membership, span-across-columns, placement math, the 1h
-      default, overlap clustering, dblclick prefill, the now-line, the
-      timed-drop duration-preserving rewrite, the agenda's
-      days-with-events/window-extension/multi-day-labels/today-marker/row
-      open) + the rewritten calendar-view day-zoom specs and the
-      recurrence day-zoom spec — calendar family 3 files / 35 tests green;
-      full web suite below.
-## 2026-10-24
-
 - **feat(web): the Tasks hub gains the New-task flow — the
   create-with-template flow's new home.** The
   calendar's day-view retirement orphaned the TemplatePickerModal flow
@@ -6105,8 +5863,6 @@ predating this file.
   instantiation (hub-create-buttons).
   - **Verification**: web gate green; hub-create-buttons 5/5. Deployed:
     verify-min VERIFY-PASS.
-## 2026-10-24
-
 - **feat(web): the calendar reads times + ranges; blocks and the day agenda
   wear the clock prefix; the Day zoom becomes the day agenda; a cell
   dblclick creates an event.** (1) The read
@@ -6141,8 +5897,6 @@ predating this file.
     grid specs, the picker-level template specs, the recurrence specs
     moved to the agenda/month grid and the day page's Tasks section) —
     11 files / 122 tests green, full web suite below.
-## 2026-10-24
-
 - **feat(web): ONE top bar per surface — the day page's stacked second bar
   merges into the nodeview bar; the DayStepper injects through
   `topBarActionsExtra` (the chrome ruling: every
@@ -6174,9 +5928,6 @@ predating this file.
     app-smoke, deck-view, view-modes, whiteboard-canvas, css-token-drift)
     all green; zero typecheck errors in this slice's files. Docs:
     `docs/features/calendar.md`'s stepper sentence follows the move.
-
-## 2026-10-24
-
 - **feat(web): the day stepper moves to the day page's SURFACE top bar —
   and the calendar's zoom ladder switches to the SelectionButton register
  (workspace switcher, breadcrumbs; the SURFACE top bar is the
@@ -6195,8 +5946,6 @@ predating this file.
     radio register); browser probe: the stepper inside the surface top
     bar, Next materializes + advances the day, the ladder's radios name
     Day/Week/Month/Year with Month checked. Full gate below.
-## 2026-10-24
-
 - **feat(web): the day stepper moves to the main top bar's right cluster;
   focus mode hides every side panel; the journal's horizontal overflow
   clips.** (1) The ‹ / Today / › stepping from the
@@ -6217,8 +5966,6 @@ predating this file.
     probe: the stepper in the top bar's right cluster, Next materializes
     and advances the day, journal scrollWidth == clientWidth. Full gate
     below.
-## 2026-10-24
-
 - **fix(web): the journal view's horizontal scroll — the flex min-width
   trap.** `.journals-body` and `.journals-list` are
   flex children without `min-width: 0`, so the row would not shrink below
@@ -6229,8 +5976,6 @@ predating this file.
   opens the Journal and asserts `scrollWidth <= clientWidth` (1326 = 1326
   on the test workspace); the css-token-drift + journals suites green.
   Deployed: verify-min VERIFY-PASS.
-## 2026-10-24
-
 - **feat(web): day stepping returns on the day page's header; the journal's
   navigator panel gains the collapse toggle.** (1) The
   day page wears the Logseq/Capacities register again: a ‹ / Today / ›
@@ -6246,8 +5991,6 @@ predating this file.
   - **Verification**: day-features specs (the bar renders, Today hides on
     today, stepping materializes + opens the target) + the journal
     collapse round-trip — full gate below.
-## 2026-10-24
-
 - **feat(web): the calendar view goes full-width — the side panel, the
   day-stepping arrows retire; the period navigator lifts into the top bar,
   centered, with the panel/popup title-button UI.** Three owner nits closed: (1) the calendar's right panel is GONE
@@ -6273,8 +6016,6 @@ predating this file.
     selection register) + journals specs; full gate below. Deployed:
     verify-min VERIFY-PASS + the calendar-panel probe (no side panel,
     period nav with title buttons, ladder at Month) green.
-## 2026-10-24
-
 - **feat(protocol,store): `workspace.feature.set` settings payload — the
   source-library plan's ONLY wire change (fixture gate).** The strict payload
   gains an additive optional `settings: z.record(z.unknown())` key —
@@ -6301,7 +6042,6 @@ predating this file.
     root `pnpm typecheck && pnpm test` green. Docs same-pass: SCHEMA.md
     "Workspace features" (the settings payload normative), op-catalog
     example, this entry.
-
 - **docs(protocol): workspace features — the settings payload (slice-2 docs
   pass).** SCHEMA.md "Workspace features" states the honest whole-row LWW
   consequence the mechanics alone imply: a winning old-shape `workspace.
@@ -6310,7 +6050,6 @@ predating this file.
   unit, not a compatibility defect. The v30 derived column (NULL vs the
   real `{}`) and the additive-optional wire key stay as landed in the
   settings-payload slice; no behavior change.
-
 - **feat(domain,store,web,server,scripts): the source library — slice 1, the
   Zotero-faithful source model ships** (reversed, dated, in SCHEMA.md's
   rewritten Citations section). One object-graph source family modeled on
@@ -6389,7 +6128,6 @@ predating this file.
     `pnpm typecheck && pnpm test` green. Docs same-pass: SCHEMA.md's
     Citations + Sources-as-containers sections rewritten final, this entry,
     feature-status.
-
 - **feat(web): the events element relocates to the Journal's side panel —
   the grid is the calendar's agenda; the journal owns the day-page context
 .** The calendar view's right
@@ -6618,7 +6356,6 @@ predating this file.
   (EditThread/GhostRow headers name the collection as the owner).
   - **Verification**: `pnpm typecheck` clean; full suite green — 173 files /
     2009 tests.
-
 - **refactor(web): the standalone editable outline is NodeCollection's
   bundle — self-hosted context + edit thread; DailyNoteOutline deleted
  (the ghost ruling consummated).** Three host
@@ -6646,7 +6383,6 @@ predating this file.
     block-selection, render-cascade, system-sections, calendar-view,
     day-features, node-hover-preview, context-column) against the
     self-hosted bundle.
-
 - **refactor(web): the add-block ghost is NodeCollection's chrome — the
   view mode decides its UI (the earlier discussion
   consummated).** Until now the trailing "+ Add block" affordance was
@@ -6668,7 +6404,6 @@ predating this file.
     2009 tests — including the ghost contract suites (outliner-editor,
     block-selection, render-cascade, system-sections) running unchanged
     against the collection-owned ghost.
-
 - **feat(web): calendar sections ride the shared outline collections — plain
   editable rows everywhere, breadcrumb trails on Dated/Created, the Daily
   Note becomes a standalone child-blocks outline.** The day
@@ -6699,7 +6434,6 @@ predating this file.
     machinery; the done-toggle assertion retired with the checkbox);
     `docs/features/calendar.md` reworded (no day-view checkbox, outline
     sections, clickable title, grouped agenda).
-
 - **refactor(web): calendar chrome streamline — the agenda panel drops the
   week strip, the mini-month drops its Today button, titles and hit-states
   converge.** Four owner nits, one slice: (1) the **week
@@ -6721,7 +6455,6 @@ predating this file.
   strip, no panel Today button).
   - **Verification**: `pnpm typecheck` + `pnpm test` green; visual pass on
     the redeployed stack (`pnpm verify:min` → VERIFY-PASS).
-
 - **feat(store,web): bound-but-empty rows — virtual class properties SHOW
   on the node, scalar types included (the virtual/realized
   assessment).** Confirming the unrealize semantics surfaced the gap:
@@ -6761,7 +6494,6 @@ predating this file.
   - **Docs**: SCHEMA.md (the assignment bullet gains the bound-empty
     synthesis + the unrealize semantics), AGENTS.md (the invariant
     clause), `docs/features/properties.md` (virtual properties show).
-
 - **docs(wire,backups,architecture): the snapshot-import surfaces and their
   checkpoint semantics are written into the normative docs.** `WIRE.md`'s
   `PUT /snapshot/data` section gains `&mode=import` (the workspace-id rewrite,
@@ -6869,7 +6601,6 @@ predating this file.
     drops out, valued schemas drop out).
   - **Docs**: `docs/features/properties.md` (the virtual/realized
     vocabulary + the three-gesture row menu).
-
 - **feat(protocol,store,web): `property.empty` — clear every value of a
   property, KEEP the assignment (the assign/empty companion).**
   The assignment slice shipped earlier today with a 2×2 missing its
@@ -6901,7 +6632,6 @@ predating this file.
   - **Docs**: SCHEMA.md (the assignment bullet gains the empty op + its
     causality), AGENTS.md (the invariant clause), `docs/features/properties.md`
     (the three-gesture row menu), architecture.md (op registry 26 → 27).
-
 - **feat(web): MainContentFrame panel widths become a per-view override —
   the calendar's agenda panel gets its 320px column back.** The shared
   panel clamp (13–22rem) read too narrow for the calendar's seven-column
@@ -6913,7 +6643,6 @@ predating this file.
   default. CalendarView passes `var(--layout-size-8xl)` — its old fixed
   side column. The drift gate's JS-scoped allowlist gains the two custom
   properties. Verified: `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): the calendar is the MainContentFrame's second host — the
   agenda column becomes a raised-card side panel with a top-bar toggle.**
   The frame shipped this morning as the mechanism with PageView as its only
@@ -6931,7 +6660,6 @@ predating this file.
   content, and the panel card share one left/right edge; the frame's
   compact stacking governs the panel at phone widths (content leads, the
   panels follow). Verified: `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): the panelled main-content composition becomes the shared
   MainContentFrame — the nodeview side panels move from PageView's private
   grid into a flag-opt-in layout any main-content view can ride.** The
@@ -6956,7 +6684,6 @@ predating this file.
   `--md-sys-color-sidebar-card` homes gain MainContentFrame.css, and the
   mobile-layout pin reads the stacking rule from the frame CSS.
   Verified: `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): the nodeview top bar composes the fleet SurfaceTopBar — the
   bottom divider returns on the shared register.** The 2026-10-22 hub-surface
   commit extracted the in-card top bar from the NodeView's `.nt-node-topbar`
@@ -6975,7 +6702,6 @@ predating this file.
   variant without `!important`. The retired `.nt-node-topbar__spacer` rule
   goes (the primitive's spacer carries the push). Hubs untouched — additive
   props only. Verified: `pnpm typecheck` + `pnpm test` green.
-
 - **feat(protocol+store+web): node-level property ASSIGNMENT — assign a
   property without a value, set the value later the v1
   `node_property` lineage.** The trigger: adding a property to a node whose
@@ -7028,7 +6754,6 @@ predating this file.
     the read-surfaces source union), `docs/features/properties.md` (the
     assign-then-set flow), AGENTS.md (the invariant clause), the server
     object API's effective-properties comment.
-
 - **test(web): the read-cache dirty-key guard — a pinned spec over the
   WorkerClient's invalidation classes, so slices 2 + 3 cannot silently
   regress.** Trigger: the op-lag perf plan (slice 5) — the per-keystroke
@@ -7049,7 +6774,6 @@ predating this file.
   - **Verification**: the new guard 3/3; `worker-client.test.ts` 10/10
     alongside (12 + 1 files' worth of targeted suites for slices 4 + 5 all
     green); `tsc --noEmit` clean. Full repo gate pending (parent session).
-
 - **perf(web): the PageView re-render is scoped — a notification that does
   not name the open page no longer re-renders the view or its block rows.**
   Trigger: the op-lag perf plan (slice 4) — PageView's subscription bumped a
@@ -7087,7 +6811,6 @@ predating this file.
     workspace-dnd, extract-to-page, find-in-page, query-block…) 328/328;
     section-views + verb-create-bind + child-query 39/39;
     `tsc --noEmit` clean. Full repo gate pending (parent session).
-
 - **fix(web): the outliner's split / merge keyboard contract completes — the
   mid-text Enter split nests the tail as the FIRST CHILD when the block has
   children (the Roam rule; they stayed with the head only for the empty/end
@@ -7188,7 +6911,6 @@ predating this file.
     64/64; client-path STEP-0 re-verification passed (mention edit notifies
     `[A, P]` scoped; an unrelated edit notifies `[B]` only); full repo gate
     (`pnpm typecheck && pnpm test`) green.
-
 - **perf(web): `roots`/`listPages` leave the per-keystroke refresh path —
   the worker read cache reclassifies both from `"change"` to `"structure"`,
   and every title surface that renders their rows re-reads the title via
@@ -7259,7 +6981,6 @@ predating this file.
   - **Verification**: new server test (parent + >80-char child: `get` and
     `children` return the full title); `pnpm typecheck && pnpm test` all
     green.
-
 - **docs(classes): the "pill, inline chip, or mention?" taxonomy — which of
   the three class gestures to reach for, and why raw text is never the
   answer.** `@Class` references the
@@ -7273,7 +6994,6 @@ predating this file.
   cross-reference from `docs/features/links.md`'s pill-hiding ruling. Docs
   only — no code, no wire, no redeploy.
   - **Verification**: docs-only slice; no gate surface beyond reading.
-
 - **feat(web): the `+` class picker's Ctrl/Cmd+Enter is the DIRECT INLINE
   INSERTION — it assigns the class AND splices the `class_link` token at the
   trigger in one gesture — and the classes pill row now hides an
@@ -7309,7 +7029,6 @@ predating this file.
   protocol or seed surface touched.
   - **Verification**: `apps/web` suggestion-popup suite 19/19 (assign +
     inline token, reactive pill hide, both hint wordings); full gate below.
-
 - **fix(store)!: the class registry `active` bit becomes a full projection of
   the class node's liveness — every `object.delete`/`object.restore`/purge arm
   mirrors it, and a schema-v28 migrate step scrubs the ghost rows the
@@ -7350,7 +7069,6 @@ predating this file.
   - **Verification**: store 657/657 (both adapters — routing arms, the
     trash/restore/purge mirror assertions, the v28 scrub cases, full fixture
     gate); `pnpm typecheck` green; `pnpm test` full gate green.
-
 - **docs(changelog): the catch-up convergence flag retracted — the clean
   repro converges.** The 2026-10-22 Today-jump entry flagged a possible
   convergence gap (a fresh-boot browser seemingly holding a soft-trashed row
@@ -7362,7 +7080,6 @@ predating this file.
   observation was an artifact of interleaved probing (API purges racing
   already-open browser sessions before their realtime/catch-up delivered).
   No sync-layer follow-up needed.
-
 - **fix(web): the never-a-bare-UUID label seam — `labelFromClient` — with a
   full sweep of the raw-id fallbacks.** Trigger: the owner deleted the
   RETIRED `class` meta-class node (…0001, withdrawn 2026-10-07 — unknown to
@@ -7393,7 +7110,6 @@ predating this file.
     only the four deliberate debug surfaces; live-verified on the running
     stack (a class node bound, permanently deleted, and its pill reads the
     placeholder, not the id).
-
 - **feat(web): the nodeview panels swap sides — context column left,
   properties panel right — and the panelled content column holds the
   Journal measure (46rem, centered) instead of stretching full-bleed.**
@@ -7419,7 +7135,6 @@ predating this file.
   (`NodeTopbar` cluster swap), `app.css` (cap + comments).
   **Verification**: `pnpm typecheck` + `pnpm test` green; captures at
   1440/768/390 attached to the session report.
-
 - **feat(web): the section count moves to the section header when tabs are
   disabled — one count per section, named exactly once.** of the 2026-10-21 ruling (which retired every section-header
   count on the theory that the hosted tab bar's active-tab badge is the one
@@ -7443,6 +7158,45 @@ predating this file.
   windowing spec updated — the Child pages header badge now reads the full
   120 while the tree windows at 100, the assertion flipped from absence to
   the honest count).
+
+## 2026-10-23
+
+- **feat(web): the calendar's Day/Week zooms become the Google time grid;
+  the Agenda zoom joins the ladder (owner register 2026-10-24).** (1) The
+  **TimeGrid** replaces both the Week block grid and the DayAgenda cards
+  column: a header row (weekday abbreviations + big day numbers, today
+  ringed), an **all-day band** above a constant 1-hour interval grid
+  (untimed events stack as chips; multi-day events paint ONE continuous bar
+  across their covered columns — membership: untimed OR crossing days),
+  and the 24-hour grid with timed events as absolutely-positioned cards
+  (top = start minutes, height = duration, a timed point = the 1h default;
+  overlapping events split side by side via interval-graph clustering in
+  `calendarViewUtils.clusterTimedEvents`). The red **now-line** rides
+  today's column (a once-a-minute tick). A **dblclick at an hour** opens
+  the event modal prefilled with that day AND hour (`EventCreateModal`
+  gains the `startTime` prefill). (2) The read model: `calendarRows`
+  gains `timeGridSplitForDays` (the band/grid membership + placement
+  facts), `agendaTimeLabelOf` (the Google multi-day labels), and
+  `calendarViewUtils` gains `minutesOfTime`/`timeOfMinutes`/
+  `daysBetweenIsos` — `eventRowsForDays`' contract is untouched. (3) The
+  block drag-move/context-menu/recurring-scope ops move into the shared
+  `calendarEventOps` (`useEventOps` + `BlockContextMenu` +
+  `RecurrenceScopeSheet`): a day move preserves the time-of-day and shifts
+  a range's slots; a timed drop re-anchors the start, preserving the
+  duration. (4) The **Agenda** ladder option (`AgendaView`): days with
+  events only in one windowed column (the journal's sentinel pattern;
+  extension scans exhaust a direction honestly), the big-number group
+  header ("24 OCT, SAT", today filled-circle), the red now-line under
+  today's header, the "15:00" / "All day" / "Until 18:00" multi-day time
+  labels, row click opens. The navigator steps a week in Week and Agenda.
+    - **Verification**: web typecheck green; new calendar-timegrid suite
+      (band membership, span-across-columns, placement math, the 1h
+      default, overlap clustering, dblclick prefill, the now-line, the
+      timed-drop duration-preserving rewrite, the agenda's
+      days-with-events/window-extension/multi-day-labels/today-marker/row
+      open) + the rewritten calendar-view day-zoom specs and the
+      recurrence day-zoom spec — calendar family 3 files / 35 tests green;
+      full web suite below.
 
 ## 2026-10-22
 
@@ -7475,7 +7229,6 @@ predating this file.
   page-body/Child-pages and classed-nodes/Extended-by opt-outs, the backlink
   trail minus the containing-page crumb); `pnpm --filter @notees/web
   typecheck` + the full web suite green.
-
 - **feat(web): the selection edit toolbar composes the kit — fleet
   `FloatingToolbar` panel + fleet `Button` actions, and the @ action grows a
   Shift-/Ctrl-click label mode.**
@@ -7504,7 +7257,6 @@ predating this file.
   - **Verification**: `pnpm typecheck` + `pnpm test` green; toolbar exercised
     in the test workspace (select text → bar appears; plain @ = query mode,
     Shift-@ = label mode with the mode banner).
-
 - **docs(runbooks): the "adding a default property to a system class"
   recipe joins `docs/developers/development.md` §3** (how do
   we proceed when more default properties are needed). Seven steps, proven by
@@ -7519,7 +7271,6 @@ predating this file.
   - **Verification**: docs-only slice; `pnpm typecheck && pnpm test` clean.
   - **Docs**: `docs/developers/development.md` §3 (the recipe, anchored next
     to the seed-alignment law it composes with).
-
 - **feat(scripts): `migrate-url-source-binding.mts` — live workspaces converge
   to the url→source seed change; and the seed-alignment law joins the
   development skill.** Two facets of one slice.
@@ -7565,7 +7316,6 @@ predating this file.
     2026-10-22 seed-manifest note now names the migration as the convergence
     path, the gallery deploy as the fallback), the skill (law 10 +
     `references/development-workflow.md`).
-
 - **feat(web): dialogs lose the 28px rounding — a 16px dialog register, and a
   tighter modal header.** Owner pass on the dialog chrome (design-overrides
   register, same day): the sheet family's 28px rounding read too round on
@@ -7583,7 +7333,6 @@ predating this file.
     `scripts/screenshots/dialog-radius-probe.mjs` captures the palette and
     the class-create dialog at 1440 and reads the computed border-radius
     live (16px on both surfaces, PROBE-PASS).
-
 - **feat(domain): `url` becomes a default property of the `source` system
   class, globally scoped.** The `url` property seed (…0000-000000000024)
   previously bound ONLY to `weblink`; now the binding row lands on the
@@ -7618,7 +7367,6 @@ predating this file.
     `url` now a documented default of the family base); the GTK/Flutter seed
     manifests converge by the same constant (non-blocking follow-up, the
     weblink-extends precedent).
-
 - **feat(web): multi-line plain-text paste splits into sibling blocks.**
   Pasting clipboard text containing newlines into a block used to ride the
   browser default — one block whose newlines became `hard_break` tokens.
@@ -7640,7 +7388,6 @@ predating this file.
     (`pnpm typecheck` + `pnpm test`) clean.
   - **Docs**: the editor header contract, `docs/features/outliner.md`'s
     gesture table (new `Ctrl/Cmd+V` multi-line row).
-
 - **fix(web): the date-chain ensure resurrects trashed chain nodes — the
   journal's Today jump second root.** The live investigation of the owner
   bug (Jump to today landed on the 18th) found a second, deeper root
@@ -7661,7 +7408,6 @@ predating this file.
     permanently deleted, within a fresh boot's catch-up — a possible
     convergence gap around today's epoch-bumped migration; the journal no
     longer trips over it, but the sync layer deserves a look.
-
 - **fix(web): the search pill rides an explicit 3-column anatomy — icon
   lane | input | clear lane — and the class picker's footer row says
   "Browse all classes…".** the lens and ×
@@ -7684,7 +7430,6 @@ predating this file.
     a transient scratch test and one timing-flaky dnd case that passes in
     isolation); live probe of the class picker dialog + command palette —
     geometry measured (lanes, grid alignment) and screenshots reviewed.
-
 - **fix(web): search pills lose their stacked block padding — the command
   palette's search box was the last tall one.** The picker fix (2026-10-21)
   compacted the anchored pickers' search bars by zeroing the sm pill's
@@ -7727,7 +7472,6 @@ predating this file.
     searchMode, daily pool listing, member listing + create carrying the
     class, Blocks chip composing with a text search, chip × prefix
     conjunction) — 36/36 green; `pnpm typecheck` clean across the monorepo.
-
 - **fix(web): the journal's Today jump materializes today instead of
   landing on a past day.** The feed's anchor is "today, else the nearest
   day at or before" — so with no page written yet for the 22nd, Jump to
@@ -7742,7 +7486,6 @@ predating this file.
     to it); `pnpm typecheck` clean; the journals suite green; the running
     stack probed live — with today absent the click lands the 22nd's
     header at the top of the feed.
-
 - **feat(web): the hub top bar gains its bottom hairline, and the journal's
   Today button turns bordered.** Owner second pass on the hub-surface
   restructure: with the body scrolling tight under the pinned
@@ -7756,7 +7499,6 @@ predating this file.
   - **Verification**: `pnpm typecheck` clean; `pnpm test` green (the Today
     pin updated: outline variant + the Jump-to-today title ride the source);
     screenshot captures of the running stack (test workspace) reviewed.
-
 - **feat(web): the journal feed is a plain continuous stream — the hairline
   separators and the ‹ / › day-stepping arrows retired.** Two owner calls on
   the feed's look: the full-width hairline rules between entries "didn't feel
@@ -7781,7 +7523,6 @@ predating this file.
     tests, the drift gate over the edited CSS included); screenshot captures
     of the running stack (test workspace, 1440/768/390) reviewed — the A/B
     pair (cards vs whitespace) captured from the live feed before the call.
-
 - **feat(scripts): the batch-migration orchestrator — one stopped-stack
   window for every pending stored-log migration.** Running
   `scripts/migrate-*.mts` one at a time costs one stack-stop + one full
@@ -7805,7 +7546,6 @@ predating this file.
   end-to-end arm on a synthetic relay DB (child-process `--apply` lands the
   marker; a second pass plans nothing; the running-stack arm refuses).
   Runbook: `docs/developers/migrations.md` "Running migrations".
-
 - **feat(web): the hub surfaces restructure — flush card-border scrollbars
   and the headers into a pinned in-card top bar.** The main content card's
   generic 800px centered cap pushed every internally-scrolling hub view's
@@ -7835,7 +7575,6 @@ predating this file.
     windowing/shares count pins and the journals Today pressed-register pin
     updated to the new DOM — the count rides `.surface-topbar__count`, the
     pressed register rides the kit Button).
-
 - **chore(migrations): the classes-gallery stored-log migration ran live — 3
   envelopes rewritten, epoch bumped, VERIFY-PASS.** `migrate-class-delete.mts
   --apply` against the production relay: 3 `class.delete` envelopes rewritten
@@ -7847,7 +7586,6 @@ predating this file.
   `relay.db.bak-20261022-091640` (`quick_check` ok); post-restart
   `verify-min.mjs` VERIFY-PASS. The LOCKSTEP-PENDING gate held: GTK `0537d39`,
   Flutter `7b07a01`, CLI `6214b26` converged before the rewrite.
-
 - **docs(changelog): the classes-gallery lockstep converged — GTK `0537d39`,
   Flutter `7b07a01`, CLI `6214b26`.** All three clients now speak the `1423ce2c2`
   contract; the LOCKSTEP-PENDING note in that entry is closed. GTK
@@ -7860,7 +7598,6 @@ predating this file.
   consumes the store applier whole and never issued `class.delete`), 87/87.
   The stored-log migration (`scripts/migrate-class-delete.mts`) is unblocked
   and runs at the operator's next maintenance window.
-
 - **docs(changelog): the WS-admission-ticket lockstep converged — GTK
   `8269285`, Flutter `f9cfe75`, CLI `e8c2c39`.** All three implementations now
   speak the 0ea18fcd5 contract; the LOCKSTEP-PENDING note in that entry is
@@ -7875,7 +7612,6 @@ predating this file.
   Client release tags remain each client repo's own release step.
   - **Verification**: the three client gates as recorded in each repo's
     changelog this day.
-
 - **fix(sync): the test workspace's relay log repaired — 50,001 envelopes the
   relay had accepted but no strict applier could ever apply.** fresh clients syncing the shared test
   workspace wedged ("Backend unreachable — working locally") on a
@@ -7894,8 +7630,6 @@ predating this file.
   - **Verification**: dry-run 50,001 repairable / 0 unknown; post-repair full
     replay VERIFY-PASS; live `verify-min.mjs` VERIFY-PASS; fresh-client boot
     probe against the repaired workspace PROBE-PASS.
-
-
 - **feat(protocol,store,web)!: the classes gallery, the archival `active`
   bit, and the retired `class.delete` op — two lifecycles, never conflated.**
   the app ships a
@@ -7957,7 +7691,6 @@ predating this file.
     replay convergence); web 1952/1952 (gallery, Archived hub, undo-journal
     routing inverses, picker rows, Features tab); `pnpm typecheck` green;
     `pnpm test` full gate green.
-
 - **feat(sync,server)!: WS admission tickets — bearer credentials no longer
   ride any URL; the `?token=` query fallback is retired.** a session token or
   API key in a WebSocket URL was copied into every proxy/access/error log
@@ -7997,7 +7730,6 @@ predating this file.
     no credential in the URL, 404 fail-loud with no reconnect, bad-credential
     onError + retry); `pnpm typecheck` green; `pnpm test` full gate green;
     live: rebuilt `notees-sync`/`notees-web`, `verify-min.mjs` VERIFY-PASS.
-
 - **fix(web): the context-menu flyout actually leaves the DOM on close —
   the mount lifecycle rides our state, not Radix Presence.** an open submenu flyout stayed visible after hovering a
   different menu entry — sometimes. Live-browser probes (Playwright against
@@ -8014,7 +7746,6 @@ predating this file.
     `block-context-menu` suites green (14/14); `tsc --noEmit` clean; the
     Playwright hover probe (8 dwell timings × open→hover-sibling) fails 8/8
     before the fix and passes 8/8 after, against the redeployed stack.
-
 - **chore(docs)!: `releases.md` retired — each client owns its releases; the
   file scrubbed from all of git history (all SHAs changed again).** the main repo documents only that the clients exist —
   `docs/developers/README.md` gains a Clients section (GTK/Flutter/CLI
@@ -8031,7 +7762,6 @@ predating this file.
   - **Verification**: zero refs contain the scrubbed path (verified in a
     fresh mirror clone); the rewritten tip's tree is byte-identical to the
     pre-scrub tip; CLI vendor re-pin gate green (87/87).
-
 - **chore(repo)!: history rewritten — every live compose file scrubbed from
   all of git history; 12 stale merged remote branches pruned; `main`
   protection recreated as a ruleset.** the
@@ -8057,7 +7787,6 @@ predating this file.
   - **Verification**: `git log --all -- <compose paths>` empty locally;
     `main` forced to the rewritten tip; all tags force-updated; ruleset
     active on `refs/heads/main`.
-
 - **chore(deploy): human-readable edge logs — Caddy's console encoder with
   the request/response header dumps filtered out.** The edge's default JSON
   error log dumped every request header (Sec-Fetch-*, Sec-Websocket-Key, …),
@@ -8072,7 +7801,6 @@ predating this file.
   - **Verification**: `caddy validate` against `notees-edge:local` — Valid
     configuration; `docker compose restart notees-edge` + a curl through the
     edge — 200, access line in console format with no header dumps.
-
 - **feat(store,web): the system-extends lock — a system class's extends mapping
   is frozen to the seeded set; deviations fail loud with
   `SystemExtendsLockError`.** the seeded extends
@@ -8107,7 +7835,6 @@ predating this file.
     lock test; web 1948 incl. the read-only corner test). **Lockstep:**
     GTK 870 passed + ruff + mypy; Flutter analyze clean + 679 tests; fixture
     sha256-matched in both (gate 37/37).
-
 - **chore(deploy)!: live deployment files are host-local artifacts — the
   committed `compose.yaml` is untracked; the repo ships the example family
   only.**, now enforced fleet-wide by the
@@ -8131,7 +7858,6 @@ predating this file.
     `.env.example` (rewritten), `docs/developers/deployment.md`, `AGENTS.md`,
     `.agents/skills/notees-operations/references/deployment.md`, and the
     `rosellramos-coding-standards` skill (fleet rule, separate repo push).
-
 - **chore(deploy)!: the repo-root compose IS the deployment — the
   source/stack split retires; one compose file, one project (`notees`), the
   data dir the single host-local override.** Owner decision (2026-10-22):
@@ -8166,7 +7892,6 @@ predating this file.
   - **Verification**: `verify-min.mjs` VERIFY-PASS after the migration;
     `docker inspect` bind source = the live data dir; `notees-ps` lists
     all three containers healthy from a foreign cwd.
-
 - **fix(web): the embedded feed's "Open page" button reveals on title-row
   hover.** the button beside the journal/calendar
   feed titles shows only while the pointer is on the title row — hidden at
@@ -8182,7 +7907,6 @@ predating this file.
     `apps/web/test/hover-press-register.test.ts` (the reveal contract).
   - **Verification**: the affected suites (48 tests across the four files);
     the FULL web suite green.
-
 - **fix(web): menus and floating chrome ride the elevated popup register —
   the surface-container-low blend the calendar-popup fix solved returns; plus
   context-menu flyouts close when the pointer leaves the menu.** the context menu and its Copy flyout rendered on a
@@ -8210,7 +7934,6 @@ predating this file.
     `apps/web/test/submenu-chevron.test.tsx` (register assertions moved to
     -high + elevation-2; new tests: leave-closes-flyout, flyout-is-DOM-child).
   - **Verification**: the affected suites; the FULL web suite green.
-
 - **chore(deploy): the compose projects are named explicitly — `notees` prod,
   `notees-dev` template — closing the 2026-10-20 hijack class structurally.**
   Owner decision (2026-10-22): the repo-root `compose.yaml` names its project
@@ -8228,7 +7951,6 @@ predating this file.
     compose.yaml` (live stack — host-local, the stacks repo gitignores
     `notees/`), `docs/developers/deployment.md`, `AGENTS.md`, `~/.bashrc`
     (host-local).
-
 - **fix(web): embedded feed titles (journal + calendar day pages) are plain
   headings again — navigation rides an explicit "Open page" button.** the headline-sized clickable title with its state-layer
   hover read as noise. The embedded render of `PageHeaderChrome` now renders
@@ -8246,7 +7968,6 @@ predating this file.
     `apps/web/test/hover-press-register.test.ts` (the register test now asserts
     the title carries NO hover rule — the old contract is inverted).
   - **Verification**: `pnpm typecheck && pnpm test` from the repo root.
-
 - **feat(web): the New-node picker offers “No class,” and its search text
   joins the picker row grid.**“Blank page”
   named the page’s content; the choice is classification, so the pinned
@@ -8271,7 +7992,6 @@ predating this file.
     (167 files); an offline Vite visual probe at 1440/768/390 measured
     input/label x delta `0` and search/result icon-center delta `0`, with
     “No class” first on the empty query and absent after typing.
-
 - **fix(web): anchored picker search bars ride the compact sm register — the
   New-node class picker stops wearing the oversized md pill.** the sibling `SearchField
   size="sm"` fix had only reached the collection filter bar, so every
@@ -8295,7 +8015,6 @@ predating this file.
     files); an offline Vite visual probe at 1440/768/390 measured the
     New-node class-picker field at 30px with the `search-field--sm`
     register and the create row intact.
-
 - **fix(web): two ring sizes, one style — the classic 16px halo returns on
   dot bullets; icon bullets keep the 28px circle.**"would having the old ring size for non-icon bullets look
   bad? so, two ring sizes" — answered no and shipped: the ring exists to
@@ -8313,7 +8032,6 @@ predating this file.
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1938 passed (167 files), run once
     the parallel session's section-props refactor landed.
-
 - **feat(web): no section header counts anywhere — the active tab's badge is
   the one count, and every section counts the same way (displayed nodes).**
  
@@ -8339,7 +8057,6 @@ predating this file.
     `queries.md` follow.
   - **Verification**: `pnpm --filter @notees/web typecheck` and the full web
     suite green.
-
 - **fix(web): the dot glyph returns to 6px — the register growth belongs to
   the icon bullets.** collapsed nodes with icons
   "look nice", but the non-icon bullets read too big. The cause: the dot
@@ -8353,7 +8070,6 @@ predating this file.
     `apps/web/test/view-modes.test.tsx` (the CSS spec follows).
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — see the run below.
-
 - **fix(web): the collapsed ring settles back at 28px — the 40px circle read
   too big; the grown bullet element stays.**"the outer circle was fine, now it's too big." The
   ring returns to the 28px the owner had approved, riding the 46px bullet
@@ -8365,7 +8081,6 @@ predating this file.
     `apps/web/test/view-modes.test.tsx` (the CSS spec follows).
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1938 passed (167 files).
-
 - **feat(web): the hosted tab bar's active tab carries a total-count badge —
   the filter panel's "N of M nodes match" foot line is gone.** instead of the "109 of 109 nodes match" line on the
   structured-filter panel's foot row, the count shows as a small badge beside
@@ -8387,7 +8102,6 @@ predating this file.
     + `docs/developers/architecture.md` (the count's new home).
   - **Verification**: `pnpm typecheck` green; `pnpm test` green (web suite:
     filter-builder, section-views, filter-layer among them).
-
 - **fix(web): the bullet register grows ≥50% (46px box, 40px ring, 9px
   dot), and the group-items separation deepens to match.**"the bullet element could be even larger — at least 50%
   larger." `.nt-bullet` 30 → 46px, `.nt-bullet-ring` 28 → 40px (the halo
@@ -8409,7 +8123,6 @@ predating this file.
     failures seen across full runs (block-dnd, filter-builder,
     section-views — none touched by this CSS-only slice) all pass in
     isolation, the known concurrent-suite contention flakes.
-
 - **fix(web): the bullet and its collapsed ring grow once more (30px/28px),
   and grouped rows separate from the group titles.** the first row's ring
   crowded the group header, and the bullet element still read small.
@@ -8427,7 +8140,6 @@ predating this file.
     view-modes.test.tsx` (the CSS spec follows).
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1938 passed (167 files).
-
 - **fix(web): the fleet Button is the rounded square again — the visible-box
   reset lost its specificity race.** the topbar
   buttons "are no longer a square with rounded corners". Measured live with
@@ -8447,7 +8159,6 @@ predating this file.
   - **Verification**: `node scripts/screenshots/button-shape-probe.mjs`
     against the rebuilt stack — topbar buttons measure 32x32,
     border-radius 6px; `pnpm typecheck` + the apps/web suite green.
-
 - **fix(web): class pills answer edits from read-only reference rows, and
   the whole clickable pill wears one cursor.** Two (1) hovering a row's class pill
   showed nothing — no ×, no "+", no response. The block row rendered the
@@ -8469,7 +8180,6 @@ predating this file.
     `apps/web/src/features/collection/types.ts` (the `readOnly` contract
     doc), `docs/features/pages.md` (the class-pills clause).
   - **Verification**: `pnpm typecheck` + the apps/web suite green.
-
 - **fix(web): the collapsed bullet ring is ONE soft outer circle, grown past
   the class-icon glyph — the bullet element grows to hold it.**"on icons there should be the same outer
   circle as in collapsed bullets — make it bigger if needed, and also if
@@ -8490,7 +8200,6 @@ predating this file.
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1938 passed (167 files; the CSS
     spec reads app.css cwd-relative, the condensed precedent).
-
 - **refine(web): the block row's "+ Add class" pill moves to the start of
   the classes cluster — hover-reveal no longer shifts the pills.**, the follow-up to the no-permanent-gap fix: with the
   add pill at the END of the chips, the hover reveal grew the right-pinned
@@ -8511,7 +8220,6 @@ predating this file.
     passes it), `docs/features/pages.md` (the block-row column contract
     clause).
   - **Verification**: `pnpm typecheck` + the apps/web suite green.
-
 - **refine(web): the AND/OR control settles on the original
   overlapping-circles icons.** Owner reversal, same day (2026-10-21): the
   bold-uppercase AND/OR text segments "look terrible" — the control returns
@@ -8524,7 +8232,6 @@ predating this file.
   - **Verification**: `npx tsc --noEmit`; `filter-builder` + `graph-view`
     46/46 green (the logic radios keep their accessible names, assertions
     unchanged).
-
 - **feat(web): the outline list opens pages collapsed — a page row with
   child blocks starts folded behind its chevron.**"in outline nodecollection view mode always show pages in
   collapsed state by default (when they actually have child blocks, of
@@ -8554,7 +8261,6 @@ predating this file.
     the fold/expand toggle and the block-rows-stay-expanded carve-out).
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1936 passed (167 files).
-
 - **fix(web): the collapsed default generalizes to every row with children
   — blocks included — and reaches the backlinks-style reference rows.**
   the backlinks section still
@@ -8579,7 +8285,6 @@ predating this file.
     covers the reference subtree's folded root).
   - **Verification**: `pnpm --filter @notees/web typecheck` and the FULL
     `pnpm --filter @notees/web test` — 1937 passed (167 files).
-
 - **fix(web): the reference sections render as ordinary outline sections,
   and a collapsed class-icon bullet wears its ring again.** Two
   owner reports from reviewing the collapse work (2026-10-21).
@@ -8618,7 +8323,6 @@ predating this file.
     (the jsdom builtin seam, the condensed precedent — view-modes then
     passes whole), and the known intermittent block-dnd preview-count flake
     (27/27 in isolation).
-
 - **fix(web): text buttons render at their size tokens fleet-wide — the
   48dp floor moves to the invisible hit-area overlay.**"the add condition button also has too much top and bottom
   padding, so the problem is global" — the fleet Button's base carried
@@ -8653,7 +8357,6 @@ predating this file.
   - **Verification**: `npx tsc --noEmit` (apps/web), css-token-drift, and
     the FULL `pnpm --filter @notees/web test` — 1934 passed, with only the
     known intermittent block-dnd preview-count flake (27/27 in isolation).
-
 - **fix(web): the block row's "+ Add class" pill stops reserving a permanent
   gap.** the icon-only add pill rides the chips
   hover-reveal contract (`Pill.css` fades it out until the chips group is
@@ -8671,7 +8374,6 @@ predating this file.
     `.nt-block-classes`), `docs/features/pages.md` (the block-row column
     contract clause).
   - **Verification**: `pnpm typecheck` + the apps/web suite green.
-
 - **refine(web): the ALL/ANY logic control returns to the bordered
   SelectionButton with gate symbols — and the mode-switch vs settings
   interaction ruling is documented.**, the
@@ -8704,7 +8406,6 @@ predating this file.
   - **Verification**: `npx tsc --noEmit` (apps/web) and
     `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
     test/filter-layer.test.tsx test/graph-view.test.tsx` — 77 tests green.
-
 - **refine(web): Blocks/Raw back
   to the icon SelectionButton, Match ALL/ANY becomes the v1 ToggleSwitch.**
  , one day after the text-segment experiment: the
@@ -8732,7 +8433,6 @@ predating this file.
   - **Verification**: `npx tsc --noEmit` (apps/web) and
     `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
     test/filter-layer.test.tsx test/graph-view.test.tsx` — 77 tests green.
-
 - **refine(web): the structured-filters panel chrome ruling — both switches
   on one top row, the count line at the bottom-right, "nodes" wording; the
   head-row controls are TEXT segments.** Owner layout ruling (2026-10-21)
@@ -8773,7 +8473,6 @@ predating this file.
   - **Verification**: `npx tsc --noEmit` (apps/web), and
     `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
     test/filter-layer.test.tsx test/graph-view.test.tsx` — 77 tests green.
-
 - **feat(web): the structured-filters panel gains "Save as tab" and a
   blocks ⇄ raw AST toggle.** Two the escapes from
   the transient filter's transience. (1) **Save as tab**: a quiet button on
@@ -8815,7 +8514,6 @@ predating this file.
     `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
     test/filter-layer.test.tsx` — 60 tests green; the section-views,
     graph-view and view-modes suites stay green.
-
 - **fix(web): the dynamic subgroup's card shows its boundary.** the nested query builder's limits must read. The subgroup
   rode the kit Card's `filled` variant (`bg-surface-variant`, border-less)
   and blended into the dark structured-filters panel — "1 condition" and
@@ -8827,7 +8525,6 @@ predating this file.
   - **Verification**: live probe (`scripts/screenshots/pills-probe.mjs`):
     the nested card computes a 1px `outline-variant` border; web `tsc` and
     the filter suites (58 tests) green.
-
 - **feat(web): the filter builder's class "is" inherits class extends, and
   parent/page/root carry single-value is/is-not.** Two. (1) With classes, BOTH operators ride the extends-aware
   closure membership — "class is fuente" now matches a node classed book
@@ -8860,7 +8557,6 @@ predating this file.
   - **Verification**: `npx tsc --noEmit` (apps/web) and
     `npx vitest run test/filter-builder.test.tsx test/filter-query.test.ts
     test/filter-layer.test.tsx` — 58 tests green.
-
 - **fix(web): the nested filter groups' Add-condition menu opens at a real
   width — the dynamic subgroup's menu was an invisible 0-width popup.**
   Live-only bug (jsdom has no layout, so the gate never saw it): nested
@@ -8877,7 +8573,6 @@ predating this file.
     inside the Class dynamic card, Add condition opens the visible menu,
     Links inserts, flips dynamic — two nested cards. `filter-builder` 27/27;
     web `tsc` green.
-
 - **feat(web): the filter block builder's node-target values ride pill
   clusters, the single-target families go multi-value, and Class/Tags gain
   the static/dynamic mode.** node-target filter
@@ -8952,7 +8647,6 @@ predating this file.
   - **Verification**: store suite 625 green (4 new tests × both adapters);
     full gate `pnpm -r build` + `pnpm typecheck` + `pnpm test` green (166
     files / 1912 tests).
-
 - **refine(web): every empty table cell reads "Empty" — the placeholder
   ruling settles, and multi-value node/asset cells join the idiom.** the "Add \<name\>" placeholder trialed
   on the picker/scalar cells reads like a button label, not a state — date
@@ -8973,7 +8667,6 @@ predating this file.
     empty multi node/asset cells read Empty, open the picker from the
     placeholder, and render no add pill before the first value).
   - **Verification**: web `tsc` green; `view-modes.test.tsx` 45/45.
-
 - **fix(web): the Created/Edited stamp never overflows into the hover-
   revealed Open button.** on hover
   the day-stamp's Open button overlapped the date text. The stamp cells
@@ -8991,7 +8684,6 @@ predating this file.
   - **Verification**: live probe against the deployed stack (test
     workspace): rest opacity 0 / absolute, hover padding 12px → 40px,
     no overlap; screenshot `datebtn-probe.jpg`.
-
 - **feat(web): table cell chrome — the pinned Open button everywhere a cell
   names a target, "Add <name>"/"Empty" empty states, asset cells with the
   asset buttons.** text cells with a carrier should
@@ -9031,7 +8723,6 @@ predating this file.
     date-stamp spec asserts a single button in the cell and its day-page
     navigation; the text spec asserts the carrier's Open button navigating
     to the page).
-
 - **perf(web): the node picker's search coalesces keystrokes on async
   clients — one ranked-index query per pause, not per keystroke.** on a huge workspace: the FTS itself is fast, but each
   keystroke cost a worker round-trip over the full index. The query that
@@ -9052,7 +8743,6 @@ predating this file.
     (the coalescing regression test over the worker-shaped shim).
   - **Verification**: web `tsc` green; full gate `pnpm typecheck && pnpm
     test` green; `verify-min.mjs` VERIFY-PASS after the web image rebuild.
-
 - **fix(web): every dropdown menu item wears the disabled look — and none of
   them click.** The cmdk rebuild (2026-10-19, the catalog-combobox Dropdown)
   inherited the shadcn `CommandItem` classes `data-[disabled]:opacity-50
@@ -9080,7 +8770,6 @@ predating this file.
     on "contains" left the operator at "is"; after — the option rows render
     full-opacity and clickable. jsdom suites green (filter-builder,
     filter-layer, filter-query, the new register gate).
-
 - **refine(web): the Class filter block defaults to "contains", not "is".**
   the m2m families' block creation defaults to the membership
   reading. For **Class** the default condition is now `class` (closure
@@ -9099,7 +8788,6 @@ predating this file.
     test/filter-layer.test.tsx test/filter-query.test.ts` green — the
     Class-default test now reads: default "contains" keeps all three rows,
     switching to "is" drops the double-classed row.
-
 - **fix(web): the node picker searches live, says when it's thinking, links
   what it creates — and the sigils fire after punctuation.** Three reported
   defects, one root each. (1) *Stale results:* the picker never subscribed to
@@ -9136,7 +8824,6 @@ predating this file.
     test` green (166 files / 1911 tests), incl. four new picker tests over a
     worker-shaped client shim; `verify-min.mjs` VERIFY-PASS after the web
     image rebuild.
-
 - **feat(web): table property cells — multi-value node properties get the
   pill cluster; text cells become carrier block rows.** in table view there was no way to edit or add nodes to a
   node-typed property (an Authors column rendered read-only, first value
@@ -9171,7 +8858,6 @@ predating this file.
     rewritten text-cell spec exercises placeholder-create → autoEdit →
     typed commit → emptied unset; the new spec exercises pill render,
     per-slot × removal, picker append at the next free idx).
-
 - **fix(web): the add pills wear one cursor — the label rides the button's
   pointer.** Hovering an `AddPill` ("+ Add class/tag/property/alias…") split
   the cursor: pointer over the button's padding, the default arrow over the
@@ -9185,7 +8871,6 @@ predating this file.
   - **Verification**: CSS-only change; specificity check
     (`.pill--add .pill__text` 0-2-0 beats `span.pill__text` 0-1-1 regardless
     of stylesheet load order); web `tsc` green.
-
 - **fix(web): the checkbox box is a square again — the width scale registers
   xs/sm/md.** The fleet Checkbox and Radio size their boxes `h-xs w-xs` (the
   sm/md/lg scale rides the `--height-xs/sm/md` tokens, the height register's
@@ -9202,7 +8887,6 @@ predating this file.
     alongside `.h-xs{height:var(--height-xs)}` (the table view's selection
     checkbox now renders a 24×24px rounded square at size sm); web `tsc` and
     the css-token-drift gate green.
-
 - **refine(web): the table column default IS the minimum.** one
   register instead of two — a column renders at its default share and a
   drag widens it from there, never narrows below it; the separate 72px
@@ -9215,7 +8899,6 @@ predating this file.
     now clamps at 162px (the property column's 18ch default) instead of
     72px; widening and the 30px search field unchanged. `verify-min.mjs`
     VERIFY-PASS.
-
 - **feat(web): table columns have default + minimum sizes and draggable
   dividers; the hosted tab bar's search field rides the sm height.**
  . The table switched to **fixed layout with a
@@ -9254,7 +8937,6 @@ predating this file.
     shape scrolls with the name lane at 288px; the sparse shape distributes
     spare width proportionally (name 436px, dominant). `verify-min.mjs`
     VERIFY-PASS after the scoped `notees-web` rebuild.
-
 - **feat(web): table name cells ARE block rows — links render as links,
   click edits inline, the hover tint is gone.**.
   The collection table's Name cell retired its flattened-text button (a
@@ -9304,7 +8986,6 @@ predating this file.
     rebuilt (clean worktree at the slice commit — the checkout carried the
     parallel session's uncommitted edits) + stack recreated from the live
     stack folder, `verify-min.mjs` VERIFY-PASS.
-
 - **fix(web): client-side name search folds diacritics — `video` finds the
   class "Vídeo".** The ranked FTS index has folded diacritics since store
   schema v19, but the pickers' client-side name filters compared raw
@@ -9350,7 +9031,6 @@ predating this file.
     identity-row tests now assert the name is NOT a button).
   - **Verification:** `pnpm typecheck` clean repo-wide; `pnpm test` green;
     `verify-min.mjs` VERIFY-PASS after the scoped `notees-web` rebuild.
-
 - **feat(web): class-property rows — the name-hover tint is gone, and hover
   now reveals a COG beside the REMOVE ×.**. The
   direct-bindings row of the class page's "Class properties" section lost
@@ -9373,7 +9053,6 @@ predating this file.
     test pins the cog riding where the × is locked). `pnpm --filter
     @notees/web typecheck` clean. Redeployed: `notees-web` rebuilt + stack
     recreated from the live stack folder, `verify-min.mjs` VERIFY-PASS.
-
 - **feat(web): breadcrumbs join the plain-text chrome labels — and the
   derivation gets one shared home (`plainTitleOf`).**, rounding out the sidebar slice.
   - **`plainTitleOf(node, resolveClassName?)`** (dateDisplay.ts, beside
@@ -9398,7 +9077,6 @@ predating this file.
     new `plainTitleOf` units (link strip, cap order, chip resolution, date
     branch) and breadcrumb cases (markdown title, mixed chip title) ride
     alongside the existing chip-only crumb tests.
-
 - **fix(scripts): `verify-min.mjs` self-locates its config — and the stale
   root-copy duplicate is gone.** The smoke failed when run outside
   `scripts/screenshots` (a second, older `scripts/verify-min.mjs` with the
@@ -9417,7 +9095,6 @@ predating this file.
   the invocation in `notees-operations` SKILL.md + `references/deployment.md`
   and `references/health-checks.md` matches reality; `scripts/verify-min.mjs`
   (stale duplicate) deleted. Repo-only slice — no redeploy.
-
 - **refactor(web): `displayNameForSettings` → `nodeDisplayName`.** The old
   name promised a settings-only helper; it is the general setting-aware
   display-name funnel for a node — the dateFormat device setting applied to
@@ -9427,7 +9104,6 @@ predating this file.
   rename, zero behavior change (106 references across 33 files, all in
   apps/web). Verification: `pnpm typecheck` clean repo-wide; `pnpm test`
   green. No redeploy — no runtime delta.
-
 - **chore(compose): the redeploy instruction is plain docker compose — the
   Komodo-enforcement comment is gone.**, zero
   runtime effect. The template header no longer routes updates through a
@@ -9435,7 +9111,6 @@ predating this file.
   folder, never the checkout), as does the update procedure itself (`docker
   compose build <services> && docker compose up -d` from the stack folder).
   The fleet host's live compose copy carries the same edit.
-
 - **feat(web): the sidebar's Favorites/Recents lists move to
   `features/sidebar/` — and their row labels go plain-text.**, one slice.
   - **Plain-text row labels**: the Favorites and Recents rows
@@ -9515,7 +9190,6 @@ predating this file.
     an explicit link with the paren-bearing href in angle brackets) — the
     old assertion passed only coincidentally, via the un-linkified flattened
     title in the frontmatter/heading.
-
 - **feat(protocol,store,web)!: retire the `readonly` render contract —
   derived from the system list; class-view chrome cleanup; aliases hide when
   empty.** Three owner asks, one slice.
@@ -9559,7 +9233,9 @@ predating this file.
     clean — no seed ever set the flag; no epoch bump needed); the scoped
     redeploy + verify-min smoke — VERIFY-PASS. Lockstep: GTK b73a08e (854
     tests) + Flutter f086dd4 (668 tests).
+
 ## 2026-10-21
+
 - **fix(web): the page header title row enters edit on a click anywhere in
   the row — the whole row is the click target, like a block.**
  "make page header enter edit mode when clicking
@@ -9583,7 +9259,6 @@ predating this file.
   - **Verification**: `pnpm --filter @notees/web test` (title-editor suite
     green, the new CSS-spec test included) and `pnpm --filter @notees/web
     typecheck`.
-
 - **fix(web): edit mode re-resolves mention labels — a stale captured text
   (import-era nested-link UUIDs baked in) never surfaces in the editor.**
   Read mode always rendered mentions from the label chain (the one-off
@@ -9837,6 +9512,7 @@ predating this file.
   the trigger when needed. Verification: `pnpm build` in `apps/web`.
 
 ## 2026-10-20
+
 - **docs: the person-facing docs split from two monoliths into a
   feature-centric structure (the Capacities-docs precedent).** `docs/usage.md`
   (install + CLI + web app + API in one 581-line page) and `docs/ux.md` (the
@@ -10423,7 +10099,6 @@ predating this file.
   shows no thread). Probe: step 10 zooms into A, edits a child, and
   asserts the thread starts at the focused block's bullet and ends before
   the child's icon. Docs: NodeView/ReferenceSubtree/EditThread headers.
-
 - **fix(web): the SPA stops serving stale app versions after a redeploy —
   index.html is never cached, hashed assets are immutable.** 
   2026-10-20: "I redeployed and still see the old checkbox" — the
@@ -10468,7 +10143,6 @@ predating this file.
   Flutter lockstep. Verified: `pnpm typecheck` + `pnpm test` green (incl. the
   fixture replay on both adapters); LOCKSTEP-PENDING on the GTK/Flutter
   ports (`releases.md`).
-
 - **feat(web): checkboxes wear the same rounded square as the buttons.**
   (the task checkbox "looked weird" — a 4px
   corner against the bar's new register). Both checkbox primitives move
@@ -10556,7 +10230,6 @@ predating this file.
   survives the pointer wandering (it out-specifies the row-hover rule)
   and clears with the menu. Probe: right-click opens the anchored
   highlight, Escape clears it. Docs: BlockRow header.
-
 - **feat(web): the thread circumvents in-path icons — an inward rounded
   corner drops the vertical into the gap left of an intermediate glyph.**
   ("any way we could circumvent in-path icons
@@ -10572,7 +10245,6 @@ predating this file.
   dot). Probe: the intermediate-glyph assertions now expect the turn +
   arm + inward-corner quartet and the gap-column descent (3 quadratic
   joins for an iconed chain). Docs: EditThread/BlockRow headers.
-
 - **feat(web): the top bar rides one register — and the ad-hoc icon button
   retires app-wide.** ("the rest of the icons are
   bigger and look out of place" next to the sidebar toggle). The mismatch:
@@ -10603,7 +10275,6 @@ predating this file.
   the title line. Token-only, header-scoped (`.nt-page-header
   .nt-tags-row`); block-level tags rows untouched. Gate green
   (typecheck + 1810 tests).
-
 - **feat(web): chevrons reveal on hover only — no resting chevron on
   editing blocks — the thread arms end before class icons, and the path
   bullets wear the accent at resting size.**.
@@ -10628,7 +10299,6 @@ predating this file.
   (path vs non-path), and glyph-endpoint assertions (arm-before-icon on
   the editing target and an intermediate link, the hidden jog) join the
   overlay suite; gate green.
-
 - **feat(web): every button is the rounded square, and icon-only buttons
   hug their icon.** Two. **(1) Shape:** the fleet
   button radius register (`--radius-button-lg/sm`, the 2026-10-19
@@ -10687,7 +10357,6 @@ predating this file.
   row internals not taken — the block-level grid already removes every
   hand-derived constant; noted as the escalation path if the row chrome
   ever needs track alignment.
-
 - **feat(web): the indent rails ride the parent bullet's center column —
   the 2026-10-15 alignment math was 2px off — and the edit thread paints
   above the rails, under the dots.**, revealed by
@@ -11041,7 +10710,6 @@ predating this file.
   (Badge/Separator/Spinner/Skeleton 59; Checkbox/Radio 132;
   Input/SearchField 87; BooleanToggle 76; Slider 29; CodeTextarea 16;
   SelectTrigger 43); the shim removals 1,413 + 28.
-
 - **refactor(web): delete the `MetadataSection.tsx` compat barrel — the
   metadata feature folder is the only surface.** The shim's seven importers
   were already re-pointed when the panel moved to `features/metadata/`
@@ -11055,7 +10723,6 @@ predating this file.
   feature-folder stylesheets stay gated (all 12 checks green).
   **Verification:** `npx tsc --noEmit` clean; the drift gate 12/12; the
   properties-panel + recurrence suites (28 tests) green.
-
 - **refactor(core): the `workspace-client.ts` compat shim is removed — the
   folder module is the only import surface.** The thin file
   `src/core/workspace-client.ts` (re-exporting `workspace-client/index.ts`)
@@ -11067,7 +10734,6 @@ predating this file.
   load-bearing). No behavior change.
   **Verification:** `npx tsc --noEmit` clean; the 120 suites touching the
   module (1,413 tests) green.
-
 - **refactor(web): extract the value-column controls out of
   FilterBlockBuilder — `components/filterBlockValueControls.tsx` (Stage D,
   extraction 2 of 2).** The typed per-family pickers move verbatim to
@@ -11083,7 +10749,6 @@ predating this file.
   suites (filter-builder, filter-layer, filter-query, query-block,
   query-builder-guard, search-page, search-palette, child-query — 115
   tests) green.
-
 - **refactor(web): extract the condition model out of FilterBlockBuilder —
   `components/filterBlockModel.ts` (Stage D, extraction 1 of 2).** The
   v1/Odoo register ([type][operator][value][mode]) as pure functions
@@ -11097,7 +10762,6 @@ predating this file.
   (2,099 → 1,255 lines). No behavior change.
   **Verification:** `npx tsc --noEmit` clean; the filter/query suites
   (78 tests) green.
-
 - **refactor(web): drop the dead duplicate switch cases in
   FilterBlockBuilder.** Three `case` labels could never evaluate — each
   duplicated an earlier label in the same switch, so the earlier branch
@@ -11116,7 +10780,6 @@ predating this file.
   --noEmit` clean; the filter/query suites (filter-builder,
   filter-layer, filter-query, query-block, query-builder-guard — 78
   tests) green.
-
 - **refactor(web): extract the viewport anchors out of BlockTextEditor —
   `features/block-editor/anchors.ts` (Stage D, extraction 3 of 3).**
   `selectionAnchor` (selection-end center, the verb popover) and
@@ -11131,7 +10794,6 @@ predating this file.
   No behavior change.
   **Verification:** `npx tsc --noEmit` clean; the four editor suites
   (58 tests) green.
-
 - **refactor(web): extract the capture model out of BlockTextEditor —
   `features/block-editor/captureModel.ts` (Stage D, extraction 2 of 3).**
   The trigger-gesture state machine moves verbatim to its own module:
@@ -11145,7 +10807,6 @@ predating this file.
   imports the names back (2,328 → 2,223 lines). No behavior change.
   **Verification:** `npx tsc --noEmit` clean; the four editor suites
   (58 tests) green.
-
 - **refactor(web): extract the code-block surface out of BlockTextEditor —
   `features/block-editor/codeBlock.tsx` (Stage D, extraction 1 of 3).**
   `codeTokenOf` (the single-code_block-token probe) and `CodeBlockEditor`
@@ -11156,7 +10817,6 @@ predating this file.
   extraction. No behavior change.
   **Verification:** `npx tsc --noEmit` clean; code-block-editing +
   outliner-editor (30 tests) green.
-
 - **refactor(web): the block editor relocates to `src/features/block-editor/`
   — Stage D monolith split, move slice.** `ui/BlockTextEditor.tsx` (2,449
   lines, the last Stage D monolith) moves verbatim to the second
@@ -11171,7 +10831,6 @@ predating this file.
   **Verification:** `npx tsc --noEmit` clean; the editor suites
   (outliner-editor, table-nodes, code-block-editing, title-editor —
   58 tests) green.
-
 - **refactor(web): the metadata panel relocates to `src/features/metadata/`
   — the tree realignment's first feature folder.** The
   `ui/components/metadata/` folder module (the ui/components stage of the
@@ -11190,7 +10849,6 @@ predating this file.
   class-view, node-aliases, properties-panel, property-icon-button,
   property-, property-view, system-class-deploy-bindings,
   text-property-blocks, recurrence — 120 tests).
-
 - **refactor(core): the workspace-client's inheritance chain becomes
   composition — pure structural conversion, no behavior change.** The
   folder-module split's intermediate checkpoint (a
@@ -11219,7 +10877,6 @@ predating this file.
   system-class-deploy-bindings, dates, block-backlinks) all green after
   each (127 tests); the public method surface mechanically diffed against
   the chain (109 names identical).
-
 - **refactor(web): `MetadataSection.tsx` (3,156 lines) becomes the
   `components/metadata/` folder module — pure moves, no behavior change.**
   The metadata/properties panel is user-visible chrome, so the slice is
@@ -11282,7 +10939,6 @@ predating this file.
   undo-journal, sync-status-guard, sync-details-modal, clone-engine,
   system-class-deploy-bindings) green; full `npx vitest run` green
   (1,813 tests incl. the untracked zz-dbg scratch files).
-
 - **refactor(web): `ui/app/` gains its public-surface barrel.**
   `src/ui/app/index.ts` re-exports the family's public surface — the 16
   modules App.tsx, BootForm, and the tests consume (storage, routing,
@@ -11294,7 +10950,6 @@ predating this file.
   the barrel can't become a cycle. No behavior change.
   **Verification:** `npx tsc --noEmit` clean (no circular-import type
   errors); app-smoke/banner/routing/settings suites green.
-
 - **refactor(web): the boot-flow hook monolith dissolves — `useBootFlow`
   composes `useServerProbe` + `useAuthFlow`.** The App.tsx split's own
   assessment flagged the 438-line `useBootFlow` (a ~25-member state bag) as
@@ -11313,7 +10968,6 @@ predating this file.
   **Verification:** `npx tsc --noEmit` clean; the boot/app-mount suites
   (app-smoke, banner, settings, tab-title, focus-mode + the `ui/app/`
   consumers) all green.
-
 - **refactor(web): App.tsx becomes the composition root — the monolithic
   shell splits into `ui/app/` modules.** App.tsx shrinks from 2,834 lines
   (~207 functions) to 767: the device-local storage seam (`storage.ts`),
@@ -11332,7 +10986,6 @@ predating this file.
   **Verification:** `npx tsc --noEmit` clean; the full web suite (1,813
   tests) green; dev-server smoke captured at 390/1440 (boot wall +
   offline-in-process shell render).
-
 - **docs(register): the custom-primitive-layer exception retires — the
   catalog migration is the record.** `.agents/design-overrides.md` (the
   per-project deviation register) replaces the "catalog adoption at touch
@@ -11348,7 +11001,6 @@ predating this file.
   wrapper architecture, the drift gate's class half, and the bridge
   fixture. No runtime behavior. **Verification:** docs only; the gates
   they describe are green in their slices.
-
 - **feat(web): the design-bridge fixture — computed-behavior proof across
   themes, accent switches, and interaction states.** The shadcn bridge's
   CI half lands: `/__design-bridge-fixture` (renders instead of the app —
@@ -11375,7 +11027,6 @@ predating this file.
   suite passes (observed green across the theme scenarios; token
   resolution, hover overlay, focus ring, contrast, and the accent seam all
   asserted by computed value in dark/light/teal).
-
 - **feat(web): the six fleet primitives migrate to the normalized catalog —
   Button, TextField, Card, Tabs, ToggleSwitch, Modal become thin wrappers,
   their CSS retires.** The third slice of the shadcn-alignment ruling. Every
@@ -11426,7 +11077,6 @@ predating this file.
   unmodified HEAD; typecheck carries only the 3 pre-existing App.tsx
   errors (same baseline); `vite build` green with the token utilities in
   the bundle.
-
 - **feat(web): the normalized shadcn catalog lands — 20 components under
   `src/components/ui/`, tokens-only.** The second slice of the 2026-10-19
   shadcn-alignment ruling: button, input, textarea, label, card, dialog,
@@ -11452,7 +11102,6 @@ predating this file.
   theme-key utility resolves to a config key); `tailwindcss` CLI emits
   every cited utility; typecheck adds zero new errors; full web suite
   re-run in the migration slice.
-
 - **feat(web): the shadcn bridge lands — Tailwind wired to the tokens, the
   alias layer, and the class half of the drift gate.** ("full shadcn alignment and implementation") starts here: the
   catalog alignment program retires the custom-primitive-layer exception
@@ -11479,7 +11128,6 @@ predating this file.
   green; typecheck carries three pre-existing `App.tsx` errors that also
   fail on unmodified HEAD (another session's in-flight work — reported, not
   touched).
-
 - **fix(web): the sidebar foot is the three-column layout it should be
 .** The identity restore shipped with two CSS
   regressions: `.nt-profile-text` (the column layout + truncating buffer
@@ -11495,7 +11143,6 @@ predating this file.
   built CSS (screenshot + geometry: badge straddles the rim, two stacked
   rows, email ellipsizes clear of the gear, gear flush to the row's right
   edge); live screenshot on the deployed stack.
-
 - **fix(web): the sidebar profile row wears the identity again; the
   settings gear returns.** The
   account-popup slice made the bottom-row trigger avatar-only; the owner
@@ -11512,7 +11159,6 @@ predating this file.
   suites green (sidebar-menus incl. the identity-row + badge-anchor
   assertions, settings-modals incl. the gear's direct-open); docs
   aligned; live screenshot check on the deployed stack.
-
 - **feat(web): picker recents, node-link icon alignment, the account popup
   (sync badge, Shares hub, Trash relocation).** Four
   ed UI slices in one pass. **(1) Node pickers open to your
@@ -11553,6 +11199,31 @@ predating this file.
   open / empty / retry, tab-title Shares case, topbar/sync prop fallout);
   `docs/ux.md` (sync-dot section, node-picker paragraph) + `docs/usage.md`
   (account popup, Shares hub, picker recents, settings entry) updated.
+- **feat(web): the query block's identity is READONLY — the field → operator
+  → value register.** The block's TYPE column was a
+  dropdown that could morph the whole row into another family, and the
+  PROPERTY family showed an operator list computed for an UNSELECTED
+  property, with the property picker buried in the value column ("the
+  properties query block is weird — the mode selector before a property is
+  even selected"). The owner proposed the Notion/Odoo register, and the
+  reference check agreed: Odoo's Add Custom Filter reads `[Field] [Operator]
+  [Value]` with no rule morphing (delete + re-add), Notion reads `[Property]
+  [Condition ▾] [Value]` with the condition list scoped to the property
+  type, and Airtable/Metabase/Retool/Jira's structured builder carry the
+  same field-first triplet. Now: the TYPE slot renders a static label naming
+  the family (the SelectTrigger box register, muted, no chevron — identity,
+  not a control); the row kind changes only by delete + re-add through the
+  add menu (the morph machinery and the FAMILY dropdown register are gone).
+  The PROPERTY family is the carved-out exception: the property (schema)
+  dropdown rides the type slot — the row reads `[Property ▾] [Operator ▾]
+  [Value]`, the operator list already adapted to the selected schema's type,
+  and nothing operator-shaped renders before a property is picked.
+  PropertyValue lost its schema dropdown (value controls only).
+  **Verification:** `pnpm typecheck` + the filter suites green
+  (filter-builder/filter-query/filter-layer 55 — the property tests drive
+  the picker by its aria label, unchanged); no behavior change to the
+  grammar/evaluators (presentational reorder + readonly identity). Docs:
+  the module docstring + this entry.**
 
 ## 2026-10-17
 
@@ -11584,7 +11255,6 @@ predating this file.
   remainder opens the popup + Escape refocuses, the create-date row links
   in one gesture, mention icons for own- and class-icon targets with an
   iconless negative); `docs/ux.md` + `docs/usage.md` updated.
-
 - **fix(web): outliner keyboard round — the focused block view's ghost, the
   Tab edit-mode drop, cross-block arrow navigation.** Four
   ed editor fixes, one slice. **(1)** The focused block view (the
@@ -11615,36 +11285,6 @@ predating this file.
   cross-block hand-offs both directions, the first-block→title hand-off, the
   title→first-block entries); `docs/ux.md` keyboard table + ghost paragraph
   updated.
-
-## 2026-10-16
-
-## 2026-10-19
-
-- **feat(web): the query block's identity is READONLY — the field → operator
-  → value register.** The block's TYPE column was a
-  dropdown that could morph the whole row into another family, and the
-  PROPERTY family showed an operator list computed for an UNSELECTED
-  property, with the property picker buried in the value column ("the
-  properties query block is weird — the mode selector before a property is
-  even selected"). The owner proposed the Notion/Odoo register, and the
-  reference check agreed: Odoo's Add Custom Filter reads `[Field] [Operator]
-  [Value]` with no rule morphing (delete + re-add), Notion reads `[Property]
-  [Condition ▾] [Value]` with the condition list scoped to the property
-  type, and Airtable/Metabase/Retool/Jira's structured builder carry the
-  same field-first triplet. Now: the TYPE slot renders a static label naming
-  the family (the SelectTrigger box register, muted, no chevron — identity,
-  not a control); the row kind changes only by delete + re-add through the
-  add menu (the morph machinery and the FAMILY dropdown register are gone).
-  The PROPERTY family is the carved-out exception: the property (schema)
-  dropdown rides the type slot — the row reads `[Property ▾] [Operator ▾]
-  [Value]`, the operator list already adapted to the selected schema's type,
-  and nothing operator-shaped renders before a property is picked.
-  PropertyValue lost its schema dropdown (value controls only).
-  **Verification:** `pnpm typecheck` + the filter suites green
-  (filter-builder/filter-query/filter-layer 55 — the property tests drive
-  the picker by its aria label, unchanged); no behavior change to the
-  grammar/evaluators (presentational reorder + readonly identity). Docs:
-  the module docstring + this entry.**
 
 ## 2026-10-16
 
@@ -12428,7 +12068,6 @@ predating this file.
   stubbed clipboard; `render-cascade` zone specs rewritten for the submenu
   flow; export package's `includeFrontmatter` spec incl. the defaults-bag
   pin); web + export packages touched — no wire change.
-
 - **fix(web): offline, every remembered workspace stays listed — the ones
   without a local copy render muted with a cloud-off marker instead of
   hiding.** The registry slice offered only the
@@ -12447,7 +12086,6 @@ predating this file.
   **Verification:** `app-smoke.test.tsx` case updated (Orchard present,
   disabled, muted, titled; the local Garden still opens); `pnpm typecheck`
   + `pnpm test` green. Web-only — no wire touch.
-
 - **feat(web): a block's context menu converts it to a page — a mention link
   block takes its slot, children stay by default, Shift/Ctrl/Cmd-click
   carries them over.** New **Convert to page**
@@ -12499,7 +12137,6 @@ predating this file.
   (offline switcher + manager fall back to the local copy, non-local and
   server-only surfaces stay hidden); `pnpm typecheck` + `pnpm test` green.
   Web-only — no wire touch.
-
 - **fix(web): a server outage on load no longer signs the user out — the
   remembered workspace opens from its local copy and syncs on recovery
 .** Fresh tab with the server down used to land
@@ -12676,7 +12313,6 @@ predating this file.
   exactly like the grip. Gate: `pnpm typecheck` + `pnpm test` green;
   `apps/web/test/block-context-menu.test.tsx` covers text / grip parity,
   the pill carve-out, the editing guard, and the read-only suppression.
-
 - **feat(web): the SearchField gets the modern register — borderless, with
   wrapper-carried focus — and "Add parent" joins the AddPill (owner
   screenshots + ruling 2026-10-15).** The outlined search box stacked three
@@ -12693,7 +12329,6 @@ predating this file.
   hand-rolled dashed "+ Add parent" button (a third add dialect, despite
   comments calling it a pill) now composes `AddPill` — one add-affordance
   register everywhere. Gate: full `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): one add-affordance register — the page-header add actions join
   the dashed AddPill.** "Add icon" / "Add
   description" / "Add aliases" in the page header were plain ghost Buttons —
@@ -12706,7 +12341,6 @@ predating this file.
   their rows, description/aliases/icon at the header — so no new buttons;
   more header chrome would be noise. Gate: full `pnpm typecheck` + `pnpm
   test` green.
-
 - **feat(web): flat everywhere — the right rail loses its shadow.** The nodeview panel layer now speaks
   one register: side/context panels (10-15 audit) + the right rail (this
   slice) carry surface-step + hairline only; elevation remains on transient
@@ -12716,7 +12350,6 @@ predating this file.
   shadows are near-invisible on the dark-first tinted ground, the zero-noise
   rule forbids static-card elevation, and this removes a deviation instead
   of registering a new one. Gate: full `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): the unswept surfaces get their pass — palette/search, calendar
   grids, activity/comments, boot screens — with two density exceptions
   registered.** Three sweeps covered the surfaces the re-audit left open;
@@ -12748,7 +12381,6 @@ predating this file.
   takes `--layout-size-md` (the 132px literal). Remaining owner decision: the
   nodeview side-panel shadow (recommendation registered in the audit thread).
   Gate: full `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): hover
   unified on the state-layer overlay, settings layout repaired, and the
   mechanical notes closed.** (1) **Hover ruling**: every hover
@@ -12775,7 +12407,6 @@ predating this file.
   The calendar accent-ink hover the audit flagged is already gone (the
   concurrent condensed slice removed it — its button hovers were normalized
   by the sweep). Gate: full `pnpm typecheck` + `pnpm test` green.
-
 - **feat(web): the design-system re-audit (second pass, updated checklist)
   — all 13 prior fixes verified, the surface-inventory sweep closes its
   Warning cluster, zero Criticals (report:
@@ -12804,7 +12435,6 @@ predating this file.
   one ruling), board magic numbers, TopBar crowding at ≤768px
   (arithmetic-only flag, needs a visual check). Gate: full `pnpm typecheck`
   + `pnpm test` green.
-
 - **fix(web): the condensed row's affordance is visible at rest, and the row
   stays editable — click enters edit on the full content, blur re-condenses
  (same-day refinement of the condensed layer).**
@@ -12856,7 +12486,6 @@ predating this file.
   collections, overlays, forms, feedback, content renderers), requiring the
   report to state which surfaces were swept. Gate: full `pnpm typecheck` +
   `pnpm test` green.
-
 - **feat(web): the condensed layer — stretchtext as a view transform
   (Nelson, 1967): every block in the page body renders its excerpt until
   stretched, over whichever view mode the body wears.** the
@@ -12975,7 +12604,6 @@ predating this file.
   names the real `#141414` tint base, and the stale breakpoint-token comment
   is rewritten. Gate: full `pnpm typecheck` + `pnpm test` green (1667
   tests); the `mobile-layout` contract test pins the new range syntax.
-
 - **feat(store,protocol)!: the no-divergence law — `class_link` asserts
   membership at the applier, `class.unassign` refuses while the content
   references the class, and class deletion sweeps memberships ("external writers should not produce the diverged state,
@@ -13265,7 +12893,6 @@ predating this file.
 - **docs(agents): AGENTS.md carries the fleet-workflow block — greenfield/features route through `autonomous-app-builder`, all visuals defer to `rosellramos-design-system`.** Follows the fleet entry-point consolidation and this repo's design-override register: any agent session now finds the workflow and the visual authority in one hop from the repo root, with `.agents/design-overrides.md` as the documented-deviation home per the skill's `references/overrides.md` contract. One-bullet addition to the Skills section; no runtime behavior.
 - **docs(agents): Notees adopts the design-override register — `.agents/design-overrides.md` seeds with five rulings and AGENTS.md names it.** The RosellRamos design system gained an override contract (`references/overrides.md`: one register per app, entries cite the rule they override with rationale/ruling/review-trigger, audits treat documented deviations as PASS-with-note and undocumented ones as Critical). Notees is the first registered project: the seed records the seed-tinted dark surfaces, selected chrome wearing the seed's primary-container (M3's nav register says secondary-container — no secondary hue in play), the Margin Green presets replacing fleet copper, the full-page settings ruling, and the 2026-10-09 chrome-register rulings. AGENTS.md's `.agents/` line and the records index point at the register. Repo-record slice only — no runtime behavior, no redeploy.
 - **fix(web): the browser tab title names the selection-less surfaces — the open nav hub ("Trash - Notees", "Graph - Notees", "Tasks - Notees", "Assets - Notees", …) and the full-page search ("Search - Notees").** The settings-title fix branched the ONE title effect on the settings route, but a hub view (which clears the selection) still fell through to the bare "Notees" — the same stale-title trap the settings branch fixed for its own surface. The branching rule is now the exported pure `tabTitle` (mirroring the PageCard render precedence: settings section → open node → search → active nav hub, named from `NAV_ENTRIES`; the effect is the only writer and only assigns), so the whole surface register is pinned by `test/tab-title.test.ts` — every nav hub's label, node-over-hub, search-over-hub, settings-over-everything, signed-out fallback. Verified: `pnpm typecheck` + `pnpm test` green; web-only, no wire/store/sync touch.
-
 - **refactor(web)!: the color system is single-track Material You — every
   color token is a `--md-sys-color-*` role, and the selected accent IS the
   primary role (derived, not duplicated).** The old dual-track palette (a
@@ -13301,9 +12928,7 @@ predating this file.
   the four zero-residue greps (`--color-`, bare aliases,
   `--shadow-inset-accent-ring`). Docs: the ui-primitives law gains the
   Material You color-role rule (renumbered 1–6).
-
 - **fix(web): the browser tab title names the open settings section ("Appearance - Notees", …) — and the development skill now requires URL + tab title for every new view.** The title effect only knew the open node, so any surface without a selection (settings, and the same dead spot for search/hubs) left the title stale at "Notees"; it now branches on the settings route and names the section from `SETTINGS_SECTIONS`. Same-pass skill change per the docs-are-part-of-the-change law: new law 9 in `notees-development` (view surfaces own their URL AND their tab title), mirrored in `references/coding-conventions.md` and canonical `docs/developers/development.md` §7, with the two shipped traps recorded (the PageCard render-precedence race; the stale title on selection-clearing views). Verified: `pnpm typecheck` + `pnpm test` green, live probe (settings view → tab title), verify-min smoke; web-only.
-
 - **feat(web): the quick-tweaks settings modal is dropped — the sidebar gear, Ctrl/Cmd+,, and the workspace manager's settings entry open the full settings page (Appearance) directly; the command palette's Toggle theme command now actually persists.** The modal held exactly two controls (theme, accent), both duplicated on Settings → Appearance, and linked onward via its "Advanced settings" row — a surface with no unique function. `UserSettingsModal.tsx`/`.css` are deleted; the styles the full page shared transitively (accent swatches, about/links/privacy/support) moved into `SettingsPage.css`. The palette's Toggle theme existed but wrote the LEGACY `notees.theme` key through a private helper, which the modern `notees.settings.theme` overrides on reload — the flip didn't stick; it now rides a canonical `flipTheme()` in deviceSettings (flips the resolved on-screen theme — the same source the command's label names → writes the modern key → broadcasts, OLED flag survives a dark round trip). Verified: `pnpm typecheck` + `pnpm test` green (modal tests re-aimed at the exported ThemeModeControl/AccentColorPicker; new palette theme-flip test covering the persist + OLED survival), live probe, and the verify-min smoke; web-only; no wire/store/sync touch, no client lockstep.
 - **feat(protocol,store,web): `trash.empty` — the Trash hub's Empty trash is
   a first-class bulk op, with GTK + Flutter lockstep.** A new additive op
@@ -13336,9 +12961,7 @@ predating this file.
   1645. **Lockstep:** `notees-gtk` and `notees-flutter` ports of the same
   fixture bytes + applier semantics land in the same window (their
   changelogs record the hashes).
-
 - **fix(web): the quick modal's "Advanced settings →" button was a no-op with a page open — fixed; focus mode moved to the top bar; the Back/Forward arrows moved to the top bar's right side.** Root cause of the dead button: `openSettingsSection` set the settings route but never cleared `selectedPageId` / `searchOpen`, and the PageCard slot checks the selection FIRST — so with a page open the settings page lost the render race and nothing visibly happened (deep links at boot worked, which masked it). The fix is the two clearing calls, mirroring `openSearchPage`. Focus mode left the quick-tweaks modal and the full settings page (theme + accent remain; the description row named page chrome that focus mode no longer hides) for a crop-free bracket button in the top bar's right section — the active chrome carries the on/off state, Esc still exits, Ctrl/Cmd+Alt+F and the palette command ride the same `toggleFocusMode` write path. The in-app Back/Forward arrows moved off the center section (the breadcrumbs alone keep the center) to the head of the right section. The settings page itself also left the card's generic centered 800px cap for a full-card frame — the section nav rides the card's left edge, the content column caps at 900px — and `/settings/<section>` URLs now survive reload (the connect keep-path guard recognizes the settings routes). Verified: `pnpm typecheck` + `pnpm test` green (the modal's focus switch test re-aimed at the shared toggle helper; new top-bar button tests), a live probe over the test workspace (deep link → screenshot → reload keeps the URL → screenshot), and the verify-min smoke; web-only; no wire/store/sync touch, no client lockstep.
-
 - **fix(web): the Pixi adapter's streamed-frame path is delta-based — the
   50k left-drag hang is fixed (go/no-go Stage 3 blocker resolved).** Root
   cause, proven in an isolated harness (esbuild bundle + real Pixi under
@@ -13477,7 +13100,6 @@ predating this file.
   **Verification:** new spec — fold via chevron, unmount, remount: the fold
   (and its expand) restore from storage across three mounts; view-transforms
   suite green (8).
-
 - **feat(web): the drag preview is a FILLED card that PARKS below the drop
   line when a target snaps ("a better UI would be the
   filled background floating card — way better card text visibility — and
@@ -13495,7 +13117,6 @@ predating this file.
   the pinned/stack specs now assert both modes (chip in free flight; parked
   card with the lead text + badge at the anchor's coordinates; unmount at
   drop); block-dnd suite green (27).
-
 - **fix(web): drag edge auto-scroll works on the real page layout (owner:
   "reaching the top or the bottom of the current list does not scroll").**
   The live repro pinned it precisely: the drag session was healthy (chip,
@@ -13509,7 +13130,6 @@ predating this file.
   stack — 30 blocks overflowing the nodeview body, grip dragged to the
   scroller's live bottom edge and held: before, scrollTop stayed 0 with
   every predicate confirmed green; after, the list scrolls (PROBE-PASS).
-
 - **fix(web): the indent rail folds EACH direct child individually — the
   owner's own expansion stays untouched (final ruling:
   "it should collapse EACH INDIVIDUAL CHILD BLOCK, not the block that owns
@@ -13528,7 +13148,6 @@ predating this file.
   after one click the grandchild hides while the direct children rows AND
   the owner's expanded chevron stay; a second click unfolds; the
   metadata-gap click behaves the same.
-
 - **fix(web): clicking the indent rail collapses the block's WHOLE children
   group at once ("it collapses the child block
   located at the vertical level where the cursor is — it should collapse ALL
@@ -13591,7 +13210,6 @@ predating this file.
   open/permanent-delete + cancel, 4), nav arrows (stack tracker pure fns,
   the popstate seam, TopBar states, 7) — plus `pnpm typecheck` +
   `pnpm test` all green.
-
 - **feat(web): the drop indicator repaints above the floating drag chip,
   with a start tick at the line's first pixel — the indentation level is
   never hidden (owner proposal round: "the floating dragged block card
@@ -13614,7 +13232,6 @@ predating this file.
   drop-targets live probe restored to its strict 80px visible-run threshold
   (the 30px stop-gap existed only because the chip occluded the line) and
   re-run against the deployed stack.
-
 - **fix(web): the drag-select's trailing-click swallow is scoped to the
   release row — clicks on any other block edit immediately (owner:
   "two clicks are still needed to enter edit mode with blocks selected").**
@@ -13630,7 +13247,6 @@ predating this file.
   click; the release row's own click stays swallowed) + the existing
   trailing-click and edit-mode-drag specs; live probe extended with the
   drag-select → one-click-edit sequence.
-
 - **fix(web): selection and edit mode are mutually exclusive ("selecting blocks while in edit mode on another block should
   exit edit mode… while blocks are selected, it requires two clicks to enter
   edit mode on a different block").** Root cause of both: the selection
@@ -13652,7 +13268,6 @@ predating this file.
   edit mode; drag-select exits edit mode; one-click edit with a live
   selection over the full press sequence) + the updated edit-mode-drag spec;
   block-dnd/selection suites green (53).
-
 - **feat(web): drag-and-drop feedback and the indent rail move to the accent
   color; the child intent is a line, not a bar; the rail reaches the bullet
   and collapses per height; the pink-purple accent retires in favor of a
@@ -13684,7 +13299,6 @@ predating this file.
   x-bands land correctly, child line at the element bottom, clean release;
   magenta override moved to `--color-accent`), selection card (differential
   pixel check still passes with the accent tint).
-
 - **feat(web): the experimental PixiJS graph renderer lands behind a device
   flag — Stage 2 of the renderer migration (adapter-first, flagged,
   load-test-gated).** `GraphPixiRenderer` implements the landed
@@ -13723,7 +13337,6 @@ predating this file.
   chunk, plus Pixi's lazily-loaded renderer backend chunks (~75 kB more on
   first graph mount) — the priced-in one-time trade for batched GPU
   rendering without shader/context-loss maintenance.
-
 - **fix(web): drop targets are correct and multi-level at every divider — the
   line rides the block ELEMENT's bottom, and the pointer's indentation picks
   the nesting level (owner: "I can't position 13 before 14… the drop targets
@@ -13756,7 +13369,6 @@ predating this file.
   element bottom (repro); after: three bands land C right before B / as A's
   last child / as a child of a2a, the line at the element bottom, no stuck
   indicators — PROBE-PASS.
-
 - **refactor(web): the graph renderer is behind a formal `GraphRenderer`
   interface — Stage 1 of the owner-approved PixiJS migration (adapter-first,
   flagged, load-test-gated).**
@@ -13773,7 +13385,6 @@ predating this file.
   code path a 50k workspace will depend on. No behavior change.
   **Verification:** web typecheck green on the graph files + the renderer /
   view / followups suites green (55 + the new LOD spec).
-
 - **fix(web): the graph's canvas colors actually resolve — the minimap was
   never showing its intended colors (latent `toString()` base bug).**
   `hexVarToRgba` built its channels with `.toString()` (base 10): any channel
@@ -13797,7 +13408,6 @@ predating this file.
   visually unchanged (its label colors ride the fallback, as before).
   **Verification:** the five graph suites green (76 specs) + web typecheck
   clean on the graph files; harness screenshots before/after.
-
 - **fix(web): the selection card is visible again — the underlay anchored its
   `z-index: -1` to a far stacking context and painted behind the opaque
   page-card backgrounds (owner: "I don't see a selection UI at all, with 3
@@ -13811,7 +13421,6 @@ predating this file.
   3 blocks, selects them, pixel-samples the card region with/without the card
   — delta 0 (invisible) before the fix, delta 63 (tint vs page) after;
   deployed and re-probed on the running stack.
-
 - **fix(web): the export modal's orphaned CSS fragment is gone — every build
   since the Oct 9 kit-Radio restyle logged esbuild css-syntax warnings.**
   `5d328784` inserted the radio-group rules into the middle of
@@ -13821,7 +13430,6 @@ predating this file.
   the bundle now builds warning-free and the select label gets
   the border-box it was always meant to have. **Verification:** `vite
   build` logs zero css-syntax warnings (was 2).
-
 - **feat(web): the block-drag preview is frozen, edge auto-scroll finds
   off-screen positions, and a selection stack drags as one.** Four BlockRow never applies the sortable strategy transform (the
   source had suppressed only its own), so sibling rows no longer slide to
@@ -13865,7 +13473,6 @@ predating this file.
   scroller, planner units for chained/first-slot/child/noop/refusal paths,
   edge-velocity + scroll-container units, three level-cap gesture specs);
   50 block-dnd/selection tests pass.
-
 - **fix(web): no focus ring on the content card when clicking the graph, and
   a minimap that reads.** (1) Clicking the canvas focuses
   the graph stage for keyboard navigation; the stage's `:focus-visible`
@@ -13883,7 +13490,6 @@ predating this file.
   graph-view suite file was blocked mid-run by another session's transient
   `block-dnd.ts` syntax error — unrelated, re-verified after) + `pnpm
   --filter @notees/web typecheck` green on the graph files.
-
 - **fix(web): graph load and hover corrections — a stage loading overlay, no
   lifecycle rebuild on color groups, an instant cached paint, labels that
   arrive together at a closer zoom, and a color-only hover.** (1) Between "topology projected" (counts shown) and the
@@ -13925,7 +13531,6 @@ predating this file.
   width/height signature fields catch it. **Verification:** new spec (small
   graph at zoom 0.05 → 40 capped labels at 0.3 alpha; large graph → none);
   the renderer + view suites green.
-
 - **fix(web): the graph opens framed and settles fast — first-frame camera
   fit, 4× alpha cooling, warm quiet start, pre-paint warmup, idle label
   pass ("blank while loading, movement never stops, not
@@ -13951,7 +13556,6 @@ predating this file.
   warm-start-settles-sooner, signature-gate, and first-frame-fit specs);
   suite settle numbers: fresh 291 ticks vs warm-start 211–265, first-100-tick
   drift 290k vs 801k world-units.
-
 - **feat(web): property provenance flips — manual properties are unmarked,
   class-sourced ones wear a "C" badge.** The owner turned
   the marking scheme around: don't mark "manual" properties (the retired
@@ -13968,7 +13572,6 @@ predating this file.
   a surviving bound default keeps C after a class unassign while the
   unbound row stays bare); 100 tests green across the properties/card
   suites.
-
 - **fix(web): side-cover card grids form TWO columns at desktop widths
 .** The owner: "make the side cover layouts have 2
   columns when screen is this width, not one." Root cause measured in a
@@ -13979,7 +13582,6 @@ predating this file.
   two ~470px columns at the owner's ~990px content width and degrades to
   one column naturally below that. **Verification:** the static repro pins
   the before/after (2 vs 1 columns); the card suites green.
-
 - **docs(developers): the throwaway-stack probe recipe is written down (skill
   + runbook).** Learned the hard way while reproducing an owner screenshot
   against the RUNNING build: `run.sh` pins `:2.0.0-m1`, so hand-roll the two
@@ -13998,14 +13600,12 @@ predating this file.
   development-workflow reference. **Verification:** every step of the recipe
   was exercised live against the throwaway pair (the probe itself is
   deleted, per the ad-hoc probe rule).
-
 - **fix(web): the hover tint is gone from text property value cells.** `.nt-property-value:hover` (the super-clean field's hover
   surface) is removed — the text rides the row with no hover feedback, on the
   card's table and the properties panel alike (one component, one rule); focus
   keeps its surface + the accent ring as the editing signal. **Verification:**
   CSS-only change; the properties suites green (`block-metadata`,
   `table-polish`).
-
 - **feat(web): the card's properties section IS the nodeview properties
   table — name column | value column, editable, every bound property riding
 .** The owner: "I don't see two columns … it should
@@ -14025,7 +13625,6 @@ predating this file.
   `nt-properties-list` renders on the card; valued cell by display value; the
   unset bound property's label rides); `tsc` clean; view-modes/covers/
   card-lazy-images/class-view/class-bindings green (78).
-
 - **fix(web): classed-nodes cards show EVERY bound property per member —
   unset ones as empty fields.** The owner: "why don't I
   see class properties as assigned in class view for classed nodes?" Two
@@ -14044,7 +13643,6 @@ predating this file.
   property asserting the row renders with an empty value; `tsc` clean apart
   from the graph session's in-flight files; view-modes/class-view/
   class-bindings suites green (36 + 18).
-
 - **fix(web): graph view brighter base rendering,
   Obsidian-style accent hover neighborhood, colors unify on query groups,
   blank-flash/jank fixes.** After the round-2 slice
@@ -14144,7 +13742,6 @@ predating this file.
   tree/flat A–Z defaults, the table's Edited-desc opening, the button's
   presence/vocabulary, its absence on editable surfaces); the full suite
   and `pnpm typecheck` green on the slice branch.
-
 - **feat(web): a NodeCollection flag hides the block-row backlink count —
   set for the Child pages tree and the Class View's "Extended by" list
 .** The row-end gutter toggle (the materialized
@@ -14163,7 +13760,6 @@ predating this file.
   implementation landed via the owner-ordered checkpoint `fe9fe0a6` plus
   this commit's cards-body arm. Gate: web `tsc` clean on the touched files
   + `pnpm test` green (145 files, 1561 tests).
-
 - **fix(web): the graph renders again on Firefox-class linkers (Zen included)
   — the time-lapse uniforms were declared in both shader stages.** The three
   new uniforms (`u_timeLapse`, `u_timeCutoff`, `u_hoverDim`) were declared in
@@ -14182,7 +13778,6 @@ predating this file.
   typecheck` + the four graph suites green (55); the scoped `notees-web`
   redeploy + `verify-min.mjs` smoke reports VERIFY-PASS — final confirmation
   is the owner's Zen reload.
-
 - **feat(web): graph view round 2 — the right rail (Selection + Colors),
   query-builder color groups, kit-law finish.** The third stage of the round-2
   chrome reorganization: the right edge now owns
@@ -14274,7 +13869,6 @@ predating this file.
   **Verification:** `pnpm --filter @notees/web typecheck` green; web suite
   139 files / 1506 tests green (re-pinned toolbar-composition spec; new
   cameraMath + minimap-zoom + label-cutoff specs).
-
 - **feat(store,web): graph time-lapse stage A — creation timestamps through the
   graph projection, first-appearance edge stamps, renderer time cutoff + hover
   neighborhood.** (1) The store's graph projection (`graphTopology`) now
@@ -14342,7 +13936,6 @@ predating this file.
   card: no pill; parented card: the crumb renders and its right-click edge
   menu opens); `pnpm typecheck` + the view-modes/system-sections suites
   green (58).
-
 - **fix(web): the card's breadcrumb row is editable like the top bar's.** Same component, but the card instance had been wired with
   `editable={false}` (the read-only instinct carried over from the first
   wiring) — no hover chevron, no edge menu, no "+ Add parent" pill. The flag
@@ -14351,13 +13944,11 @@ predating this file.
   inside the component) now ride on the card exactly like the top bar, with
   the component's own client writes. **Verification:** new spec (a parentless
   card offers Add parent); `pnpm typecheck` + the view-modes suite green (36).
-
 - **fix(web): the card's breadcrumb row starts at the card's top-left.** The card's Breadcrumbs instance had copied the sidebar
   card's `anchor="right"` — the trail hugged the row's right edge instead of
   starting at the left corner (owner screenshot). The anchor prop drops; the
   component's default left packing applies. **Verification:** `pnpm
   typecheck` + the view-modes suite green (35).
-
 - **feat(web): the Capacities-parity search surfaces — the extended
   full-page search at `/search`, the section quick-searches unified onto
   the ranked order, and in-app find-in-page.** Three
@@ -14387,7 +13978,6 @@ predating this file.
   three new test files (search-page 12, find-in-page 12, plus the rewritten
   filter-layer ranked-semantics tests); the full apps/web suite is green
   (142 files / 1532 tests) and `pnpm typecheck` clean on the rebased tree.
-
 - **feat(store): diacritic folding (schema v19) + fuzzy-subsequence rescue —
   the Capacities "find by intent" pair.** Two gaps the
   Capacities search comparison surfaced, closed in the ranker
@@ -14416,7 +14006,6 @@ predating this file.
   snippet's original characters, the fuzzy rescue and its stay-off gate, and
   a v18→v19 migration test (unfolded rows rebuilt, folded rows, ordering
   clean) — 538/538 on both adapters; `pnpm typecheck` green.
-
 - **feat(store,web): priority-ranked search — exact title matches first, `"…"`
   exact mode, `^` starts-with mode, alias terminals, parent-name matches;
   the node picker composes the kit SearchField.** The
@@ -14463,9 +14052,6 @@ predating this file.
   parent-name surfacing, alias expansion) and the re-pointed picker-input
   tests (`node-link-gestures`, `block-selection`) pass against the
   SearchField.
-
-
-
 - **feat(web): the v1 card's body collapses by default, and the card title
   IS the page-view title row.** Two amendments
   to the v1 node card shipped earlier today. (1) The child-block body starts
@@ -14488,7 +14074,6 @@ predating this file.
   **Verification:** the v1-card specs re-pinned (collapsed default, expand/
   collapse round trip, chip-link + title-click targets); `pnpm typecheck` +
   the full `pnpm test` gate green.
-
 - **feat(web): the v1 node card, 1:1 — classes + tags chips, property rows,
   child blocks on every card — and the cards/table children ruling.** The register was read from the v1-archive tag
   (`KanbanCard.tsx` + `CardItem.css`, law 0). ONE card shape now serves the
@@ -14521,7 +14106,6 @@ predating this file.
   children resolution, chevron collapse, chips + scoped property rows,
   table-nevers-children); `pnpm typecheck` + the full `pnpm test` gate green
   (1515).
-
 - **fix(web): "Convert to heading" (and its "Convert to plain text" inverse)
   appear only on block nodes.** The gate lived solely on
   content shape, so the option leaked onto every context-menu surface whose
@@ -14532,7 +14116,6 @@ predating this file.
   `docs/usage.md` already scoped it to blocks, no doc change needed. The
   unit stubs grow the render-state fields, plus a case asserting class and
   main-node shapes offer neither direction. Gate: `pnpm test` green.
-
 - **docs(developers): the v1 source of truth is the `v1-archive` git tag —
   recorded in the skill and the runbook.** The pre-rewrite
   v1 app (React + Lexical frontend, Python FastAPI backend) survives only as
@@ -14545,7 +14128,6 @@ predating this file.
   views, node chrome, backend), duplicated as `docs/developers/development.md`
   §9 with the fetch-and-read recipe. **Verification:** repo-only docs change;
   the map's paths verified against the tag (`git ls-tree`).
-
 - **fix(web): the class page's "Extended by" tree nests each extender under
   its DIRECT parent.** The first direct-only
   cut of this section (earlier today) rendered a FLAT list of the direct
@@ -14559,7 +14141,6 @@ predating this file.
   direct parent's row, and the section carries exactly the two family rows.
   `docs/ux.md`'s class-page line: "a tree of direct extends edges". Gate:
   `pnpm test` green.
-
 - **feat(web): inline class mentions wear the node-link look — a class-colored
   wavy underline, no pill — and their name reads in every flattened surface
 .** Read mode renders a `class_chip` as a link styled
@@ -14582,7 +14163,6 @@ predating this file.
   "␣contrato␣ entre GMI…" (chip first) reads complete everywhere.
   **Verification:** `pnpm typecheck` + `pnpm test` green; `VERIFY-PASS`
   from the verify-min smoke after the scoped web redeploy.
-
 - **feat(web): the card cover slot renders even when empty — the missing
   cover is visible and fillable in place — plus a card roundness step down
 .** In cards mode the cover layouts (cover top/left/
@@ -14608,7 +14188,6 @@ predating this file.
   specs: the empty slot + its a11y name, the no-cover gate, the
   upload-modal fill flow landing on the wire field, the wire-field read
   regression); `pnpm typecheck` + the full `pnpm test` gate green.
-
 - **fix(web): the class page's "Extended by" section lists DIRECT subclasses
   only.** The section previously built a multi-level tree
   from the transitive extends closure, so a grandchild subclass (x extends
@@ -14625,7 +14204,6 @@ predating this file.
   asserting the leaf renders under its direct parent only; `docs/ux.md`'s
   class-page line says "direct subclasses only". Gate: `pnpm typecheck` +
   `pnpm test` green.
-
 - **docs(protocol): the date-chain parent/class locks are LOCKSTEP-COMPLETE —
   the GTK and Flutter appliers carry the same guards.** The
   sibling ports of the date-chain slice (`notees-gtk` `b90beb2`,
@@ -14643,7 +14221,6 @@ predating this file.
   SCHEMA.md's two Datetime bullets flip from LOCKSTEP-PENDING to the
   all-three-implementations statement; development.md's lockstep paragraph
   records the TS-first-then-ports precedent.
-
 - **refactor(web): the breadcrumb trails' parent-edit chevron composes the
   core HoverRevealButton.** The trail affordance that
   originated the hover-reveal pattern now consumes the core element shipped
@@ -14658,7 +14235,6 @@ predating this file.
   date-chain slice's `dateChainClassId`/`dateChainParentId` exports were
   src-only); `pnpm --filter @notees/web test` green (1505/1505 across 143
   files, zero errors).
-
 - **fix(web): the first section below the block tree stops floating — the
   Created section on date pages and Classed nodes on class pages.** Both wear the shared `NodeViewSection` chrome, whose
   `padding-top` steps down `spacing-3`→`spacing-2`: the hairline already
@@ -14673,7 +14249,6 @@ predating this file.
   live measure-probe diff on a fixture day page in the test workspace
   (ghost row→section header 34→30px; section `padding-top` 12→8px), fixture
   trashed after.
-
 - **feat(web): the topbar's history chevron becomes a hover-reveal
   affordance, and its popup right-anchors to it.** The
   undo cluster's dropdown arrow now hides at rest — the cluster keeps the
@@ -14694,7 +14269,6 @@ predating this file.
   run's three `workspace-snapshot-rebuild` 5s timeouts were load flakes —
   the file passes standalone and in the scoped server suite, 225/225; web
   1503/1503 across 143 files, zero errors).
-
 - **fix(web): breadcrumbs drop the self crumb — the trail is ancestors only
 .** The breadcrumb trail no longer appends the current
   node as a highlighted trailing crumb: the page header already names the
@@ -14706,7 +14280,6 @@ predating this file.
   **Verification:** `pnpm typecheck` green; web suite green (the touched
   breadcrumb specs re-verified in isolation after two unrelated timeout
   flakes under full-suite load).
-
 - **fix(web): the chrome tightens one more step — nodeview top bar gaps and
   the sidebar's top/bottom padding.** (1) The
   **nodeview top bar** now sits `spacing-2` (8px) off the card top (the
@@ -14722,7 +14295,6 @@ predating this file.
   the verify-min smoke after the scoped web redeploy; live before/after diff
   via measure-probe (bar top gap 16→8, bar bottom gap 12→8, sidebar header
   gap 20→16, user-row bottom 20→16).
-
 - **fix(web): the nodeview top bar's divider hairline retires.** The `border-bottom` under the panelled bar is gone — the
   `spacing-3` margin below stays as the bar's whole separation from the
   columns, and the bar reads as a plain pinned row like the app top bar
@@ -14731,7 +14303,6 @@ predating this file.
   **Verification:** `pnpm typecheck` + `pnpm test` green; `VERIFY-PASS` from
   the verify-min smoke after the scoped web redeploy; live screenshot via
   measure-probe confirms the hairline is gone.
-
 - **fix(web): the top-bar padding stacks are gone — the nodeview top bar, the
   app top bar's gap below, and the sidebar's user section.**
   (1) The **nodeview top bar lost its own vertical padding**: the panelled
@@ -14760,7 +14331,6 @@ predating this file.
   the side padding; topbar→card 12→8px; sidebar avatar 32→20px = the nav
   column); `pnpm typecheck` + `pnpm test` green (3086 tests); `VERIFY-PASS`
   from the verify-min smoke after the scoped web redeploy.
-
 - **feat(web): settings align with the fleet design system — a 5-swatch accent
   picker, a 4-option theme control, and a deep-linkable full settings page at
   /settings/<section> beside the slimmed quick-tweaks modal.**
@@ -14953,7 +14523,6 @@ predating this file.
   already owns the year affordance, so the plain create row stays generic
   there). Verified: `pnpm typecheck` + `pnpm test` green; `pickers.test.tsx`
   and `search-palette.test.tsx` gain year specs.
-
 - **feat(web): the owner-corrections batch — narrow search popups, the
   Properties rename, the + back beside the tabs, favorites with icons +
   drag-sort, and six smaller fixes.** (1) At **≤768px
@@ -15111,7 +14680,6 @@ predating this file.
   and popup fixes confirmed by Playwright probes against the live stack
   (the exact node from the owner's screenshot: zero border candidates
   after the fix path, scratch fixtures trashed).
-
 - **feat(web): the list view IS the outline view — full block rows in every
   collection's list mode, editable inline, with recursive children; the
   read-only variant is the inert twin (dead content click, the bullet opens,
@@ -15172,7 +14740,6 @@ predating this file.
   settles to a true equilibrium and rests; dragging a node reheats only its
   neighborhood. Verified: `pnpm typecheck` + `pnpm test` green; the
   graph-view and followups suites (settings composition included) pass.
-
 - **feat(web): the graph view clusters for real — type-weighted full Louvain
   (phase 1 + phase 2), a size-aware soft shell between communities, and
   honest force balance.** The hairball had three separate causes. (1)
@@ -15209,7 +14776,6 @@ predating this file.
   suite carries the detection (bridged planted communities stay two
   intact clusters) and separation (surface clearance, both gravity
   regimes) specs.
-
 - **feat(web): the graph physics reaches a true equilibrium and freezes —
   per-node activity alpha, energy-gated settling, and reheat locality (a
   drag perturbs only its neighborhood).** The engine docstring always
@@ -15241,7 +14807,6 @@ predating this file.
   reheat leaves the far node unmoved with alpha 0, global reheat restarts);
   the six graph suites (engine/controller/sizing/view/renderer/followups)
   green. Docs: the engine docstring now describes real behavior.
-
 - **fix(web): block-row property icons ride the bullet's first line —
   never centered against a multi-line block.**
   the value-display icon groups (the schema "bullet" /
@@ -15263,7 +14828,6 @@ predating this file.
   boolean + inline-display select + backlink) — icon centers read equal
   to the bullet center (309.4 vs 309.4) at both 1500px and 760px
   viewports; web suites green.
-
 - **feat(web): Backlinks and Unlinked mentions are two normal
   NodeCollection sections — the references tab strip is retired.**
   below the page content the two references leave the
@@ -15288,7 +14852,6 @@ predating this file.
   ReferenceList (the block-level backlink gutter's shared rendering) is
   unchanged.
   Verified: web suites green.
-
 - **feat(web): the references strip's filter chrome rides the tab row.**
   the Backlinks/Unlinked mentions strip's FilterBars (one
   per panel body) give way to strip-level chrome on the tab row itself, far
@@ -15300,7 +14863,6 @@ predating this file.
   still owns its query instance — a switch never leaks a filter across. The
   classed-nodes table and the other FilterBar consumers are untouched.
   Verified: web suites green.
-
 - **fix(web): date pages carry no Unlinked mentions tab.** The whole
   deterministic day/month/year family drops the Unlinked mentions tab from
   the bottom references strip: the literal date text
@@ -15310,7 +14872,6 @@ predating this file.
   too — the journal feed renders one embedded day page per entry. Ordinary
   pages are unchanged (both tabs always show once the strip renders).
   Verified: web suites green.
-
 - **fix(web): the journal and calendar day feeds no longer render an empty
   "Metadata 0" section on property-less pages.** Embedded `PageView` renders
   (the journal feed, the calendar's day pages) now drop the in-flow
@@ -15321,14 +14882,12 @@ predating this file.
   even when empty — it remains that layout's add-property entry point; the
   panelled main layout is unchanged (the Metadata sidebar always shows).
   Verified: web suites green.
-
 - **fix(web): the boot-form connect prompt reads "Connect to a Notees sync
   server — or work offline."** Owner wording ruling across all clients — the
   GTK login description and the Flutter server-setup prompt ship the same
   "a Notees sync server" phrasing (GTK v4.1.2, Flutter v4.0.2); the web's
   "your sync server" line was the last holdout. Verified: web suites green
   (137 files / 1443).
-
 - **feat(protocol,store,query,export,server,web,scripts): the unified
   Datetime property — `date`/`date_range` retire into one `datetime` type with
   per-value Full-day (default on), an All-day-off time, and a Range toggle.**
@@ -15370,7 +14929,6 @@ predating this file.
   server 225), web 1428 green, root typecheck clean, the migration mechanics
   proven against a synthesized throwaway relay (plan / rewrite / full replay
   / idempotency / log-alone convergence).
-
 - **feat(web): every header action row button retires once its gap is filled
   — Add icon hides when an icon is defined (the icon element takes over as
   the picker entry), Add aliases when the page has an alias (the metadata
@@ -15381,7 +14939,6 @@ predating this file.
   Verified: `page-header-actions` suite green (8 specs — the icon and alias
   flows now assert the button retires after the pick, plus the all-set row
   disappears while the icon element and subtitle stay).
-
 - **feat(web): the sidebar cards stand out — a lighter fill in dark — and
   the footer retires from the card bottom to become the context column's
   bottom section.** (1) New token `--color-sidebar-card` (variables.css):
@@ -15400,7 +14957,6 @@ predating this file.
   `docs/usage.md` (footer location + context-column contents). Verified:
   web build green, web suites green; verified live with a probe against the
   redeployed stack (computed styles + screenshots, dark and light).
-
 - **feat(web): the nodeview sidebars wear the SAME card element the main
   content container uses, nested inside it.** The first pass gave the two
   panel columns their own smaller-radius, higher-elevation card — too
@@ -15414,7 +14970,6 @@ predating this file.
   main content container, nested inside it". Verified: web build green;
   verified live with a probe against the redeployed stack (computed styles
   + screenshots, dark and light).
-
 - **feat(web,protocol,store): the page header gains the Capacities action
   row — quiet ghost actions above the title (Add icon / Add description /
   Add aliases) — plus the new `description` wire node field; the header icon
@@ -15460,7 +15015,6 @@ predating this file.
   class-view picker spec re-pointed at the row action, the node-aliases
   suite's Add-alias query tightened (`/^Add alias$/` — the header's "Add
   aliases" also matches `/Add alias/`), css-token-drift gate green.
-
 - **fix(web): the export modal's page-size dropdown wears the app surface
   (the "blue" was the browser default button face — a kit reset gap), the
   PDF's node links are accent-colored and underlined (no grey chip), and the
@@ -15479,7 +15033,6 @@ predating this file.
   developers README. Verified live with a probe against the redeployed stack
   (screenshot + computed styles: surface background, 81px trigger), web
   suite green, VERIFY-PASS.
-
 - **feat(web): the nodeview's two sidebars — the properties panel and the
   context column — become raised cards over the main content surface.**
   Each column retired its continuous full-height vertical divider (and the
@@ -15518,7 +15071,6 @@ predating this file.
   promoted-node recovery kept, Add-pill empty survives), properties-panel
   dead-carrier specs rewritten to the new contract, properties-panel +
   block-metadata + property- + property-view +
-
 - **fix(web): the PDF's visual regressions from the app-chrome slice — no
   more double bullets, pills at deterministic size — and the export modal's
   settings rows look like the rest of the UI (new kit `Radio` primitive;
@@ -15536,7 +15088,6 @@ predating this file.
   `Radio`/`Radio.css` join the kit with a catalog entry in
   `ui-primitives.md`. Verified: web export suites green (50 specs incl. the
   layout-radio flow), css-token-drift gate green.
-
 - **feat(web): the nodeview properties panel is renamed "Metadata", and the
   aliases affordance moves from the title row into the panel as its first
   section — an "Aliases:" node list (pill per alias, × clears, "+ Add alias"
@@ -15565,7 +15116,6 @@ predating this file.
   asset-attachments/dates/property-view/asset-annotations/recurrence/
   property- header assertions updated to "Metadata", web
   typecheck + full suite green.
-
 - **feat(web,export): the PDF carries the app chrome (outliner bullets, the
   row's class pills on the far right, node icons on mention chips), the
   "Show type labels" option is now "Show classes" and renders colored pills,
@@ -15590,7 +15140,6 @@ predating this file.
   forward). Verified: web export suites green (bullets/pills/mention-icon
   component specs + the carrier modal spec), packages/export 236 green,
   full web suite green.
-
 - **fix(web): fleet button audit against the state-vs-action register rule —
   state-carrying chrome goes outline, actions go borderless, modal
   secondaries unify on outline.** Audit of every button in the app against
@@ -15620,7 +15169,6 @@ predating this file.
   vitest suites green except the parallel session's in-flight export-pdf
   work (their uncommitted ExportPageModal/test edits — reported, not
   touched). Display-state only.
-
 - **fix(web): class-icon bullets ride at the dot's line height — the grip no
   longer jumps ~6px when a block has a class.** The block row is
   baseline-aligned, and the grip's synthesized flex baseline rides the bottom
@@ -15637,7 +15185,6 @@ predating this file.
   (export-modal checkbox test) and the web typecheck errors both sit in
   the export-pdf files of a concurrently in-flight uncommitted slice,
   untouched here. Display-state only — no model/wire change.
-
 - **feat(web): the section-scoped create affordance moves into the section
   header — a shared trailing-action slot on NodeViewSection, wired for
   Comments, Child pages, and the class view's classed nodes.** (1)
@@ -15659,7 +15206,6 @@ predating this file.
   system-sections / class-view contracts. Docs: `docs/ux.md` (the
   hide-when-empty paragraph), `docs/usage.md` (Child pages). Display-state
   only — no model/wire change.
-
 - **fix(web): no search bar glows accent on focus anymore — every search
   input trades the focus ring for a quiet border shift.** The earlier
   SearchField slice dropped the component's own accent glow, but the global
@@ -15674,7 +15220,6 @@ predating this file.
   `--color-outline` (SearchField keeps its on-surface-variant shift) — no
   accent anywhere. Display-state only; web typecheck + full vitest gate
   re-run green.
-
 - **fix(web): the single-value selection cell names its value with ONE
   compact pill (effective-colored, no subtree), multi-value object pills
   cover every resolved value, and the date cell's repeat picker stops
@@ -15697,7 +15242,6 @@ predating this file.
   from the pill era. Display-state only; the web suites around the panel
   re-run green with the pill-content assertion updated. Docs:
   `docs/ux.md`'s "Single values select" bullet now says one compact pill.
-
 - **feat(web): the panelled layout's chrome gets honest scopes — the
   nodeview top bar spans the whole card, the local graph is a lazy
   collapsed-by-default section, Comments always renders with an icon-only
@@ -15726,7 +15270,6 @@ predating this file.
   Docs: `docs/ux.md` (Activity paragraph, the layout sentence, the sidebar
   note), `docs/usage.md` (the layout sentence + the context-column item).
   Display-state only — no model/wire change, no fixtures.
-
 - **fix(web): the export modal's child outline is unconditional — the
   "Include child outline" toggle is gone — and the preview re-runs when the
   worker's cached reads land.** The reported symptom: child blocks were
@@ -15746,7 +15289,6 @@ predating this file.
   children → notification → bullets appear, no toggle); the retired-toggle
   spec asserts the checkbox is gone and the outline survives other option
   changes; web 1396+30 green, packages/export 236 green.
-
 - **feat(web): the properties panel's value cells redraw — single-value node
   and date properties are full-width selection dropdowns (the selected node
   rides the content area as a read-only block row, never a pill), multi-value
@@ -15784,7 +15326,6 @@ predating this file.
   full gate green) including new coverage: the single-value dropdown's
   read-only block row + clear, the multi-pill effective-color tint, and the
   empty-text placeholder. Docs: `docs/ux.md`'s Properties paragraph.
-
 - **fix(web,domain): the Highlight system class renders its icon again — the
   seed carried a name that never existed in MDI.** `SYSTEM_CLASS_ICONS.highlight`
   was `mdiFormatHighlight`; the real Material Design Icons name is
@@ -15801,7 +15342,6 @@ predating this file.
   specs: camel/kebab/`mdi mdi-` forms, the alias both prefixed and bare, JSON
   unwrap, emoji passthrough, empty), domain package 74 green, `pnpm
   typecheck` green. No wire/model change — no fixtures, no lockstep.
-
 - **fix(web): the panel/sidebar toggles get honest icons and a visible
   register , recorded in the design system.** The icon
   depicts WHAT the panel is: the app top bar's left sidebar and right cards
@@ -15820,7 +15360,6 @@ predating this file.
   hamburger/layout-diagram/cards icons). Verified: `pnpm typecheck`; the web
   vitest panel/context suites green. Display-state only — no model/wire
   change.
-
 - **fix(web,export): the export block zone loads child blocks recursively and
   excludes main nodes at every level — and a page parented under a block is
   hoisted into the child-page list instead of silently dropped.** Verified
@@ -15832,7 +15371,6 @@ predating this file.
   descendants (`childPagesOf`) so a page nested under a block still appears
   as a titled entry instead of vanishing between the zones. Verified:
   packages/export 236 tests green, web export-pdf 16 green.
-
 - **feat(web,store): the graph view's v1 register, 1:1 — the settings
   popover, four node-sizing modes with the radius slider and link direction,
   mass accumulation in the engine, split journal visibility, multi-select
@@ -15882,7 +15420,6 @@ predating this file.
   time were the parallel session's in-flight property-row work, untouched
   here); live-stack probe on the real 7.5k-node workspace (the settings
   register renders, search adds to the selection, zero console errors). Docs: usage.md graph section rewritten to the register.
-
 - **fix(web): honest icons for the chrome toggles — the top bar's sidebar
   buttons and the nodeview panel toggles stop posing as layout diagrams.**
   (1) The app top bar's left-sidebar button is a plain hamburger
@@ -15899,7 +15436,6 @@ predating this file.
   typecheck`; the web vitest suite — the panel/context/modals suites (57
   tests) included, all green except the parallel session's two in-flight
   graph failures. Display-state only — no model/wire change, no fixtures.
-
 - **feat(web): the block tree's vertical indent line is itself a collapse
   control — click the line to fold the direct children of the block it starts
   from (the v1 gesture), and the bullet stops riding low.** (1) Every
@@ -15920,7 +15456,6 @@ predating this file.
   outliner/block vitest suites (95 tests) stay green. Docs: the collapse
   parenthetical in `docs/ux.md`'s outliner section. No model/wire change —
   display-state only, no fixtures.
-
 - **feat(web,export): export downloads carry the node's name + a local
   timestamp; the PDF mirrors the page view (single-title body, inline blocks
   nested body-only, child pages as the end list); v1-migrated property values
@@ -15959,7 +15494,6 @@ predating this file.
   new leniency/single-title specs), web export-pdf/modals-overlays suites
   green (7 new structure specs), download-name assertions moved to
   `-<12-digit stamp>` regexes.
-
 - **fix(web): one corner radius for every text button — the md/lg sizes drop
   from 16px to the shared 12px.** The 16px `--shape-button-large` token made
   big text buttons ("Resync now", dialog actions) read nearly pill-shaped
@@ -15969,7 +15503,6 @@ predating this file.
   keep their per-size radii, and the now-unused `--shape-button-large` token
   is gone (its only consumers were the two md/lg rules). Verified:
   `css-token-drift` gate green, full suite green.
-
 - **fix(web): the graph view comes back to life — warm starts stop pinning
   the map, drag reaches the physics worker again, navigation is v1's
   1:1, the hover card drops its permanent hint, and the pause button works
@@ -15999,7 +15532,6 @@ predating this file.
   workspace (graph animates, drag/trackpad paths traced through the fixed
   wire). Docs: usage.md graph section still accurate — the fix makes its
   wording true.
-
 - **feat(server,web): env-gated signup (the sonarly pattern) + the context
   menu drops its banner entry.** (1) `NOTEES_SIGNUP_ENABLED` (default off,
   accepts `1/true/yes/on`) opens `POST /api/auth/signup`: creates a non-admin
@@ -16023,7 +15555,6 @@ predating this file.
   in the document). Docs in the same pass: deployment.md env table,
   .env.example, compose.yaml, usage.md (boot + scope), ux.md/usage.md banner
   lines, architecture.md account routes.
-
 - **feat(web,query,protocol): the v1 block model 1:1 — every block is
   [type select][operator select][typed value], with the static/dynamic
   node-target mode, the edit-date family, and two more wire conditions.**
@@ -16058,14 +15589,12 @@ predating this file.
   dynamic-parent); web suite green (the dynamic-Links e2e drives the nested
   builder and asserts the probed AST carries the nested group verbatim);
   `docs/usage.md` §Section filters rewritten.
-
 - **fix(web): the add-condition trigger sits in the app's quiet button
   register.** the bordered-field treatment (fill + border)
   read too dark against the panel, and the "+" icon argued with the
   dropdown affordance — the chevron alone now signals the list, on a
   transparent ghost button like the rest of the chrome. Verification: the
   filter suites green.
-
 - **feat(web,query,protocol): the builder's full link/parent wiring — a new
   `descendantOf` wire condition, links-to + full-text probe support in the
   transient filter, the GridMenu kit popup, and the root de-grouped.**(1) a **parent-is** condition was missing from the
@@ -16115,14 +15644,12 @@ predating this file.
   modal's ToggleSwitch rows also gain real layout (the fields were inline
   labels that wrapped mid-row). Verification: throwaway-stack screenshots
   before/after (modal + number-cell zoom); web suite green.
-
 - **fix(web): the structured panel keeps its bordered box.** the open hairline region read flatter than the rest
   of the chrome — the border + surface frame pairs with the filter search
   box in the control row. The panel is again a boxed region (border,
   `radius-md`, surface-container), still in-flow and full width; the
   builder internals stay un-carded and the add menu stays portaled.
   Verification: web suite green.
-
 - **feat(web): the query builder is an in-flow region with flat list chrome
   — the boxed floating panel is gone.** The structured panel
   had read as a modal: a bordered floating overlay (a persistent float,
@@ -16140,7 +15667,6 @@ predating this file.
   from the `42ch` search-box cap (deep nesting breathes) and deletes the
   whole overlay-clipping bug class. Verification: `pnpm typecheck` clean;
   web suite green (1377/1377).
-
 - **fix(web): the builder's add-condition menu is unclipped and readable in
   dark mode.** Two defects in the new block query builder: the add menu
   (`ButtonWithPanel`, non-portal) rendered inside the kit group Card, whose
@@ -16152,7 +15678,6 @@ predating this file.
   rows gained a hover border. Verification: `pnpm typecheck` clean; web suite
   green (1377/1377 — the two filter suites' menu helpers query the portaled
   panel).
-
 - **feat(web): the filter bar's structured panel is the v1 query-builder,
   ported over the query AST — block condition rows, nested Match ALL/ANY
   groups, NOT wrappers, per-row reorder, live "N of M rows match".** The
@@ -16186,7 +15711,6 @@ predating this file.
   `section-views` reworked, the CSS token-drift allowlist gained the
   `--nt-fb-depth` JS-scoped entry); `docs/usage.md` §Section filters
   rewritten.
-
 - **fix(web): one divider, not two, above the backlinks strip — and no
   dangling line on an empty sections stack.** The hide-when-empty rulings
   left `.nt-backlinks` as the first child of `.nt-page-sections` whenever
@@ -16200,7 +15724,6 @@ predating this file.
   change, so the hook order must stay unconditional. Verification:
   `pnpm typecheck` clean; the section/layout suites green
   (system-sections, focus-mode, whiteboard-canvas, page-layouts).
-
 - **feat(web): the hide-when-empty ruling covers every system section —
   Child pages and the backlinks strip vanish at zero, and the strip's Add
   child page affordance is gone.** a page with
@@ -16218,7 +15741,6 @@ predating this file.
   clean; web suite green (1366/1366 — the childless-page tests rewritten for
   the gate plus two new reveal tests: first child page, first backlink);
   `docs/usage.md` + `docs/ux.md` updated.
-
 - **feat(web): the hosted-views tab bar always shows — even on an empty
   section; the empty line rides the selected tab's body.** Three containers
   short-circuited the empty state before `NodeCollection` ever rendered, so
@@ -16237,7 +15759,6 @@ predating this file.
   green (1364/1364 — two section-views tests added: tabs + empty line on an
   empty collection, "No matching rows." on a refinement-emptied custom tab);
   `docs/ux.md` updated.
-
 - **fix(web, domain): date formatting applies only to date-classed nodes, and
   date pages format everywhere they render.** Two halves of one ruling. (1)
   Until now ANY node whose title excerpt matched the 8-digit shape was
@@ -16259,7 +15780,6 @@ predating this file.
   class; id-only formatting) and web `date-display` cases (name shape alone
   is not a date page); measured against the live sidebar Recents and the
   Pokemon class page; full monorepo gate green.
-
 - **fix(web): the child-blocks ghost row gets real clearance before the next
   section's separator — the negative-margin cancellation is gone.** The
   2026-10-08 morning fix pulled the empty child-blocks surface up by exactly
@@ -16273,7 +15793,6 @@ predating this file.
   genuine clearance. **Verification:** the throwaway probe stack measured the
   day page and the class page before/after (border flush against the label
   box before, ~4px clear after); full monorepo gate green.
-
 - **feat(web): one chrome row for the classed-nodes section, icon-only
   buttons wear hover tooltips, and the table's data actions move behind a
   "…" menu.** The class page's Classed nodes section stacked its chrome
@@ -16298,7 +15817,6 @@ predating this file.
   Selection-scoped exports stay inline by the selection count. Verification:
   `pnpm typecheck` clean; web suite green; `docs/usage.md` + `docs/ux.md`
   updated.
-
 - **fix(web): the day-page Today flag wears the solid primary pill.** The
   flag styled itself with `--color-primary-container` (#f0f0f0 light) — on
   the near-white page card it read as no background at all. It now takes the
@@ -16306,7 +15824,6 @@ predating this file.
   `--color-on-primary` text, `--shape-full` radius, `micro/2` padding, so the
   two Today surfaces render identically. Verification: `tsc --noEmit` clean;
   web suite green (1361/1361).
-
 - **fix(web): the date pages' and calendar's Created section lists main nodes
   only.** The `createdAt` range query behind the Created section (day pages)
   and the calendar day view's Created tab matched every node created in the
@@ -16327,7 +15844,6 @@ predating this file.
   opacity. Verification: `pnpm typecheck` clean; web suite green
   (1361/1361; a pre-existing "Database closed" teardown flake in
   `journals-view.test.tsx` passes in isolation).
-
 - **chore(web): drop the dead `.nt-hub-*` CSS and repair the screenshot
   probes.** The hub rows moved to `.outline-row` (CollectionHub restructure)
   but app.css still carried six unused `.nt-hub-list` / `.nt-hub-item` /
@@ -16340,7 +15856,6 @@ predating this file.
   palette assertion that could never pass (now checks the palette's search
   input). Verification: `page-probe` runs green end-to-end (opens a page,
   screenshots, Ctrl+K palette opens); drift gate 5/5; `tsc` clean.
-
 - **feat(web): the page header title reads in Newsreader.** The brand type
   table puts the 28px H3 in the Text role (Newsreader), and the identity
   claim is "Newsreader for the words, Instrument Sans for the chrome" — the
@@ -16351,7 +15866,6 @@ predating this file.
   tokens note ("page header titles may use the content serif") was already
   written for this. Verification: web suite green; post-deploy screenshot
   probe of a document page in both themes.
-
 - **fix(web): the design-system audit batch — every finding from the
   RosellRamos audit ships.** The audit (`.audits/design-system-2026-10-08.md`)
   found one Critical, 18 warnings, and a notes list; all are fixed. Critical:
@@ -16395,7 +15909,6 @@ predating this file.
   holes — canvas paint stays a review duty). Verification: `pnpm typecheck` +
   `pnpm test` green; three tests updated to the new contracts (PDF paper
   hex, real-button sidebar row, delayed spinner).
-
 - **fix(web): the brand accent reads as a colour in settings.** The
   default accent's settings label was "Margin" — a layout word, not a colour;
   it is now "Advance Green", the brand colour name. The stored setting value
@@ -16683,7 +16196,6 @@ predating this file.
   `pnpm test` gate green — 2,818 tests across 184 files (protocol 301,
   domain 72, export 219, store 457, sync 25, query 175, server 218,
   web 1,351).
-
 - **feat(web): the transient filter layer — `filterable` sections filter
   their rows post-resolution/pre-windowing.** The section data contract
   (components/useSectionData.ts) gains the filter step: a `FilterSpec`
@@ -16782,7 +16294,6 @@ predating this file.
   default permanent + custom additive + reset, the "+" flow persisting the
   AST verbatim, refinement on top of the base set, empty-table = factory
   behavior); `pnpm -r build` + `pnpm typecheck` clean.
-
 - **feat(web): the rail's cards reorder by grip drag, and the hover preview
   renders the shared NodeView in preview mode.** Two registered follow-ups
   land together. **Rail card reorder:** the cards-only right rail's stack
@@ -16830,7 +16341,6 @@ predating this file.
   run at this commit also shows the in-flight hosted-views/filter work
   area red (section-views, filter-layer, system-sections, node-aliases —
   that slice is mid-implementation; this change touches none of it).
-
 - **feat(web,server,store): the alias read-path repointing — the final
   alias-program slice.** Every node-alias read now rides the
   `aliasedNodeId` wire field (`node.aliased_node_id`), retiring the
@@ -16883,7 +16393,6 @@ predating this file.
   the `/resolve` fold over the field; the full gate green — **2,678 tests
   across 175 files** (protocol 301, domain 72, export 219, store 437,
   sync 25, query 175, server 204, web 1,245).
-
 - **feat(web): the page banner — the `bannerAssetId` wire field's UI
   half.** A full-width collapsible banner ABOVE the header, inside the
   page card and spanning the content width; the cover card stays in the
@@ -16916,7 +16425,6 @@ predating this file.
   whiteboard/embedded gating; the full gate green — **2,668 tests across
   175 files** (protocol 301, domain 72, export 219, store 433, sync 25,
   query 175, server 204, web 1,239).
-
 - **feat(web): the `asset` property type's dedicated row chrome.** The
   type (the attachments schema leads it) leaves the generic object row
   behind: the row renders the linked assets as a LIST — the thumbnail
@@ -16949,7 +16457,6 @@ predating this file.
   buttons at the bottom + thumbnail rendering, the single clear-first
   flow, item removal rewriting the list; the full gate green (2,668 tests
   across 175 files — totals above).
-
 - **feat(protocol,store,domain): the `asset` property type — attachments
   leads the type out of `object`.** an asset-typed value
   is a node reference whose target must carry the ASSET class — the type IS
@@ -16982,7 +16489,6 @@ predating this file.
   gate green — `pnpm -r --workspace-concurrency=1 build`, `pnpm typecheck`,
   `pnpm test`: **2,654 tests across 175 files** (protocol 301, domain 72,
   export 219, store 433, sync 25, query 175, server 204, web 1,225).
-
 - **feat(protocol,store,web,domain): the seeded `class` meta class is
   retired — its members become real classes.** `class` (…0001)
   withdraws from the seed manifest (the UUID never reuses, the cover-class
@@ -17025,7 +16531,6 @@ predating this file.
   calendar suites, the new migration web suite (4 tests), and the domain
   pins (spec shape, withdrawn …0001) all green; the full gate green
   (2,654 tests across 175 files — totals in the newest entry).
-
 - **feat(store): write-time alias-cycle validation + the `resolveAlias`
   chain walker (M12).** The follow-on scoped in with the wire fields: an
   `object.update {aliasedNodeId}` that would close an alias cycle now fails
@@ -17045,7 +16550,6 @@ predating this file.
   re-opens the chain, stale-write drop, the direct-row cycle walk, the depth
   cap); the full gate green (2,654 tests across 175 files — totals in the
   newest entry).
-
 - **feat(protocol,store,query,export): the wire node fields —
   `coverAssetId` / `bannerAssetId` / `aliasedNodeId` on `object.update`,
   superseding the retired cover/banner/aliasOf property
@@ -17092,7 +16596,6 @@ predating this file.
   sync 25, query 175, server 204, web 1,217); the migration core is pinned by
   a new web suite (plan shapes, v1-hash resolution, element vs slot unsets,
   idempotence, the validate-before-insert gate) run over the sql.js adapter.
-
 - **fix(web): system-class deployment self-heals binding rows past the
   seed-spec fallback.** The pre-existing defeat: `deploySystemClass`'s
   "already bound?" check read `getClassBindings`, which read-synthesizes the
@@ -17120,7 +16623,6 @@ predating this file.
   birthday ensure); the existing meeting/task/template-family and
   class-create-modal suites unchanged and green; the full gate green
   (2,598 tests, totals above).
-
 - **feat(web): one workspace drag session — the host hoists every surface's
   drag, and the rail cards' headers become append-drop targets.** The
   per-surface drag context is gone: a single workspace host
@@ -17158,7 +16660,6 @@ predating this file.
   merge helper, the header append, the transient expand, the cross-zone
   move, and the chords gate — its afterEach settles past dnd-kit's 50ms
   post-drop click suppression).
-
 - **fix(web): the LinkEditModal is node-only — URL mode removed; external
   links navigate and are authored directly.** the modal edits
   NODE links (and typed-link verbs) only. The mode toggle is Page/Block
@@ -17180,7 +16681,6 @@ predating this file.
   non-URL fallback); the context-menu suite gains the no-Edit-on-external
   case. Verified: `npx tsc --noEmit` in apps/web clean; the full web suite
   green.
-
 - **fix(web): four editor-chrome corrections — external links are plain
   hyperlinks, the remaining mention renderers wire the full title, the
   link-edit modal consolidates to one anchored node picker, and sidebar rows
@@ -17206,7 +16706,6 @@ predating this file.
   --noEmit` in apps/web clean; the web suites green (external-link class
   assertions, the modal's one-control picker flow, the live-name
   regression, and the retarget/label/broken-link flows).
-
 - **fix(web): creating a node from the editor's @ picker always lands the
   mention — the create completion splices from a capture snapshot.** The
   picker's create row starts an ASYNC create (the promise-based default
@@ -17225,7 +16724,6 @@ predating this file.
   --noEmit` in apps/web clean; the capture suite (18 tests, incl. a gated
   completion-after-dismissal case and the modal cancel case) plus the full
   web suite green.
-
 - **feat(web,server): the web link extends the source class.** 
   a bookmarked page is a cited web source. `SYSTEM_CLASS_EXTENDS` gains
   `weblink: ["source"]` — weblink inherits the source bibliographic bindings
@@ -17244,7 +16742,6 @@ predating this file.
   `docs/developers/architecture.md` updated. Verified: the domain suite
   (72 tests) and the web suites (class-create-modal, properties-panel,
   protocol-batch gating) green; `npx tsc --noEmit` in apps/web clean.
-
 - **feat(web): node links and mention chips render the COMPLETE title.**
   a link must read as the page's whole title, never a
   truncation. `deriveDisplayName` keeps the 80-char cap for dense chrome
@@ -17260,7 +16757,6 @@ predating this file.
   `docs/developers/architecture.md` updated. Verified: new domain tests
   (uncapped/full/date branch) and web tests (>80-char mention renders
   complete; breadcrumbs keep the capped-and-clipped form) green.
-
 - **feat(web): the page title is a bullet-less block row — full editor powers
   in the header; a page's own content may carry link/mention tokens.** Owner
   ruling: the bespoke single-purpose title editor is replaced by the shared
@@ -17289,7 +16785,6 @@ predating this file.
   lockstep batch (their fixtures and wire are unaffected). Verified: store
   suite green (401), `npx tsc --noEmit` in apps/web clean, full web suite
   green (120 files / 1204 tests).
-
 - **fix(web): the link-edit modal composes the kit primitives — the crushed,
   overlapping mode-tab row is gone.** The modal shipped its own unscoped
   copies of the kit chrome classes (`.modal-backdrop`, `.modal`, `.btn`,
@@ -17316,7 +16811,6 @@ predating this file.
   `template-gallery` — 97 tests) green; visual check of URL/Page/verb
   states in a headless browser harness shows a clean tab row over clearly
   separated labelled fields.
-
 - **fix(web): sidebar popups take the shared dismissal layer; Favorites and
   Recents rows render their titles as read-only block content.** The footer's
   account popup (avatar/email + Sign out) ignored every dismissal gesture —
@@ -17339,7 +16833,6 @@ predating this file.
   description. Verified: `npx tsc --noEmit` in apps/web clean; the sidebar
   menu + settings-modals suites (46 tests) and the full web suite green
   (119 files / 1190 tests).
-
 - **fix(web): the boot screen never silently re-routes; a Sync tab in User
   Settings; uploads clear the web proxy.** a failed connect
   now shows the error plus an explicit "Try `<origin>` instead" suggestion —
@@ -17350,7 +16843,6 @@ predating this file.
   web nginx proxy also honors the sync server's body ceiling (128 MB —
   asset uploads died at nginx's 1 MB default with HTTP 413). Full web suite
   green (118 files / 1200+ tests), deployed via the compose build flow.
-
 - **feat(web): the boot screen never silently re-routes — the same-host guess
   becomes an explicit suggestion; User Settings gains a Sync tab.** Owner
   ruling: a failed probe no longer auto-retries the same-origin guess. The
@@ -17364,7 +16856,6 @@ predating this file.
   session token, and API key). The auto-retry's now-dead boot note is removed.
   Verified: `npx tsc --noEmit` in apps/web clean; `settings-modals` +
   `app-smoke` (45 tests) and the App-rendering suites (136 tests) all green.
-
 - **feat(web): the drag-session interaction model — the muted source row and
   the proximity-snapped drop line.** The outliner's drag feedback stops
   reshaping the page. The dragged row no longer translates with the pointer:
@@ -17388,7 +16879,6 @@ predating this file.
   resolves keyboard drags and end-of-drop guard refusals (the own-subtree
   banner included). `npx tsc --noEmit` clean; full web suite green (1221
   tests).
-
 - **feat(web): the collection create-button flag, the fullscreen whiteboard
   container, and the graph view's reference chrome — the main-content
   restructure's view-layer recoveries.** (a) The reusable collection
@@ -17447,7 +16937,6 @@ predating this file.
   `:latest`). Verified on the fleet host: `http://atlas:8378` serves,
   `/api/version` answers same-origin through the proxy and through the
   edge, `VERIFY-PASS`.
-
 - **fix(ops): the containers could not start — a wildcard app bind collided
   with the tailnet edge; HTTPS moved from tailscale serve to an optional Caddy
   edge.** Incident (2026-10-07): the sync/web containers sat in `Created`,
@@ -17465,7 +16954,6 @@ predating this file.
   working (in-process store banner). Verified end-to-end on the fleet host:
   `VERIFY-PASS`, https name serving the web UI + API. Runbook + ops skill
   updated (deployment.md).
-
 - **chore(web): the restructure branch meets the scrub law — era references
   removed from comments and test titles.** The branch's new files predated
   the tree-wide scrub, carrying plan-era citations, amendment and slice
@@ -17475,7 +16963,6 @@ predating this file.
   ids) untouched. Transient internal-doc pointers dropped from the
   changelog and runbooks per the standing rule. Full web suite green
   (1206 tests), tsc clean.
-
 - **refactor(web): S7a of the main-content restructure — the context column,
   the cards-only rail, Comments (M19), Activity's relocation (M18), the
   preview seam (M15).** The panelled main layout is now THREE columns —
@@ -17539,7 +17026,6 @@ predating this file.
   the compact layouts both consume the row through the properties
   table, so one change covers both. Gates green: the four property/
   metadata/table web suites (48 tests) + `tsc --noEmit` clean for the
-
 - **chore(sync): the GTK/Flutter wire corpora re-vendored to byte-identity
   (21 fixtures).** The client copies of `packages/protocol/fixtures/` had
   drifted (missing `object-restore.json`, stale `class-property-defaults.json`);

@@ -1,0 +1,531 @@
+/**
+ * Sidebar styles — 260px transparent navigator on the background canvas.
+ *
+ * Desktop: no surface fill, only a hairline right border (the canvas hosts
+ * the chrome directly). Mobile (≤768px): the sidebar becomes a fixed
+ * overlay drawer and needs a real surface + shadow to read above content.
+ * The hamburger that reveals it lives in the TopBar.
+ */
+
+.nt-sidebar {
+  width: var(--width-sidebar);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  /* Top/bottom padding one step tighter than the sides:
+     the top gap carries only the first section header and the bottom gap
+     the pinned user row — both chrome, both read best tight against the
+     app top bar / the viewport edge. The horizontal padding stays
+     spacing-3: it carries the whole content column. */
+  padding: var(--spacing-2) var(--spacing-3);
+  gap: var(--spacing-2);
+  min-height: 0;
+}
+
+.nt-sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-ws-switch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.04em;
+}
+
+.nt-ws-switch:hover {
+  background: var(--md-sys-color-hover-overlay);
+  border-color: var(--md-sys-color-outline-variant);
+}
+
+.nt-sidebar-search {
+  padding-bottom: var(--spacing-1);
+}
+
+.nt-sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-1) 0;
+  min-height: 0;
+  /* The escape valve: sections own their scrolling (below), but when the
+     viewport is too short to honor every section's floor + the pinned
+     sections, the nav column itself scrolls — no section may be starved
+     silently. */
+  overflow-y: auto;
+}
+
+/* The scrollable section (Recents): fills the nav's leftover height, the
+   pinned header sits above, the list is the sole scroller. The min-height
+   floor (eight rows — six list rows + the header block's two) guarantees
+   Recents can never shrink below a usable size; that starvation is what
+   this layout fixes, and the nav column's own scroll absorbs the overflow
+   on short viewports. */
+.nt-side-section--scroll {
+  flex: 1;
+  min-height: calc(var(--height-sm) * 8 + var(--spacing-1));
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+/* The capped section (Favorites): shows at most five rows and scrolls its
+   list beyond that — an uncapped favorites list pinned every row forever
+   and squeezed Recents out of the column. */
+.nt-side-section--capped > .nt-side-list {
+  max-height: calc(var(--height-sm) * 5 + var(--spacing-1));
+  overflow-y: auto;
+}
+
+.nt-side-section--scroll > .nt-side-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nt-side-section {
+  margin-bottom: var(--spacing-3);
+}
+
+.nt-side-header {
+  /* flex row: chevron + icon + title ride left, the count badge rides the
+     right edge (margin-left: auto). Identical to the old inline flow when
+     no badge renders. */
+  display: flex;
+  align-items: center;
+  margin: var(--spacing-2) var(--spacing-2) var(--spacing-1);
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-section);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Count badge — the design-system register: 9px-radius pill, 10px muted
+   text, surface-variant fill (never accent-filled). The total vs the
+   visible rows is the "more below" signal for a capped (Favorites) or
+   scrolled (Recents) list. */
+.nt-side-header-count {
+  margin-left: auto;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--tab-count-radius);
+  background: var(--md-sys-color-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  line-height: 1.6;
+}
+
+.nt-side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nt-side-row {
+  display: flex;
+  align-items: center;
+}
+
+.nt-side-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: var(--height-sm);
+  padding: 0 var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-side-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-side-item:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Active row: the hover-fill step + a small accent bar at the row's left
+   edge (the design-system "small accent signal" — never a full accent fill). */
+.nt-side-item-active,
+.nt-side-item-active:hover {
+  position: relative;
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-side-item-active:active {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, var(--md-sys-color-surface-container-high));
+}
+
+.nt-side-item-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--spacing-tiny);
+  height: 60%;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-primary);
+}
+
+.nt-side-item-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-side-item-active .nt-side-item-icon {
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-side-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The favorite toggle rides the row's flex line: on
+   hover it renders in-flow and DISPLACES the row content (the class flag
+   chip) instead of overlaying it — the old absolute overlay stacked the
+   star on top of the flag. Hidden until hover; always visible on touch. */
+.nt-side-star {
+  flex-shrink: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-xs);
+  height: var(--height-xs);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-side-row:hover .nt-side-star {
+  display: inline-flex;
+}
+
+.nt-side-star:hover {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Drag-sorting favorites: the lifted row reads above its
+   siblings for the drag's duration. */
+.nt-side-row--dragging {
+  position: relative;
+  z-index: var(--z-10);
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--shape-small);
+  box-shadow: var(--shadow-elevation-2);
+  opacity: 0.9;
+}
+
+/* Empty-section placeholder: Favorites always renders
+   — an empty section names how to fill it instead of vanishing. */
+.nt-side-empty {
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.75;
+}
+
+.nt-sidebar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-sidebar-user {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-sidebar-store {
+  flex-shrink: 0;
+  opacity: var(--opacity-80);
+}
+
+/* Sidebar visibility is state-driven at every width (topbar hamburger). */
+.nt-sidebar {
+  display: none;
+}
+.nt-sidebar-open .nt-sidebar {
+  display: flex;
+}
+  @media (width <= 768px) {
+  .nt-sidebar-open .nt-sidebar {
+    position: fixed;
+    top: var(--topbar-height);
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-50);
+    box-shadow: var(--shadow-elevation-2);
+  }
+}
+
+/* Pinned bottom row: the user profile (avatar + name + email) and the
+   settings gear — three columns: circle | text | gear. Horizontal padding
+   is zero: the row rides the sidebar's own padding like
+   the nav list does. */
+.nt-sidebar-bottom {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) 0;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  position: relative;
+}
+
+/* Profile trigger: avatar + name/email identity row (the identity line is back after one avatar-only day — the ambient
+   "which account" read stays at rest; the popup carries the same header).
+   The sync-state badge rides the AVATAR's bottom-right corner (positioned
+   against the avatar span, not the row). */
+.nt-profile {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  text-align: left;
+}
+
+.nt-profile:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-profile:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.nt-profile-avatar {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* The 30px avatar rides the spacing scale's 7-5 step. */
+  width: var(--spacing-7-5);
+  height: var(--spacing-7-5);
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  overflow: visible;
+}
+
+.nt-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Sync badge — the corner dot. A 10px disc ringed by the sidebar's surface
+   so it reads attached to the avatar, not floating; the offsets are against
+   the 30px AVATAR (the badge's parent), negative so the disc straddles the
+   circle's bottom-right rim — the 2026-10-19 restore briefly used the old
+   button-relative 5px, which parked the dot INSIDE the circle. */
+.nt-profile-sync {
+  position: absolute;
+  right: calc(-1 * var(--spacing-tiny));
+  bottom: calc(-1 * var(--spacing-tiny));
+  width: var(--spacing-2-5);
+  height: var(--spacing-2-5);
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-success);
+  box-shadow: 0 0 0 var(--spacing-micro) var(--md-sys-color-background);
+}
+
+.nt-profile-sync--syncing {
+  /* The kit Spinner carries the motion; the disc drops to transparent so the
+     arc reads against the avatar, and the ring shadow below keeps the badge
+     attached to the rim. */
+  background: transparent;
+}
+
+.nt-profile-sync--syncing .spinner-wrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nt-profile-sync--syncing .spinner {
+  /* Primary arc — syncing is activity, not warning (the warning hue is the
+     backlog state's reserved semantic). */
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 22%, transparent);
+  border-top-color: var(--md-sys-color-primary);
+}
+
+.nt-profile-sync--backlog {
+  background: var(--md-sys-color-warning);
+}
+
+.nt-profile-sync--error {
+  background: var(--md-sys-color-error);
+}
+
+/* Reduced motion: the spinner (motion decoration) gives way to its solid
+   color-coded state — syncing reads as a primary disc. */
+@media (prefers-reduced-motion: reduce) {
+  .nt-profile-sync--syncing .spinner-wrapper {
+    display: none;
+  }
+  .nt-profile-sync--syncing {
+    background: var(--md-sys-color-primary);
+  }
+}
+
+/* The account popup — the typical user-menu shape:
+   identity header, entries with leading icons + trailing captions, danger
+   sign-out. Anchored above the profile circle. */
+.nt-account-menu {
+  position: absolute;
+  bottom: calc(100% + var(--spacing-1));
+  left: 0;
+  z-index: var(--z-60);
+  min-width: 220px; /* token-gate: constant account-menu min-width ruling — one-off popup menu width, not a scale step */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro);
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.nt-account-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-account-identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.nt-account-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-button);
+  text-align: left;
+}
+
+.nt-account-menu button:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Trailing state caption (the Sync entry's "up to date" / "3 waiting"). */
+.nt-account-item-caption {
+  margin-left: auto;
+  padding-left: var(--spacing-3);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.nt-account-item--danger,
+.nt-account-item--danger:hover {
+  color: var(--md-sys-color-error);
+}
+
+/* Identity text column (the middle of the three footer columns). flex:1 +
+   min-width:0 make it the truncating buffer between the avatar and the
+   gear — without this block the name/email render INLINE and overflow the
+   gear (the 2026-10-19 restore shipped without it for a few hours). */
+.nt-profile-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+/* Identity text (header + reused by the popup). */
+.nt-profile-name {
+  font-size: var(--font-size-button);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-profile-email {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.75;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Class flag on favorites/recents rows (owner): a quiet chip names class
+   nodes in the sidebar lists. */
+.nt-side-item-flag {
+  flex-shrink: 0;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--md-sys-color-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

@@ -1,0 +1,135 @@
+/**
+ * SearchField — Rounded search input with left icon.
+ *
+ * A presentational input component styled as a search bar (rounded corners,
+ * tinted background, left-side icon). Does NOT include dropdown/results —
+ * that's the caller's job. Used by SearchBox and NodeSelector.
+ *
+ * Self-contained fleet search field: the native-input composition
+ * (absorbed from the retired src/components/ui/input.tsx layer — the
+ * normalized shadcn input, private CatalogInput below) now lives here;
+ * the filled-pill container, the left icon, the clear affordance, the
+ * optional visible label, and the borderless variant are the app's and
+ * live here. The pill rides an
+ * explicit 3-column anatomy — leading icon lane | input | trailing clear
+ * lane (the grid + the input's stripped padding live in the co-located
+ * CSS; the catalog input's own px-3 would indent the text a second time
+ * past the icon lane) — plus the wrapper-carried focus ring
+ * (--shadow-focus-ring hugs the whole pill, not the input box inside the
+ * padding) and the clear button's invisible hit-area floor (::after),
+ * which ride this file's co-located CSS — the utility layer can't express
+ * the pseudo-element floor cleanly.
+ *
+ * Legacy hook classes: `search-field` (+ `search-field--borderless`),
+ * `search-field__input/icon/clear/label`, and `search-field-wrapper`
+ * stay — tests and feature CSS compound on them.
+ */
+import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type ComponentProps } from 'react';
+
+import { Icon } from '../../../ui/Icon.js';
+import { cn } from './cn.js';
+import './SearchField.css';
+
+/**
+ * The catalog-input composition (absorbed from the retired
+ * src/components/ui/input.tsx layer): the normalized shadcn input — the
+ * theme-key utilities only, the focus ring from --ring, fleet radii.
+ * Private to this file.
+ */
+const CatalogInput = forwardRef<HTMLInputElement, ComponentProps<'input'>>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          "flex h-button-md w-full rounded-input border border-input bg-transparent px-3 text-base text-on-surface transition-colors duration-short ease-standard placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed",
+          className,
+        )}
+        ref={ref}
+        {...props}
+      />
+    );
+  },
+);
+CatalogInput.displayName = 'Input';
+
+export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  /** Icon rendered on the left (defaults to a search icon) */
+  icon?: ReactNode;
+  /** Visible label text (also used as accessible name when visible) */
+  label?: string;
+  /** Pill size — "md" (default, 36px) stands full surfaces and roomy chrome
+   * rows; "sm" (30px) rides compact rows and anchored picker popovers,
+   * matching the sm controls beside those lists. The
+   * pill's block size is ALWAYS the input's button-height token — the
+   * wrapper carries no block padding (the old py-2
+   * stacked on h-button-md and doubled the vertical air). */
+  size?: 'md' | 'sm' | undefined;
+  /** Additional CSS class on the wrapper */
+  className?: string;
+  /** Clear affordance: with a non-empty `value`, an × renders inside the
+   * right edge and calls this (the host clears its state). */
+  onClear?: (() => void) | undefined;
+  /**
+   * Extra trailing-lane content inside the pill, after the clear
+   * affordance — the collapsible search field rides it with its
+   * collapse/close button (the pill owns the × geometry; a sibling
+   * outside the lane would break the grid).
+   */
+  trailing?: ReactNode | undefined;
+}
+
+export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
+  function SearchField({ icon, label, size = 'md', className = '', 'aria-label': ariaLabel, onClear, trailing, ...inputProps }, ref) {
+    const id = useId();
+    const hasValue = typeof inputProps.value === 'string' && inputProps.value !== '';
+
+    const input = (
+      <div
+        className={cn(
+          'search-field rounded-item px-3 transition-colors duration-short ease-standard',
+          size === 'sm' && 'search-field--sm',
+          className,
+        )}
+      >
+        <span className="search-field__icon flex items-center text-on-surface-variant">
+          {icon ?? <Icon path="mdi mdi-magnify" size="sm" />}
+        </span>
+        <CatalogInput
+          ref={ref}
+          id={id}
+          type="text"
+          className={cn(
+            'search-field__input min-w-0 w-full border-none bg-transparent px-0 text-base text-on-surface placeholder:text-on-surface-variant focus-visible:ring-0',
+            size === 'sm' && 'h-button-sm',
+          )}
+          aria-label={ariaLabel ?? label}
+          {...inputProps}
+        />
+        {hasValue && onClear !== undefined && (
+          <button
+            type="button"
+            className="search-field__clear relative inline-flex cursor-pointer items-center justify-center rounded-full border-none bg-transparent p-0 text-on-surface-variant hover:bg-hover-overlay hover:text-on-surface"
+            aria-label="Clear search"
+            title="Clear search"
+            onClick={onClear}
+          >
+            <Icon path="mdi mdi-close" size="sm" />
+          </button>
+        )}
+        {trailing}
+      </div>
+    );
+
+    if (label) {
+      return (
+        <div className="search-field-wrapper flex flex-col gap-1">
+          <label htmlFor={id} className="search-field__label text-sm font-medium text-on-surface-variant">{label}</label>
+          {input}
+        </div>
+      );
+    }
+
+    return input;
+  },
+);

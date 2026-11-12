@@ -1,14 +1,13 @@
 name: vendor-dispatch
 
-# notees-sync main moved: notify the clients that vendor the core through a
-# pinned vendor/notees submodule (notees-cli, notees-web) so their
-# vendor-bump workflows bump the pin, rebuild the vendored packages, run the
-# gate, and open the bump PR. Requires the VENDOR_DISPATCH_TOKEN secret — a
-# fine-grained PAT with Contents: write on miquelrosell99/notees-cli and
-# miquelrosell99/notees-web. When the secret is unset this is a silent
-# no-op (the clients' weekly scheduled vendor-bump is the drift net), and a
-# failed dispatch never fails this workflow — a main push is never blocked
-# on client bookkeeping.
+# This repo's main moved: notify the clients that vendor the core through a
+# pinned vendor/notees submodule. Post-ADR-001 that is notees-cli only —
+# the web client lives in this repo and consumes the packages directly.
+# Requires the VENDOR_DISPATCH_TOKEN secret — a fine-grained PAT with
+# Contents: write on miquelrosell99/notees-cli. When the secret is unset
+# this is a silent no-op (the CLI's weekly scheduled vendor-bump is the
+# drift net), and a failed dispatch never fails this workflow — a main
+# push is never blocked on client bookkeeping.
 
 on:
   push:
@@ -24,9 +23,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.VENDOR_DISPATCH_TOKEN }}
         run: gh api -X POST repos/miquelrosell99/notees-cli/dispatches -f event_type=notees-sync-updated -F "client_payload[sha]=${{ github.sha }}"
-      - name: Notify notees-web
-        if: ${{ secrets.VENDOR_DISPATCH_TOKEN != '' }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.VENDOR_DISPATCH_TOKEN }}
-        run: gh api -X POST repos/miquelrosell99/notees-web/dispatches -f event_type=notees-sync-updated -F "client_payload[sha]=${{ github.sha }}"

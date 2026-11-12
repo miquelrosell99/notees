@@ -1,0 +1,35 @@
+/**
+ * InProcessStoreBanner — the loud warning for the in-process store mode.
+ *
+ * Shown when detectStoreMode() falls back to WorkspaceClient (the Web Worker
+ * store unavailable): every store read then runs synchronously on the UI
+ * thread, so large workspaces can freeze the app (the profiled 75%-of-
+ * capture jank). Session-local dismiss; App passes the diagnosed cause
+ * (insecure context hiding OPFS, missing OPFS, or no Worker) so the banner
+ * says what to do, not just that something is wrong.
+ */
+
+import { useState } from "react";
+import { Icon } from "../../../ui/Icon.js";
+import "./InProcessStoreBanner.css";
+
+export function InProcessStoreBanner({ reason }: { reason?: string | undefined }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div className="in-process-banner" role="status" aria-live="polite">
+      <Icon path="mdi-alert-outline" className="in-process-banner__icon" />
+      <span className="in-process-banner__text">
+        Background store unavailable — running in-process, so large workspaces may freeze the UI.
+        {reason !== undefined && <> Cause: {reason}.</>}
+      </span>
+      <button
+        type="button"
+        className="in-process-banner__dismiss"
+        onClick={() => setDismissed(true)}
+      >
+        Dismiss
+      </button>
+    </div>
+  );
+}

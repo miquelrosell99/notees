@@ -1,0 +1,23 @@
+/* Spinner — the reduced-motion honest cue. The arc's look itself rides
+   the utility layer (the catalog spinner); this file keeps only what the
+   utilities can't express: under reduced motion the global blanket
+   freezes the spin keyframe, leaving a static arc — swap it for a "…"
+   text marker (the role=status announcement continues regardless). */
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    position: relative;
+    width: auto;
+    min-width: var(--icon-size-sm);
+    height: auto;
+    border-width: 0;
+  }
+
+  .spinner::after {
+    content: '…';
+    color: var(--md-sys-color-on-surface-variant);
+    font: var(--font-title-medium);
+    line-height: 1;
+  }
+}

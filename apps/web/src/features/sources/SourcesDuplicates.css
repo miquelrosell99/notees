@@ -1,0 +1,101 @@
+/**
+ * SourcesDuplicates styles — the Sources hub's Duplicates mode (the middle
+ * cell's alternative to the items table). Token-only (variables.css);
+ * the member lanes ride ch-based measures that track the type metrics
+ * (the items table's column-width register); the pane fills the hub cell
+ * (the nt-sources-hub__table shared register) and the group list scrolls
+ * inside it.
+ */
+
+.nt-sources-dup {
+  overflow-y: auto;
+}
+
+.nt-sources-dup__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.nt-sources-dup__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.nt-sources-dup__group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.nt-sources-dup__group-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-sources-dup__group-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-small);
+}
+
+.nt-sources-dup__group-count {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-small);
+}
+
+.nt-sources-dup__members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-sources-dup__member {
+  display: grid;
+  grid-template-columns: minmax(16ch, 2fr) minmax(12ch, 1fr) 7ch minmax(10ch, 1fr) minmax(10ch, 1fr);
+  gap: var(--spacing-3);
+  align-items: baseline;
+  padding-block: var(--spacing-2);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface);
+  min-width: 0;
+}
+
+.nt-sources-dup__member > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.nt-sources-dup__member-authors,
+.nt-sources-dup__member-citekey,
+.nt-sources-dup__member-doi {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-sources-dup__member-year {
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+}

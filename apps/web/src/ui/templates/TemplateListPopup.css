@@ -1,0 +1,75 @@
+/* TemplateListPopup styles — token-only (AGENTS.md UI law). */
+
+.template-list-popup {
+  display: flex;
+  flex-direction: column;
+  min-width: 16rem; /* token-gate: constant template-list popup width ruling — one-off popup width, not a scale step */
+  max-width: 22rem; /* token-gate: constant template-list popup width ruling — one-off popup width, not a scale step */
+  /* The elevated popup register: transient
+     floating chrome rides surface-container-high — plain surface blended
+     into the content behind. */
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevation-2);
+  overflow: hidden;
+}
+
+.template-list-popup__header {
+  padding: var(--spacing-2) var(--spacing-3);
+  font: var(--font-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.template-list-popup__search {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.template-list-popup__list {
+  overflow-y: auto;
+  max-height: 16rem; /* token-gate: constant template-list popup list max height ruling — one-off popup list height, not a scale step */
+  padding: var(--spacing-1);
+}
+
+.template-list-popup__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-2);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--md-sys-color-on-surface);
+  font: var(--font-body-medium);
+  text-align: left;
+  cursor: pointer;
+}
+
+.template-list-popup__row--selected {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.template-list-popup__row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-list-popup__empty {
+  padding: var(--spacing-3);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.template-list-popup__footer {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.template-list-popup__hint {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}

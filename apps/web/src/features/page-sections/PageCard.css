@@ -1,0 +1,121 @@
+/**
+ * PageCard styles — shell layout glue + the floating content card.
+ *
+ * .nt-app/.nt-body are the flex column/row that place the transparent
+ * topbar and sidebar directly on the background canvas; .nt-main is the
+ * remaining space that centers the card. The card itself is the single
+ * surface of the workspace: it lifts off the canvas via a soft layered
+ * shadow token so it reads as floating in both themes.
+ */
+
+.nt-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.nt-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.nt-page-card {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  /* The top margin is one step smaller than the others:
+     the top bar's 44px height already carries slack below its controls, so
+     a full spacing-3 here stacked into a double gap under the bar. The
+     left/right/bottom margins keep the shell's spacing-3 canvas rhythm. */
+  margin: var(--spacing-2) var(--spacing-3) var(--spacing-3) 0;
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+  box-shadow: var(--shadow-elevation-1);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nt-empty,
+.nt-page-missing {
+  padding: var(--spacing-10);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+
+.nt-page-card > * {
+  max-width: var(--layout-size-13xl);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* The graph hub: the canvas is the card's sole content — edge-to-edge,
+   no centered column cap, no margins (the fullscreen whiteboard's
+   treatment; the card frame itself stays). */
+.nt-page-card > .nt-graph-surface {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The hub surfaces: Journal, Calendar, the collection
+   hubs (Pages / Classes / Inbox / Whiteboards / Assets / Tasks), Sources,
+   Trash, Archived, Shares, Search, and Queries. Same full-bleed treatment as the
+   graph surface: no centered column cap — each hub pins a SurfaceTopBar
+   header row at the card's top and its body scrolls at the CARD's right
+   border (the generic 800px cap put internal scrollbars at the floating
+   column's edge); each hub's content measure rides an inner cap inside its
+   own CSS. */
+.nt-page-card > .journals-view,
+.nt-page-card > .calendar-view,
+.nt-page-card > .day-page-surface,
+.nt-page-card > .nt-hub,
+.nt-page-card > .nt-hub-tasks,
+.nt-page-card > .nt-sources-hub,
+.nt-page-card > .nt-trash-hub,
+.nt-page-card > .nt-archived-hub,
+.nt-page-card > .nt-shares-hub,
+.nt-page-card > .search-page,
+.nt-page-card > .nt-queries-hub {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The settings page: a full-card surface like the panelled nodeview — the
+   generic centered 800px cap squeezed the nav rail + content into a
+   floating mid-card band. The page frame carries its own inset (SettingsPage.css)
+   and the content column caps itself. */
+.nt-page-card > .settings-page {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
+
+/* The day-page surface: a day page rides the hub
+   register's full-bleed flex fill — the NodeView below carries the ONE bar
+   (its SurfaceTopBar, with the DayStepper injected through
+   `topBarActionsExtra`); this wrapper owns the flex fill only, no chrome. */
+.day-page-surface > :last-child {
+  flex: 1;
+  min-height: 0;
+}

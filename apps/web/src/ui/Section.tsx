@@ -1,0 +1,94 @@
+/**
+ * Section — the lazy-loading system-section primitive (SCHEMA.md contract):
+ * collapsed by default, and a collapsed section executes NO query — `load`
+ * runs only after the first expand. Results cache per section; while
+ * expanded, a client notification re-runs the query, so an expanded section
+ * picks up invalidating changes while a collapsed one stays silent. A query
+ * failure (e.g. the client closing mid-flight) keeps the previous results
+ * instead of crashing the tree — a section is reference material, never a
+ * boot gate.
+ *
+ * A thin chrome wrapper over useSectionData — the timing/cache contract
+ * moved into the hook (one instance per section view); this component keeps
+ * the established prop shape (the `renderWhenEmpty` opt-in extends it for
+ * containers owning their own empty state) and renders the collapsible
+ * chrome around `renderResults`.
+ */
+
+import { useState, type ReactNode } from "react";
+
+import type { WorkerClient } from "@/core/worker-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
+
+import { NodeViewSection, type NodeViewSectionAction } from "../features/page-sections/NodeViewSection.js";
+import { useSectionData } from "../features/collection/useSectionData.js";
+
+export interface SectionProps<T> {
+  client: WorkspaceClient | WorkerClient;
+  title: string;
+  icon?: ReactNode;
+  /**
+   * Materialized count badge — the count's home when the section has no
+   * hosted tabs (the active tab's badge names it there instead). Renders
+   * unconditionally and is exempt from the lazy-loading contract (reading
+   * it is reading a stored number). Omit for no badge: unlinked references
+   * never shows an eager count (and an empty child-pages section suppresses
+   * the zero — its gate hides the whole section).
+   */
+  badge?: number | undefined;
+  /** The header's far-right icon-only action (the section-scoped create). */
+  action?: NodeViewSectionAction | undefined;
+  /** Collapsed on first render unless overridden. */
+  defaultCollapsed?: boolean;
+  /** The section query; MUST NOT be invoked while collapsed. */
+  load: () => T;
+  /** Results projection; rendered only while expanded. */
+  renderResults: (results: T) => ReactNode;
+  /** Text when the query came back empty. */
+  emptyText: string;
+  /**
+   * Render `renderResults` for an EMPTY result set too (default false):
+   * the container owns its own empty state — e.g. a NodeCollection whose
+   * kit EmptyState carries the create affordance. The `emptyText` branch
+   * stays for every section without that chrome.
+   */
+  renderWhenEmpty?: boolean;
+  /** Optional chrome rendered above the results (an extension slot). */
+  children?: ReactNode;
+}
+
+export function Section<T>({
+  client,
+  title,
+  icon,
+  badge,
+  action,
+  defaultCollapsed = true,
+  load,
+  renderResults,
+  emptyText,
+  renderWhenEmpty = false,
+  children,
+}: SectionProps<T>) {
+  const [expanded, setExpanded] = useState(!defaultCollapsed);
+  const { rows } = useSectionData<T>({ client, active: expanded, read: load });
+
+  return (
+    <NodeViewSection
+      title={title}
+      icon={icon}
+      count={badge}
+      action={action}
+      className="nt-section"
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+    >
+      {children}
+      {rows === null ? null : Array.isArray(rows) && rows.length === 0 && !renderWhenEmpty ? (
+        <div className="nt-section-empty">{emptyText}</div>
+      ) : (
+        renderResults(rows)
+      )}
+    </NodeViewSection>
+  );
+}

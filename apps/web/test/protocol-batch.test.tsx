@@ -1,0 +1,443 @@
+/**
+ * Protocol batch part 1 — web surface (jsdom): the content-token
+ * renderers (code_block read-only pre + language badge, the hr rule, the
+ * embed_ref card views with the full-embed fallback) and the
+ * Workspace Settings Features tab (live read surface, LOCKSTEP-PENDING
+ * inert writes).
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+import { InlineTokens } from "../src/ui/InlineTokens.js";
+import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
+import { WORKSPACE_FEATURE_MAP } from "@notees/domain";
+import type { AnyClient } from "../src/ui/app/Sidebar.js";
+
+beforeAll(() => {
+  // jsdom lacks ResizeObserver; Tabs.List uses it for the active indicator.
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.stubGlobal("ResizeObserver", class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
+});
+
+describe("InlineTokens protocol-batch tokens", () => {
+  it("renders a code_block as a read-only mono pre with the language badge", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[
+          { type: "text", text: "intro" },
+          { type: "code_block", language: "python", text: "print('hi')\nprint('bye')" },
+        ]}
+      />,
+    );
+    const pre = container.querySelector(".nt-code-block__pre");
+    expect(pre?.textContent).toBe("print('hi')\nprint('bye')");
+    expect(container.querySelector(".nt-code-block__lang")?.textContent).toBe("python");
+    expect(screen.getByText("intro")).toBeInTheDocument();
+  });
+
+  it("renders a language-less code_block without a badge", () => {
+    const { container } = render(
+      <InlineTokens tokens={[{ type: "code_block", text: "plain snippet" }]} />,
+    );
+    expect(container.querySelector(".nt-code-block__pre")?.textContent).toBe("plain snippet");
+    expect(container.querySelector(".nt-code-block__lang")).toBeNull();
+  });
+
+  it("renders the hr token as a horizontal rule", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[{ type: "text", text: "above" }, { type: "hr" }, { type: "text", text: "below" }]}
+      />,
+    );
+    expect(container.querySelectorAll("hr.nt-hr")).toHaveLength(1);
+    expect(screen.getByText("above")).toBeInTheDocument();
+    expect(screen.getByText("below")).toBeInTheDocument();
+  });
+
+  it("routes embed_ref card views to the card renderer and defaults to the full embed", () => {
+    const card = vi.fn(
+      (nodeId: string, view: "small_card" | "wide_card", _token: unknown, _index: number) => (
+        <span data-testid={`card-${view}`}>{nodeId}</span>
+      ),
+    );
+    const full = vi.fn((nodeId: string) => <span data-testid="full">{nodeId}</span>);
+    render(
+      <InlineTokens
+        tokens={[
+          { type: "embed_ref", nodeId: "n-1", view: "small_card" },
+          { type: "embed_ref", nodeId: "n-2", view: "wide_card" },
+          { type: "embed_ref", nodeId: "n-3" },
+          { type: "embed_ref", nodeId: "n-4", view: "embed" },
+        ]}
+        renderEmbed={full}
+        renderEmbedCard={card}
+      />,
+    );
+    expect(card.mock.calls.map((call) => call.slice(0, 2))).toEqual([
+      ["n-1", "small_card"],
+      ["n-2", "wide_card"],
+    ]);
+    expect(screen.getByTestId("card-small_card")).toBeInTheDocument();
+    expect(screen.getByTestId("card-wide_card")).toBeInTheDocument();
+    // Absent view (and the explicit "embed" default) ride the full embed.
+    expect(full.mock.calls.map((call) => call[0])).toEqual(["n-3", "n-4"]);
+    expect(screen.getAllByTestId("full")).toHaveLength(2);
+    // The raw token + stream index ride along (the view switcher's write path).
+    expect(card.mock.calls[0]![2]).toEqual({ type: "embed_ref", nodeId: "n-1", view: "small_card" });
+    expect(card.mock.calls[0]![3]).toBe(0);
+  });
+
+  it("falls back to the full embed for card views when no card renderer is injected", () => {
+    const full = vi.fn((nodeId: string) => <span data-testid="full">{nodeId}</span>);
+    render(
+      <InlineTokens
+        tokens={[{ type: "embed_ref", nodeId: "n-1", view: "small_card" }]}
+        renderEmbed={full}
+      />,
+    );
+    expect(full.mock.calls.map((call) => call[0])).toEqual(["n-1"]);
+  });
+});
+
+describe("InlineTokens mention labels (full titles for node links)", () => {
+  const longTitle = "A ".repeat(60).trimEnd(); // 119 chars — beyond the display-name budget
+  const capped = longTitle.slice(0, 80);
+  const mention = { type: "mention", targetNodeId: "n-long", text: capped, linkId: "l-1" };
+
+  it("a >80-char target title renders COMPLETE in a mention chip", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[mention]}
+        resolveName={() => capped}
+        resolveFullTitle={() => longTitle}
+      />,
+    );
+    const chip = container.querySelector(".nt-mention");
+    expect(chip?.textContent).toBe(longTitle);
+  });
+
+  it("the linked mention (onOpenNode button) renders the complete title too", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[mention]}
+        resolveName={() => capped}
+        resolveFullTitle={() => longTitle}
+        onOpenNode={() => {}}
+      />,
+    );
+    const link = container.querySelector("button.nt-link");
+    expect(link?.textContent).toBe(longTitle);
+  });
+
+  it("without resolveFullTitle the capped resolveName stays the label (unwired callers)", () => {
+    const { container } = render(
+      <InlineTokens tokens={[mention]} resolveName={() => capped} />,
+    );
+    expect(container.querySelector(".nt-mention")?.textContent).toBe(capped);
+  });
+
+  it("a customLabel always wins over the full title", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[{ ...mention, customLabel: "the short label" }]}
+        resolveName={() => capped}
+        resolveFullTitle={() => longTitle}
+      />,
+    );
+    expect(container.querySelector(".nt-mention")?.textContent).toBe("the short label");
+  });
+});
+
+/** Minimal client mock for the Features tab (reads + the chips enumeration). */
+function featureClient(overrides: {
+  enabled?: Record<string, boolean>;
+  instances?: Record<string, number>;
+  setFeatureEnabled?: (feature: string, enabled: boolean) => Promise<void>;
+}): AnyClient {
+  const enabled = overrides.enabled ?? {};
+  const instances = overrides.instances ?? {};
+  return {
+    getWorkspaceId: () => "ws1",
+    subscribe: () => () => {},
+    listClasses: () => [],
+    classIcons: () => new Map(),
+    effectiveClassIcons: () => new Map(),
+    getClassBindings: () => [],
+    getNodeRaw: () => undefined,
+    effectiveClassColor: () => null,
+    isFeatureEnabled: (feature: string) => enabled[feature] ?? true,
+    getFeatureInstanceCount: (feature: string) => instances[feature] ?? 0,
+    listFeatureRows: () => [],
+    setFeatureEnabled: overrides.setFeatureEnabled ?? (() => Promise.resolve()),
+    setFeatureSettings: () => Promise.resolve(),
+    setArchived: () => Promise.resolve(),
+    // The General tab's Migrations block (F3) probes the client on open.
+    isKeyedWorkspace: () => false,
+    listPendingMigrations: () => [],
+    planMigration: () => {
+      throw new Error("not used by these pins");
+    },
+    runMigration: () => {
+      throw new Error("not used by these pins");
+    },
+  } as unknown as AnyClient;
+}
+
+function renderFeaturesTab(client: AnyClient | undefined) {
+  render(
+    <WorkspaceSettingsModal
+      isOpen
+      onClose={() => {}}
+      serverUrl="https://notees.example.com"
+      credential="session-token"
+      workspaceId="ws1"
+      workspaceName="Garden"
+      workspaceRole="owner"
+      client={client}
+    />,
+  );
+  fireEvent.click(screen.getByRole("tab", { name: "Features" }));
+}
+
+/**
+ * The family/journal/read-later toggle rows (the Sources settings section below
+ * them adds its own switches — the family assertions scope to these rows).
+ */
+function familyToggleRows(): HTMLElement[] {
+  return Array.from(document.querySelectorAll(".settings-feature-row"));
+}
+
+describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
+  it("lists the five core families plus the journal and read-later toggles, each with a LIVE ToggleSwitch", () => {
+    renderFeaturesTab(featureClient({}));
+    const entries = Object.entries(WORKSPACE_FEATURE_MAP);
+    expect(entries).toHaveLength(5);
+    const rows = familyToggleRows();
+    // 5 families + journal + readItLater (the row renders once the vendored
+    // protocol knows the id — post vendor-bump).
+    expect(rows).toHaveLength(7);
+    for (const [, spec] of entries) {
+      // Scope to the family's own row — the Sources settings section below
+      // carries its own "Sources" heading, so the bare label is ambiguous.
+      const row = rows.find((candidate) => within(candidate).queryByText(spec.label) !== null);
+      expect(row, spec.label).toBeDefined();
+      expect(
+        within(row!).getByText(new RegExp(spec.powers.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))),
+      ).toBeInTheDocument();
+    }
+    // The journal toggle rides below the families
+    // — surfaces-only copy, no class family.
+    expect(screen.getByText("Journal")).toBeInTheDocument();
+    expect(screen.getByText(/journal view and Today-page management/i)).toBeInTheDocument();
+    // The read-later surface toggle rides below the journal row.
+    expect(screen.getByText("Read later")).toBeInTheDocument();
+    expect(screen.getByText(/read-later captures/i)).toBeInTheDocument();
+    const switches = rows.map((row) => within(row).getByRole("switch"));
+    expect(switches).toHaveLength(7);
+    for (const toggle of switches) {
+      // Lockstep shipped (GTK/Flutter v3.0.0): the toggles write.
+      expect(toggle).toBeEnabled();
+      expect(toggle).toHaveAttribute("aria-checked", "true");
+    }
+    // The lockstep-pending note is gone.
+    expect(screen.queryByText(/mobile and desktop clients catch up/i)).toBeNull();
+  });
+
+  it("clicking a toggle writes workspace.feature.set through the client", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(featureClient({ setFeatureEnabled }));
+    const switches = screen.getAllByRole("switch");
+    fireEvent.click(switches[0]!); // Tasks, currently On → Off
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("tasks", false);
+    });
+  });
+
+  it("reads the live toggle state and instance counts from the client", () => {
+    renderFeaturesTab(
+      featureClient({ enabled: { tasks: false }, instances: { tasks: 3, events: 1 } }),
+    );
+    // Row order follows the feature map (tasks first); the ToggleSwitch's
+    // accessible name is its "Off"/"On" labels, so index by row order.
+    // (The Sources settings section adds its own switches below — the
+    // family assertions scope to the feature rows.)
+    const switches = familyToggleRows().map((row) => within(row).getByRole("switch"));
+    expect(switches[0]).toHaveAttribute("aria-checked", "false");
+    for (const toggle of switches.slice(1)) {
+      expect(toggle).toHaveAttribute("aria-checked", "true");
+    }
+    expect(screen.getByText(/3 existing objects/)).toBeInTheDocument();
+    expect(screen.getByText(/1 existing object\b/)).toBeInTheDocument();
+  });
+
+  it("turning OFF a family with instances opens the F3 confirmation; Cancel gates the write", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(
+      featureClient({ setFeatureEnabled, instances: { tasks: 3 } }),
+    );
+    fireEvent.click(screen.getAllByRole("switch")[0]!); // Tasks, On → Off
+
+    // The confirmation modal states the F3 semantics; no write yet. (The
+    // settings shell is itself a dialog — scope to the confirmation.)
+    const dialog = await waitFor(() => {
+      const el = document.querySelector(".confirmation-modal");
+      if (el === null) throw new Error("confirmation not open");
+      return el as HTMLElement;
+    });
+    expect(within(dialog).getByText(/3 existing objects keep their data/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/the family's surfaces hide/)).toBeInTheDocument();
+    expect(setFeatureEnabled).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
+    expect(setFeatureEnabled).not.toHaveBeenCalled();
+  });
+
+  it("Disable in the confirmation issues the workspace.feature.set OFF write", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(
+      featureClient({ setFeatureEnabled, instances: { events: 1 } }),
+    );
+    fireEvent.click(screen.getAllByRole("switch")[1]!); // Events, On → Off
+
+    const dialog = await waitFor(() => {
+      const el = document.querySelector(".confirmation-modal");
+      if (el === null) throw new Error("confirmation not open");
+      return el as HTMLElement;
+    });
+    expect(within(dialog).getByText(/1 existing object keep/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Disable" }));
+
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("events", false);
+    });
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
+  });
+
+  it("a family with zero instances (and every enable) writes immediately — no modal", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(
+      featureClient({ setFeatureEnabled, enabled: { tasks: false }, instances: { events: 0 } }),
+    );
+    const switches = screen.getAllByRole("switch");
+
+    // Events: On → Off with 0 instances → straight through, no confirmation.
+    fireEvent.click(switches[1]!);
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("events", false);
+    });
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
+
+    // Tasks: Off → On (an enable) → straight through, no confirmation.
+    fireEvent.click(switches[0]!);
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("tasks", true);
+    });
+    expect(document.querySelector(".confirmation-modal")).toBeNull();
+  });
+
+  it("renders the honest note when the client belongs to another workspace", () => {
+    renderFeaturesTab(undefined);
+    expect(screen.getByText(/open this workspace to see its feature toggles/i)).toBeInTheDocument();
+  });
+});
+
+describe("feature chrome gates", () => {
+  it("isClassFamilyEnabled: own feature + managed ancestors (event-off hides the meeting chip too)", async () => {
+    const { isClassFamilyEnabled } = await import("../src/features/settings/featureGates.js");
+    const { SYSTEM_CLASS_UUIDS } = await import("@notees/domain");
+    const client = (disabled: string[]) =>
+      ({
+        isFeatureEnabled: (feature: string) => !disabled.includes(feature),
+      }) as never;
+
+    // Everything on: every family class enabled.
+    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.meeting)).toBe(true);
+    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.birthday)).toBe(true);
+    // Meetings off: meeting chrome hides; event + birthday stay.
+    expect(isClassFamilyEnabled(client(["meetings"]), SYSTEM_CLASS_UUIDS.meeting)).toBe(false);
+    expect(isClassFamilyEnabled(client(["meetings"]), SYSTEM_CLASS_UUIDS.event)).toBe(true);
+    expect(isClassFamilyEnabled(client(["meetings"]), SYSTEM_CLASS_UUIDS.birthday)).toBe(true);
+    // Events off: the cascade hides meeting AND birthday chrome with it.
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.meeting)).toBe(false);
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.birthday)).toBe(false);
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.event)).toBe(false);
+    // Sources off hides the whole source family; persons off the person class.
+    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.book)).toBe(false);
+    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.conference)).toBe(false);
+    // The web page rides the cascade (web_page extends source)…
+    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.web_page)).toBe(false);
+    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.web_page)).toBe(true);
+    // …while unrelated toggles leave it alone.
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.web_page)).toBe(true);
+    expect(isClassFamilyEnabled(client(["persons"]), SYSTEM_CLASS_UUIDS.person)).toBe(false);
+    // Always-on vocabulary and user classes gate on nothing.
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.day)).toBe(true);
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.agent)).toBe(true);
+    expect(isClassFamilyEnabled(client(["events"]), "a-user-class-id")).toBe(true);
+  });
+
+  it("the sidebar hides the Tasks hub entry while the tasks family is off", async () => {
+    const { Sidebar } = await import("../src/ui/app/Sidebar.js");
+    const baseMock = {
+      getWorkspaceId: () => "ws1",
+      subscribe: () => () => {},
+      isFeatureEnabled: (feature: string) => feature !== "tasks",
+      listClasses: () => [],
+      classIcons: () => new Map(),
+      effectiveClassIcons: () => new Map(),
+      listPages: () => [],
+      listPageSummaries: () => [],
+      roots: () => [],
+      search: () => [],
+      getNode: () => undefined,
+      getDisplayName: () => null,
+      getBacklinkCount: () => 0,
+      getChildPageCount: () => 0,
+    };
+    const props = {
+      client: baseMock as unknown as AnyClient,
+      workspaceName: "Garden",
+      workspaceId: "ws1",
+      serverUrl: "https://notees.example.com",
+      credential: "session-token",
+      user: null,
+      offline: false,
+      showSettings: false,
+      onOpenSettings: () => {},
+      selectedPageId: null,
+      activeNav: "pages" as const,
+      onSelectNav: () => {},
+      onOpenPage: () => {},
+      onRequestSearch: () => {},
+      onSwitchWorkspace: () => {},
+      onManageWorkspaces: () => {},
+      onSignOut: () => {},
+    };
+    const { unmount } = render(<Sidebar {...props} />);
+    expect(screen.queryByText("Tasks")).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <Sidebar
+        {...props}
+        client={{ ...baseMock, isFeatureEnabled: () => true } as unknown as AnyClient}
+      />,
+    );
+    expect(screen.getByText("Tasks")).toBeInTheDocument();
+  });
+});

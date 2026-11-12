@@ -1,0 +1,203 @@
+/* Context Menu Styles */
+/* Uses Card component for base styling. */
+/* These styles are for context menu-specific content. */
+
+
+
+/* Positioning rides the Radix popper wrapper (inline transform) — a */
+/* position rule here breaks floating-ui's align math (found in the */
+/* capture pass: alignRight menus anchored start). The class keeps the */
+/* box register only. */
+.context-menu {
+  z-index: var(--z-floating);
+  min-width: 11.25rem; /* token-gate: constant context-menu panel min-width ruling, not a scale step */
+  max-width: var(--layout-size-6xl);
+  padding: var(--spacing-1);
+  animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);
+}
+
+/* The card radius normally clips (overflow: hidden on .card--radius- */
+/* floating), but the menu hosts the flyout submenu — a second card */
+/* painted OUTSIDE this card's right edge. Clipping hid the flyout */
+/* completely (submenu never visible, even on */
+/* click). Nothing else inside bleeds: rows are inset by the padding and */
+/* carry their own radius. The .card qualification beats the radius */
+/* class's overflow without !important. */
+
+/* The menu rides the elevated popup register (surface-container-low blended into the dark content behind — the same */
+/* issue the calendar-popup fix solved for pickers; menus move up to the */
+/* proven step, surface-container-high + the level-2 shadow the transient */
+/* popovers carry). Both are Material roles cited directly; the md-sys */
+/* namespace is for Material roles only, never app aliases like */
+/* --md-sys-color-sidebar-card (the css-token-drift gate enforces this). */
+/* The 4dp container shape rides --radius-menu (the M3 menu-corner ruling), */
+/* overriding the Card radius class below with the .card qualification. */
+.card.context-menu {
+  overflow: visible;
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--radius-menu);
+  box-shadow: var(--elevation-2);
+}
+
+.context-menu-title {
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-badge);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  color: var(--md-sys-color-on-surface);
+  text-align: left;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+  outline: none;
+  border-radius: var(--shape-small);
+}
+
+.context-menu-item:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+  background-color: var(--md-sys-color-focus-overlay);
+}
+
+
+
+.context-menu .context-menu-item:hover:not(.disabled),
+.context-menu .context-menu-item:focus:not(.disabled),
+button.context-menu-item:hover:not(.disabled) {
+  background-color: var(--md-sys-color-hover-overlay);
+}
+
+/* Pressed layer on every interactive item. */
+.context-menu-item:active:not(.disabled) {
+  background-color: var(--md-sys-color-pressed-overlay);
+}
+
+/* The active identity survives hover (combined rule — a bare .active loses */
+/* its fill to the :hover wash by specificity). */
+.context-menu-item.active,
+.context-menu-item.active:hover:not(.disabled) {
+  background: var(--md-sys-color-primary-container);
+}
+
+.context-menu-item.focused {
+  background-color: var(--md-sys-color-hover-overlay);
+}
+
+.context-menu-item.danger {
+  color: var(--md-sys-color-error);
+}
+
+/* Danger items ride the same state layer — the error ink carries the */
+/* signal, not a fill (fleet law: hover = state-layer overlay only). */
+.context-menu-item.danger:hover:not(.disabled),
+.context-menu-item.danger:focus:not(.disabled),
+.context-menu .context-menu-item.danger:hover:not(.disabled) {
+  background-color: var(--md-sys-color-hover-overlay);
+}
+
+.context-menu-item.disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.context-menu-icon-wrapper {
+  width: var(--icon-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.context-menu-icon {
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.context-menu-label {
+  flex: 1;
+}
+
+.context-menu-badge {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding: var(--spacing-hairline) var(--spacing-1-5);
+  border-radius: var(--shape-extra-large);
+  white-space: nowrap;
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.context-menu-shortcut {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-outline);
+  margin-left: auto;
+}
+
+.context-menu-arrow {
+  /* The submenu chevron rides the icon role (on-surface-variant): outline */
+  /* is a border token and read as nearly invisible against the card. */
+  color: var(--md-sys-color-on-surface-variant);
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.context-menu-item.has-submenu {
+  position: relative;
+}
+
+/* Flyout submenu — opens to the SIDE of the parent row (the Notion */
+/* pattern) as a second card riding FLUSH against the menu edge (no */
+/* overlap). Its position (left/right/top) is written imperatively */
+/* in the component: right side by default, flipped left at the viewport */
+/* edge, vertically clamped. Absolutely positioned inside the card, it */
+/* never changes the menu's own box — so opening/closing it can never */
+/* re-fit the menu the way the old inline expansion did. Rides the menu */
+/* root's elevated register (see .card.context-menu) — the proven popup */
+/* step: surface-container-high + the level-2 shadow. */
+.card.context-menu-submenu-flyout {
+  min-width: 11.25rem; /* token-gate: constant context-menu panel min-width ruling, not a scale step */
+  max-width: var(--layout-size-6xl);
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--radius-menu);
+  box-shadow: var(--elevation-2);
+  padding: var(--spacing-1);
+  z-index: var(--z-1);
+  animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);
+}
+
+/* Custom-content flyouts (the submenu form — the whiteboard's row, the */
+/* color swatch grid) size to their content; the min-width floor above is */
+/* the TEXT-submenu register, and dead space beside a swatch grid reads as */
+/* a bug. */
+.card.context-menu-submenu-flyout--custom {
+  min-width: 0;
+}
+
+/* Custom content row — renders arbitrary React content inline in the menu */
+.context-menu-content-row {
+  padding: var(--spacing-1) var(--spacing-3);
+}
+
+/* Touch: long-press menus are the primary affordance — taller items */
+@media (hover: none) {
+  .context-menu-item {
+    padding: var(--spacing-3);
+  }
+}

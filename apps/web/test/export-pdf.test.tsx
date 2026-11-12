@@ -1,0 +1,653 @@
+/**
+ * PDF export engine tests (jsdom).
+ *
+ * Two harnesses, per the "pick the reliable one" ruling:
+ *
+ *  - The document component tree renders with testing-library: react-pdf's
+ *    components mount as lowercase custom elements (<document>/<page>/<view>/
+ *    <text>), so structure is assertable in the DOM (title block, properties,
+ *    asset image vs placeholder, academic's two flex Views, numbered
+ *    headings). The Page size prop is not reflected into the DOM, so the
+ *    pageFormat mapping is asserted on the element tree directly.
+ *  - `pdf()` itself is mocked (toBlob → a stub application/pdf Blob): the
+ *    real renderer needs font fetches jsdom cannot serve. The mock captures
+ *    the document element, so the specs assert the render pipeline end to
+ *    end — IR build, getAssetDataUrl resolution, merged layout/pageFormat
+ *    options, blob MIME, filenames — without the browser-only machinery.
+ */
+
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { unzipSync } from "fflate";
+import { render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { resolveExportOptions, type ExportDocument } from "@notees/export";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { ExportPdfDocument, pdfPageSize } from "../src/ui/export-pdf/pdfDocument.js";
+import { renderSubtreePdf, renderSubtreePdfBatch } from "../src/ui/export-pdf/renderPdf.js";
+import { PDF_THEMES } from "../src/ui/export-pdf/theme.js";
+import { getExportFormat as getWebExportFormat } from "../src/features/export/registerExportFormats.js";
+import { getExportFormat as getPackageExportFormat } from "@notees/export";
+
+const pdfMock = vi.hoisted(() => ({ calls: [] as unknown[] }));
+
+// The real renderer is kept for the component tree (components, Font,
+// StyleSheet all work in jsdom); only the byte-producing entry is stubbed.
+vi.mock("@react-pdf/renderer", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@react-pdf/renderer")>();
+  return {
+    ...actual,
+    pdf: (element: unknown) => {
+      pdfMock.calls.push(element);
+      return {
+        toBlob: async () => new Blob(["%PDF-1.4 stub"], { type: "application/pdf" }),
+      };
+    },
+  };
+});
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+});
+
+async function makeClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+beforeEach(() => {
+  pdfMock.calls.length = 0;
+});
+
+/** A hand-built IR exercising every block/span kind. */
+function fixtureDocument(): ExportDocument {
+  return {
+    nodeId: "node-trip",
+    title: "Trip",
+    rendersDocumentChrome: true,
+    isClass: false,
+    isEmbedded: false,
+    parentId: null,
+    blocks: [
+      {
+        kind: "paragraph",
+        spans: [
+          { kind: "text", text: "Pack ", marks: [] },
+          { kind: "text", text: "light", marks: ["bold", "italic"] },
+          { kind: "mention", targetNodeId: "node-gear", name: "Gear" },
+          { kind: "classLink", classId: "class-tag", name: "travel" },
+          { kind: "typedLink", verb: "authored by", text: "Miquel", locator: "p. 2" },
+          { kind: "text", text: "[docs](https://example.com)", marks: [] },
+          { kind: "math", expression: "e=mc^2" },
+          { kind: "hardBreak" },
+          { kind: "text", text: "second line", marks: ["code"] },
+        ],
+      },
+      { kind: "quote", spans: [{ kind: "text", text: "Take the scenic route", marks: [] }] },
+      { kind: "asset", assetId: "asset-boarding" },
+      { kind: "embed", nodeId: "node-packing", inlined: null },
+      {
+        kind: "embed",
+        nodeId: "node-inline",
+        inlined: {
+          nodeId: "node-inline",
+          title: "Inline",
+          rendersDocumentChrome: false,
+          isClass: false,
+          isEmbedded: true,
+          parentId: "node-trip",
+          blocks: [
+            { kind: "paragraph", spans: [{ kind: "text", text: "inlined body", marks: [] }] },
+          ],
+          properties: [],
+          classIds: [],
+          classNames: [],
+          children: [],
+          assetRefs: [],
+        },
+      },
+      { kind: "query", queryAst: { op: "and", args: [] } },
+      { kind: "whiteboard", layout: { nodes: [] } },
+    ],
+    properties: [
+      { schemaId: "schema-status", schemaName: "Status", value: "planned", display: "planned" },
+      { schemaId: "schema-empty", schemaName: "Empty", value: "", display: "" },
+    ],
+    classIds: ["class-tag"],
+    classNames: ["Tag"],
+    children: [
+      {
+        id: "node-packing",
+        title: "Packing",
+        isEmbedded: false,
+        classIds: [],
+        classNames: [],
+        properties: [],
+        blocks: [
+          { kind: "paragraph", spans: [{ kind: "text", text: "Sunscreen", marks: [] }] },
+        ],
+        children: [
+          {
+            id: "node-sub",
+            title: "Toiletries",
+            isEmbedded: false,
+            classIds: [],
+        classNames: [],
+            properties: [],
+            blocks: [],
+            children: [],
+          },
+        ],
+      },
+    ],
+    assetRefs: ["asset-boarding"],
+  };
+}
+
+/** Read the Page element out of the document tree. */
+function pageElement(element: ReactElement): ReactElement {
+  const page = (element.props as { children: ReactElement }).children;
+  expect(page.type).toBeDefined();
+  return page;
+}
+
+describe("ExportPdfDocument component tree", () => {
+  it("maps pageFormat to the react-pdf page size", () => {
+    const document = fixtureDocument();
+    expect(pdfPageSize("a4")).toBe("A4");
+    expect(pdfPageSize("letter")).toBe("LETTER");
+    const a4 = ExportPdfDocument({ document, options: resolveExportOptions({ pageFormat: "a4" }) });
+    const letter = ExportPdfDocument({ document, options: resolveExportOptions({ pageFormat: "letter" }) });
+    expect((pageElement(a4).props as { size: string }).size).toBe("A4");
+    expect((pageElement(letter).props as { size: string }).size).toBe("LETTER");
+  });
+
+  it("renders title, properties, spans, and asset figures for the Notes theme", () => {
+    const document = fixtureDocument();
+    const assetDataUrls = new Map([["asset-boarding", "data:image/png;base64,aGk="]]);
+    const { container } = render(
+      <ExportPdfDocument
+        document={document}
+        options={resolveExportOptions({})}
+        assetDataUrls={assetDataUrls}
+      />,
+    );
+
+    // Title block + properties table (empty values hidden by default).
+    expect(screen.getByText("Trip")).toBeInTheDocument();
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.getByText("planned")).toBeInTheDocument();
+    expect(screen.queryByText("Empty")).toBeNull();
+
+    // Inline spans: marks, mention/chip pills, typed link, math as mono $…$.
+    expect(screen.getByText("light")).toBeInTheDocument();
+    expect(screen.getByText("Gear")).toBeInTheDocument();
+    expect(screen.getByText("#travel")).toBeInTheDocument();
+    expect(screen.getByText("authored by")).toBeInTheDocument();
+    expect(screen.getByText("$e=mc^2$")).toBeInTheDocument();
+
+    // Asset with a resolved data URL renders a real image; the quote and the
+    // unresolved embed keep their reference conventions.
+    expect(container.querySelector("image")).not.toBeNull();
+    expect(screen.getByText("Take the scenic route")).toBeInTheDocument();
+    expect(screen.getByText("![[node-packing]]")).toBeInTheDocument();
+    // Inlined embed renders its target's blocks; query/whiteboard are
+    // verbatim JSON boxes.
+    expect(screen.getByText("inlined body")).toBeInTheDocument();
+    expect(screen.getByText(/"op": "and"/)).toBeInTheDocument();
+    expect(screen.getByText(/"nodes": \[\]/)).toBeInTheDocument();
+  });
+
+  it("renders the placeholder box when an asset has no data URL", () => {
+    const document = fixtureDocument();
+    const { container } = render(
+      <ExportPdfDocument document={document} options={resolveExportOptions({})} />,
+    );
+    expect(container.querySelector("image")).toBeNull();
+    expect(screen.getByText("asset · asset-bo")).toBeInTheDocument();
+  });
+
+  it("splits the body across two column views for Academic only", () => {
+    const document = fixtureDocument();
+    const academic = render(
+      <ExportPdfDocument document={document} options={resolveExportOptions({ layout: "academic" })} />,
+    );
+    const rows = academic.container.querySelectorAll("view[style*='flex-direction: row']");
+    // Property rows are also row-views; the columns row is the one whose
+    // two children are the column views.
+    const columns = [...rows].filter((row) => [...row.children].every((child) => child.tagName === "VIEW"));
+    expect(columns).toHaveLength(1);
+    expect(columns[0]!.children).toHaveLength(2);
+    // Numbered headings: "1." for the top-level child, "1.1." for the nested one.
+    expect(academic.container.textContent).toContain("1. Packing");
+    expect(academic.container.textContent).toContain("1.1. Toiletries");
+    academic.unmount();
+
+    for (const layout of ["notes", "essay"] as const) {
+      const single = render(
+        <ExportPdfDocument document={document} options={resolveExportOptions({ layout })} />,
+      );
+      const singleRows = [...single.container.querySelectorAll("view[style*='flex-direction: row']")];
+      expect(singleRows.filter((row) => [...row.children].every((child) => child.tagName === "VIEW"))).toHaveLength(0);
+      expect(single.container.textContent).not.toContain("1. Packing");
+      single.unmount();
+    }
+  });
+
+  it("themes the page from the layout palette", () => {
+    const document = fixtureDocument();
+    const notes = render(<ExportPdfDocument document={document} options={resolveExportOptions({ layout: "notes" })} />);
+    expect(notes.container.querySelector("page")!.getAttribute("style")).toContain("background-color");
+    // Notes carries the warm-paper canvas (the --md-sys-color-background token value);
+    // essay/academic are white.
+    expect(PDF_THEMES.notes.colors.paper).toBe("#f7f4ec");
+    expect(PDF_THEMES.essay.colors.paper).toBe("#ffffff");
+    expect(PDF_THEMES.academic.twoColumnBody).toBe(true);
+    notes.unmount();
+  });
+
+  it("renders the title once — the body's leading title line is stripped (single-title rule)", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      // The root's own content opens with the title text (title-is-content):
+      // it rides the heading alone and must not repeat as the body's first line.
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Trip", marks: [] }] }],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(screen.getAllByText("Trip")).toHaveLength(1);
+    expect(container.textContent).not.toContain("TripTrip");
+  });
+
+  it("renders no 'Outline' heading and no outline divider", () => {
+    const document = fixtureDocument();
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(container.textContent).not.toContain("Outline");
+    const outline = container.querySelector("view:not([style*='flex-direction'])");
+    expect(outline).not.toBeNull();
+    // No border-top anywhere (the divider under the old duplicated title died
+    // with the section heading).
+    expect(container.innerHTML).not.toContain("border-top");
+  });
+
+  it("splits the zones: inline blocks nest body-only, child pages list at the end", () => {
+    const document: ExportDocument = {
+      nodeId: "node-book",
+      title: "Book",
+      rendersDocumentChrome: true,
+      isClass: false,
+      isEmbedded: false,
+      parentId: null,
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
+      properties: [],
+      classIds: [],
+      classNames: [],
+      children: [
+        {
+          // An inline body block: renders nested, NO title heading.
+          id: "node-note",
+          title: "Margin note",
+          isEmbedded: true,
+          classIds: [],
+        classNames: [],
+          properties: [],
+          blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "margin body", marks: [] }] }],
+          children: [],
+        },
+        {
+          // A child page: titled entry at the end; the title line inside its
+          // own blocks is stripped (the single-title rule for children).
+          id: "node-chapter",
+          title: "Chapter 1",
+          isEmbedded: false,
+          classIds: [],
+        classNames: [],
+          properties: [],
+          blocks: [
+            { kind: "paragraph", spans: [{ kind: "text", text: "Chapter 1", marks: [] }] },
+            { kind: "paragraph", spans: [{ kind: "text", text: "chapter body", marks: [] }] },
+          ],
+          children: [],
+        },
+      ],
+      assetRefs: [],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    // The child page's title appears exactly once (its heading — not again as
+    // its body's first line); its remaining body content rides below.
+    expect(screen.getAllByText("Chapter 1")).toHaveLength(1);
+    expect(screen.getByText("chapter body")).toBeInTheDocument();
+    // The inline block renders body-only: its title NEVER surfaces.
+    expect(screen.getByText("margin body")).toBeInTheDocument();
+    expect(screen.queryByText("Margin note")).toBeNull();
+    // The root title rides the header alone.
+    expect(screen.getAllByText("Book")).toHaveLength(1);
+    expect(container.textContent).toBeDefined();
+  });
+
+  it("loads child blocks recursively and excludes main nodes from the block zone", () => {
+    const block = (id: string, text: string, children: ExportDocument["children"] = []): ExportDocument["children"][number] => ({
+      id,
+      title: text,
+      isEmbedded: true,
+      classIds: [],
+        classNames: [],
+      properties: [],
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text, marks: [] }] }],
+      children,
+    });
+    const document: ExportDocument = {
+      nodeId: "node-book",
+      title: "Book",
+      rendersDocumentChrome: true,
+      isClass: false,
+      isEmbedded: false,
+      parentId: null,
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
+      properties: [],
+      classIds: [],
+      classNames: [],
+      children: [
+        // Three levels of inline blocks under the root.
+        block("node-l1", "level one", [
+          block("node-l2", "level two", [block("node-l3", "level three")]),
+          {
+            // A MAIN node nested under an inline block: excluded from the
+            // body zone, hoisted into the end list instead.
+            id: "node-nested-page",
+            title: "Nested page",
+            isEmbedded: false,
+            classIds: [],
+        classNames: [],
+            properties: [],
+            blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Nested page", marks: [] }] }],
+            children: [],
+          },
+        ]),
+      ],
+      assetRefs: [],
+    };
+    render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    // The block zone renders EVERY level, body-only (no title headings).
+    expect(screen.getByText("level one")).toBeInTheDocument();
+    expect(screen.getByText("level two")).toBeInTheDocument();
+    expect(screen.getByText("level three")).toBeInTheDocument();
+    // The main node under a block renders as a TITLED end-list entry (its
+    // body does not repeat the title) — never nested inline.
+    expect(screen.getAllByText("Nested page")).toHaveLength(1);
+    const entry = screen.getByText("Nested page") as unknown as { style?: { fontWeight?: string } };
+    expect(entry.style?.fontWeight).toContain("700");
+  });
+
+  it("renders boolean properties as the drawn checkbox, never literal true/false", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      properties: [
+        { schemaId: "s-read", schemaName: "Read", schemaType: "boolean", value: true, display: "☑" },
+        { schemaId: "s-todo", schemaName: "Todo", schemaType: "boolean", value: false, display: "☐" },
+      ],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    // The vector checkbox: one square per boolean row; the checked row adds
+    // the check polyline.
+    expect(container.querySelectorAll("svg rect")).toHaveLength(2);
+    expect(container.querySelectorAll("svg polyline")).toHaveLength(1);
+    expect(screen.queryByText("true")).toBeNull();
+    expect(screen.queryByText("false")).toBeNull();
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.getByText("Todo")).toBeInTheDocument();
+  });
+
+  it("draws outliner bullets in the Notes theme only", () => {
+    const document = fixtureDocument();
+    const notes = render(<ExportPdfDocument document={document} options={resolveExportOptions({ layout: "notes" })} />);
+    expect(notes.container.textContent).toContain("•");
+    notes.unmount();
+    for (const layout of ["essay", "academic"] as const) {
+      const themed = render(<ExportPdfDocument document={document} options={resolveExportOptions({ layout })} />);
+      expect(themed.container.textContent).not.toContain("•");
+      themed.unmount();
+    }
+  });
+
+  it("shows the row's class pills on the far right when Show classes is on, recursively", () => {
+    const pillRows = (container: HTMLElement): string[] =>
+      [...container.querySelectorAll("view")].map((view) => (view as unknown as HTMLElement).style.backgroundColor)
+        .filter((value) => value !== "" && value !== "rgba(0, 0, 0, 0)");
+    const document: ExportDocument = {
+      nodeId: "node-book",
+      title: "Book",
+      rendersDocumentChrome: true,
+      isClass: false,
+      isEmbedded: false,
+      parentId: null,
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
+      properties: [],
+      classIds: ["class-company"],
+      classNames: ["Company"],
+      classColors: ["#30a66f"],
+      children: [
+        {
+          id: "node-note",
+          title: "Margin note",
+          isEmbedded: true,
+          classIds: ["class-tag"],
+          classNames: ["Tag"],
+          classColors: ["#de4996"],
+          properties: [],
+          blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "margin body", marks: [] }] }],
+          children: [
+            {
+              id: "node-deep",
+              title: "Deep note",
+              isEmbedded: true,
+              classIds: ["class-a", "class-b", "class-c"],
+              classNames: ["A", "B", "C"],
+              classColors: [null, "#4072e7", null],
+              properties: [],
+              blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "deep body", marks: [] }] }],
+              children: [],
+            },
+          ],
+        },
+        {
+          id: "node-chapter",
+          title: "Chapter 1",
+          isEmbedded: false,
+          classIds: ["class-src"],
+          classNames: ["Source"],
+          classColors: ["#ed822b"],
+          properties: [],
+          blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "chapter body", marks: [] }] }],
+          children: [],
+        },
+      ],
+      assetRefs: [],
+    };
+    const on = render(<ExportPdfDocument document={document} options={resolveExportOptions({ showTypeLabels: true })} />);
+    // Every pill carries a background: the header Classes row, the inline
+    // block row, its nested grandchild (recursion), and the child-page entry.
+    expect(pillRows(on.container).length).toBeGreaterThanOrEqual(4);
+    expect(on.container.textContent).toContain("Classes");
+    expect(on.container.textContent).toContain("+2"); // the grandchild's overflow
+    on.unmount();
+
+    const off = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(pillRows(off.container)).toHaveLength(0);
+    expect(off.container.textContent).not.toContain("Classes");
+    off.unmount();
+  });
+
+  it("draws the node icon before a mention when the sprite map knows it", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      blocks: [
+        {
+          kind: "paragraph",
+          spans: [
+            { kind: "mention", targetNodeId: "node-gear", name: "Gear", icon: "mdiHeart" },
+            { kind: "mention", targetNodeId: "node-plain", name: "Plain" },
+          ],
+        },
+      ],
+      children: [],
+    };
+    const iconPaths = new Map([["mdi-heart", "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"]]);
+    const { container } = render(
+      <ExportPdfDocument document={document} options={resolveExportOptions({})} iconPaths={iconPaths} />,
+    );
+    // ONE drawn icon (the known one) — the sprite-less mention stays name-only.
+    expect(container.querySelectorAll("svg path")).toHaveLength(1);
+    expect(screen.getByText("Gear")).toBeInTheDocument();
+    expect(screen.getByText("Plain")).toBeInTheDocument();
+  });
+
+  it("renders property qualifiers from the IR's resolved display (no raw uuid)", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      properties: [
+        {
+          schemaId: "s-held",
+          schemaName: "Held",
+          schemaType: "object",
+          value: { nodeId: "node-ada" },
+          display: "Ada Lovelace",
+          metadata: { startDate: { nodeId: "00000000-0000-0000-00dd-202506240000" } },
+          resolvedQualifiers: [{ key: "startDate", display: "2025-06-24" }],
+        },
+      ],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(container.textContent).toContain("startDate 2025-06-24");
+    expect(container.textContent).not.toContain("00000000-0000-0000-00dd");
+    expect(container.textContent).not.toContain("[object Object]");
+  });
+});
+
+describe("renderSubtreePdf", () => {
+  it("resolves asset data URLs and produces an application/pdf blob named <slug>.pdf", async () => {
+    const client = await makeClient();
+    const assetId = "0192a000-0000-7000-8000-0000000000a1";
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "asset_ref", assetId }],
+    });
+
+    const dataUrlSpy = vi
+      .spyOn(client, "getAssetDataUrl")
+      .mockResolvedValue("data:image/png;base64,aGk=");
+
+    const exported = await renderSubtreePdf(client, pageId, { layout: "essay", pageFormat: "letter" });
+
+    // The IR's asset ref reached the cached client read, and the document
+    // element carries the resolved data URL + the merged engine options.
+    expect(dataUrlSpy).toHaveBeenCalledWith(assetId);
+    expect(pdfMock.calls).toHaveLength(1);
+    const element = pdfMock.calls[0] as ReactElement<{
+      document: ExportDocument;
+      options: { layout: string; pageFormat: string };
+      assetDataUrls: Map<string, string>;
+    }>;
+    expect(element.props.options.layout).toBe("essay");
+    expect(element.props.options.pageFormat).toBe("letter");
+    expect(element.props.assetDataUrls.get(assetId)).toBe("data:image/png;base64,aGk=");
+
+    expect(exported.blob.type).toBe("application/pdf");
+    expect(exported.filename).toMatch(/^Trip-\d{12}\.pdf$/);
+  });
+
+  it("keeps exporting when an asset data URL is unavailable", async () => {
+    const client = await makeClient();
+    const assetId = "0192a000-0000-7000-8000-0000000000a1";
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "asset_ref", assetId }],
+    });
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue(null);
+
+    const exported = await renderSubtreePdf(client, pageId);
+    expect(exported.blob.type).toBe("application/pdf");
+    const element = pdfMock.calls[0] as ReactElement<{ assetDataUrls: Map<string, string> }>;
+    expect(element.props.assetDataUrls.size).toBe(0);
+  });
+
+  it("throws loud for an unknown root, like the other engine entries", async () => {
+    const client = await makeClient();
+    await expect(renderSubtreePdf(client, "0192a000-0000-7000-8000-0000000000ff")).rejects.toThrow(
+      /node not found/,
+    );
+  });
+});
+
+/** Read a Blob's bytes in jsdom (whose Blob has no arrayBuffer()). */
+function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+describe("renderSubtreePdfBatch", () => {
+  it("zips one <slug>-<id8>.pdf per root, named after the first root", async () => {
+    const client = await makeClient();
+    const tripId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    const packingId = await client.createObject({ isEmbedded: false, name: "Packing" });
+
+    const exported = await renderSubtreePdfBatch(client, [tripId, packingId], { layout: "academic" });
+
+    expect(exported.filename).toMatch(/^Trip-\d{12}\.zip$/);
+    expect(exported.blob.type).toBe("application/zip");
+    const entries = unzipSync(new Uint8Array(await readBlobBytes(exported.blob)));
+    const names = Object.keys(entries);
+    expect(names.some((name) => /^Trip-[0-9a-f]{8}\.pdf$/.test(name))).toBe(true);
+    expect(names.some((name) => /^Packing-[0-9a-f]{8}\.pdf$/.test(name))).toBe(true);
+    // The task-W conventions: no manifest, per-root files only.
+    expect(names).not.toContain("notees-manifest.json");
+    expect(names).toHaveLength(2);
+    // Both renders ran through the academic layout.
+    expect(pdfMock.calls).toHaveLength(2);
+    for (const call of pdfMock.calls) {
+      expect((call as ReactElement<{ options: { layout: string } }>).props.options.layout).toBe("academic");
+    }
+  });
+});
+
+describe("web registry pdf delivery", () => {
+  it("marks pdf available with client-pdf delivery while the package skeleton stays unavailable", () => {
+    const web = getWebExportFormat("pdf");
+    expect(web).toBeDefined();
+    expect(web!.availability.status).toBe("available");
+    expect(web!.delivery).toBe("client-pdf");
+    expect(web!.mimeType).toBe("application/pdf");
+    expect(web!.extension).toBe("pdf");
+
+    // The package serializer remains a throwing skeleton — a pure package
+    // cannot pull react-pdf in; only the web client overrides availability.
+    const packageFormat = getPackageExportFormat("pdf");
+    expect(packageFormat!.availability.status).toBe("unavailable");
+    expect(() => packageFormat!.serialize({} as ExportDocument)).toThrow(/task P1/);
+  });
+});

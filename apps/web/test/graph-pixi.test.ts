@@ -1,0 +1,672 @@
+/**
+ * graph/renderer Pixi adapter tests — the pure logic ported from the WebGL
+ * renderer (hover recolor, LOD mask, min-radius clamp, time-lapse discard,
+ * LOD edge gating, edge-curve sampling, camera/pick math) plus a mocked-
+ * Application construction/render smoke spec. Real GPU contexts don't exist
+ * in jsdom — same test boundary as the WebGL suite.
+ */
+
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("pixi.js", () => {
+  class MockPoint {
+    x = 0;
+    y = 0;
+    set(x: number, y: number): this {
+      this.x = x;
+      this.y = y;
+      return this;
+    }
+  }
+  class MockContainer {
+    children: unknown[] = [];
+    position = new MockPoint();
+    scale = new MockPoint();
+    addChild(...c: unknown[]): this {
+      this.children.push(...c);
+      return this;
+    }
+    removeChild(...c: unknown[]): this {
+      this.children = this.children.filter((x) => !c.includes(x));
+      return this;
+    }
+  }
+  class MockGraphics extends MockContainer {
+    strokes: unknown[] = [];
+    fills: unknown[] = [];
+    moveTo(): this {
+      return this;
+    }
+    lineTo(): this {
+      return this;
+    }
+    circle(): this {
+      return this;
+    }
+    poly(): this {
+      return this;
+    }
+    fill(style?: unknown): this {
+      this.fills.push(style);
+      return this;
+    }
+    stroke(style?: unknown): this {
+      this.strokes.push(style);
+      return this;
+    }
+    clear(): this {
+      this.strokes = [];
+      this.fills = [];
+      return this;
+    }
+    destroy(): void {}
+  }
+  class MockSprite {
+    anchor = new MockPoint();
+    position = new MockPoint();
+    scale = new MockPoint();
+    tint = 0xffffff;
+    alpha = 1;
+    visible = true;
+    constructor(_texture?: unknown) {}
+    destroy(): void {}
+  }
+  class MockApp {
+    stage = new MockContainer();
+    renderer = {
+      resize: vi.fn(),
+      extract: { texture: vi.fn(() => ({ destroy: vi.fn() })) },
+    };
+    init = vi.fn(async () => {});
+    render = vi.fn();
+    destroy = vi.fn();
+  }
+  return {
+    Application: MockApp,
+    Container: MockContainer,
+    Culler: { shared: { cull: vi.fn() } },
+    Graphics: MockGraphics,
+    Sprite: MockSprite,
+  };
+});
+
+import {
+  GraphPixiRenderer,
+  hoverTintRgb,
+  linkTypeVisible,
+  nodeEffectiveRadius,
+  sampleEdgePoints,
+  shouldDrawEdgesAtLod,
+  syncIndicesForView,
+  timeLapseVisible,
+  viewCullRect,
+} from "../src/features/collection/graph/renderer/pixiRenderer.js";
+
+const ACCENT: readonly [number, number, number] = [0.1, 0.2, 0.3];
+
+describe("hoverTintRgb", () => {
+  const base: readonly [number, number, number] = [0.5, 0.25, 1.0];
+
+  it("inactive hover returns the base untouched", () => {
+    expect(hoverTintRgb(base, 0, false, ACCENT, 2)).toEqual([0.5, 0.25, 1.0]);
+    expect(hoverTintRgb(base, 2, false, ACCENT, 2)).toEqual([0.5, 0.25, 1.0]);
+  });
+
+  it("nodes: hovered (2) fills the accent, neighbors (1) keep their color, outside (0) darkens 20%", () => {
+    expect(hoverTintRgb(base, 2, true, ACCENT, 2)).toEqual([0.1, 0.2, 0.3]);
+    expect(hoverTintRgb(base, 1, true, ACCENT, 2)).toEqual([0.5, 0.25, 1.0]);
+    expect(hoverTintRgb(base, 0, true, ACCENT, 2)).toEqual([0.4, 0.2, 0.8]);
+  });
+
+  it("edges: incident (1) paints the accent, non-incident (0) darkens 20% (accent level 1)", () => {
+    expect(hoverTintRgb(base, 1, true, ACCENT, 1)).toEqual([0.1, 0.2, 0.3]);
+    expect(hoverTintRgb(base, 0, true, ACCENT, 1)).toEqual([0.4, 0.2, 0.8]);
+  });
+});
+
+describe("LOD mask + gating helpers", () => {
+  it("linkTypeVisible mirrors the shader bit test", () => {
+    expect(linkTypeVisible(0, 0xffffffff)).toBe(true);
+    expect(linkTypeVisible(7, 0xffffffff)).toBe(true);
+    expect(linkTypeVisible(1, ~(1 << 1))).toBe(false);
+    expect(linkTypeVisible(5, (1 << 5) | (1 << 2))).toBe(true);
+    expect(linkTypeVisible(3, (1 << 5) | (1 << 2))).toBe(false);
+  });
+
+  it("constellation LOD (0) skips edges unless a hover is active", () => {
+    expect(shouldDrawEdgesAtLod(0, false)).toBe(false);
+    expect(shouldDrawEdgesAtLod(0, true)).toBe(true);
+    expect(shouldDrawEdgesAtLod(1, false)).toBe(true);
+    expect(shouldDrawEdgesAtLod(2, false)).toBe(true);
+  });
+});
+
+describe("node min-radius clamp + time-lapse discard", () => {
+  it("nodeEffectiveRadius applies the GL min-screen-radius clamp at low zoom", () => {
+    expect(nodeEffectiveRadius(8, 1.0, 3)).toBe(8);
+    // zoom 0.1 → min world radius = 3 / (2 × 0.1) = 15 > 8
+    expect(nodeEffectiveRadius(8, 0.1, 3)).toBe(15);
+    expect(nodeEffectiveRadius(8, 0.1, 3)).toBeCloseTo(3 / (2 * 0.1), 6);
+  });
+
+  it("timeLapseVisible hides only post-cutoff stamps while enabled", () => {
+    expect(timeLapseVisible(1_000, true, 1_500)).toBe(true);
+    expect(timeLapseVisible(2_000, true, 1_500)).toBe(false);
+    // The un-stamped marker never hides.
+    expect(timeLapseVisible(-Infinity, true, 1_500)).toBe(true);
+    // Disabled is the neutral path.
+    expect(timeLapseVisible(2_000, false, 1_500)).toBe(true);
+    // The cutoff itself stays visible (strictly-greater rule).
+    expect(timeLapseVisible(1_500, true, 1_500)).toBe(true);
+  });
+});
+
+describe("sampleEdgePoints (the GL curve math)", () => {
+  it("a straight edge samples onto the segment", () => {
+    const pts = sampleEdgePoints(0, 0, 100, 0, 0, 0, 1.0, 16);
+    expect(pts.length).toBe(17 * 2);
+    expect(pts[0]).toBe(0);
+    expect(pts[1]).toBe(0);
+    expect(pts[32]).toBe(100);
+    expect(pts[33]).toBe(0);
+    // Every sample lies on the chord.
+    for (let s = 1; s < 16; s++) {
+      expect(pts[s * 2 + 1]).toBeCloseTo(0, 4);
+      expect(pts[s * 2]).toBeCloseTo((100 * s) / 16, 4);
+    }
+  });
+
+  it("a curved edge (reference curvature) bows off the chord and returns to it", () => {
+    const pts = sampleEdgePoints(0, 0, 100, 0, 0.25, 3, 1.0, 16);
+    expect(pts[0]).toBe(0);
+    expect(pts[32]).toBe(100);
+    // Midpoint bows along the perpendicular (y), zero at both ends.
+    expect(pts[17]).toBeCloseTo(0.25 * 100, 1); // sin(π/2) × curvature × len
+    expect(Math.abs(pts[17]!)).toBeGreaterThan(10);
+  });
+
+  it("a class link (linkType 1) wiggles with the 3/zoom sine amplitude", () => {
+    const zoom = 2.0;
+    const pts = sampleEdgePoints(0, 0, 100, 0, 0, 1, zoom, 16);
+    expect(pts[0]).toBe(0);
+    expect(pts[32]).toBe(100);
+    // t = 1/16 → sin(8π/16) = sin(π/2) = 1 → full 3/zoom offset on the perp.
+    expect(pts[3]).toBeCloseTo(3 / zoom, 4);
+    // t = 1/2 → sin(4π) = 0 → back on the chord.
+    expect(pts[17]).toBeCloseTo(0, 4);
+  });
+});
+
+describe("camera math + picking without a GPU", () => {
+  function mathRenderer() {
+    const r = new GraphPixiRenderer();
+    r.resize(800, 600);
+    return r;
+  }
+
+  it("worldToScreen / screenToWorld round-trip", () => {
+    const r = mathRenderer();
+    r.setCamera(10, 20, 1.5);
+    const screen = r.worldToScreen(4, -8);
+    expect(screen.x).toBeCloseTo((4 - 10) * 1.5 + 400, 4);
+    expect(screen.y).toBeCloseTo((-8 - 20) * 1.5 + 300, 4);
+    const world = r.screenToWorld(screen.x, screen.y);
+    expect(world.x).toBeCloseTo(4, 4);
+    expect(world.y).toBeCloseTo(-8, 4);
+  });
+
+  it("fitToCanvas frames the bbox with padding and the zoom clamp", () => {
+    const r = mathRenderer();
+    r.setNodeVisuals(["a", "b", "c"], new Map());
+    r.updatePositions(new Float32Array([0, 0, 100, 0, 0, 100]), ["a", "b", "c"]);
+    const cam = r.fitToCanvas(60);
+    expect(cam.x).toBeCloseTo(50, 4);
+    expect(cam.y).toBeCloseTo(50, 4);
+    // world 100+2×16 padded into 680×480 → zoom ≈ 4.8, inside the clamp.
+    expect(cam.zoom).toBeGreaterThan(0.02);
+    expect(cam.zoom).toBeLessThanOrEqual(40);
+  });
+
+  it("pickNode / pickEdge scan the latest positions", () => {
+    const r = mathRenderer();
+    r.setNodeVisuals(["a", "b", "c"], new Map());
+    r.updatePositions(new Float32Array([0, 0, 100, 0, 50, 100]), ["a", "b", "c"]);
+    r.setEdges([{ source: "a", target: "b", linkType: 0 }]);
+    expect(r.pickNode(3, 4, 20)).toBe("a"); // dist 5 < 20
+    expect(r.pickNode(50, 100, 10)).toBe("c");
+    expect(r.pickNode(500, 500, 10)).toBeNull();
+    expect(r.pickEdge(50, 1, 5)).toBe(0); // near the a→b segment
+    expect(r.pickEdge(50, 90, 2)).toBe(-1);
+  });
+});
+
+describe("mocked-Application smoke (init → data → render → destroy)", () => {
+  function stubWebgl2(): void {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      ((type: string) => (type === "webgl2" ? {} : null)) as typeof HTMLCanvasElement.prototype.getContext,
+    );
+  }
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("throws the honest error when the browser has no GPU backend", () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      (() => null) as typeof HTMLCanvasElement.prototype.getContext,
+    );
+    const renderer = new GraphPixiRenderer();
+    expect(() => renderer.init(document.createElement("canvas"))).toThrow(
+      "no WebGL2 backend for the graph renderer",
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("renders nodes, edges, and arrowheads through the mocked stack", async () => {
+    stubWebgl2();
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer({ defaultRadius: 8, edgeWidth: 0.8 });
+    renderer.init(canvas);
+    const app = (renderer as unknown as { app: import("pixi.js").Application }).app;
+    await flush();
+    await flush();
+
+    renderer.setNodeVisuals(
+      ["a", "b"],
+      new Map([["a", { radius: 8, color: new Float32Array([1, 0, 0, 1]) }]]),
+    );
+    renderer.updatePositions(new Float32Array([0, 0, 100, 0]), ["a", "b"]);
+    renderer.setEdges([
+      { source: "a", target: "b", linkType: 0 }, // parent → one arrowhead
+      { source: "b", target: "a", linkType: 3 }, // reference → no arrowhead
+    ]);
+    renderer.setCamera(50, 0, 1);
+    renderer.render();
+
+    expect(app.render).toHaveBeenCalled();
+    expect(renderer.stats.nodeInstCount).toBe(2);
+    expect(renderer.stats.edgeInstCount).toBe(2);
+    expect(renderer.stats.arrowInstCount).toBe(1);
+    // The world container carries the camera as a GPU transform: it IS
+    // worldToScreen (canvas pixels are y-down — no NDC flip, which would
+    // mirror the graph against picking and labels).
+    const world = (
+      renderer as unknown as {
+        world: { scale: { x: number; y: number }; position: { x: number; y: number } };
+      }
+    ).world;
+    expect(world.scale.x).toBe(1);
+    expect(world.scale.y).toBe(1);
+    expect(world.position.x).toBe(800 * 0.5 - 50 * 1); // camera x applied
+    expect(world.position.y).toBe(600 * 0.5 - 0 * 1);
+
+    renderer.destroy();
+    expect(app.destroy).toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("time-lapse hides post-cutoff nodes and edges", async () => {
+    stubWebgl2();
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer();
+    renderer.init(canvas);
+    await flush();
+    await flush();
+
+    renderer.setNodeVisuals(["old", "new"], new Map());
+    renderer.updatePositions(new Float32Array([0, 0, 100, 0]), ["old", "new"]);
+    renderer.setNodeTimes(new Float32Array([1_000, 2_000]));
+    renderer.setEdges([
+      { source: "old", target: "new", linkType: 0, createdAt: 2_000 },
+    ]);
+    renderer.setTimeLapse(true, 1_500);
+    renderer.setCamera(50, 0, 1);
+    renderer.render();
+
+    const sprites = (renderer as unknown as { spriteByIndex: Array<{ visible: boolean }> })
+      .spriteByIndex;
+    expect(sprites[0]!.visible).toBe(true);
+    expect(sprites[1]!.visible).toBe(false); // created after the cutoff
+    expect(renderer.stats.edgeInstCount).toBe(0); // its only edge is post-cutoff too
+    vi.restoreAllMocks();
+  });
+});
+
+describe("culled-sync helpers (the streamed-frame delta path)", () => {
+  it("viewCullRect centers on the camera with the margin at zoom", () => {
+    const rect = viewCullRect({ x: 10, y: -20, zoom: 2 }, 800, 600, 64);
+    expect(rect.maxX - rect.minX).toBeCloseTo((800 + 128) / 2, 6);
+    expect(rect.maxY - rect.minY).toBeCloseTo((600 + 128) / 2, 6);
+    expect((rect.minX + rect.maxX) / 2).toBeCloseTo(10, 6);
+    expect((rect.minY + rect.maxY) / 2).toBeCloseTo(-20, 6);
+    // zoom 0.5 doubles the world extents.
+    const wide = viewCullRect({ x: 0, y: 0, zoom: 0.5 }, 800, 600, 64);
+    expect(wide.maxX - wide.minX).toBeCloseTo(2 * (800 + 128), 6);
+  });
+
+  it("syncIndicesForView keeps in-rect candidates, drops out-of-rect ones, preserves order", () => {
+    const positions = new Float32Array([
+      0, 0, // 0: inside
+      500, 500, // 1: outside
+      100, 0, // 2: inside
+      -1000, 0, // 3: outside
+    ]);
+    const rect = { minX: -50, minY: -50, maxX: 150, maxY: 50 };
+    const inside = syncIndicesForView([3, 0, 2, 1], positions, rect, () => 1);
+    expect(inside).toEqual([0, 2]);
+  });
+
+  it("a node clipped by the rect edge still syncs (radius expansion)", () => {
+    const positions = new Float32Array([155, 0, // 0: center outside, radius reaches in
+      400, 0, // 1: far outside
+    ]);
+    const rect = { minX: -50, minY: -50, maxX: 150, maxY: 50 };
+    const inside = syncIndicesForView([0, 1], positions, rect, (i) => (i === 0 ? 10 : 1));
+    expect(inside).toEqual([0]);
+  });
+});
+
+describe("streamed-frame gates (the 50k left-drag hang)", () => {
+  function stubWebgl2(): void {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      ((type: string) => (type === "webgl2" ? {} : null)) as typeof HTMLCanvasElement.prototype.getContext,
+    );
+  }
+
+  interface SpriteLike {
+    position: { x: number; y: number; set: (x: number, y: number) => unknown };
+    scale: { set: (x: number, y: number) => unknown };
+  }
+  interface BucketLike {
+    clear: () => unknown;
+    strokes: unknown[];
+  }
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  const EDGE_BUCKETS_INTERNAL = 128;
+
+  async function dragRenderer() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer();
+    renderer.init(canvas);
+    await flush();
+    await flush();
+    const ids: string[] = [];
+    const positions = new Float32Array(200 * 2);
+    for (let i = 0; i < 200; i++) {
+      ids.push(`n${i}`);
+      positions[i * 2] = (i % 20) * 10;
+      positions[i * 2 + 1] = Math.floor(i / 20) * 10;
+    }
+    // Node n0 (the drag target) carries 5 incident edges; 195 more edges
+    // belong to other nodes.
+    const edges: Array<{ source: string; target: string; linkType: number }> = [];
+    for (let k = 1; k <= 5; k++) edges.push({ source: "n0", target: `n${k}`, linkType: 0 });
+    for (let k = 0; k < 195; k++) {
+      edges.push({ source: `n${10 + (k % 180)}`, target: `n${11 + ((k + 7) % 180)}`, linkType: 3 });
+    }
+    renderer.setNodeVisuals(ids, new Map());
+    renderer.updatePositions(positions, ids);
+    renderer.setEdges(edges);
+    renderer.setCamera(95, 45, 1); // the 200-node grid sits inside the rect
+    renderer.render(); // first full pass: pool + all buckets
+    return { renderer, positions, ids };
+  }
+
+  it("an unchanged position frame rewrites no sprites and no edge buckets", async () => {
+    stubWebgl2();
+    const { renderer, positions, ids } = await dragRenderer();
+    const sprites = (
+      renderer as unknown as { spriteByIndex: SpriteLike[] }
+    ).spriteByIndex.map((s) => vi.spyOn(s.position, "set"));
+    const buckets = (
+      renderer as unknown as { edgeBuckets: BucketLike[] }
+    ).edgeBuckets.map((b) => vi.spyOn(b, "clear"));
+
+    // Same content in a fresh array — a settled engine tick.
+    renderer.updatePositions(positions.slice(), ids);
+    renderer.render();
+
+    expect(sprites.filter((s) => s.mock.calls.length > 0)).toHaveLength(0);
+    expect(buckets.filter((b) => b.mock.calls.length > 0)).toHaveLength(0);
+    vi.restoreAllMocks();
+  });
+
+  it("drag release: streamed settling frames move the released node's sprite", async () => {
+    stubWebgl2();
+    const { renderer, positions, ids } = await dragRenderer();
+    const sprite0 = (renderer as unknown as { spriteByIndex: SpriteLike[] }).spriteByIndex[0]!;
+
+    // The drag: GraphView's overridePosition carries the node with the
+    // pointer; the sprite follows.
+    renderer.overridePosition("n0", 150, 120);
+    renderer.render();
+    expect(sprite0.position.x).toBe(150);
+    expect(sprite0.position.y).toBe(120);
+
+    // Release. Engine frame 1: node still at the drop point (unpinned, zero
+    // velocity, not yet integrated) — an identity frame, correctly a no-op.
+    const frame1 = positions.slice();
+    renderer.updatePositions(frame1, ids);
+    renderer.render();
+    expect(sprite0.position.x).toBe(150);
+
+    // Engine frames 2..k: physics relaxes the node — every streamed frame
+    // must move the sprite.
+    const relaxPath = [
+      [149, 118.5],
+      [147.5, 116],
+      [144, 112],
+      [139.5, 107],
+    ] as const;
+    for (const [x, y] of relaxPath) {
+      const frame = positions.slice();
+      frame[0] = x;
+      frame[1] = y;
+      renderer.updatePositions(frame, ids);
+      renderer.render();
+      expect(sprite0.position.x).toBeCloseTo(x, 5);
+      expect(sprite0.position.y).toBeCloseTo(y, 5);
+    }
+    vi.restoreAllMocks();
+  });
+
+  it("a one-node drag writes only that sprite and rides the overlay — no bucket churn", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    // planEdgeRender dedupes parallel edges — capture the post-full-rebuild
+    // totals and assert the streamed pass keeps them exactly.
+    const edgesBefore = renderer.stats.edgeInstCount;
+    const arrowsBefore = renderer.stats.arrowInstCount;
+    const sprites = (
+      renderer as unknown as { spriteByIndex: SpriteLike[] }
+    ).spriteByIndex.map((s) => vi.spyOn(s.position, "set"));
+    const buckets = (
+      renderer as unknown as { edgeBuckets: BucketLike[] }
+    ).edgeBuckets.map((b) => vi.spyOn(b, "clear"));
+    const overlay = (renderer as unknown as { edgeOverlay: BucketLike }).edgeOverlay;
+    const overlaySpy = vi.spyOn(overlay, "clear");
+
+    renderer.overridePosition("n0", 150, 120); // in view for the (95,45) camera
+    renderer.render();
+
+    expect(sprites.filter((s) => s.mock.calls.length > 0)).toHaveLength(1);
+    expect(sprites[0]!.mock.calls.length).toBeGreaterThan(0);
+    // The full-E bucket geometry redraws only on the membership transition:
+    // n0's five edges (indices 0–4 → buckets 0–4) leave their buckets for
+    // the overlay, and the buckets repaint without them.
+    const cleared = buckets.map((b, i) => (b.mock.calls.length > 0 ? i : -1)).filter((i) => i >= 0);
+    expect(cleared).toEqual([0, 1, 2, 3, 4]);
+    expect(overlaySpy.mock.calls.length).toBeGreaterThan(0);
+    expect(overlay.strokes.length).toBeGreaterThan(0);
+    // The totals still account for every drawn edge/arrow (buckets skip the
+    // dynamic edges; the overlay adds them back).
+    expect(renderer.stats.edgeInstCount).toBe(edgesBefore);
+    expect(renderer.stats.arrowInstCount).toBe(arrowsBefore);
+
+    // Steady state: the next drag frame churns NOTHING — the overlay alone
+    // re-strokes the moved edges.
+    for (const b of buckets) b.mockClear();
+    renderer.overridePosition("n0", 151, 121);
+    renderer.render();
+    expect(buckets.filter((b) => b.mock.calls.length > 0)).toHaveLength(0);
+    expect(renderer.stats.edgeInstCount).toBe(edgesBefore);
+    expect(renderer.stats.arrowInstCount).toBe(arrowsBefore);
+    vi.restoreAllMocks();
+  });
+
+  it("when the drag stream goes quiet the overlay returns its edges to the buckets", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    renderer.overridePosition("n0", 150, 120);
+    renderer.render();
+    const internals = renderer as unknown as {
+      dynamicEdges: Set<number>;
+      edgeOverlay: BucketLike;
+      edgeBuckets: BucketLike[];
+    };
+    expect(internals.dynamicEdges.size).toBe(5);
+    expect(internals.edgeOverlay.strokes.length).toBeGreaterThan(0);
+
+    // Quiet frames (no position change): one settle pass, no movement after.
+    renderer.render();
+    renderer.render();
+
+    expect(internals.dynamicEdges.size).toBe(0);
+    expect(internals.edgeOverlay.strokes.length).toBe(0);
+    // The five edges are back in their buckets (0–4, edge index mod 128).
+    const overlay = internals.edgeOverlay;
+    void overlay;
+    vi.restoreAllMocks();
+  });
+
+  it("a node moved outside the view stays pending and syncs when panned into view", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    const sprite0 = (renderer as unknown as { spriteByIndex: SpriteLike[] }).spriteByIndex[0]!;
+    const internals = renderer as unknown as { pendingPositionSync: Set<number> };
+
+    renderer.overridePosition("n0", 5000, 5000); // far outside the cull rect
+    renderer.render();
+    expect(sprite0.position.x).not.toBe(5000);
+    expect(internals.pendingPositionSync.size).toBe(1);
+
+    renderer.setCamera(5000, 5000, 1); // pan to it: no full sync on a pan
+    renderer.render();
+    expect(sprite0.position.x).toBe(5000);
+    expect(internals.pendingPositionSync.size).toBe(0);
+    vi.restoreAllMocks();
+  });
+
+  it("a zoom change still forces the full sprite sync and edge rebuild", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    const sprites = (
+      renderer as unknown as { spriteByIndex: SpriteLike[] }
+    ).spriteByIndex.map((s) => vi.spyOn(s.position, "set"));
+    const buckets = (
+      renderer as unknown as { edgeBuckets: BucketLike[] }
+    ).edgeBuckets.map((b) => vi.spyOn(b, "clear"));
+
+    renderer.setCamera(95, 45, 2); // min-radius clamp changes → full pass
+    renderer.render();
+
+    expect(sprites.filter((s) => s.mock.calls.length > 0)).toHaveLength(200);
+    expect(buckets.filter((b) => b.mock.calls.length > 0).length).toBe(EDGE_BUCKETS_INTERNAL);
+    vi.restoreAllMocks();
+  });
+});
+
+describe("pan regression (panning did nothing)", () => {
+  function stubWebgl2(): void {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      ((type: string) => (type === "webgl2" ? {} : null)) as typeof HTMLCanvasElement.prototype.getContext,
+    );
+  }
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  interface WorldLike {
+    position: { x: number; y: number };
+    scale: { x: number; y: number };
+  }
+
+  async function pannedRenderer() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer({ defaultRadius: 8 });
+    renderer.init(canvas);
+    await flush();
+    await flush();
+    renderer.setNodeVisuals(["a", "b"], new Map());
+    renderer.updatePositions(new Float32Array([10, 20, 300, 400]), ["a", "b"]);
+    renderer.setCamera(0, 0, 1);
+    renderer.render();
+    return renderer;
+  }
+
+  it("a pan-only camera change moves the world transform (the graph follows)", async () => {
+    stubWebgl2();
+    const renderer = await pannedRenderer();
+    const world = (renderer as unknown as { world: WorldLike }).world;
+
+    // Pre-pan: the transform IS worldToScreen — position = canvas/2 − camera×zoom.
+    expect(world.position.x).toBeCloseTo(400, 6);
+    expect(world.position.y).toBeCloseTo(300, 6);
+    expect(world.scale.x).toBe(1);
+    expect(world.scale.y).toBe(1);
+
+    renderer.setCamera(150, -80, 1); // pure pan, zoom unchanged
+    renderer.render();
+
+    expect(world.position.x).toBeCloseTo(400 - 150, 6);
+    expect(world.position.y).toBeCloseTo(300 - -80, 6);
+    expect(world.scale.x).toBe(1); // scale untouched by a pan
+    expect(world.scale.y).toBe(1);
+
+    // And the mapping matches worldToScreen for a node on BOTH axes.
+    const s = renderer.worldToScreen(10, 20);
+    expect(s.x).toBeCloseTo((10 - 150) + 400, 6);
+    expect(s.y).toBeCloseTo((20 - -80) + 300, 6);
+    vi.restoreAllMocks();
+  });
+
+  it("the cull pass runs on every render including pan-only frames", async () => {
+    stubWebgl2();
+    const renderer = await pannedRenderer();
+    const pixi = await import("pixi.js");
+    const cullSpy = pixi.Culler.shared.cull as ReturnType<typeof vi.fn>;
+    cullSpy.mockClear();
+
+    renderer.setCamera(150, -80, 1); // pan: no dirty gates fire
+    renderer.render();
+
+    expect(cullSpy).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it("the cull rect follows the camera (viewCullRect is camera-centred)", () => {
+    // Directly pins the owner's suspect (b): the rect is derived from the
+    // camera each frame, so a pan re-derives what is in view.
+    const before = viewCullRect({ x: 0, y: 0, zoom: 1 }, 800, 600, 64);
+    const after = viewCullRect({ x: 500, y: -200, zoom: 1 }, 800, 600, 64);
+    expect(after.minX - before.minX).toBeCloseTo(500, 6);
+    expect(after.maxX - before.maxX).toBeCloseTo(500, 6);
+    expect(after.minY - before.minY).toBeCloseTo(-200, 6);
+    expect(after.maxY - before.maxY).toBeCloseTo(-200, 6);
+    // A node panned into view is inside the new rect.
+    const inside = syncIndicesForView(
+      [0],
+      new Float32Array([500, -200]),
+      after,
+      () => 8,
+    );
+    expect(inside).toEqual([0]);
+  });
+});

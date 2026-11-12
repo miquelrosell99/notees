@@ -1,0 +1,1209 @@
+/**
+ * Capture gesture tests: `@` mention insertion (node-picker popup), `#` tag
+ * assign/create, `+` class picker (assign/create), the verb-on-selection
+ * typed-link popover, the Ctrl/Cmd+L selection-link chords (replace vs
+ * custom-label modes), and candidateSpans. Editor tests run PageView over
+ * the in-process WorkspaceClient + MemoryRelay (jsdom), same harness as
+ * outliner-editor.test.tsx.
+ *
+ * Popup contract: typing the trigger char opens the ported
+ * NodeSelector popup anchored at the caret with its OWN search input (focus
+ * moves there); the trigger char stays in the block as a placeholder. Enter
+ * on a result row (or the create row) commits; Escape / click-outside keeps
+ * the trigger char as plain text and hands focus back to the block.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { chainNodeIds, deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import type { ContentAst } from "@notees/protocol";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import type { ClientNode } from "../src/core/workspace-client/index.js";
+import { PageView } from "../src/ui/PageView.js";
+import { proseFromAst } from "../src/editor/prose.js";
+import { computeCandidateSpans, withCandidateSpans } from "../src/editor/capture.js";
+import { isTriggerBoundary } from "../src/features/block-editor/captureModel.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+  // jsdom lacks ResizeObserver; Tabs.List (the picker's scope tabs) uses it
+  // for the active indicator.
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+/** Enter edit mode on the first block and return its editor element. */
+function clickIntoBlock(container: HTMLElement): HTMLElement {
+  const content = container.querySelector<HTMLElement>(".nt-block-content");
+  if (content === null) throw new Error("no .nt-block-content");
+  fireEvent.click(content);
+  const editor = content.querySelector<HTMLElement>(".nt-block-text");
+  if (editor === null) throw new Error("editor did not mount after click");
+  return editor;
+}
+
+/** Emulate typing with the caret at `caret` (default: end), firing input. */
+function typeWithCaret(editor: HTMLElement, text: string, caret?: number): void {
+  editor.textContent = text;
+  const offset = caret ?? text.length;
+  const node = editor.firstChild;
+  if (node !== null) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(node, offset);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+  fireEvent.input(editor);
+}
+
+/** Set a non-collapsed selection (prose offsets) inside the editor. */
+function selectRange(editor: HTMLElement, start: number, end: number): void {
+  const node = editor.firstChild;
+  if (node === null) throw new Error("editor has no text node");
+  const range = document.createRange();
+  range.setStart(node, start);
+  range.setEnd(node, end);
+  const selection = window.getSelection();
+  if (selection === null) throw new Error("no selection");
+  selection.removeAllRanges();
+  selection.addRange(range);
+  act(() => {
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+}
+
+// ── Node-picker popup helpers ──────────────────────────────────────────────
+
+/** The open @/#/+ picker (portaled dialog). */
+const picker = () => screen.queryByRole("dialog", { name: "Select node" });
+
+/** The picker's own search input (focus lands here when the popup opens). */
+function searchBox(): HTMLElement {
+  const panel = picker();
+  if (panel === null) throw new Error("picker is not open");
+  return within(panel).getByRole("textbox");
+}
+
+/** Type the popup query (the block only holds the trigger placeholder). */
+function typeInPicker(text: string): void {
+  fireEvent.change(searchBox(), { target: { value: text } });
+}
+
+/** All result/create rows of the open picker. */
+function pickerRows(): HTMLElement[] {
+  const panel = picker();
+  if (panel === null) return [];
+  return Array.from(panel.querySelectorAll<HTMLElement>(".node-result-item"));
+}
+
+describe("capture: @ mention", () => {
+  it("typing @ opens the picker; typing in its search box filters; Enter inserts a mention token", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    // Trigger detection is per-keystroke: the "@" input opens the picker…
+    typeWithCaret(editor, "see @");
+    expect(picker()).not.toBeNull();
+    // …and moves focus to the picker's own search box.
+    expect(searchBox()).toHaveFocus();
+
+    // The query types into the popup (the block keeps just the placeholder).
+    typeInPicker("Tar");
+    expect(editor.textContent).toBe("see @");
+    expect(within(picker()!).getByText("Target")).toBeInTheDocument();
+    expect(within(picker()!).queryByText("Home")).toBeNull();
+
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast).toHaveLength(2);
+    expect(ast[0]).toEqual({ type: "text", text: "see " });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
+    expect(typeof (ast[1] as { linkId?: unknown }).linkId).toBe("string");
+    expect((ast[1] as { linkId: string }).linkId).toMatch(UUID_RE);
+    // DOM re-synced to the new prose; picker closed.
+    expect(editor.textContent).toBe("see Target");
+    expect(picker()).toBeNull();
+  });
+
+  it("Main/Blocks scope tabs filter the search (Main first, blocks behind a tab)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({ isEmbedded: false, name: "Target" });
+    // The edited block must stay the FIRST child (clickIntoBlock edits the
+    // first .nt-block-content in the page).
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    await client.createObject({ parentId: pageId, name: "Hidden needle" });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    const panel = picker()!;
+
+    // Main is the active tab by default.
+    expect(within(panel).getByRole("tab", { name: "Main" })).toHaveAttribute("aria-selected", "true");
+
+    // Main scope: document-chrome nodes match; inline child blocks don't
+    // (the no-match create row is the fallback affordance).
+    typeInPicker("needle");
+    expect(within(panel).queryByText("Hidden needle")).toBeNull();
+    expect(within(panel).getByText('Create "needle"')).not.toBeNull();
+
+    // Blocks scope: the inline child block matches, pages don't.
+    fireEvent.click(within(panel).getByRole("tab", { name: "Blocks" }));
+    expect(within(panel).getByRole("tab", { name: "Blocks" })).toHaveAttribute("aria-selected", "true");
+    expect(within(panel).getByText("Hidden needle")).not.toBeNull();
+    expect(within(panel).queryByText("Target")).toBeNull();
+    // The tab click keeps typing in the search box.
+    expect(searchBox()).toHaveFocus();
+
+    // Back on Main with a page query: the page matches, the block doesn't.
+    fireEvent.click(within(panel).getByRole("tab", { name: "Main" }));
+    typeInPicker("Target");
+    expect(within(panel).getByText("Target")).not.toBeNull();
+    fireEvent.click(within(panel).getByRole("tab", { name: "Blocks" }));
+    expect(within(panel).queryByText("Target")).toBeNull();
+
+    // Picking from the Blocks tab inserts the mention of the block.
+    typeInPicker("needle");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    const needle = client.getChildren(pageId).find((n) => deriveDisplayName(n) === "Hidden needle");
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: needle!.id });
+  });
+
+  it("classes are mentionable from the Main tab", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const classId = await client.createClass("Genretab");
+    await client.updateObject(classId, { contentAst: [{ type: "text", text: "Genretab" }] });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Genre");
+    expect(within(picker()!).getByText("Genretab")).not.toBeNull();
+
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: classId });
+  });
+
+  it("the typed-date row offers 'Link to daily page' for an existing day node, 'Create' otherwise", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    // No day node yet: the suggestion authors one.
+    typeInPicker("today");
+    expect(within(picker()!).getByText(/Create daily page: /)).not.toBeNull();
+
+    // Author the chain: the suggestion becomes a link offer.
+    const d = new Date();
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    await act(async () => {
+      await client.ensureDateChain(iso);
+    });
+    expect(within(picker()!).getByText(/Link to daily page: /)).not.toBeNull();
+    expect(within(picker()!).queryByText(/Create daily page: /)).toBeNull();
+
+    // Enter on the row links the (existing) day node as a mention.
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const chain = await client.ensureDateChain(iso);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: chain.day });
+  });
+
+  it("clicking 'Create daily page' creates the chain AND inserts the mention in one gesture", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    // Lowercase natural input — the same query that "did not work" for the
+    // owner: the create path used to drop the pick (the projection's async
+    // notify had not landed), leaving the row flipped to "Link to" with no
+    // mention inserted.
+    typeInPicker("tomorrow");
+    const row = within(picker()!).getByText(/Create daily page: /);
+    await act(async () => {
+      fireEvent.click(row);
+    });
+    await act(async () => {});
+
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dayId = chainNodeIds(iso).day;
+    // The chain exists…
+    expect(client.getNode(dayId)).toBeDefined();
+    // …and the mention landed in the SAME gesture (the picker closed on the
+    // pick — no second "Link to" click needed).
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: dayId });
+    expect(picker()).toBeNull();
+  });
+
+  it("creates a backlinks edge to the target (mention edge, record-don't-resolve)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Tar");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+
+    const edges = client.getBacklinks(targetId);
+    expect(edges.some((edge) => edge.type === "mention" && edge.sourceId === blockId)).toBe(true);
+  });
+
+  it("ArrowDown/ArrowUp move the selection before Enter picks", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const alphaId = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Alp");
+    // One result row (Alpha) + the create row: ArrowDown highlights create…
+    expect(pickerRows()).toHaveLength(2);
+    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
+    expect(pickerRows()[1]?.className).toContain("node-result-item--highlighted");
+    fireEvent.keyDown(searchBox(), { key: "ArrowUp" });
+    expect(pickerRows()[0]?.className).toContain("node-result-item--highlighted");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: alphaId });
+  });
+
+  it("Esc closes the picker leaving the trigger char; Enter on the create row links a new page", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    expect(picker()).not.toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Escape" });
+    expect(picker()).toBeNull();
+    // Text untouched after Esc; the trigger char stays as plain text.
+    expect(editor.textContent).toBe("@");
+
+    // No-match Enter commits the create row: a page titled by the query is
+    // created and linked (the create-from-query contract).
+    typeWithCaret(editor, "@");
+    typeInPicker("zzz");
+    expect(pickerRows()).toHaveLength(1); // only "Create \"zzz\""
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "zzz");
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    expect(editor.textContent).toBe("zzz");
+  });
+});
+
+describe("capture: # tag (auto-create + assign) and + class picker", () => {
+  it("# auto-creates a missing tag page on Enter and assigns it to the node", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "#");
+    typeInPicker("Proj");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    // page.create + assignTag ride a microtask (createObject promise).
+    await act(async () => {});
+
+    // The tag PAGE was created…
+    const tagPages = client.listPages().filter((p) => deriveDisplayName(p) === "Proj");
+    expect(tagPages).toHaveLength(1);
+    // …and assigned to the edited node's Tags (OR-set add).
+    expect(client.getNode(blockId)?.tagIds).toEqual([tagPages[0]!.id]);
+    // No class was created — "#" is tag semantics, "+" owns classes. (The
+    // The covers seed authors the asset/source/cover family rows on client
+    // seed, so assert no USER class named "Proj" appeared, not an empty
+    // registry.)
+    expect(client.listClasses().filter((c) => deriveDisplayName(c) === "Proj")).toHaveLength(0);
+    // The trigger text is stripped (assignment is the gesture, not prose).
+    expect(editor.textContent).toBe("");
+  });
+
+  it("# on an existing page assigns the tag without duplicating", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const tagId = await client.createObject({ isEmbedded: false, name: "Project" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [],
+      tagIds: [tagId],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "#");
+    typeInPicker("Pro");
+    // Scope to the picker: the tagged block's own metadata section also
+    // renders a "Project" pill below the block.
+    expect(within(picker()!).getByText("Project")).toBeInTheDocument();
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    // Still editing: assign + strip kept the session; re-assign is a no-op.
+    typeWithCaret(editor, "#");
+    typeInPicker("Pro");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    const node = client.getNode(blockId)!;
+    expect(node.tagIds).toEqual([tagId]); // still exactly one membership
+  });
+
+  it("+ assigns an existing class; no-match Enter creates the class and assigns it", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const classId = await client.createClass("Project");
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    // The class picker lists the class vocabulary on an empty query (the
+    // seeded system family included since the covers rework).
+    expect(within(picker()!).getByText("Project")).toBeInTheDocument();
+    // Narrow to the user class — the seeded family rows lead the empty-query
+    // list, so Enter on the unfiltered list would assign a system class.
+    typeInPicker("Pro");
+    expect(within(picker()!).getByText("Project")).toBeInTheDocument();
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    expect(editor.textContent).toBe("");
+
+    // No-match Enter on "+" runs the create row: class.create + assign.
+    typeWithCaret(editor, "+");
+    typeInPicker("Nope");
+    expect(pickerRows()).toHaveLength(1); // only "Create \"Nope\""
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const created = client.listClasses().filter((c) => deriveDisplayName(c) === "Nope");
+    expect(created).toHaveLength(1);
+    expect(client.getNode(blockId)?.classIds).toEqual([classId, created[0]!.id]);
+  });
+});
+
+describe("selection link chords (Ctrl/Cmd+L)", () => {
+  it("Ctrl+L over a selection opens the picker prefilled, banners the replace mode, and the pick swaps the selection for the link", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "World" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 6, 11); // "world"
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true });
+
+    // The same gesture as typing @ over the selection: the picker opens with
+    // the selection prefilled as its search query, announcing the pending
+    // replace under the field.
+    expect(picker()).not.toBeNull();
+    expect((searchBox() as HTMLInputElement).value).toBe("world");
+    expect(within(picker()!).getByText("Replacing selection with link")).not.toBeNull();
+
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toEqual({ type: "text", text: "hello " });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
+  });
+
+  it("Ctrl+Shift+L searches with an empty query and labels the inserted link with the selection", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "World" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 6, 11); // "world"
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true, shiftKey: true });
+
+    expect(picker()).not.toBeNull();
+    expect((searchBox() as HTMLInputElement).value).toBe("");
+    expect(
+      within(picker()!).getByText('Link with custom label "world"'),
+    ).not.toBeNull();
+
+    typeInPicker("Wor");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toEqual({ type: "text", text: "hello " });
+    expect(ast[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: targetId,
+      customLabel: "world",
+    });
+  });
+
+  it("mid-word selections keep the @ boundary rule for Ctrl+L; Ctrl+Shift+L still opens", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 2, 8); // "llo wo" — no word boundary before it
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true });
+    expect(picker()).toBeNull();
+
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true, shiftKey: true });
+    expect(picker()).not.toBeNull();
+    expect(within(picker()!).getByText('Link with custom label "llo wo"')).not.toBeNull();
+  });
+});
+
+describe("capture: verb-on-selection typed link", () => {
+  it("Cmd+K opens the popover; commit wraps the selection in a typed_link with verb + locator", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 6, 11); // "world"
+    fireEvent.keyDown(editor, { key: "k", metaKey: true });
+
+    const verbInput = screen.getByLabelText("Verb");
+    expect(verbInput).toBeInTheDocument();
+    // The editor stays mounted (focus moved within the component root).
+    expect(container.querySelector(".nt-block-text")).not.toBeNull();
+
+    fireEvent.change(verbInput, { target: { value: "cites" } });
+    fireEvent.change(screen.getByLabelText("Locator"), { target: { value: "p. 3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast).toEqual([
+      { type: "text", text: "hello " },
+      {
+        type: "typed_link",
+        verb: "cites",
+        text: "world",
+        metadata: { locator: "p. 3", candidateSpans: [] },
+      },
+    ]);
+    expect(editor.textContent).toBe("hello world");
+  });
+
+  it("the floating toolbar verb button opens the same popover; Esc cancels without changes", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 0, 5);
+    // The toolbar appears after the archived 150 ms show debounce — waitFor
+    // instead of a fixed sleep (the serial-chain load made 200 ms racy).
+    const toolbar = await screen.findByRole("toolbar", { name: "Text formatting" });
+    fireEvent.click(toolbar.querySelector('button[title="Link verb (Cmd+K)"]')!);
+    expect(screen.getByLabelText("Verb")).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByLabelText("Verb"), { key: "Escape" });
+    expect(screen.queryByLabelText("Verb")).toBeNull();
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "hello world" }]);
+    // Caret restored at the range end; still editing.
+    expect(container.querySelector(".nt-block-text")).not.toBeNull();
+  });
+});
+
+describe("candidateSpans (record-don't-resolve)", () => {
+  it("is nearest-first by prose distance, deduped, capped at 8", () => {
+    const mention = (targetNodeId: string, text: string) => ({ type: "mention", targetNodeId, text });
+    const near = "0192a000-0000-7000-8000-0000000000a1";
+    const mid = "0192a000-0000-7000-8000-0000000000a2";
+    const far = "0192a000-0000-7000-8000-0000000000a3";
+    const ast = [
+      { type: "text", text: "alpha " },
+      mention(far, "Far"),
+      { type: "text", text: " beta " },
+      mention(near, "Near"),
+      { type: "text", text: " gamma " },
+      mention(mid, "Mid"),
+      { type: "text", text: " target" },
+      { type: "typed_link", verb: "cites", text: "target", metadata: {} },
+    ];
+    const computed = computeCandidateSpans(ast);
+    expect(computed.get(7)).toEqual([mid, near, far]);
+
+    // Dedupe + cap: the same target mentioned twice right before the mark is
+    // nearest and recorded once; with 10 further mentions only 8 survive.
+    const many = Array.from({ length: 10 }, (_, i) =>
+      mention(`0192a000-0000-7000-8000-000000000b${String(i).padStart(2, "0")}`, `m${i}`),
+    );
+    const dupAst = [
+      ...many.flatMap((m) => [m, { type: "text", text: " " }]),
+      mention(near, "Near"),
+      mention(near, "Near again"),
+      { type: "typed_link", verb: "v", text: "x", metadata: {} },
+    ];
+    const spans = computeCandidateSpans(dupAst).get(dupAst.length - 1)!;
+    expect(spans[0]).toBe(near); // nearest, deduped to one entry
+    expect(spans).toHaveLength(8); // cap
+    expect(new Set(spans).size).toBe(spans.length); // no duplicates
+  });
+
+  it("withCandidateSpans attaches the lists on save and leaves other tokens intact", () => {
+    const target = "0192a000-0000-7000-8000-0000000000a1";
+    const ast = [
+      { type: "mention", targetNodeId: target, text: "T" },
+      { type: "text", text: " cites " },
+      { type: "typed_link", verb: "cites", text: "x", metadata: { locator: "p. 1" } },
+    ];
+    const next = withCandidateSpans(ast);
+    expect(next[2]).toEqual({
+      type: "typed_link",
+      verb: "cites",
+      text: "x",
+      metadata: { locator: "p. 1", candidateSpans: [target] },
+    });
+    expect(next[0]).toBe(ast[0]); // untouched by reference
+  });
+});
+
+describe("capture tokens survive editing", () => {
+  it("two mentions committed back-to-back in one edit session both survive (worker stale-prop ordering)", async () => {
+    const client = await seedClient();
+    // Defer the change-notification delivery, like the worker client (whose
+    // read cache + notify lag the write RPC by a round-trip): the block's
+    // React prop stays stale after each commit, so the second mention's
+    // commit must not recompute its base from the prop.
+    const realSubscribe = client.subscribe.bind(client);
+    client.subscribe = ((listener: (change: unknown) => void) =>
+      realSubscribe((change) => {
+        setTimeout(() => listener(change), 0);
+      })) as typeof client.subscribe;
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const alphaId = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const betaId = await client.createObject({ isEmbedded: false, name: "Beta" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    // Mention A — committed to the store synchronously, but the prop lags.
+    typeWithCaret(editor, "see @");
+    typeInPicker("Alp");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    expect(client.getNode(blockId)?.contentAst[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: alphaId,
+    });
+
+    // Mention B — within the staleness window. (Synchronous sequence: no
+    // awaits, so the deferred notification cannot fire between commits.)
+    typeWithCaret(editor, "see Alpha and @");
+    typeInPicker("Bet");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    const mentions = ast.filter(
+      (token) => (token as { type?: string }).type === "mention",
+    ) as Array<{ targetNodeId: string }>;
+    expect(mentions.map((m) => m.targetNodeId)).toEqual([alphaId, betaId]);
+
+    // Let the deferred notification drain inside act so nothing updates
+    // after the test tears down.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  });
+
+  it("a mention inserted via @ survives a subsequent text edit", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    typeInPicker("Tar");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    expect(client.getNode(blockId)?.contentAst[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: targetId,
+    });
+
+    // Type more text after the mention and flush via blur.
+    typeWithCaret(editor, "see Target and more");
+    fireEvent.blur(editor);
+
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toEqual({ type: "text", text: "see " });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
+    expect(ast[2]).toEqual({ type: "text", text: " and more" });
+    expect(proseFromAst(ast, undefined, (id) => (id === targetId ? "Target" : null))).toBe(
+      "see Target and more",
+    );
+  });
+});
+
+describe("capture: create-from-@ (async completion)", () => {
+  it("the create row's completion splices the mention even when the trigger was dismissed before the node arrived", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Gate the create promise so the completion can be ordered AFTER the
+    // trigger's dismissal (the in-process client resolves too fast to
+    // interleave otherwise).
+    let openGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve;
+    });
+    const originalCreate = client.createObject.bind(client);
+    vi.spyOn(client, "createObject").mockImplementation(((input: unknown) => {
+      const result = originalCreate(input as Parameters<typeof originalCreate>[0]);
+      if ((input as { name?: string }).name === "Async page") {
+        return Promise.all([result, gate]).then(([id]) => id as string);
+      }
+      return result;
+    }) as never);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Async page");
+    // Choose the create row — the picker's UI closes immediately and the
+    // create stays in flight behind the gate.
+    fireEvent.click(within(picker()!).getByText('Create "Async page"'));
+    // The user dismisses the trigger before the node arrives (backspacing
+    // the trigger char — the plain-text cleanup gesture).
+    typeWithCaret(editor, "");
+    await act(async () => {});
+    // The created node arrives; the completion must still land the mention.
+    await act(async () => {
+      openGate();
+    });
+    // Drain the completion's write + push chain before teardown.
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Async page");
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[ast.length - 1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    expect(editor.textContent).toContain("Async page");
+  });
+
+  it("the create row's mention lands as soon as the create resolves — it does not wait for the change notification (worker ordering)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    // Defer the change-notification delivery AND keep reads answering as of
+    // the last delivered notification, like the worker client (whose read
+    // cache lags the write RPC): the create-row pick must splice its mention
+    // on the create RPC's resolution alone. Nodes created after this point
+    // read as undefined until the (deferred) notify drains.
+    const liveGetNode = client.getNode.bind(client);
+    const materialized = new Map<string, ClientNode>();
+    for (const id of [pageId, blockId]) {
+      const node = liveGetNode(id);
+      if (node !== undefined) materialized.set(id, node);
+    }
+    let notifyArrived = false;
+    client.getNode = ((id: string) =>
+      notifyArrived ? liveGetNode(id) : materialized.get(id)) as typeof client.getNode;
+    const realSubscribe = client.subscribe.bind(client);
+    client.subscribe = ((listener: (change: unknown) => void) =>
+      realSubscribe((change) => {
+        setTimeout(() => {
+          notifyArrived = true;
+          listener(change);
+        }, 0);
+      })) as typeof client.subscribe;
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Fresh page");
+    fireEvent.click(within(picker()!).getByText('Create "Fresh page"'));
+    // Flush the create RPC's promise chain (microtasks): the mention must be
+    // spliced BEFORE the deferred notification (a macrotask) is delivered.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Fresh page");
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[ast.length - 1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    // The optimistic pill already shows the created page's title.
+    expect(editor.textContent).toBe("Fresh page");
+
+    // Drain the deferred notification inside act before teardown.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  });
+
+  it("the class-aware modal's completion links the created source at the trigger", async () => {
+    const client = await seedClient();
+    // The server-seed shape for the source family.
+    await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
+    await client.createClass("Book", { id: SYSTEM_CLASS_UUIDS.book });
+    await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    // A `class:` refine routes the create row to the citation modal.
+    typeInPicker("class:source Dune");
+    fireEvent.click(within(picker()!).getByText('Create "Dune"'));
+
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await act(async () => {});
+    await act(async () => {});
+
+    const created = client
+      .listPages()
+      .filter((p) => deriveDisplayName(p) === "Dune" && p.classIds.includes(SYSTEM_CLASS_UUIDS.book));
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    expect(editor.textContent).toBe("Dune");
+  });
+
+  it("create cancellation leaves the plain trigger text (no mention ever lands)", async () => {
+    const client = await seedClient();
+    await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
+    await client.createClass("Book", { id: SYSTEM_CLASS_UUIDS.book });
+    await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("class:source Dune");
+    fireEvent.click(within(picker()!).getByText('Create "Dune"'));
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+
+    // Cancel the modal: nothing is created, the trigger char stays plain.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { name: /new book/i })).toBeNull();
+    expect(client.listPages().some((p) => deriveDisplayName(p) === "Dune")).toBe(false);
+    expect(editor.textContent).toBe("@");
+    let ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
+
+    // Abandoning the capture (backspacing the trigger) keeps plain text —
+    // no late mention can appear, the create never happened. Blur flushes
+    // the emptied draft (and clears the debounce timer) before teardown.
+    typeWithCaret(editor, "");
+    fireEvent.blur(editor);
+    await act(async () => {});
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+    ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
+  });
+});
+
+describe("capture: trigger boundary (sigil after punctuation)", () => {
+  it("unit: start, whitespace, and punctuation are boundaries; word chars are not", () => {
+    expect(isTriggerBoundary(undefined)).toBe(true);
+    // Whitespace + punctuation + symbols open the picker (the "(@" case)…
+    for (const ch of [" ", "\n", "(", "[", "{", '"', "'", "-", ".", "!", ":", "（"]) {
+      expect(isTriggerBoundary(ch)).toBe(true);
+    }
+    // …letters, digits, underscore, and non-ASCII word chars do not
+    // (the email `user@host` case stays silent).
+    for (const ch of ["a", "Z", "0", "9", "_", "é", "中"]) {
+      expect(isTriggerBoundary(ch)).toBe(false);
+    }
+  });
+
+  it("typing @ / # / + after punctuation opens the picker; after a word char it does not", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    // Any non-word char before the sigil counts: bracket, quote, dash…
+    for (const text of ["(@", '"@', "-@"]) {
+      typeWithCaret(editor, text);
+      expect(picker()).not.toBeNull();
+      fireEvent.keyDown(searchBox(), { key: "Escape" });
+      expect(picker()).toBeNull();
+    }
+    // …and the same rule carries # and +.
+    typeWithCaret(editor, "(#");
+    expect(picker()).not.toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Escape" });
+    typeWithCaret(editor, "(+");
+    expect(picker()).not.toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Escape" });
+
+    // Mid-word: no popup (the email case).
+    typeWithCaret(editor, "see a@");
+    expect(picker()).toBeNull();
+    typeWithCaret(editor, "see a#");
+    expect(picker()).toBeNull();
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
+  it("Ctrl+L after punctuation before the selection opens (the widened boundary)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "(hello world)" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 1, 6); // "hello" — preceded by "("
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true });
+    expect(picker()).not.toBeNull();
+    expect((searchBox() as HTMLInputElement).value).toBe("hello");
+  });
+});
+
+describe("node picker over an async client (worker-shaped reads)", () => {
+  /**
+   * Wrap the in-process client so its reads behave like the WorkerClient
+   * proxy: `search` answers [] until the async refresh "lands" (a manual
+   * notify through the subscribed listeners), and `subscribe` collects
+   * listeners the test fires by hand.
+   */
+  function makeAsyncSearchShim(client: WorkspaceClient): {
+    land: (hits: ClientNode[]) => void;
+  } {
+    let hits: ClientNode[] = [];
+    const listeners: Array<() => void> = [];
+    vi.spyOn(client, "search").mockImplementation(((query: string) => hits) as never);
+    vi.spyOn(client, "subscribe").mockImplementation(((listener: () => void) => {
+      listeners.push(listener);
+      return () => {};
+    }) as never);
+    return {
+      land: (landed) => {
+        hits = landed;
+        for (const listener of listeners) listener();
+      },
+    };
+  }
+
+  it("search hits render when the async notify lands — no extra keystroke needed", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const shim = makeAsyncSearchShim(client);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    typeInPicker("Tar");
+    // The async read is still in flight: no hits, and no lying empty state
+    // either (the client reports the read pending).
+    expect(within(picker()!).queryByText("Target")).toBeNull();
+
+    // The worker's refresh lands: the picker re-renders ON ITS OWN — the bug
+    // needed one more keystroke to surface the cached hits.
+    await act(async () => {
+      shim.land([client.getNode(targetId)!]);
+    });
+    expect(within(picker()!).getByText("Target")).not.toBeNull();
+
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
+  it("keystrokes coalesce through the debounce before hitting the ranked index — one search per pause, not per keystroke", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({ isEmbedded: false, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const queries: string[] = [];
+    const listeners: Array<() => void> = [];
+    vi.spyOn(client, "search").mockImplementation(((query: string) => {
+      queries.push(query);
+      return [];
+    }) as never);
+    vi.spyOn(client, "subscribe").mockImplementation(((listener: () => void) => {
+      listeners.push(listener);
+      return () => {};
+    }) as never);
+    // The async-client seam — its presence is what switches the picker into
+    // the debounced mode (sync clients search every keystroke).
+    (client as unknown as { searchPending: (query: string) => boolean }).searchPending = () => false;
+
+    const flushDebounce = async () => {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 170));
+      });
+    };
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    await flushDebounce(); // the empty-query recents settle
+    queries.length = 0;
+
+    // Three quick keystrokes: the index must not see the first two, and the
+    // empty state must not lie while they coalesce.
+    typeInPicker("T");
+    typeInPicker("Ta");
+    typeInPicker("Tar");
+    expect(queries).toEqual([]);
+    await flushDebounce();
+    expect(queries).toEqual(["Tar"]);
+
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
+  it("while a search read is pending the picker shows 'Searching…' instead of 'No matches found'", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const shim = makeAsyncSearchShim(client);
+    // The read never resolves while the flag holds.
+    (client as unknown as { searchPending: (query: string) => boolean }).searchPending = () => true;
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    typeInPicker("Tar");
+    // The spinner rides the <300ms-nothing rule — it appears once the wait
+    // is real, and the empty state stays suppressed the whole time.
+    await waitFor(
+      () => expect(within(picker()!).getByRole("status")).not.toBeNull(),
+      { timeout: 2000 },
+    );
+    expect(within(picker()!).queryByText("No matches found")).toBeNull();
+
+    // The read lands: results replace the spinner.
+    (client as unknown as { searchPending: (query: string) => boolean }).searchPending = () => false;
+    await act(async () => {
+      shim.land([client.getNode(targetId)!]);
+    });
+    expect(within(picker()!).getByText("Target")).not.toBeNull();
+    expect(within(picker()!).queryByRole("status")).toBeNull();
+
+    // Blur flushes the pending draft (and clears the save debounce) before
+    // teardown.
+    fireEvent.blur(editor);
+    await act(async () => {});
+  });
+
+  it("the create row inserts the mention on the create's resolution (worker-shaped create), before the node is readable", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "see " }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Worker shape: createObject's promise resolves with the id BEFORE the
+    // node is readable — the sync push lands a beat later, when the test
+    // calls `push` (unhide + notify).
+    const hidden = new Set<string>();
+    const listeners: Array<() => void> = [];
+    let push: (() => void) | null = null;
+    const originalCreate = client.createObject.bind(client);
+    vi.spyOn(client, "createObject").mockImplementation(((input: unknown) =>
+      originalCreate(input as Parameters<typeof originalCreate>[0]).then((id) => {
+        hidden.add(id);
+        push = () => {
+          hidden.delete(id);
+          for (const listener of listeners) listener();
+        };
+        return id;
+      })) as never);
+    const originalGetNode = client.getNode.bind(client);
+    vi.spyOn(client, "getNode").mockImplementation(((id: string) =>
+      hidden.has(id) ? undefined : originalGetNode(id)) as never);
+    vi.spyOn(client, "subscribe").mockImplementation(((listener: () => void) => {
+      listeners.push(listener);
+      return () => {};
+    }) as never);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    typeInPicker("Fresh page");
+    await act(async () => {
+      fireEvent.click(within(picker()!).getByText('Create "Fresh page"'));
+    });
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+    // The create resolved but the node has NOT landed in the read cache yet:
+    // the optimistic pick already spliced the mention (no waiting on the
+    // subscription), with the created title as the pill's label fallback.
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Fresh page");
+    expect(created).toHaveLength(1);
+    const astBefore = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(astBefore[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    expect(editor.textContent).toContain("Fresh page");
+
+    // The sync push materializes the node; the mention stays put (the label
+    // now resolves from the graph — same title).
+    await act(async () => {
+      push?.();
+    });
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+    expect(picker()).toBeNull();
+  });
+});

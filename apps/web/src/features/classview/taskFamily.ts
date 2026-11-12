@@ -1,0 +1,238 @@
+/**
+ * Task family authoring — the designed fix. The five task property schemas
+ * (fixed UUIDs + canonical options in @notees/domain seeds) exist as
+ * constants + migration mappings only: nothing authored them, so a
+ * fresh workspace's tasks hub silently dropped the Scheduled/Deadline
+ * columns and no surface could schedule a task. The register's sanctioned
+ * fix: author the five schemas idempotently on first tasks-hub open (and,
+ * per the Calendar day view, on first calendar open).
+ *
+ * ensureTaskFamily authors the five property schemas at their reserved ids
+ * (the propertySchema.create upsert is a no-op when the row exists) plus the
+ * task-class bindings when missing, and is a complete no-op once present.
+ * The task→project membership relation rides the same ensure (the SEVENTH
+ * authored schema): a global-scope object-typed multi schema whose only
+ * task-local piece is the binding row (the url→source precedent) —
+ * task subclasses inherit the binding through extends-aware resolution.
+ * Safe under both WorkspaceClient and WorkerClient — it composes only the
+ * shared write surface (createPropertySchema / setClassProperty /
+ * updatePropertySchema) and sync reads (listPropertySchemas /
+ * getClassBindings), all RPC-mirrored.
+ *
+ * The status/priority option ids are the deterministic
+ * TASK_STATUS/PRIORITY_OPTION_UUIDS (the applier-side seed-ensure authors
+ * the same fixed ids, so either seed path converges to identical rows), the
+ * status options carry the designed circle icons + preset colors, and a
+ * restyle pass upgrades workspaces whose family was authored before the
+ * styles existed (styleTaskStatusOptions preserves stored ids and leaves
+ * user-renamed/added options untouched; null once converged — the common
+ * case is a pure read, no write).
+ */
+
+import {
+  styleTaskStatusOptions,
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  TASK_PRIORITY_OPTIONS,
+  TASK_PRIORITY_OPTION_UUIDS,
+  TASK_STATUS_OPTIONS,
+  TASK_STATUS_OPTION_UUIDS,
+} from "@notees/domain";
+
+import type { ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
+
+import { ensureFamilySchemas } from "./familyEnsure.js";
+
+/** The composed write/read surface both full clients (and the outliner
+ *  context's `OutlinerClient & OutlinerReader`, which the full client
+ *  satisfies) implement — RPC-mirrored, so the structural pick is safe. */
+export type TaskFamilyClient = Pick<
+  WorkspaceClient,
+  | "listPropertySchemas"
+  | "getClassBindings"
+  | "getNodeRaw"
+  | "createClass"
+  | "createPropertySchema"
+  | "setClassProperty"
+  | "updatePropertySchema"
+>;
+
+/** Deterministic status option ids, keyed by the designed option name (the
+ *  applier-side seed-ensure authors the same fixed ids — INSERT-or-ignore
+ *  first-writer-wins converges both seed paths to identical rows). */
+const TASK_STATUS_OPTION_IDS: Record<(typeof TASK_STATUS_OPTIONS)[number]["name"], string> = {
+  Backlog: TASK_STATUS_OPTION_UUIDS.backlog,
+  Pending: TASK_STATUS_OPTION_UUIDS.pending,
+  Doing: TASK_STATUS_OPTION_UUIDS.doing,
+  Reviewing: TASK_STATUS_OPTION_UUIDS.reviewing,
+  Done: TASK_STATUS_OPTION_UUIDS.done,
+  Cancelled: TASK_STATUS_OPTION_UUIDS.cancelled,
+};
+
+const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], string> = {
+  Low: TASK_PRIORITY_OPTION_UUIDS.low,
+  Medium: TASK_PRIORITY_OPTION_UUIDS.medium,
+  High: TASK_PRIORITY_OPTION_UUIDS.high,
+  Urgent: TASK_PRIORITY_OPTION_UUIDS.urgent,
+};
+
+/** The six schemas in authoring order (five family + the project
+ * relation; binding rows carry no order — the task panel renders in pin
+ * tiers, alphabetical by property name within each tier; `pinned` is a
+ * classification, never a stored order). The pinned set mirrors
+ * TASK_FAMILY_SEED (2026-10-27): Status/Scheduled/Deadline pinned,
+ * Priority/Closed + project unpinned (no declared pin set carries
+ * the new binding); the node-row preview flag mirrors the same seed —
+ * Status/Deadline flagged, Scheduled/Priority/Closed/project not. The
+ * withdrawn taskRecurrence placeholder retires
+ * here — recurrence is the dedicated `repeat` property, arriving via the
+ * domain seed envelopes + the store's ensureTaskFamilyRows, never this
+ * ensure. */
+const TASK_FAMILY: Array<{
+  id: string;
+  name: string;
+  type: "select" | "datetime" | "object";
+  options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
+  /** The binding row's tier flag (TASK_FAMILY_SEED.pinned). */
+  pinned?: boolean;
+  /** The binding row's node-row preview flag (TASK_FAMILY_SEED.showInNodeRows). */
+  showInNodeRows?: boolean;
+  /** Multi cardinality (the `project` relation; absent = single-value). */
+  multi?: boolean;
+  /** Node-typed target filter (already-resolved seed class ids — the shared
+   *  loop carries the array verbatim). */
+  targetClassFilter?: string[];
+  /** The schema-level hide-when-empty contract (the `project` relation). */
+  hideWhenEmpty?: boolean;
+  /** The schema-level default (TASK_FAMILY_SEED.defaultValue; the Status
+   *  Pending option id — the class supplies it, never materialized). */
+  defaultValue?: string;
+}> = [
+  {
+    id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+    name: "Status",
+    type: "select",
+    options: () =>
+      TASK_STATUS_OPTIONS.map((option) => ({
+        id: TASK_STATUS_OPTION_IDS[option.name],
+        label: option.name,
+        icon: option.icon,
+        color: option.color,
+      })),
+    pinned: true,
+    showInNodeRows: true,
+    defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
+  },
+  {
+    id: SYSTEM_PROPERTY_UUIDS.taskScheduled,
+    name: "Scheduled",
+    type: "datetime",
+    pinned: true,
+  },
+  {
+    id: SYSTEM_PROPERTY_UUIDS.taskDeadline,
+    name: "Deadline",
+    type: "datetime",
+    pinned: true,
+    showInNodeRows: true,
+  },
+  {
+    id: SYSTEM_PROPERTY_UUIDS.taskPriority,
+    name: "Priority",
+    type: "select",
+    options: () =>
+      TASK_PRIORITY_OPTIONS.map((label) => ({ id: TASK_PRIORITY_OPTION_IDS[label], label })),
+  },
+  {
+    id: SYSTEM_PROPERTY_UUIDS.taskClosedDate,
+    name: "Closed",
+    type: "datetime",
+  },
+  {
+    // The task→project membership relation (the SYSTEM_PROPERTY_SPECS
+    // manifest entry): object-typed {nodeId} refs, multi, filter
+    // ["project"], global scope, hideWhenEmpty — a task with no project
+    // shows no empty row. Only the BINDING ROW is task-local; any node may
+    // carry the schema (meetings, sources, …). The propertySchema.create
+    // upsert is a no-op when the row exists, so a converged workspace is
+    // untouched.
+    id: SYSTEM_PROPERTY_UUIDS.project,
+    name: "Project",
+    type: "object",
+    multi: true,
+    targetClassFilter: [SYSTEM_CLASS_UUIDS.project],
+    hideWhenEmpty: true,
+  },
+];
+
+/** True when every task schema is present and bound to the task class. */
+export function taskFamilyPresent(
+  client: Pick<TaskFamilyClient, "listPropertySchemas" | "getClassBindings">,
+): boolean {
+  const schemas = client.listPropertySchemas();
+  const have = new Set<string>(schemas.map((schema: ClientPropertySchema) => schema.id));
+  const bound = new Set(
+    client.getClassBindings(SYSTEM_CLASS_UUIDS.task).map((binding) => binding.propertySchemaId),
+  );
+  return TASK_FAMILY.every((spec) => have.has(spec.id) && bound.has(spec.id));
+}
+
+/**
+ * Author the six task property schemas (five family + project) + task-class
+ * bindings when missing; a no-op when present (idempotent — safe to call on
+ * every open). Also runs
+ * the status-restyle upgrade on every call (itself a no-op once the
+ * stored options carry the designed icons/colors).
+ *
+ * The task class NODE is expected from the server seed; a workspace that
+ * never got one (offline-first devices) self-heals it here at the reserved
+ * id — without the node, getClassBindings can't see the binding rows and
+ * every open would re-author them (op-log noise). Server-seeded workspaces
+ * skip the branch (idempotent re-create converges anyway).
+ */
+export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> {
+  if (!taskFamilyPresent(client)) {
+    if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.task) === undefined) {
+      await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.task, {
+        id: SYSTEM_CLASS_UUIDS.task,
+        icon: "mdiCheckboxMarkedCircleOutline",
+        // The parentlessRole render contract: standalone
+        // tasks render Block-role (server-seeded workspaces carry the flag
+        // from the seed; the offline-first self-heal converges on it).
+        parentlessRole: "block",
+      });
+    }
+    // The family is authored through the shared spec-driven loop. Global
+    // scope (Status "can be reused for other nodes", and the ruling covers
+    // the whole family): absent scopeClassIds = any node may carry it — the
+    // task-class bindings are untouched (per-class config, zero availability
+    // semantics). The `project` relation rides the same global scope (its
+    // spec is explicitly global).
+    await ensureFamilySchemas(client, SYSTEM_CLASS_UUIDS.task, TASK_FAMILY);
+  }
+  // Upgrade pass: restyle the status options with the designed
+  // circle icons/colors (stored ids preserved — authored values reference
+  // them), move the value display to the property schema (render
+  // contracts are property-level — "bullet" = the status rides
+  // the block bullet), and converge the schema-level Pending default (the
+  // class supplies it at read time — nothing is ever materialized, so
+  // class removal drops an unchanged status without a compensating write).
+  // ONE updatePropertySchema carries the keys when any need writing; runs on
+  // every call, a read-only no-op once converged.
+  const status = client
+    .listPropertySchemas()
+    .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
+  if (status !== undefined) {
+    const restyled = status.options != null ? styleTaskStatusOptions(status.options) : null;
+    const display = status.display ?? null;
+    const defaultValue = status.defaultValue ?? null;
+    const patch: Parameters<TaskFamilyClient["updatePropertySchema"]>[1] = {};
+    if (restyled !== null) patch.options = restyled;
+    if (display === null || display === "panel") patch.display = "bullet";
+    if (defaultValue === null) patch.defaultValue = TASK_STATUS_OPTION_UUIDS.pending;
+    if (Object.keys(patch).length > 0) {
+      await client.updatePropertySchema(status.id, patch);
+    }
+  }
+}

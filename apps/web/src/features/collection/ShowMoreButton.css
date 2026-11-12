@@ -1,0 +1,15 @@
+/* ShowMoreButton — the window affordance. Token-only. */
+
+.nt-window-more {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-1) 0;
+}
+
+.nt-window-more .btn {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-window-more .btn:hover {
+  color: var(--md-sys-color-on-surface);
+}

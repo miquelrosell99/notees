@@ -1,0 +1,63 @@
+/**
+ * CreatePageWithUuidModal Styles
+ */
+
+.create-uuid-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.create-uuid-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.create-uuid-modal__label {
+  font: var(--font-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.create-uuid-modal__required {
+  color: var(--md-sys-color-error);
+}
+
+.create-uuid-modal__input {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font: var(--font-body-medium);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.create-uuid-modal__input:focus {
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 35%, var(--md-sys-color-outline-variant));
+}
+
+.create-uuid-modal__input--mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-button);
+  flex: 1;
+}
+
+.create-uuid-modal__uuid-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.create-uuid-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+.create-uuid-modal__error {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-error);
+}

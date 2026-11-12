@@ -1,0 +1,162 @@
+/* OutlineView — flat list rows (tree rows reuse the block-tree CSS). */
+
+.outline-flat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The flat row wrapper: one full block row (flex: 1) + the container's
+   optional trailing action at the row's right end. Top-aligned — a block
+   row is multi-line (children, metadata), so the action rides the first
+   line, not the vertical center. */
+.outline-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.outline-row > .nt-block {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The containing-page breadcrumb trail above a result row (the
+   `showBreadcrumbs` prop, default on): small, muted,
+   navigation context — the picker's crumb line (NodeResultItem) precedent.
+   The trail rides ABOVE the row (a block row is multi-line; a left rail
+   crumb would misalign), tight to the row it names. A parentless row's
+   trail renders empty and the line collapses on its own. */
+.outline-row__breadcrumbs {
+  margin-bottom: var(--spacing-micro);
+}
+
+.outline-row__breadcrumbs .node-breadcrumbs {
+  font: var(--font-label-small);
+  opacity: var(--opacity-55);
+}
+
+/* The breadcrumb-on tree row's column wrapper (crumb trail + the row). */
+.outline-tree-entry {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Grouped rendering (groupBy): collapsible group sections over the flat
+   rows — the references grouping rides this (containing-page headers). */
+
+.outline-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  /* The group list rides below the hosted-views tab bar — a real
+     separation so the first group header never crowds the tabs
+. */
+  padding-top: var(--spacing-3);
+}
+
+.outline-group__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.outline-group__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.outline-group__toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.outline-group__label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--spacing-tiny) var(--spacing-1);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-align: left;
+}
+
+button.outline-group__label {
+  cursor: pointer;
+}
+
+button.outline-group__label:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.outline-group__icon {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  display: inline-flex;
+}
+
+/* The count rides the SECTION badge pill, right beside the group name
+ — not a bare number pushed to the row's far right. */
+.outline-group__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The group count: the fleet Badge (neutral pill) owns the look — the class
+   keeps only the row layout (the trailing separation from the name). */
+.outline-group__count {
+  flex-shrink: 0;
+  margin-inline-start: var(--spacing-1);
+}
+
+.outline-group__items {
+  list-style: none;
+  /* Separation from the group header: the icon
+     bullet's 28px ring overhangs its row's line box upward by a few px;
+     a small top padding keeps the first row's ring off the header
+     without opening a gulf. */
+  margin: 0 0 0 var(--spacing-2);
+  padding: var(--spacing-2) 0 0 var(--spacing-3);
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/* The window affordance aligns with the indented group rows. */
+.outline-group > .nt-window-more {
+  margin-inline-start: calc(var(--spacing-2) + var(--spacing-3));
+}
+
+/* The sort-button toolbar (the table toolbar's twin): a right-aligned row
+   riding the body top un-hosted, portaling into the hosted tab bar's
+   right-hand cluster otherwise. */
+.outline-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-1);
+}

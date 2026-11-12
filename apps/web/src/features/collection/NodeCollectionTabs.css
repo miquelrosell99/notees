@@ -1,0 +1,110 @@
+/* NodeCollectionTabs — the hosted-views chrome riding a hosted NodeCollection:
+   the tab bar row (Default permanent first, custom tabs by sequence, the
+   "+" add-slot, the reset rendered only when custom views exist, the host
+   section's trailing chrome — filter/search/view-switch — far right), the
+   active custom tab's manage row (rename / move / delete), and the
+   write-error line. Token-only. */
+
+.nt-node-collection-tabs {
+  display: flex;
+  flex-direction: column;
+  /* The tab row breathes before the view below it (the tab row and the first view row were reading as one
+     block). */
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+.nt-node-collection-tabs__bar {
+  /* Wraps: an inline NodeCollectionToolbar's structured panel takes a full-width line
+     beneath the row when open. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-node-collection-tabs__tabs {
+  min-width: 0;
+  flex: 1;
+}
+
+.nt-node-collection-tabs__tabs .tabs__list {
+  flex-wrap: wrap;
+}
+
+/* The active tab's total-count badge: the label
+   becomes a flex line so the pill sits beside the name, vertically
+   centered; the pill is the section-header count register one size down. */
+.nt-node-collection-tabs__tabs .tabs__tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* The active-tab count: the fleet Badge (neutral pill) owns the look — the
+   wrapper span keeps only the aria-hidden hook. */
+.nt-node-collection-tabs__tab-count {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.nt-node-collection-tabs__reset {
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nt-node-collection-tabs__reset:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The "+" add-tab rides QUIET until the tabs strip is hovered (or holds the
+   keyboard focus — a hover-only affordance would strand keyboard users): the
+   chrome reads as tabs alone at rest. */
+.nt-node-collection-tabs__tabs .tabs__add-slot {
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-node-collection-tabs__tabs:hover .tabs__add-slot,
+.nt-node-collection-tabs__tabs:focus-within .tabs__add-slot {
+  opacity: 1;
+}
+
+.nt-node-collection-tabs__manage {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-node-collection-tabs__manage-name {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  margin-inline-end: var(--spacing-1);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The hosted view-chrome slot: a view portals its
+   per-view toolbar into the right-hand cluster; display:contents merges
+   the toolbar into the bar's flex line, and the ported toolbar loses its
+   body-top bottom margin. */
+.node-collection__view-chrome {
+  display: contents;
+}
+
+.node-collection__view-chrome .nt-table-toolbar,
+.node-collection__view-chrome .cards-toolbar,
+.node-collection__view-chrome .board-toolbar {
+  margin-bottom: 0;
+}

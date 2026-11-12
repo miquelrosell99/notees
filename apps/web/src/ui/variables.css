@@ -1,0 +1,1082 @@
+/**
+ * Design System Variables
+ *
+ * Material You color roles (https://m3.material.io/styles/color/roles):
+ * every color token carries the --md-sys-color-* prefix and the app styles
+ * reference ONLY these tokens — no hardcoded values in component CSS.
+ *
+ * Dynamic-color model: the primary family IS the user's seed — the selected
+ * accent. The [data-accent] blocks at the bottom set only
+ * --md-sys-color-primary and --md-sys-color-on-primary; every other primary
+ * role (container, on-container, hover, pressed, inverse) derives from them
+ * via color-mix in the theme blocks, so there is exactly one source of truth
+ * per theme and no parallel color track.
+ *
+ * Margin Green brand tokens: warm paper light ground (#f7f4ec), seed-tinted
+ * graphite dark ground (background = color-mix(primary 6%, #141414) in the
+ * [data-theme="dark"] block — the "night is seed-tinted" override), iron-ink
+ * neutrals from the brand scale; the default seed is Advance Green (#2e5e46,
+ * night variant #6da789). The canonical brand values live in the brand
+ * submodule (brand/assets/tokens/tokens.css).
+ */
+
+:root {
+  /* Native control chrome (input/button faces, spinners, scrollbars) must
+     follow the resolved theme — without this the UA renders light controls
+     under dark themes (white inputs, pale button faces). */
+  color-scheme: light;
+
+  /* ==================== Primary (accent-derived, Material You) ==================== */
+  /* The default seed is the margin (brand) accent; [data-accent] blocks below
+     replace primary/on-primary per user selection — the derived roles follow
+     automatically. */
+  --md-sys-color-primary: #2e5e46;
+  --md-sys-color-on-primary: #fff;
+  --md-sys-color-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 11%, var(--md-sys-color-surface));
+  --md-sys-color-on-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 82%, #221a13);
+  --md-sys-color-primary-hover: color-mix(in srgb, var(--md-sys-color-primary) 88%, black);
+  --md-sys-color-primary-pressed: color-mix(in srgb, var(--md-sys-color-primary) 74%, black);
+  --md-sys-color-inverse-primary: color-mix(in srgb, var(--md-sys-color-primary) 40%, #a6a09a);
+
+  /* Absolute black/white for contrast-math results (e.g. text on user-chosen colors) */
+  --md-sys-color-black: #000;
+  --md-sys-color-white: #fff;
+
+  /* ==================== Secondary ==================== */
+  --md-sys-color-secondary: #333;
+  --md-sys-color-on-secondary: #fff;
+  --md-sys-color-secondary-container: #f7f7f7;
+  --md-sys-color-on-secondary-container: #333;
+  --md-sys-color-secondary-hover: #555;
+  --md-sys-color-secondary-pressed: #444;
+
+  /* ==================== Tertiary ==================== */
+  --md-sys-color-tertiary: #555;
+  --md-sys-color-on-tertiary: #fff;
+  --md-sys-color-tertiary-container: #f0f0f0;
+  --md-sys-color-on-tertiary-container: #333;
+  --md-sys-color-tertiary-hover: #444;
+  --md-sys-color-tertiary-pressed: #333;
+
+  /* ==================== Error ==================== */
+  --md-sys-color-error: #c0392b;
+  --md-sys-color-on-error: #fff;
+  --md-sys-color-error-container: #fdecea;
+  --md-sys-color-on-error-container: #611a15;
+  --md-sys-color-error-hover: #a83227;
+  --md-sys-color-error-pressed: #89211f;
+
+  /* ==================== Warning ==================== */
+  /* Registered extension (namespace hygiene, fleet audit 2026-10-26): the
+     semantic status families predate the drift gate's allowlist — warning
+     and success ride the fixed M3 semantic palettes, same provenance as the
+     skill's palettes.mjs SEMANTIC block. */
+  --md-sys-color-warning: #8f6216;
+  --md-sys-color-on-warning: #fff;
+  --md-sys-color-warning-container: #fffbeb;
+  --md-sys-color-on-warning-container: #78350f;
+
+  /* ==================== Success ==================== */
+  --md-sys-color-success: #3d7253;
+  --md-sys-color-on-success: #fff;
+  --md-sys-color-success-container: #d1fae5;
+  --md-sys-color-on-success-container: #14532d;
+
+  /* Soft status wash (fleet ruling 2026-10-26 — the "subtle status"
+     register): a translucent status color over whatever is behind it
+     (GitHub danger-subtle / Stripe / Portainer). Resting surface for
+     soft-danger buttons, status badges, banners. One definition — the
+     base token flips per theme, the wash follows. */
+  --md-sys-color-error-soft: color-mix(in srgb, var(--md-sys-color-error) 12%, transparent);
+  --md-sys-color-warning-soft: color-mix(in srgb, var(--md-sys-color-warning) 12%, transparent);
+  --md-sys-color-success-soft: color-mix(in srgb, var(--md-sys-color-success) 12%, transparent);
+
+  /* ==================== Background & Surface ==================== */
+
+  /* Warm paper workspace — the Margin Green identity ground (#f7f4ec, brand
+     role --bi-background); surfaces and ink come from the brand neutral scale. */
+  --md-sys-color-background: #f7f4ec;
+  --md-sys-color-on-background: #221a13;
+  --md-sys-color-surface: #fff;
+  --md-sys-color-on-surface: #221a13;
+  --md-sys-color-surface-variant: #edeae2;
+  --md-sys-color-on-surface-variant: #5c544c;
+  --md-sys-color-surface-dim: #e8e6e3;
+  --md-sys-color-surface-bright: #fff;
+  --md-sys-color-surface-container: #fcfaf8;
+  --md-sys-color-surface-container-active: color-mix(in srgb, var(--md-sys-color-surface-container) 75%, black);
+  --md-sys-color-surface-container-low: #f4f3f1;
+  --md-sys-color-surface-container-high: #edeae2;
+  --md-sys-color-surface-container-highest: #e8e6e3;
+  --md-sys-color-surface-container-lowest: #fff;
+  --md-sys-color-inverse-surface: #221a13;
+  --md-sys-color-inverse-on-surface: #f7f4ec;
+
+  /* The sidebar cards' fill: the nodeview sidebars wear
+     the main card's element nested inside it — light keeps the identical
+     surface; dark steps one tone LIGHTER (graphite up) so the cards stand
+     out against the near-black main surface. */
+  --md-sys-color-sidebar-card: var(--md-sys-color-surface);
+
+  /* ==================== Outline & Utility ==================== */
+  --md-sys-color-outline: #d8d3c7;
+  --md-sys-color-outline-variant: #e8e6e3;
+  --md-sys-color-shadow: rgb(0 0 0 / 8%);
+  --md-sys-color-scrim: rgb(0 0 0 / 50%);
+
+  /* ==================== Presentation stage ====================
+     Fullscreen presentation host (PresentationOverlay): a dark stage in
+     EVERY theme (a deck reads like a projector surface, not a page), with
+     its own on-stage text colors. */
+  --md-sys-color-presentation-stage: #17150f;
+  --md-sys-color-on-presentation-stage: #ece9e3;
+  --md-sys-color-on-presentation-stage-muted: #9d968c;
+
+  /* ==================== State ==================== */
+  --md-sys-color-disabled: #d4d4d4;
+  --md-sys-color-on-disabled: #8a8a8a;
+  --md-sys-color-hover-overlay: rgb(0 0 0 / 4%);
+  --md-sys-color-focus-overlay: rgb(0 0 0 / 8%);
+  --md-sys-color-pressed-overlay: rgb(0 0 0 / 12%);
+
+  --md-sys-color-surface-tint: transparent;
+
+  /* The accent picker's monochrome swatch previews the monochrome SEED, not
+     the active accent — a theme constant (iron ink on paper by day, paper
+     white on the night ground), set per scheme here and scoped to the
+     swatch in SettingsPage.css. */
+  --md-sys-color-swatch-monochrome: #1c1a16;
+
+  /* ==================== Data-level preset colors ====================
+     Application data colors (node/class/tag colors, selection options):
+     stored on nodes as preset TOKENS (`sky`) or custom `#RRGGBB` hex per
+     the protocol color grammar (packages/protocol/src/colors.ts); the
+     token → hex mapping lives here so themes can remap the palette without
+     touching data (colorPresets.ts bridges token → var at render). */
+  --md-sys-color-preset-red: #e34d45;
+  --md-sys-color-preset-orange: #ed822b;
+  --md-sys-color-preset-yellow: #f3b816;
+  --md-sys-color-preset-green: #30a66f;
+  --md-sys-color-preset-teal: #27a59c;
+  --md-sys-color-preset-sky: #20a9e9;
+  --md-sys-color-preset-blue: #4072e7;
+  --md-sys-color-preset-purple: #9662da;
+  --md-sys-color-preset-pink: #de4996;
+  --md-sys-color-preset-gray: #8c857d;
+  /* Mono — the theme-adaptive black/white: ink on paper by day, paper white
+     on the night ground by night. The dark override lives in the dark block;
+     the light value is the JS-side representative (contrast math, canvas). */
+  --md-sys-color-preset-mono: #000000;
+
+  /* ==================== Graph View (light defaults) ==================== */
+  --graph-node-default: #737373;
+  --graph-edge-color: #d4d4d4;
+  --graph-bg: transparent;
+  --graph-minimap-dot: #8c857d;
+  --graph-minimap-viewport: #5c544c;
+
+  /* Graph semantic colors */
+  --graph-edge-cooccurrence: #8a6cc9;
+  --graph-edge-path: #b4763e;
+  --graph-node-path: #b4763e;
+
+  /* Graph UI surfaces */
+  --graph-btn-bg: rgb(255 255 255 / 80%);
+  --graph-btn-border: rgb(163 163 163 / 50%);
+  --graph-btn-color: rgb(64 64 64 / 80%);
+  --graph-btn-hover-bg: rgb(245 245 245 / 95%);
+  --graph-btn-hover-color: #111;
+  --graph-stats-bg: rgb(0 0 0 / 45%);
+  --graph-stats-color: rgb(82 82 82 / 85%);
+  --graph-tooltip-bg: rgb(255 255 255 / 90%);
+  --graph-tooltip-border: rgb(212 212 212 / 70%);
+  --graph-tooltip-color: rgb(40 40 40 / 90%);
+  --graph-tooltip-edge-color: rgb(180 83 9 / 95%);
+  --graph-fallback-msg-color: rgb(130 130 130 / 65%);
+
+  /* ==================== Component Height Scale ==================== */
+  --height-xs: 24px;
+  --height-sm: 28px;
+  --height-md: 32px;
+  --height-lg: 38px;
+  --height-xl: 46px;
+  --height-2xl: 56px;
+
+  /* ==================== App-shell widths ==================== */
+  /* Role-named chrome widths: the docked sidebar and its mobile drawer
+     (the <=768px overlay). Named by role, not pixel. */
+  --width-sidebar: 260px;
+  --width-sidebar-drawer: 280px;
+
+  /* Button text heights (slightly taller than the base scale for comfortable vertical padding) */
+  --height-button-xs: 26px;
+  --height-button-sm: 30px;
+  --height-button-md: 36px;
+  --height-button-lg: 44px;
+
+  /* Icon-only button touch targets — M3's 48×48dp touch floor (M3's approach, not the fleet); the invisible ::after overlay
+     still guarantees a 48×48 px accessible hit area on every icon-only
+     control. */
+  --button-icon-only-xs: 48px;
+  --button-icon-only-sm: 48px;
+  --button-icon-only-md: 48px;
+  --button-icon-only-lg: 48px;
+
+  /* Icon-only button visible sizes. These are smaller than the touch target;
+     the overlay above preserves the 48×48 px hit area. */
+  --button-icon-only-visible-xs: var(--spacing-7);
+  --button-icon-only-visible-sm: var(--spacing-8);
+  --button-icon-only-visible-md: var(--spacing-9);
+  --button-icon-only-visible-lg: var(--spacing-10);
+
+  /* ==================== Border Width ==================== */
+  --border-width-default: 1px;
+  --border-width-thick: 2px;
+  --border-width-medium: 1.5px;
+  --border-width-extra-thick: 3px;
+
+  /* Colored node/page borders — thicker than the standard scale because they
+     serve as a strong identity signal. */
+  --border-width-node-color: 4px;
+  --border-width-node-color-strong: 8px;
+  --focus-outline-offset: 2px;
+
+  /* ==================== Component Sizes ==================== */
+  /* M3's 48dp touch floor: every interactive
+     control reaches at least 48×48 px, by its own box or the invisible
+     ::after overlay that rides this token. */
+  --button-min-height: 48px;
+  --bullet-size-xs: 4px;
+  --bullet-size-md: 6px;
+  --bullet-ring-size: 16px;
+  --ghost-card-opacity: var(--opacity-55);
+  --tactile-press-scale: 0.96;
+
+  /* Icon sizes (width/height for icon buttons, avatars, etc.) */
+  --icon-size-xs: 14px;
+  --icon-size-sm: 16px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+  --icon-size-xl: 32px;
+  --icon-size-2xl: 40px;
+
+  /* ==================== Typography ==================== */
+  --font-family-base: 'Instrument Sans', -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-family-display: 'Instrument Sans', -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-family-content: 'Newsreader', georgia, serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', consolas, monospace;
+
+/* Settings → Appearance → Font. The bundled faces above are
+   the default; "system" swaps both families for the platform stack (the
+   data-font attribute is set pre-paint, see deviceSettings.ts). */
+[data-font="system"] {
+  --font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Display — Instrument Sans for hero moments */
+  --font-display-large: 400 3.5rem/1.1 var(--font-family-display);
+  --font-display-medium: 400 2.75rem/1.15 var(--font-family-display);
+  --font-display-small: 400 2.25rem/1.2 var(--font-family-display);
+
+  /* Headline — Instrument Sans for section/page titles */
+  --font-headline-large: 600 2rem/1.25 var(--font-family-display);
+  /* The medium headline's parts ride separate tokens because layout math
+     (the page-header icon's first-line anchor, app.css) consumes the line
+     box directly — a font-shorthand token cannot be decomposed at use. */
+  --font-size-headline-medium: 1.75rem;
+  --line-height-headline-medium: 1.3;
+  --font-headline-medium: 600 var(--font-size-headline-medium)/var(--line-height-headline-medium) var(--font-family-display);
+  --font-headline-small: 600 1.5rem/1.35 var(--font-family-display);
+
+  /* Title — sans for card titles, modal headers, section labels (UI chrome) */
+  --font-title-large: 600 1.25rem/1.4 var(--font-family-base);
+  --font-title-medium: 600 1rem/1.4 var(--font-family-base);
+  --font-title-small: 600 0.875rem/1.4 var(--font-family-base);
+
+  /* Body */
+  --font-body-large: 400 1rem/1.5 var(--font-family-base);
+  --font-body-medium: 400 0.875rem/1.5 var(--font-family-base);
+  --font-body-small: 400 0.75rem/1.5 var(--font-family-base);
+
+  /* Label */
+  --font-label-large: 600 0.875rem/1.4 var(--font-family-base);
+  --font-label-medium: 600 0.75rem/1.4 var(--font-family-base);
+  --font-label-small: 600 0.6875rem/1.4 var(--font-family-base);
+
+  /* Font sizes (standalone, for font-size property) */
+  --font-size-3xs: 0.55rem;    /* 8.8px – tiny badges/counters */
+  --font-size-2xs: 0.625rem;   /* 10px – small badges */
+  --font-size-xs: 0.6875rem;   /* 11px – label-small */
+  --font-size-sm: 0.75rem;     /* 12px – body-small / label-medium */
+  --font-size-button: 0.8125rem; /* 13px – button md (between sm and base) */
+  --font-size-base: 0.875rem;  /* 14px – body-medium / label-large */
+  --font-size-body-lg: 0.9375rem; /* 15px – between base and md */
+  --font-size-body-xl: 0.95rem;   /* 15.2px – slightly larger body */
+  --font-size-title-lg: 1.1rem;   /* 17.6px – between md and lg titles */
+  --font-size-md: 1rem;        /* 16px – body-large / title-medium */
+  --font-size-lead: 1.125rem;  /* 18px – lead/bigger body text */
+  --font-size-lg: 1.25rem;     /* 20px – title-large */
+  --font-size-hero: 1.75rem;   /* 28px – small hero/section titles */
+  --font-size-3xl: 1.5rem;     /* 24px – large icons/headlines */
+  --font-size-4xl: 3rem;       /* 48px – hero logos / empty-state icons */
+
+  /* Letter spacing */
+  --letter-spacing-badge: 0.5px;
+  --letter-spacing-label: 0.05em;
+  --letter-spacing-section: 0.08em;
+
+  /* ==================== Elevation (Box Shadows) ==================== */
+
+  /* M3 elevation levels ("I want M3's approach, not
+     the fleet" — m3.material.io/styles/elevation). ONE theme-independent
+     set: dark theme keeps tonal elevation through the surface hierarchy
+     (surface-container-low → -highest), not through per-theme shadow
+     alphas. Each level is M3's ambient + key pair, values verbatim:
+       level 1 — static cards, rails.
+       level 2 — menus, popovers, dropdowns.
+       level 3 — dialogs, modals. */
+  --shadow-level1:
+    0 1px 2px 0 rgb(0 0 0 / 0.3),
+    0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --shadow-level2:
+    0 1px 2px 0 rgb(0 0 0 / 0.3),
+    0 2px 6px 2px rgb(0 0 0 / 0.15);
+  --shadow-level3:
+    0 1px 3px 0 rgb(0 0 0 / 0.3),
+    0 4px 8px 3px rgb(0 0 0 / 0.15);
+
+  /* The app's elevation track — aliases of the M3 levels so the ~30
+     existing consumers carry the M3 values without a rename sweep. */
+  --elevation-0: none;
+  --elevation-1: var(--shadow-level1);
+  --elevation-2: var(--shadow-level2);
+  --elevation-3: var(--shadow-level3);
+  --elevation-4: none;
+  --elevation-5: none;
+
+  --shadow-elevation-1: var(--shadow-level1);
+  --shadow-elevation-2: var(--shadow-level2);
+  --shadow-elevation-3: var(--shadow-level3);
+
+  /* ==================== shadcn bridge alias layer ==================== */
+  /* Catalog components read shadcn's theme keys; they are defined ONCE here
+     as var() aliases of the canonical roles above — never standalone
+     values — so re-theming (light/dark/OLED, accent swap) propagates into
+     every catalog component for free. Mapping per the fleet skill
+     (rosellramos-design-system → components/shadcn-bridge.md).
+     ⚠ --accent is NOT the fleet accent: shadcn uses it as a subtle hover
+     surface, so it maps to the hover register; the seed is --primary. */
+  --background: var(--md-sys-color-background);
+  --foreground: var(--md-sys-color-on-surface);
+  --card: var(--md-sys-color-surface);
+  --card-foreground: var(--md-sys-color-on-surface);
+  --popover: var(--md-sys-color-surface-container);
+  --popover-foreground: var(--md-sys-color-on-surface);
+  --primary: var(--md-sys-color-primary);
+  --primary-foreground: var(--md-sys-color-on-primary);
+  --secondary: var(--md-sys-color-secondary-container);
+  --secondary-foreground: var(--md-sys-color-on-secondary-container);
+  --muted: var(--md-sys-color-surface-container);
+  --muted-foreground: var(--md-sys-color-on-surface-variant);
+  --accent: var(--md-sys-color-hover-overlay);
+  --accent-foreground: var(--md-sys-color-on-surface);
+  --destructive: var(--md-sys-color-error);
+  --destructive-foreground: var(--md-sys-color-on-error);
+  --border: var(--md-sys-color-outline-variant);     /* hairlines */
+  --input: var(--md-sys-color-outline);              /* interactive borders */
+  --ring: var(--md-sys-color-primary);               /* focus ring — never suppress */
+  --radius: var(--radius-card);
+
+  /* ==================== Shape (Border Radius) - Minimal ==================== */
+  --shape-none: 0;
+  --shape-extra-small: 2px;
+  --shape-small: 4px;
+  --shape-medium: 6px;
+  --shape-large: 8px;
+  --shape-extra-large: 12px;
+  --shape-card: 20px;
+  --shape-layout-card: 12px;
+  --shape-button: 16px;
+  --shape-button-small: 12px;
+  --shape-sheet: 28px;
+  /* Dialog register: centered dialogs sit at 16px —
+     the 28px sheet rounding read too round on dialog surfaces, 12px (the
+     pre-2026-10-15 value) read too sharp. Bottom SHEETS keep --shape-sheet. */
+  --shape-dialog: 16px;
+  --shape-button-compact: 10px;
+  --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (popovers, previews) */
+  --radius-menu: var(--shape-small);  /* 4px — M3 menu/popover container shape (m3.material.io menus: menu container 4dp). Scoped to the kit menu/popover panels only; --shape-floating-panel's other consumers keep 8px. */
+  --shape-full: 9999px;
+  --shape-hairline: 1px;
+  --shape-tiny: 3px;
+
+  /* Drag handle token */
+  --drag-handle-width: 32px;
+  --drag-handle-height: 4px;
+  --drag-handle-radius: 2px;
+
+  /* ==================== Motion ==================== */
+  --motion-duration-instant: 50ms;
+  --motion-duration-short: 100ms;
+  --motion-duration-shorter: 150ms;
+  --motion-duration-medium: 250ms;
+  --motion-duration-long: 300ms;
+  --motion-duration-extra-long: 500ms;
+  --motion-duration-medium-fast: 200ms;
+
+  /* Caret motion */
+  --motion-duration-caret-move: 80ms;
+  --motion-duration-caret-resize: 120ms;
+  --motion-duration-caret-breathe: 850ms;
+  --motion-duration-caret-breathe-slow: 1400ms;
+  /* The universal reduced-motion kill (app.css blanket): near-zero but
+     non-zero so animation/transition events still fire. */
+  --motion-duration-reduced-motion: 0.01ms;
+  /* Accent pulse (1.2s) — role-neutral: the Sidebar sync badge
+     (nt-sync-pulse) and the calendar today marker (today-accent-pulse)
+     share it. */
+  --motion-duration-pulse: 1.2s;
+  /* Cover pending-placeholder pulse (CardsView.css node-card-cover-pulse) */
+  --motion-duration-cover-pulse: 1.6s;
+  --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --motion-easing-emphasized: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --motion-easing-decelerate: cubic-bezier(0, 0, 0, 1);
+  --motion-easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --motion-easing-linear: linear;
+  --motion-easing-tactile: cubic-bezier(0.34, 1.56, 0.64, 1);  /* spring-like overshoot */
+  --motion-easing-collapse: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ==================== Spacing ==================== */
+  --spacing-0: 0;
+  --spacing-micro: 2px;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-2-5: 0.625rem; /* 10px */
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-4-5: 1.125rem; /* 18px */
+  --spacing-5: 1.25rem;
+  --spacing-5-5: 1.375rem; /* 22px */
+  --spacing-6: 1.5rem;
+  --spacing-7-5: 1.875rem; /* 30px */
+  --spacing-8: 2rem;
+  --spacing-9: 2.25rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-24: 6rem;
+  --spacing-hairline: 1px;
+  --spacing-tiny: 3px;
+  --spacing-xxs: 5px;
+  --spacing-1-5: 0.375rem; /* 6px – catalog menu-item vertical padding */
+
+  /* ==================== Opacity ==================== */
+  --opacity-0: 0;
+  --opacity-5: 0.05;
+  --opacity-6: 0.06;
+  --opacity-7: 0.07;
+  --opacity-10: 0.1;
+  --opacity-15: 0.15;
+  --opacity-25: 0.25;
+  --opacity-30: 0.3;
+  --opacity-35: 0.35;
+  --opacity-40: 0.4;
+  --opacity-45: 0.45;
+  --opacity-48: 0.48;
+  --opacity-50: 0.5;
+  --opacity-55: 0.55;
+  --opacity-60: 0.6;
+  --opacity-65: 0.65;
+  --opacity-70: 0.7;
+  --opacity-75: 0.75;
+  --opacity-80: 0.8;
+  --opacity-85: 0.85;
+  --opacity-90: 0.9;
+  --opacity-95: 0.95;
+  --opacity-100: 1;
+
+  /* ==================== Z-Index ==================== */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-popover: 600;
+  --z-node-overlay: 1000;    /* node refs, property cells, whiteboard UI */
+  --z-modal-backdrop: 10000;
+  --z-modal: 10001;
+  --z-floating: 10002;       /* context menus / dropdowns rendered above modals */
+  --z-tooltip: 10003;
+  --z-skip-link: 99999;
+  --z-0: 0;
+  --z-neg-1: -1;  /* underlay tier — selection cards behind their rows inside an isolated surface */
+  --z-1: 1;
+  --z-2: 2;
+  --z-3: 3;
+  --z-5: 5;
+  --z-6: 6;
+  --z-10: 10;
+  --z-15: 15;
+  --z-20: 20;
+  --z-30: 30;
+  --z-50: 50;
+  --z-60: 60;
+  --z-70: 70;
+  --z-80: 80;
+  --z-100: 100;
+  --z-1000: 1000;
+  --z-9998: 9998;
+  --z-9999: 9999;
+  --z-10000: 10000;
+  --z-10002: 10002;
+
+  /* ==================== Layout ==================== */
+  --sidebar-collapsed-width: 3.5rem;
+  --topbar-height: 44px;
+  --container-gap: 8px;
+  --container-radius: var(--shape-large);
+
+  /* Mobile bottom sheet / FAB clearance */
+  --mobile-bottom-sheet-height: 72px;
+
+  /* ==================== Block Layout ==================== */
+
+  /* Spacing system for the block tree. All block chrome positions are
+     derived from these tokens so that changes require no manual recalculation. */
+  --block-indent-step: 34px;
+  --block-thread-line-align: calc(var(--bullet-wrapper-size) / 2);
+  --thread-line-visual-width: 2px;
+  --thread-line-guide-width: 1px;
+  --thread-line-hit-width: 14px;
+  --thread-line-connector-radius: calc(var(--block-indent-step) / 2);
+  --thread-line-bullet-gap: 16px;
+  --block-thread-line-overhang: calc(var(--spacing-tiny) + var(--spacing-micro) / 2);
+  --bullet-wrapper-size: 22px; /* mirrors .nt-bullet (the row height — not indicator chrome; the collapsed ring sizes itself absolutely) */
+  --bullet-dot-size: 6px;
+  --collapse-arrow-size: 12px;
+  --collapse-arrow-font-size: 12px;
+  --collapse-arrow-offset: calc((var(--collapse-arrow-size) + 3px) * -1);
+
+  /* ─── Component sizing tokens ──────────────────────────────────── */
+  --avatar-size-lg: 72px;
+  --banner-btn-height: 60px;
+  --block-drag-ghost-line-height: 28px;
+  --block-drag-ghost-multi-line-height: 26px;
+  --block-drag-ghost-row-height: 26px;
+  --btn-size-md: 38px;
+  --btn-size-lg: 46px;
+  --graph-card-height: 250px;
+  --grid-size: 24px;
+  /* Import modal scrolling report/page list cap — the shared max-height of
+     the import hub's list surfaces (failure report, page list, details
+     list); 12rem = 192px at the 16px root. */
+  --import-list-max-height: 12rem;
+  --minimap-height: 220px;
+  --minimap-width: 300px;
+  --modal-width-md: 480px;
+  --modal-width-lg: 560px;
+  --modal-width-sm: 320px;
+  --modal-width-xl: 1200px;
+  --modal-width-xs: 280px;
+  --modal-width-2xl: 1000px;
+  --page-cover-height: 100px;
+  --page-cover-height-collapsed: 8px;
+  --panel-width-md: 200px;
+  --panel-width-sm: 120px;
+  --panel-width-xs: 110px;
+  --presence-avatar-font-size: var(--font-size-3xs);
+  --qr-size: 256px;
+
+  /* QR codes must keep a light mat in every theme or scanners fail;
+     intentionally not themed (like --md-sys-color-white). */
+  --qr-background: var(--md-sys-color-white);
+  --selection-btn-size-lg: 42px;
+  --selection-btn-size-md: 34px;
+  --selection-btn-size-sm: 26px;
+  --slider-thumb-size-sm: 12px;
+  --tab-count-radius: 9px;
+  --textarea-height-md: 260px;
+  --textarea-height-sm: 200px;
+  --theme-preview-width: 100px;
+  --toggle-thumb-size-lg: 26px;
+  --toggle-track-height-lg: 30px;
+  --toggle-track-width-lg: 56px;
+  --toggle-track-width-md: 44px;
+  --toolbar-input-width: 160px;
+  --whiteboard-rotation-handle-offset: 30px;
+  --whiteboard-toolbar-min-width: 11.25rem;
+  --whiteboard-shortcuts-max-width: 30rem;
+
+  /* Loading skeleton */
+  --skeleton-shimmer-duration: 1400ms;
+  --skeleton-text-height: 0.875em;
+  --skeleton-heading-height: 1.25em;
+
+  /* ==================== Additional spacing tokens ==================== */
+  --spacing-0-5: 0.125rem;
+  --spacing-1-5: 0.375rem;
+  --spacing-1-75: 0.4375rem; /* 7px – compact list item padding */
+  --spacing-3-5: 0.875rem;   /* 14px – card headers / tight sections */
+  --spacing-7: 1.75rem;
+
+  /* ==================== Legacy variable aliases (non-color) ==================== */
+
+  /* Non-color aliases only: the color palette is single-track
+     (--md-sys-color-*) and has no aliases — component CSS references the
+     canonical tokens directly. */
+  --shadow-2: var(--elevation-2);
+  --shadow-3: var(--elevation-3);
+  --shadow-md: var(--elevation-2);
+  --shadow-lg: var(--elevation-3);
+  --radius-full: var(--shape-full);
+  --radius-lg: var(--shape-large);
+  --radius-md: var(--shape-medium);
+  --radius-sm: var(--shape-small);
+  --radius-xs: var(--shape-extra-small);
+  /* The fleet shape scale the Tailwind config and the shadcn catalog ride
+     (skill rulings: buttons the rounded square at every size — supersedes the 2026-10-19 corner-full, matching the
+     view-mode switcher; popovers 4px, cards 20px, sheets 28px). */
+  --radius-card: var(--shape-card);
+  --radius-sheet: var(--shape-sheet);
+  --radius-dialog: var(--shape-dialog);
+  --radius-button-lg: var(--shape-medium);
+  --radius-button-sm: var(--shape-medium);
+  --radius-input: var(--shape-extra-large);
+  --radius-item: var(--shape-large);
+  --radius-popover: var(--radius-menu);
+  --radius-badge: 9px;
+  /* The underline field register: the second 1px line that makes the
+     active underline read as 2px without layout shift (TextField). */
+  --shadow-field-focus: 0 1px 0 0 var(--md-sys-color-primary);
+  --shadow-field-error: 0 1px 0 0 var(--md-sys-color-error);
+  /* TE tactile press on cards — subtler than the button press. */
+  --scale-card-press: 0.99;
+  --shape-corner-xs: var(--shape-extra-small);
+  --font-mono: var(--font-family-mono);
+  --font-size: var(--font-size-base);
+  --font-size-2xl: var(--font-size-lg);
+  --page-title-size: var(--font-headline-medium);
+  --z-toast: var(--z-tooltip);
+
+  /* Generic layout dimensions for one-off component sizes */
+  --layout-body-min-width: 320px;
+  --layout-dialog-min-width: 320px;
+  --layout-stat-min-width: 60px;
+  --flashcard-study-card-max-width: 600px;
+  --flashcard-study-card-min-height: 280px;
+  --spacing-tight: 10px;
+
+  /* Friendly aliases used by some component CSS files */
+  --spacing-sm: var(--spacing-3);
+  --spacing-md: var(--spacing-4);
+  --spacing-lg: var(--spacing-5);
+  --spacing-xl: var(--spacing-6);
+  --space-0-5: var(--spacing-1);
+  --space-1: var(--spacing-2);
+  --space-2: var(--spacing-3);
+  --space-3: var(--spacing-4);
+  --space-4: var(--spacing-5);
+
+  /* Generic layout dimension scale */
+  --layout-size-2xs: 80px;
+  --layout-size-xs: 100px;
+  --layout-size-sm: 120px;
+  --layout-size-md: 140px;
+  --layout-size-lg: 150px;
+  --layout-size-xl: 160px;
+  --layout-size-2xl: 200px;
+  --layout-size-3xl: 220px;
+  --layout-size-4xl: 240px;
+  --layout-size-5xl: 260px;
+  --layout-size-6xl: 280px;
+  --layout-size-7xl: 300px;
+  --layout-size-8xl: 320px;
+  --layout-size-9xl: 400px;
+  --layout-size-10xl: 480px;
+  --layout-size-11xl: 560px;
+  --layout-size-12xl: 720px;
+  --layout-size-13xl: 800px;
+  --layout-size-14xl: 900px;
+
+  /* ==================== Collection density ==================== */
+  /* Role-named collection-view metric: the table column minimum (the inline
+     cell editor's min-width sets the effective column floor). Named by role,
+     not pixel. */
+  --width-col-min: 80px;
+
+  /* ==================== Responsive Breakpoints ==================== */
+
+  /* CSS custom properties cannot be used in media queries, so breakpoint
+     values are hardcoded at each @media site (480 / 768 / 1024). Only the
+     tablet token has a JS reader — overlay positioning in
+     components/ui/overlay-hooks.ts — and it must stay in sync with the
+     media queries. The phone/desktop tokens are DOCUMENTATION-ONLY: they
+     record the trio in one place; no code may read them until a consumer
+     ships (a reader must then be added here, as the tablet one is). */
+  --breakpoint-tablet: 768px;
+  --breakpoint-phone: 480px;
+  --breakpoint-desktop: 1024px;
+
+  /* === Functional tokens === */
+
+  /* Functional shadows */
+  --shadow-table-row-gutter: 1px 0 0 0 var(--md-sys-color-outline-variant);
+  --shadow-drop-target: inset 0 -2px 0 var(--md-sys-color-primary);
+  --shadow-error-underline: inset 0 -2px 0 var(--md-sys-color-error);
+  --shadow-presence-ring: 0 0 0 1px rgb(0 0 0 / 10%);
+  --shadow-presence-text: 0 1px 2px rgb(0 0 0 / 30%);
+
+  /* Query widget accent (the left border that marks an embedded query) */
+  --md-sys-color-query-accent: #c11574;
+
+  /* Callout semantic colors — registered extension (namespace hygiene,
+     fleet audit 2026-10-26): document/markdown callout roles, fixed hues
+     with 8% washes; the drift gate's extension registry carries the reason. */
+  --md-sys-color-callout-warning: #8f6216;
+  --md-sys-color-callout-warning-bg: rgb(143 98 22 / 8%);
+  --md-sys-color-callout-tip: #3a756d;
+  --md-sys-color-callout-tip-bg: rgb(58 117 109 / 8%);
+  --md-sys-color-callout-danger: #b04a45;
+  --md-sys-color-callout-danger-bg: rgb(176 74 69 / 8%);
+  --md-sys-color-callout-success: #3d7253;
+  --md-sys-color-callout-success-bg: rgb(61 114 83 / 8%);
+
+  /* === Semantic functional tokens === */
+
+  /* Focus / error rings */
+  --shadow-focus-ring: 0 0 0 2px var(--md-sys-color-primary);
+  --shadow-focus-ring-thick: 0 0 0 3px var(--md-sys-color-primary);
+  --shadow-focus-ring-primary: 0 0 0 2px var(--md-sys-color-primary);
+  --shadow-focus-ring-primary-subtle: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+  --shadow-focus-ring-primary-container: 0 0 0 2px var(--md-sys-color-primary-container);
+  --shadow-error-ring: 0 0 0 2px var(--md-sys-color-error);
+  --shadow-error-ring-thick: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
+  --shadow-error-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-error) 20%, transparent);
+  --shadow-error-ring-thin: 0 0 0 1px var(--md-sys-color-error);
+  --shadow-outline-ring: 0 0 0 1px var(--md-sys-color-outline);
+  --shadow-inset-outline-ring: inset 0 0 0 2px var(--md-sys-color-outline);
+  --shadow-inset-primary-ring: inset 0 0 0 2px var(--md-sys-color-primary);
+  --shadow-focus-ring-primary-thin: 0 0 0 1px var(--md-sys-color-primary);
+  --shadow-success-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-success) 20%, transparent);
+  --shadow-error-ring-ghost: 0 0 0 0 color-mix(in srgb, var(--md-sys-color-error) 40%, transparent);
+
+  /* Motion easings */
+  --motion-easing-ease: ease;
+  --motion-easing-ease-in: ease-in;
+  --motion-easing-ease-out: ease-out;
+  --motion-easing-ease-in-out: ease-in-out;
+
+  /* Default node color RGB fallback */
+  --md-sys-color-node-default-rgb: 128, 128, 128;
+
+  /* Runtime-overridden node color border variables.
+     TypeScript sets these dynamically per workspace/accent color;
+     these defaults ensure the properties are never undefined. */
+  --node-border-color: transparent;
+  --node-border-solid: transparent;
+}
+
+/* ==================== Dark Theme ==================== */
+[data-theme="dark"] {
+  /* Native control chrome follows the dark theme (see :root). */
+  color-scheme: dark;
+
+  /* Primary — the night seed (margin default); [data-accent] dark blocks
+     replace primary/on-primary, the derived roles follow via color-mix. */
+  --md-sys-color-primary: #6da789;
+  --md-sys-color-on-primary: #140e08;
+  --md-sys-color-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 20%, var(--md-sys-color-surface));
+  --md-sys-color-on-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 72%, #f4f3f1);
+  --md-sys-color-primary-hover: color-mix(in srgb, var(--md-sys-color-primary) 85%, white);
+  --md-sys-color-primary-pressed: color-mix(in srgb, var(--md-sys-color-primary) 68%, white);
+  --md-sys-color-inverse-primary: color-mix(in srgb, var(--md-sys-color-primary) 50%, #5c544c);
+
+  /* Secondary */
+  --md-sys-color-secondary: #c0c0c0;
+  --md-sys-color-on-secondary: #111;
+  --md-sys-color-secondary-container: #262626;
+  --md-sys-color-on-secondary-container: #d4d4d4;
+  --md-sys-color-secondary-hover: #d4d4d4;
+  --md-sys-color-secondary-pressed: #737373;
+
+  /* Tertiary */
+  --md-sys-color-tertiary: #9e9e9e;
+  --md-sys-color-on-tertiary: #111;
+  --md-sys-color-tertiary-container: #262626;
+  --md-sys-color-on-tertiary-container: #c0c0c0;
+
+  /* Error */
+  --md-sys-color-error: #ef5550;
+  --md-sys-color-on-error: #111;
+  --md-sys-color-error-container: #611a15;
+  --md-sys-color-on-error-container: #fdecea;
+
+  /* Warning */
+  --md-sys-color-warning: #f28b3f;
+  --md-sys-color-on-warning: #111;
+  --md-sys-color-warning-container: #78350f;
+  --md-sys-color-on-warning-container: #fffbeb;
+
+  /* Success */
+  --md-sys-color-success: #29b672;
+  --md-sys-color-on-success: #111;
+  --md-sys-color-success-container: #14532d;
+  --md-sys-color-on-success-container: #d1fae5;
+
+  /* Background & Surface — the night is accent-tinted: a neutral dark family
+     washed with ~4–13% of the active seed (color-mix resolves per accent
+     preset, monochrome included). The monochrome accent is near-achromatic,
+     so its dark mode lands on untinted graphite. The light ground stays the
+     brand paper regardless of accent.
+     The container ladder ASCENDS from `surface` (M3 dark tonal elevation,
+    ): every surface-container step is LIGHTER than
+     the content surface, so elevated chrome — menus, popups, modal cards,
+     panels — reads against the flat night. The pre-2026-10-21 values sat at
+     or below `surface` (low was darker, container was identical), which
+     made every dark popup the same color as the content behind it. */
+  --md-sys-color-background: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
+  --md-sys-color-on-background: color-mix(in oklab, var(--md-sys-color-primary) 3%, #f4f3f1);
+  --md-sys-color-surface: color-mix(in oklab, var(--md-sys-color-primary) 8%, #1b1b1a);
+  --md-sys-color-on-surface: color-mix(in oklab, var(--md-sys-color-primary) 3%, #f4f3f1);
+  --md-sys-color-surface-variant: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
+  --md-sys-color-on-surface-variant: color-mix(in oklab, var(--md-sys-color-primary) 7%, #a9a59f);
+  --md-sys-color-surface-dim: color-mix(in oklab, var(--md-sys-color-primary) 4%, #100f0e);
+  --md-sys-color-surface-bright: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
+  --md-sys-color-surface-container: color-mix(in oklab, var(--md-sys-color-primary) 8%, #222221);
+  --md-sys-color-surface-container-low: color-mix(in oklab, var(--md-sys-color-primary) 6%, #1e1e1d);
+  --md-sys-color-surface-container-high: color-mix(in oklab, var(--md-sys-color-primary) 10%, #262624);
+  --md-sys-color-surface-container-highest: color-mix(in oklab, var(--md-sys-color-primary) 13%, #2c2c28);
+  --md-sys-color-surface-container-lowest: color-mix(in oklab, var(--md-sys-color-primary) 4%, #100f0e);
+  --md-sys-color-inverse-surface: #f4f3f1;
+  --md-sys-color-inverse-on-surface: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
+
+  /* The sidebar cards' fill: one tone lighter than the main surface so the
+     nested cards read against the near-black card (light keeps the same
+     surface — see the light block). OLED inherits the step through its own
+     container-highest override. */
+  --md-sys-color-sidebar-card: var(--md-sys-color-surface-container-highest);
+
+  /* Outline & Utility */
+  --md-sys-color-outline: color-mix(in oklab, var(--md-sys-color-primary) 13%, #292925);
+  --md-sys-color-outline-variant: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
+  --md-sys-color-shadow: rgb(0 0 0 / 50%);
+  --md-sys-color-scrim: rgb(0 0 0 / 70%);
+
+  /* Elevation: NO dark-theme overrides — the M3 level values are one
+     theme-independent set; dark surfaces keep
+     tonal elevation through the surface-container hierarchy above. */
+
+  /* Presentation stage — dark in every theme (see the light block). */
+  --md-sys-color-presentation-stage: #0a0a09;
+  --md-sys-color-on-presentation-stage: #e8e6e1;
+  --md-sys-color-on-presentation-stage-muted: #a8a29e;
+
+  /* State */
+  --md-sys-color-disabled: #404040;
+  --md-sys-color-on-disabled: #a8a29e;
+  --md-sys-color-query-accent: #f06fb0;
+  --md-sys-color-hover-overlay: rgb(255 255 255 / 5%);
+  --md-sys-color-focus-overlay: rgb(255 255 255 / 8%);
+  --md-sys-color-pressed-overlay: rgb(255 255 255 / 12%);
+  --md-sys-color-swatch-monochrome: #f4f3f1;
+}
+
+/* ==================== OLED Pure-Black Overrides ==================== */
+[data-oled="true"] {
+  --md-sys-color-background: #000;
+  --md-sys-color-on-background: #f4f3f1;
+  --md-sys-color-surface: #000;
+  --md-sys-color-surface-variant: #0a0a0a;
+  --md-sys-color-surface-dim: #000;
+  --md-sys-color-surface-bright: #111;
+  --md-sys-color-surface-container: #131312;
+  --md-sys-color-surface-container-low: #0e0e0d;
+  --md-sys-color-surface-container-high: #191917;
+  --md-sys-color-surface-container-highest: #1f1f1b;
+  --md-sys-color-surface-container-lowest: #000;
+  --md-sys-color-outline-variant: #221c15;
+
+  /* Presentation stage — dark in every theme (see the light block). */
+  --md-sys-color-presentation-stage: #000;
+  --md-sys-color-on-presentation-stage: #e8e6e1;
+  --md-sys-color-on-presentation-stage-muted: #a8a29e;
+
+  /* Mono flips on the night ground (see the light block's preset table). */
+  --md-sys-color-preset-mono: #ffffff;
+}
+
+/* ==================== Accent presets (the Material You seed) ==================== */
+
+/* Placed after the dark theme so user-selected seeds win in both light and
+   dark modes. Each preset sets ONLY --md-sys-color-primary and
+   --md-sys-color-on-primary; every other primary role (container,
+   on-container, hover, pressed, inverse) derives from them in the theme
+   blocks above — one source of truth, no parallel color track. */
+/* Monochrome — ink, not grey: iron ink on paper by day, paper white on the
+   night ground by night (the dark value lives in the override below). */
+[data-accent="monochrome"] {
+  --md-sys-color-primary: #1c1a16;
+  --md-sys-color-on-primary: #f7f4ec;
+}
+
+/* Margin — the brand accent: Advance Green (#2e5e46), the act of adding. */
+[data-accent="margin"] {
+  --md-sys-color-primary: #2e5e46;
+  --md-sys-color-on-primary: #fff;
+}
+
+/* Curated hues — dark variants are the light value lightened ~L+20% (the
+   copper precedent); on-primary is computed per pair to keep ≥4.5:1. */
+[data-accent="brown"] {
+  --md-sys-color-primary: #a16b45;
+  --md-sys-color-on-primary: #000;
+}
+
+[data-accent="teal"] {
+  --md-sys-color-primary: #1fbdad;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-accent="blue"] {
+  --md-sys-color-primary: #3d6a96;
+  --md-sys-color-on-primary: #fff;
+}
+
+/* ==================== Dark-mode accent (seed) overrides ==================== */
+
+/* Lightened/desaturated seeds so primary actions remain readable on dark surfaces. */
+[data-theme="dark"][data-accent="monochrome"] {
+  --md-sys-color-primary: #f4f3f1;
+  --md-sys-color-on-primary: #161412;
+}
+
+[data-theme="dark"][data-accent="margin"] {
+  --md-sys-color-primary: #6da789;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-theme="dark"][data-accent="brown"] {
+  --md-sys-color-primary: #caa082;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-theme="dark"][data-accent="teal"] {
+  --md-sys-color-primary: #5de5d7;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-theme="dark"][data-accent="blue"] {
+  --md-sys-color-primary: #6d99c2;
+  --md-sys-color-on-primary: #140e08;
+}
+
+/* Graph view tokens (dark scheme; light defaults live in :root). The
+   minimap viewport rides the active seed. */
+[data-theme="dark"] {
+  --graph-node-default: #d0d0d0;
+  --graph-edge-color: #707070;
+  --graph-bg: transparent;
+  --graph-minimap-dot: #d0d0d0;
+  --graph-minimap-viewport: var(--md-sys-color-primary);
+
+  /* Graph semantic colors */
+  --graph-edge-cooccurrence: #a78bd4;
+  --graph-edge-path: #d4a24a;
+  --graph-node-path: #d4a24a;
+
+  /* Graph UI surfaces */
+  --graph-btn-bg: rgb(23 23 23 / 75%);
+  --graph-btn-border: rgb(82 82 82 / 50%);
+  --graph-btn-color: rgb(212 212 212 / 80%);
+  --graph-btn-hover-bg: rgb(38 38 38 / 90%);
+  --graph-btn-hover-color: #e5e5e5;
+  --graph-stats-bg: rgb(0 0 0 / 55%);
+  --graph-stats-color: rgb(163 163 163 / 85%);
+  --graph-tooltip-bg: rgb(23 23 23 / 85%);
+  --graph-tooltip-border: rgb(82 82 82 / 50%);
+  --graph-tooltip-color: rgb(212 212 212 / 90%);
+  --graph-tooltip-edge-color: rgb(212 175 55 / 95%);
+  --graph-fallback-msg-color: rgb(163 163 163 / 55%);
+}
+
+/* OLED inherits the dark seed values above; accent colors are not dimmed further
+   so primary actions stay legible on pure-black surfaces. */
+
+/* Mobile: shallower block indent so deep trees keep usable text width */
+@media (width <= 768px) {
+  :root {
+    --block-indent-step: 22px;
+  }
+}
+
+/* ==================== Global Keyframes Library ==================== */
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Slide up + fade */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide in from right */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Continuous rotation — for loading spinners */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Subtle pulse — for dot indicators, progress states */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: var(--opacity-45); }
+}
+
+/* Skeleton shimmer — for loading placeholders */
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position: 200% center; }
+}
+
+/* Spring scale-up — for new item appearance */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+
+  60%  { transform: scale(1.04); }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

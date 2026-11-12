@@ -1,0 +1,645 @@
+/**
+ * Page layouts tests, over the in-process WorkspaceClient +
+ * MemoryRelay (jsdom):
+ *
+ *  - View-mode persistence: deviceSettings read/write round-trips, the
+ *    page blocks triad + hub modes survive remounts, stale values fall back
+ *    to surface defaults, the card cover layout persists per device.
+ *  - Page banner: renders above the title from the `cover` property,
+ *    absent without one (and on whiteboard pages), collapse persists
+ *    device-locally.
+ *  - The context column's TOC: derivation (main children + the heading
+ *    heuristic + one nesting level) and the section's hide rules.
+ *  - Page chrome: the page footer word count + Created/Updated day links,
+ *    the unlinked-mentions promote/ignore pair.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { PageView } from "../src/ui/PageView.js";
+import { HubView } from "../src/ui/app/HubView.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
+import { Breadcrumbs } from "../src/features/node-menu/Breadcrumbs.js";
+import { TocSection } from "../src/ui/app/sidebarSections.js";
+import { headingLabelOf, tocEntriesOf } from "../src/ui/app/sidebarToc.js";
+import {
+  readCoverLayoutPref,
+  readIgnoredUnlinkedRefs,
+  readViewModePref,
+  writeCoverLayoutPref,
+  writeViewModePref,
+} from "../src/ui/viewPrefs.js";
+import { DEVICE_SETTINGS_PREFIX } from "../src/features/settings/deviceSettings.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+});
+
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+/** Flush the microtasks an async client write runs on. */
+async function flushWrites(): Promise<void> {
+  await act(async () => {});
+}
+
+// --- L1: view-mode persistence -------------------------------------------------
+
+describe("L1 view-mode persistence (deviceSettings)", () => {
+  it("readViewModePref/writeViewModePref round-trip under the device prefix", () => {
+    expect(readViewModePref("nodeBlocks.p1", ["outline", "prose", "cards"])).toBeNull();
+    writeViewModePref("nodeBlocks.p1", "prose");
+    expect(readViewModePref("nodeBlocks.p1", ["outline", "prose", "cards"])).toBe("prose");
+    expect(localStorage.getItem(`${DEVICE_SETTINGS_PREFIX}viewMode.nodeBlocks.p1`)).toBe(
+      '"prose"',
+    );
+  });
+
+  it("the retired kanban mode reads back as cards (the board merged into cards)", () => {
+    // A device that persisted kanban before the merge (raw legacy value —
+    // the typed API no longer accepts it).
+    localStorage.setItem(`${DEVICE_SETTINGS_PREFIX}viewMode.hub.x`, '"kanban"');
+    // Kanban is cards now — the persisted choice survives as cards.
+    expect(readViewModePref("hub.x", ["outline", "cards", "table"])).toBe("cards");
+    // A surface that offers no cards mode still falls back to the default.
+    expect(readViewModePref("hub.x", ["outline", "table"])).toBeNull();
+  });
+
+  it("garbage in localStorage reads as null, never crashes", () => {
+    localStorage.setItem(`${DEVICE_SETTINGS_PREFIX}viewMode.hub.y`, "{not json");
+    expect(readViewModePref("hub.y", ["table"])).toBeNull();
+    localStorage.setItem(`${DEVICE_SETTINGS_PREFIX}viewMode.hub.y`, '"banana"');
+    expect(readViewModePref("hub.y", ["table"])).toBeNull();
+  });
+
+  it("the page's blocks triad persists device-locally; a fresh page starts at outline", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Persisted Modes" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "body" }],
+    });
+
+    // The switcher lives in the App-level NodeView chrome; its seam is the
+    // per-page device preference — write it and the page renders prose.
+    const first = render(<PageView client={client} pageId={pageId} />);
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(false);
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "prose"));
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(true);
+    first.unmount();
+
+    // Remount: the persisted mode survives…
+    render(<PageView client={client} pageId={pageId} />);
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(true);
+
+    // …and a different page is unaffected (per-page keys).
+    const otherId = await client.createObject({ isEmbedded: false, name: "Other Page" });
+    await client.createObject({ parentId: otherId, contentAst: [{ type: "text", text: "x" }] });
+    cleanup();
+    const second = render(<PageView client={client} pageId={otherId} />);
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(false);
+    second.unmount();
+  });
+
+  it("the right-panel toggle rides the bar's trailing edge (owner edge law 2026-10-26)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Edge Law" });
+
+    render(<PageView client={client} pageId={pageId} />);
+
+    const bar = document.querySelector(".nt-node-topbar")!;
+    const trailing = bar.querySelector(".surface-topbar__trailing");
+    expect(trailing).not.toBeNull();
+    expect(
+      trailing!.querySelector("button[title='Hide properties panel']"),
+    ).not.toBeNull();
+    // The toggle is the bar's true right edge: the LAST button, after the
+    // actions/overflow cluster.
+    const buttons = [...bar.querySelectorAll("button")];
+    expect(buttons.at(-1)!.getAttribute("title")).toBe("Hide properties panel");
+  });
+
+  it("hub modes persist per hub and fall back when the offered modes shrink", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    const asset = await client.createObject({
+      parentId: host,
+      contentAst: [{ type: "text", text: "file.pdf" }],
+    });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+
+    const first = render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+    first.unmount();
+
+    // Remount: the persisted table mode survives (cards hub renders a grid).
+    const second = render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
+    expect(screen.getByRole("table")).not.toBeNull();
+    second.unmount();
+
+    // The tasks hub has its own key — table default intact (one member so
+    // the hub renders its table rather than the empty state).
+    const task = await client.createObject({ isEmbedded: false, name: "Solo Task" });
+    await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
+    const third = render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    expect(screen.getByRole("table")).not.toBeNull();
+    third.unmount();
+  });
+
+  it("the card cover layout persists per device across views", async () => {
+    const client = await seedClient();
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    const asset = await client.createObject({
+      parentId: host,
+      contentAst: [{ type: "text", text: "photo.png" }],
+    });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,AAAA");
+
+    const first = render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
+    // The hub defaults to cover-top without a persisted choice (re-clicking
+    // the active placement is a no-op), so pick a different placement to
+    // prove the choice persists across renders — and wins over the fallback.
+    fireEvent.click(screen.getByRole("radio", { name: "Cover left" }));
+    first.unmount();
+
+    expect(readCoverLayoutPref()).toBe("cover-left");
+    render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
+    const cover = await screen.findByAltText("");
+    expect(cover.closest(".node-card")!.className).toContain("node-card--cover-left");
+
+    // And the device setting round-trips on its own.
+    writeCoverLayoutPref("no-cover");
+    expect(readCoverLayoutPref()).toBe("no-cover");
+  });
+});
+
+// --- L2: page banner --------------------------------------------------------------
+
+describe("L2 page banner", () => {
+  /** A source-classed page with the coverAssetId wire field pointing at an asset. */
+  async function seedCoveredPage(client: WorkspaceClient): Promise<string> {
+    if (client.getNode(SYSTEM_CLASS_UUIDS.asset) === undefined) {
+      await client.createClass("asset", { id: SYSTEM_CLASS_UUIDS.asset, icon: "mdiPaperclip" });
+    }
+    const host = await client.createObject({ isEmbedded: false, name: "Assets" });
+    const asset = await client.createObject({
+      parentId: host,
+      contentAst: [{ type: "text", text: "cover.png" }],
+    });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+    const pageId = await client.createObject({ isEmbedded: false, name: "Covered" });
+    await client.assignClass(pageId, SYSTEM_CLASS_UUIDS.source);
+    await client.updateObject(pageId, { coverAssetId: asset });
+    return pageId;
+  }
+
+  it("renders the cover as the right-side header card; the empty element shows collapsed", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,BBBB");
+    const coveredId = await seedCoveredPage(client);
+    const plainId = await client.createObject({ isEmbedded: false, name: "Plain Page" });
+
+    const { container, unmount } = render(<PageView client={client} pageId={coveredId} />);
+    // A set cover auto-expands the card; the image rides inside.
+    await screen.findByRole("button", { name: "Collapse cover" });
+    const card = container.querySelector(".nt-covercard")!;
+    expect(card.querySelector("img")!.getAttribute("src")).toContain("data:image/png");
+    // The card sits in the header row's right column, beside the header.
+    expect(card.closest(".page-header-section__cover")).not.toBeNull();
+    unmount();
+
+    // No cover: the element still renders — collapsed to the chevron.
+    render(<PageView client={client} pageId={plainId} />);
+    expect(screen.getByRole("button", { name: "Expand cover" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse cover" })).toBeNull();
+  });
+
+  it("collapse toggles the card away; the toggle is session-local (no persistence)", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,CCCC");
+    const pageId = await seedCoveredPage(client);
+
+    const { unmount } = render(<PageView client={client} pageId={pageId} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Collapse cover" }));
+    expect(screen.getByRole("button", { name: "Expand cover" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse cover" })).toBeNull();
+    unmount();
+
+    // The collapse derives from whether a cover is SET — remounting
+    // with a cover re-expands (no per-node persistence).
+    render(<PageView client={client} pageId={pageId} />);
+    expect(await screen.findByRole("button", { name: "Collapse cover" })).not.toBeNull();
+  });
+
+  it("whiteboard pages and embedded entries render no banner", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,DDDD");
+    const pageId = await seedCoveredPage(client);
+    await client.updateObject(pageId, {
+      contentAst: [
+        { type: "text", text: "Covered" },
+        { type: "whiteboard", layout: {} },
+      ],
+    });
+
+    render(<PageView client={client} pageId={pageId} />);
+    expect(screen.queryByRole("button", { name: /cover image/i })).toBeNull();
+
+    // Strip the whiteboard token; an embedded feed entry still skips it.
+    await client.updateObject(pageId, { contentAst: [{ type: "text", text: "Covered" }] });
+    const { unmount } = render(<PageView client={client} pageId={pageId} embedded />);
+    expect(screen.queryByRole("button", { name: /cover image/i })).toBeNull();
+    unmount();
+  });
+
+  it("unreadable asset bytes render no banner (honest absence)", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue(null);
+    const pageId = await seedCoveredPage(client);
+    render(<PageView client={client} pageId={pageId} />);
+    await act(async () => {});
+    expect(screen.queryByRole("button", { name: /cover image/i })).toBeNull();
+  });
+});
+
+// --- L3: sidebar context sections --------------------------------------------------
+
+describe("L3 TOC derivation (sidebarToc — heading tokens only)", () => {
+  it("headingLabelOf: a single heading token qualifies; plain text, multi-token, and empty headings do not", () => {
+    type NodeLike = Parameters<typeof headingLabelOf>[0];
+    const node = (contentAst: unknown[]) => ({ contentAst }) as NodeLike;
+    expect(
+      headingLabelOf(node([{ type: "heading", children: [{ type: "text", text: "Context" }] }])),
+    ).toBe("Context");
+    // Marks carry into the child; the label flattens.
+    expect(
+      headingLabelOf(
+        node([
+          {
+            type: "heading",
+            children: [{ type: "text", text: "Bold head", marks: ["bold"] }],
+          },
+        ]),
+      ),
+    ).toBe("Bold head");
+    // A plain one-liner is PROSE now — only marked headings qualify.
+    expect(headingLabelOf(node([{ type: "text", text: "Plain line" }]))).toBeNull();
+    // Multi-token content and empty headings never qualify.
+    expect(
+      headingLabelOf(
+        node([
+          { type: "heading", children: [{ type: "text", text: "One" }] },
+          { type: "text", text: "two" },
+        ]),
+      ),
+    ).toBeNull();
+    expect(headingLabelOf(node([{ type: "heading", children: [] }]))).toBeNull();
+  });
+
+  it("entries list heading blocks in child order, nested one level under heading ancestry; plain blocks pass their level through", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
+    // A plain sentence block is NOT an entry (the old heuristic is retired).
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "Intro paragraph that is long enough to be a sentence, clearly." },
+      ],
+    });
+    const head = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "heading", children: [{ type: "text", text: "Background" }] },
+      ],
+    });
+    // A non-heading child of the heading passes its nesting through.
+    const prose = await client.createObject({
+      parentId: head,
+      contentAst: [{ type: "text", text: "Some prose under the head." }],
+    });
+    await client.createObject({
+      parentId: prose,
+      contentAst: [{ type: "heading", children: [{ type: "text", text: "Early work" }] }],
+    });
+    // A sub-page is NOT an entry either — headings alone.
+    await client.createObject({ parentId: pageId, isEmbedded: false, name: "Sub Page" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "heading", children: [{ type: "text", text: "Another top head" }] },
+      ],
+    });
+
+    const entries = tocEntriesOf(client, pageId);
+    expect(entries.map((e) => [e.label, e.depth])).toEqual([
+      ["Background", 0],
+      ["Early work", 1],
+      ["Another top head", 0],
+    ]);
+  });
+
+  it("TocSection hides with no heading blocks; standard section chrome; clicking an entry jumps to the block", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
+
+    const empty = render(
+      <TocSection client={client} pageId={pageId} onJumpToBlock={() => {}} />,
+    );
+    expect(empty.container.firstElementChild).toBeNull();
+    empty.unmount();
+
+    const head = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "heading", children: [{ type: "text", text: "Section One" }] }],
+    });
+
+    const onJumpToBlock = vi.fn();
+    render(<TocSection client={client} pageId={pageId} onJumpToBlock={onJumpToBlock} />);
+    // Standard section chrome: the named collapsible header with the count,
+    // collapsed by default — expand it to list the entries.
+    const header = screen.getByRole("button", { name: /table of content/i });
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(header);
+    expect(screen.getByText("Section One")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Section One" }));
+    expect(onJumpToBlock).toHaveBeenCalledWith(head);
+  });
+});
+
+// --- L4: breadcrumb edit gestures --------------------------------------------------
+
+describe("L4 breadcrumb edit gestures", () => {
+  it("a parentless page offers '+ Add parent'; the pick writes object.move", async () => {
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
+    const child = await client.createObject({ isEmbedded: false, name: "Child Page" });
+
+    render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add parent" }));
+    fireEvent.change(screen.getByLabelText("Search pages…"), { target: { value: "Parent" } });
+    await flushWrites();
+    fireEvent.click(
+      document.querySelector(
+        ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+      )!,
+    );
+    await flushWrites();
+
+    expect(client.getNode(child)!.parentId).toBe(parent);
+  });
+
+  it("the parent crumb's menu removes it (the child detaches to the root)", async () => {
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
+    const child = await client.createObject({
+      parentId: parent,
+      isEmbedded: false,
+      name: "Child Page",
+    });
+
+    render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
+    );
+    // The edit lives on the PARENT's crumb (the edge below it: the child).
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Parent Page" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove parent" }));
+    await flushWrites();
+
+    expect(client.getNode(child)!.parentId).toBeNull();
+  });
+
+  it("crumbs keep the capped display name for a >80-char title (dense chrome budget)", async () => {
+    const client = await seedClient();
+    const longTitle = "Crumb ".repeat(20).trimEnd(); // 119 chars — beyond the display-name budget
+    const parent = await client.createObject({ isEmbedded: false, name: longTitle });
+    const child = await client.createObject({
+      parentId: parent,
+      isEmbedded: false,
+      name: "Child Page",
+    });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} />,
+    );
+    // The breadcrumb reads the capped display name (80 chars) — and the
+    // per-crumb clip tightens it further; the complete title never renders
+    // (full titles are for node links, not dense chrome).
+    const crumbName = container.querySelector(".node-breadcrumb-name")?.textContent ?? "";
+    expect(crumbName.endsWith("…")).toBe(true);
+    expect(crumbName).toBe(`${longTitle.slice(0, 27)}…`);
+    expect(container.textContent).not.toContain(longTitle);
+  });
+
+  it("reassign parent (from the parent crumb) moves the child under the picked page", async () => {
+    const client = await seedClient();
+    const firstParent = await client.createObject({ isEmbedded: false, name: "First" });
+    const secondParent = await client.createObject({ isEmbedded: false, name: "Second" });
+    const child = await client.createObject({
+      parentId: firstParent,
+      isEmbedded: false,
+      name: "Child Page",
+    });
+
+    render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
+    );
+    fireEvent.contextMenu(screen.getByRole("button", { name: "First" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reassign parent…" }));
+    fireEvent.change(screen.getByLabelText("Search pages…"), { target: { value: "Second" } });
+    await flushWrites();
+    fireEvent.click(
+      document.querySelector(
+        ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+      )!,
+    );
+    await flushWrites();
+
+    expect(client.getNode(child)!.parentId).toBe(secondParent);
+  });
+
+  it("the trail is ancestors only — no self crumb; the parent crumb carries the edit", async () => {
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
+    const child = await client.createObject({
+      parentId: parent,
+      isEmbedded: false,
+      name: "Child Page",
+    });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
+    );
+    // No self crumb at all — the page header already names the page.
+    expect(container.querySelector(".node-breadcrumb-current")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Child Page" })).toBeNull();
+    // The parent crumb's edit button names the child below (the edge).
+    expect(
+      screen.getByRole("button", { name: "Edit parent of Child Page" }),
+    ).not.toBeNull();
+    // The edge edit opens the parent's menu with Open first.
+    fireEvent.click(screen.getByRole("button", { name: "Edit parent of Child Page" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
+    // (Navigation is the host's job; the menu opening at all is the assert.)
+  });
+
+  it("nav-only by default: no edit affordances without the editable prop", async () => {
+    const client = await seedClient();
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
+    const child = await client.createObject({
+      parentId: parent,
+      isEmbedded: false,
+      name: "Child Page",
+    });
+    render(<Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Add parent" })).toBeNull();
+    expect(document.querySelector(".node-breadcrumb-edit")).toBeNull();
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Parent Page" }));
+    expect(screen.queryByRole("menuitem")).toBeNull();
+  });
+
+  it("a parentless page hides its own crumb — only '+ Add parent' renders", async () => {
+    const client = await seedClient();
+    const page = await client.createObject({ isEmbedded: false, name: "Lonely Page" });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={page} onOpenNode={() => {}} editable />,
+    );
+    // No self crumb (there is no chain to trail)…
+    expect(screen.queryByRole("button", { name: "Lonely Page" })).toBeNull();
+    expect(container.querySelector(".node-breadcrumb-current")).toBeNull();
+    // …only the Add parent affordance.
+    expect(screen.getByRole("button", { name: "Add parent" })).not.toBeNull();
+  });
+
+  it("class nodes render no breadcrumbs at all — no self crumb, no Add parent", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("agent");
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={classId} onOpenNode={() => {}} editable />,
+    );
+    // Classes are always roots: a parent is unrepresentable, so the whole
+    // trail (self + affordance) stays hidden.
+    expect(container.querySelector(".node-breadcrumbs")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add parent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "agent" })).toBeNull();
+  });
+
+  it("date-chain parenting lock: editable renders no parent-edit affordance on a date page", async () => {
+    const client = await seedClient();
+    const chain = await client.ensureDateChain("2026-09-27");
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={chain.day} onOpenNode={() => {}} editable />,
+    );
+    // The trail still renders (month → year crumbs, date-formatted)…
+    expect(screen.getByRole("button", { name: "2026/09" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "2026" })).not.toBeNull();
+    // …but every chain edge is locked: no chevron buttons at all, and the
+    // right-click menu never opens (both crumbs' edges lead into date nodes).
+    expect(container.querySelector(".node-breadcrumb-edit")).toBeNull();
+    fireEvent.contextMenu(screen.getByRole("button", { name: "2026/09" }));
+    fireEvent.contextMenu(screen.getByRole("button", { name: "2026" }));
+    expect(screen.queryByRole("menuitem")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add parent" })).toBeNull();
+    // Sanity: an ordinary page under an ordinary page still shows the
+    // affordance in the same render session (the lock keys on the date id).
+    const parent = await client.createObject({ isEmbedded: false, name: "Ordinary Parent" });
+    const child = await client.createObject({ parentId: parent, isEmbedded: false, name: "Ordinary Child" });
+    const second = render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
+    );
+    expect(
+      second.container.querySelector(".node-breadcrumb-edit"),
+    ).not.toBeNull();
+  });
+});
+
+// --- L4: unlinked references promote/ignore -----------------------------------------
+
+describe("L4 unlinked mentions promote/ignore", () => {
+  it("promote rewrites the literal match into a mention (the source becomes linked)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
+    const blockId = await client.createObject({
+      parentId: sourceId,
+      contentAst: [{ type: "text", text: "the Zebra runs" }],
+    });
+
+    render(<PageView client={client} pageId={pageId} />);
+    // The Unlinked mentions section is collapsed by default: one click on
+    // the header expands it (and runs its lazy query).
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Promote/ }));
+    await flushWrites();
+
+    const block = client.getNode(blockId)!;
+    expect(block.contentAst).toEqual([
+      { type: "text", text: "the " },
+      { type: "mention", targetNodeId: pageId },
+      { type: "text", text: " runs" },
+    ]);
+    // The edge now exists: the source reads as a linked reference.
+    expect(
+      client.getLinkedReferences(pageId).some((entry) => entry.source.id === blockId),
+    ).toBe(true);
+  });
+
+  it("ignore dismisses the source device-locally; the dismissed list persists", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
+    // The unlinked row's source is the matching BLOCK itself.
+    const blockId = await client.createObject({
+      parentId: sourceId,
+      contentAst: [{ type: "text", text: "Zebra" }],
+    });
+
+    const { unmount } = render(<PageView client={client} pageId={pageId} />);
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ignore/ }));
+    await flushWrites();
+    unmount();
+
+    expect(readIgnoredUnlinkedRefs(pageId)).toContain(blockId);
+
+    // Reopen: the section's query result is filtered — the dismissed source
+    // stays out and the empty text renders.
+    render(<PageView client={client} pageId={pageId} />);
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
+    expect(screen.getByText("No unlinked mentions.")).not.toBeNull();
+    void sourceId;
+  });
+});

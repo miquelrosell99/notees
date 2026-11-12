@@ -1,0 +1,99 @@
+/**
+ * SyncDetailsModal chrome — token-only CSS per the ui-primitives
+ * law; adaptive values for anything that tracks type metrics.
+ */
+
+.sync-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: min(42ch, 100%);
+}
+
+.sync-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.sync-details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.sync-details-row dt {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-base);
+}
+
+.sync-details-row dd {
+  margin: 0;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.sync-details-row-error dd {
+  color: var(--md-sys-color-error);
+}
+
+.sync-details-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sync-details-hint {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-button);
+}
+
+.sync-details-error {
+  margin: 0;
+  color: var(--md-sys-color-error);
+  font-size: var(--font-size-base);
+}
+
+.sync-details-conflicts-heading {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+
+.sync-details-conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 32vh;
+  overflow-y: auto;
+}
+
+.sync-details-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width-default) solid
+    var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md);
+}
+
+.sync-details-conflict-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sync-details-conflict-type {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-base);
+}
+
+.sync-details-conflict-meta {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}

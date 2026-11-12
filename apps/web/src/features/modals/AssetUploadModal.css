@@ -1,0 +1,89 @@
+/**
+ * AssetUploadModal styles — the preview row (thumb/doc icon + name + size +
+ * category chip), the uploading status line, and the error. Token-only.
+ */
+
+.asset-upload-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) 0;
+}
+
+.asset-upload-modal__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface-container-low);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.asset-upload-modal__thumb {
+  width: var(--spacing-12);
+  height: var(--spacing-12);
+  object-fit: cover;
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+}
+
+.asset-upload-modal__doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-12);
+  height: var(--spacing-12);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.asset-upload-modal__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.asset-upload-modal__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-md);
+  color: var(--md-sys-color-on-surface);
+}
+
+.asset-upload-modal__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.asset-upload-modal__chip {
+  padding: 0 var(--spacing-2);
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-badge);
+  text-transform: uppercase;
+}
+
+.asset-upload-modal__audio {
+  width: 100%;
+}
+
+.asset-upload-modal__status {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.asset-upload-modal__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-error);
+}

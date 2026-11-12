@@ -1,0 +1,675 @@
+
+.node-selector {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--height-sm);
+}
+
+/* Select mode */
+.node-selector--select {
+  display: block;
+  min-height: 0;
+  width: 100%;
+}
+
+/* Multi-select: flat layout with pills + separate arrow */
+.node-selector__multi-trigger {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--spacing-1);
+  min-height: var(--height-sm);
+  padding: 0;
+}
+
+.node-selector__arrow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: var(--spacing-1);
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  opacity: var(--opacity-60);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__arrow-btn:hover {
+  opacity: var(--opacity-100);
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-selector__arrow-btn--open {
+  opacity: var(--opacity-100);
+}
+
+.node-selector__arrow-btn--open svg {
+  transform: rotate(180deg);
+}
+
+.node-selector__arrow-btn svg {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* The picker's search input composes the kit SearchField (the shared
+   rounded bar with icon + clear affordance); the class rides on the
+   wrapper. Spacing only — the field's own look stays kit-standard: the sm
+   pill keeps its own inline padding inside anchored panels too (the panel
+   margin is the outer air, NOT the icon's breathing room — zeroing the
+   padding put the lens flush on the pill border; the palette's md field is
+   the reference for icon side-padding). */
+.node-selector__search-field {
+  margin: var(--spacing-2);
+}
+
+.node-selector--readonly {
+  opacity: var(--opacity-70);
+}
+
+.node-selector__selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.node-selector__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--shape-small);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  border: none;
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__chip:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-selector__chip--readonly {
+  cursor: default;
+}
+
+.node-selector__selected-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.node-selector__selected-pills .node-pill {
+  display: inline-flex;
+}
+
+.node-selector__single-value {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.node-selector__single-value-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+
+.node-selector__single-value-classes {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.node-selector__single-value-class-pill {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
+  padding: var(--spacing-hairline) var(--spacing-1-5);
+  border-radius: var(--shape-extra-large);
+  white-space: nowrap;
+}
+
+.node-selector__placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+  opacity: var(--opacity-45);
+  font-size: var(--font-size-button);
+}
+
+/* Dropdown (for select mode portal) */
+.node-selector__dropdown {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.node-selector__dropdown--portal {
+  z-index: var(--z-floating);
+}
+
+.node-selector__list {
+  overflow-y: auto;
+}
+
+.node-selector__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.node-selector__item:active,
+.node-selector__option:active,
+.node-selector__filter-suggestion:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+.node-selector__item:hover,
+.node-selector__item--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-selector__item--selected {
+  font-weight: 600;
+}
+
+.node-selector__item--create {
+  color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+.node-selector__item--create:hover,
+.node-selector__item--create.node-selector__item--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-selector__item-icon {
+  flex-shrink: 0;
+}
+
+.node-selector__item-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-selector__item-check {
+  flex-shrink: 0;
+  color: var(--md-sys-color-primary);
+}
+
+.node-selector__footer {
+  padding: var(--spacing-2);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.node-selector__hint {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Selection-link mode banner: a faint one-liner above the search field
+   announcing what the pending pick will do ("Replacing selection with link" /
+   'Link with custom label "…"'). */
+.node-selector__mode-hint {
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-70);
+}
+
+.node-selector__empty {
+  padding: var(--spacing-3);
+  text-align: center;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.node-selector__section-label {
+  padding: var(--spacing-1) var(--spacing-3);
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  margin-top: var(--spacing-1);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.node-selector__show-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font: var(--font-label-small);
+  color: var(--md-sys-color-primary);
+  opacity: var(--opacity-80);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__show-more:hover,
+.node-selector__show-more--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Archived-class matches: the query names a
+   DISABLED system class — the row renders dimmed with an Enable badge;
+   picking it enables the class (the gallery pick semantics) and assigns
+   it like any other pick. */
+.node-selector__archived-match {
+  opacity: var(--opacity-60);
+}
+
+.node-selector__enable-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+  padding: 0 var(--spacing-1-5);
+  min-height: var(--height-sm);
+  border-radius: var(--radius-full);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-primary);
+  font: var(--font-label-small);
+}
+
+.node-selector__browse-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  font: var(--font-label-small);
+  color: var(--md-sys-color-primary);
+  opacity: var(--opacity-80);
+}
+
+.node-selector__browse-all:hover,
+.node-selector__browse-all--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Pill-row mode (original) */
+
+.node-selector__add-wrapper {
+  position: relative;
+}
+
+.node-selector__add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-1);
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-60);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__add-btn:hover {
+  opacity: var(--opacity-100);
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-selector__add-btn:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.node-selector__picker {
+  position: fixed;
+  z-index: var(--z-10002);
+  min-width: var(--layout-size-2xl);
+  max-width: var(--layout-size-6xl);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--elevation-2);
+  overflow: hidden;
+}
+
+.node-selector__picker:focus-within,
+.node-selector__dropdown:focus-within {
+  border-color: var(--md-sys-color-outline);
+}
+
+/* Scope tabs (Main/Blocks) — compact ghost tab bar above the search input.
+   The Tabs primitive's column gap is zeroed so the input sits flush between
+   the tablist and the results panel it controls. */
+.node-selector__scope-tabs.tabs {
+  gap: 0;
+}
+
+.node-selector__scope-tabs .node-selector__scope-tablist {
+  width: 100%;
+  box-sizing: border-box;
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.node-selector__scope-tabs .node-selector__scope-tablist .tabs__tab {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-selector__options {
+  max-height: var(--layout-size-2xl);
+  overflow-y: auto;
+}
+
+.node-selector__option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2);
+  border: none;
+  background: transparent;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.node-selector__option:hover,
+.node-selector__option--selected {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.node-selector__option--create {
+  color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+.node-selector__option--create:hover,
+.node-selector__option--create.node-selector__option--selected {
+  background: var(--md-sys-color-primary-container);
+}
+
+.node-selector__loading {
+  padding: var(--spacing-3);
+  text-align: center;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.node-selector__no-results {
+  padding: var(--spacing-3);
+  text-align: center;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* "Searching…" pending row (the async worker client): a cache miss and a
+   real no-match both read [] synchronously, so while the query's read is
+   in flight the spinner replaces the empty state — the user sees loading,
+   never a lying "No matches found". */
+.node-selector__searching {
+  padding: var(--spacing-3);
+}
+
+/* "Recently used" caption over the empty-query recents listing: a quiet section label so the opening list reads as recents,
+   not search hits. */
+.node-selector__recent-caption {
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-body-small);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+}
+
+/* Parent hierarchy path prefix (faded text before page name) */
+.node-selector__item-path {
+  font-size: var(--font-size-2xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-60);
+  white-space: nowrap;
+  margin-right: var(--spacing-hairline);
+}
+
+/* Class pills container */
+.node-selector__item-class-pills {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-tiny);
+  flex-shrink: 0;
+  margin-left: var(--spacing-1);
+}
+
+/* Individual class pill */
+.node-selector__item-class-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-hairline) var(--spacing-xxs);
+  font-size: var(--font-size-2xs);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: var(--shape-full);
+  white-space: nowrap;
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  opacity: var(--opacity-80);
+}
+
+/* Option name (pill-row mode picker) - takes flex space */
+.node-selector__option-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==================== Inline mode ==================== */
+
+/* Always-expanded search + results list (no toggle button) */
+
+.node-selector--inline {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+}
+
+.node-selector--inline .node-selector__options {
+  max-height: var(--layout-size-4xl);
+  overflow-y: auto;
+  padding: var(--spacing-1) 0;
+}
+
+.node-selector--inline .node-selector__options .node-result-item {
+  padding-left: var(--spacing-3);
+  padding-right: var(--spacing-3);
+}
+
+.node-selector--inline .node-selector__search-field {
+  margin: var(--spacing-2) var(--spacing-3);
+}
+
+/* ==================== Filter Pills ==================== */
+
+.node-selector__filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.node-selector__filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-micro);
+  padding: var(--spacing-hairline) var(--spacing-1-5);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-radius: var(--shape-full);
+  font: var(--font-label-small);
+  white-space: nowrap;
+}
+
+.node-selector__filter-pill-label {
+  opacity: var(--opacity-70);
+  font-weight: 500;
+}
+
+.node-selector__filter-pill-remove {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  margin-left: var(--spacing-micro);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  opacity: var(--opacity-60);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-selector__filter-pill-remove::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+}
+
+.node-selector__filter-pill-remove:hover {
+  opacity: var(--opacity-100);
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* ==================== Filter Suggestions ==================== */
+
+.node-selector__filter-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  background: transparent;
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-instant) var(--motion-easing-standard);
+}
+
+.node-selector__filter-suggestion:hover,
+.node-selector__filter-suggestion--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-selector__filter-prefix {
+  flex-shrink: 0;
+  color: var(--md-sys-color-primary);
+  font: var(--font-label-small);
+}
+
+.node-selector__filter-value {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-label-small);
+}
+
+/* Filter suggestion variant of node result item */
+.node-result-item--filter-suggestion {
+  opacity: var(--opacity-90);
+}
+
+.node-result-item--filter-suggestion:hover,
+.node-result-item--filter-suggestion.node-result-item--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Assigned-row gesture hint: rides the picker's bottom while a checkmarked
+   row is on screen (the remove / convert-to-link gestures apply to it). */
+.node-selector__assigned-hint {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-label-small);
+  white-space: nowrap;
+  opacity: var(--opacity-70);
+}
+
+/* ==================== `/` filter mode ==================== */
+
+/* The applied-filter chip row rides under the search field, inset to the
+   result-row grid (the fleet FilterChips compose the Pill primitive — the
+   panel-context inset and wrap live here only). */
+.node-selector__filter-chips {
+  padding: 0 var(--spacing-2) var(--spacing-1);
+}
+
+.node-selector__filter-chips:empty {
+  display: none;
+}
+
+/* The option menu scrolls inside the results viewport (the fleet
+   FilterMenu owns the row look). */
+.node-selector__options .filter-menu {
+  max-height: var(--layout-size-2xl);
+  overflow-y: auto;
+}

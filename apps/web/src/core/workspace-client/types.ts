@@ -1,0 +1,869 @@
+/**
+ * The workspace-client's public contract: wire-facing types, option bags,
+ * and the small standalone write composer (createAnnotation) — everything
+ * the class family and the UI import by name, with no runtime dependency
+ * on the client itself.
+ */
+
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+
+import {
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  type DatePrecision,
+} from "@notees/domain";
+import type { ContentAst, ListStyle, WorkspaceFeature } from "@notees/protocol";
+import type { SyncConflict, SyncStatus, Transport } from "@notees/sync";
+
+/** Sensible default depth cap for getBlockTree (cycle protection). */
+export const DEFAULT_TREE_DEPTH = 64;
+
+/** Bare-uuid test for the legacy carrier value shape (archived data). */
+export const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Default actor for the single-user client (overridable per client). */
+export const DEFAULT_ACTOR_ID = "01920000-0000-7000-8000-0000000000a1";
+
+export const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Sync-state snapshot for status UI: engine state, the pending-push backlog,
+ * and whether the realtime (WS) acceleration path is wired.
+ */
+export interface SyncStatusSnapshot {
+  status: SyncStatus;
+  /** Engine last error message (sync or realtime); null when healthy. */
+  error: string | null;
+  pending: number;
+  failed: number;
+  quarantined: number;
+  /** Ops parked by a server restore, awaiting re-push. */
+  parked: number;
+  realtime: boolean;
+  cursorSeq: number;
+}
+
+/**
+ * A semantic conflict the engine reported (see @notees/sync detectConflicts),
+ * with the wall-clock time it was observed. Newest-last, bounded history for
+ * the sync details modal — conflicts are otherwise transient
+ * (emitted, never stored).
+ */
+export interface ConflictHistoryEntry extends SyncConflict {
+  at: number;
+}
+
+export const IDLE_SNAPSHOT: SyncStatusSnapshot = {
+  status: "idle",
+  error: null,
+  pending: 0,
+  failed: 0,
+  quarantined: 0,
+  parked: 0,
+  realtime: false,
+  cursorSeq: 0,
+};
+
+/** Conflict-history retention for the sync details modal. */
+export const CONFLICT_LOG_CAP = 100;
+
+/**
+ * Change notification payload — what a `notify()` actually changed,
+ * so the main-thread read cache refetches only impacted keys instead of the
+ * whole cache. Semantics for subscribers:
+ *
+ *  - both fields absent → the change set is unknown (bootstrap, status
+ *    flips): treat everything as stale.
+ *  - `structural === true`, no `affectedNodeIds` → a listing-scale change
+ *    whose affected set is unknown or oversized: invalidate EVERY cached
+ *    read and force conservative re-renders.
+ *  - `structural === true` WITH `affectedNodeIds` → a listing-scale change
+ *    (create/move/delete/…) whose touched set IS known (ancestor-expanded):
+ *    cache invalidation stays full (a create can move listings anywhere —
+ *    e.g. a move's vacated side is not reconstructible post-apply), but
+ *    row-level subscribers MAY scope re-renders to rows naming one of these
+ *    ids — data outside them cannot have moved.
+ *  - `structural === false` with a non-empty `affectedNodeIds` → a
+ *    content-only edit of those ids (already ancestor-expanded): invalidate
+ *    reads scoped to those ids plus content-global reads (search/reference
+ *    listings embed titles and link marks from anywhere).
+ *  - `structural === false` with an EMPTY `affectedNodeIds` → "nothing is
+ *    stale" (status flips, no-op cycles): run the notify cycle, dirty no
+ *    cache keys.
+ *
+ * `revision` is a per-session monotonic counter — informational (diagnostics,
+ * tests); coalesced notifications carry the merged max.
+ */
+export interface ChangeNotification {
+  revision: number;
+  affectedNodeIds?: string[];
+  structural?: boolean;
+}
+
+/**
+ * Payload beyond this many expanded ids falls back to `structural: true`:
+ * the invalidation message must stay small, and at this scale refetching
+ * everything is cheaper than resolving scopes anyway. 1024: summaries now carry mention/link targets, so a mention-dense
+ * edit legitimately reaches hundreds of ids — at 256 those edits collapsed
+ * to full-structure invalidation and re-ran every "structure"-class read
+ * (the slice-2 regression). 1024 ids ≈ 40 KB worst case, still bounded;
+ * expandAffectedAncestors' per-id cost (one parent-pointer walk, deduped
+ * across the set) stays trivial at this size.
+ */
+export const CHANGE_AFFECT_CAP = 1024;
+
+export interface ClientNode {
+  id: string;
+  workspaceId: string;
+  /** Class identity bit — the ONLY identity marker (classes are always roots). */
+  isClass: boolean;
+  /** Render bit for parented non-class nodes: true = the parent's
+   * main-children zone + document chrome when zoomed; false = the inline
+   * body + block chrome. Unread for parentless nodes and classes. */
+  isEmbedded: boolean;
+  parentId: string | null;
+  classIds: string[];
+  tagIds: string[];
+  name: string | null;
+  contentAst: ContentAst;
+  icon: string | null;
+  color: string | null;
+  /** Wire node fields (the icon/color precedent, store schema v16): the
+   * page cover/banner asset refs and the main page a node alias points at.
+   * Null when unset; mapped by object.update. */
+  coverAssetId: string | null;
+  bannerAssetId: string | null;
+  aliasedNodeId: string | null;
+  /** The page subtitle in the core chrome (wire node field, store schema
+   * v18) — plain text, null when unset. */
+  description: string | null;
+  /** Per-block list style (wire node field, store schema v23): the bullet
+   * dot's replacement. Null = bullet (the default); the marker NUMBER is
+   * derived at render time, never stored. */
+  listStyle: ListStyle | null;
+  /** Class-level parentlessRole (store schema v32):
+   * "block" = the class's parentless members render Block-role; "page" = the
+   * default. Meaningful on class rows; parsed drift-safe (anything unknown
+   * reads "page"). */
+  parentlessRole: "page" | "block";
+  isActive: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface BlockTreeNode {
+  node: ClientNode;
+  children: BlockTreeNode[];
+}
+
+/**
+ * The lean page-listing row (the listing-transfer slimming read): every
+ * filter/sort field a page-picker or hub listing needs, with the title
+ * PRE-DERIVED server-side (the worker flattens the content to the display
+ * name — consumers never parse contentAst). Everything the full ClientNode
+ * carries that a listing row never reads (contentAst, name, description,
+ * cover/banner, listStyle, …) stays OFF the wire: at fleet scale the
+ * per-gesture listing transfer is the dominant payload, and summaries cut
+ * it from full nodes to ~a fifth of the bytes.
+ */
+export interface PageSummary {
+  id: string;
+  /** deriveDisplayName flattened server-side (title-is-content). */
+  title: string;
+  parentId: string | null;
+  isClass: boolean;
+  isEmbedded: boolean;
+  classIds: string[];
+  tagIds: string[];
+  icon: string | null;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The parent node's render facts for the parent-page condition — undefined when the node is parentless or the
+ *  parent row is not at hand (the store's write-time invariant covers
+ *  that case). */
+export type ParentRenderFacts =
+  | Pick<ClientNode, "isClass" | "parentId" | "isEmbedded">
+  | undefined;
+
+/**
+ * Typed error for a `query` content token whose serialized AST fails
+ * validation (`parseQueryAst` — unknown condition types / versions fail loud)
+ * or whose compilation the query engine does not support. The query block view
+ * renders an "invalid query" placeholder for it; the worker RPC path surfaces
+ * the same shape as an Error message.
+ */
+export class InvalidQueryAstError extends Error {
+  readonly code = "invalid_query_ast" as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidQueryAstError";
+  }
+}
+
+/** One row of a query run result: the node summary the list view renders. */
+export interface QueryRunSummary {
+  id: string;
+  name: string | null;
+  /** Revision-11 render-state booleans (the server's /query summary shape). */
+  isClass: boolean;
+  isEmbedded: boolean;
+  parentId: string | null;
+  /** node.created_at (ISO-8601) — the table view's Created column. */
+  createdAt: string | null;
+}
+
+/**
+ * The web slice of @notees/query's QueryResult: deterministic ids (the count
+ * badge reads ids.length) + node summaries, projected from the store rows.
+ */
+export interface QueryRunResult {
+  ids: string[];
+  rows: QueryRunSummary[];
+}
+
+/**
+ * The web slice of @notees/query's AggregateResult: the grouped grid a
+ * `query` token with an `aggregation` renders in table mode (dimension
+ * columns in declared order, then measures).
+ */
+export interface QueryAggregateResult {
+  columns: string[];
+  rows: unknown[][];
+}
+
+/**
+ * One page of the cursor-paginated ranked search: the resolved
+ * nodes plus the opaque cursor for the next page (null = exhausted).
+ */
+export interface SearchPageResult {
+  nodes: ClientNode[];
+  nextCursor: string | null;
+}
+
+/**
+ * Match-context snippet, mirrored from @notees/store's
+ * SearchSnippet: the whitespace-normalized excerpt plus char-offset match
+ * spans into it.
+ */
+export interface SearchSnippetData {
+  text: string;
+  matches: Array<{ start: number; length: number }>;
+}
+
+/**
+ * One class → property-schema binding, as projected by the Class View.
+ * Registry rows (class_property joined to property_schema) now that
+ * class.property.set authors them; the designed system seeds
+ * (@notees/domain) fill schemas the registry does not bind yet, with
+ * registry rows winning per schema.
+ */
+export interface ClassBinding {
+  propertySchemaId: string;
+  name: string;
+  type: string;
+  multi: boolean;
+  /** Bound target class names (seed spec), null when unconstrained. */
+  targetClassFilter: string[] | null;
+  /** SCHEMA.md "Dates": schema-row date behavior (null = day / not qualified). */
+  datePrecision: DatePrecision | null;
+  dateQualified: boolean | null;
+  /** SCHEMA.md "Number formats": display-only formatting (null = unformatted). */
+  numberPad?: number | null;
+  numberDecimals?: number | null;
+  numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+  /** The soft-unbind flag (false = the binding stops contributing). */
+  active: boolean;
+  /** The binary tier flag (true = the property renders in the pinned
+   *  first tier of class property lists — alphabetical within each tier). */
+  pinned: boolean;
+  /** The node-row preview flag (true = the bound value renders in the
+   *  node's picker/search row, an additional compact line — absent on the
+   *  wire/store column reads as false). */
+  showInNodeRows: boolean;
+}
+
+/**
+ * Map one `class_property ⋈ property_schema` row to a ClassBinding — shared
+ * by the extends-aware getClassBindings read and the own-rows-only
+ * getRegistryBindings read. Title-is-content: the schema ROW is the naming
+ * authority (renames and user edits ride it); only a missing row falls back
+ * to a synthesized label at the call site. The binding carries the genuinely
+ * PER-CLASS mechanics ONLY — the active soft-unbind flag, the pinned
+ * tier flag, and the node-row preview flag (`required` retired outright, `defaultValue` moved to the
+ * schema, `sequence` retired outright — class panels render in pin tiers,
+ * alphabetical by property name within each tier).
+ */
+export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
+  const parsePrecision = (raw: unknown): DatePrecision | null =>
+    raw === "year" || raw === "month" || raw === "day" ? raw : null;
+  let targetClassFilter: string[] | null = null;
+  try {
+    const parsed: unknown = JSON.parse((row.target_class_filter as string | null) ?? "null");
+    if (Array.isArray(parsed)) {
+      targetClassFilter = parsed.filter((v): v is string => typeof v === "string");
+    }
+  } catch {
+    targetClassFilter = null;
+  }
+  return {
+    propertySchemaId: String(row.property_schema_id),
+    name: (row.name as string | null) ?? "(missing schema)",
+    type: (row.type as string | null) ?? "",
+    multi: row.multi === 1,
+    targetClassFilter,
+    datePrecision: parsePrecision(row.date_precision),
+    dateQualified:
+      row.date_qualified === null || row.date_qualified === undefined
+        ? null
+        : row.date_qualified === 1,
+    numberPad: row.number_pad === null || row.number_pad === undefined ? null : Number(row.number_pad),
+    numberDecimals:
+      row.number_decimals === null || row.number_decimals === undefined ? null : Number(row.number_decimals),
+    numberRounding:
+      row.number_rounding === null || row.number_rounding === undefined
+        ? null
+        : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
+    active: row.binding_active === 0 ? false : true,
+    pinned: row.binding_pinned === 1,
+    showInNodeRows: row.show_in_node_rows === 1,
+  };
+}
+
+/** Where a select/multi_select (or boolean) value renders on a block row. */
+export type PropertyDisplay = "panel" | "bullet" | "inline";
+
+/**
+ * The schema's value-validation rules (SCHEMA.md "Class properties",
+ * the v1 min/max/pattern port): `min`/`max` apply
+ * to `number` schemas only, `pattern` to `text`/`url`/`email` only
+ * (enforced at apply time against the stored type; values validate at
+ * property.set). All members optional — an empty object is not written.
+ */
+export interface ClientValidationRules {
+  min?: number;
+  max?: number;
+  pattern?: string;
+}
+
+/**
+ * Editable fields of a class.property.set write (all optional — patch).
+ * `active` is the soft-unbind flag; `pinned` the binary tier flag (pinned
+ * properties render first, alphabetical within each tier — a
+ * classification, never a stored order: `sequence` retired, class panels
+ * sort in pin tiers); `showInNodeRows` the node-row preview flag (a
+ * flagged binding's value renders in the node's picker/search row).
+ */
+export interface SetClassPropertyInput {
+  active?: boolean;
+  pinned?: boolean;
+  showInNodeRows?: boolean;
+}
+
+/** A select/multi_select option (color + icon, both optional). */
+export interface ClientPropertyOption {
+  id: string;
+  label: string;
+  /** Preset token or `#RRGGBB` hex; absent/null = uncolored. */
+  color?: string | null;
+  /** MDI icon name (camelCase @mdi/js convention); absent/null = no icon. */
+  icon?: string | null;
+}
+
+/**
+ * One entry of the GET /api/operations relay-log feed, trimmed to
+ * what the property-history modal renders — the envelope's coordination fields
+ * plus its payload.
+ */
+export interface OperationFeedEntry {
+  seq: number;
+  opType: string;
+  payload: Record<string, unknown>;
+  actorId: string;
+  deviceId: string;
+  timestamp: string;
+  hlc: { physical: number; logical: number };
+}
+
+/**
+ * One trashed subtree root, as the Trash hub lists it: the node row (which
+ * is inactive — every normal read filters it) plus its soft-delete stamp
+ * from the derived `trash` table. Permanent deletes leave no entry (their
+ * rows are `is_permanent = 1` tombstones with no node row behind them).
+ */
+export interface TrashedEntry {
+  node: ClientNode;
+  deletedAt: string;
+}
+
+/**
+ * One archived node, as the Archived surface lists it: the inactive node row PLUS the
+ * guarantee that it carries NO trash row — archival is a reversible STATE
+ * (object.update {active}), distinct from deletion (the trash table). The
+ * stamp is the node row's `updated_at` (the archival write bumps it).
+ */
+export interface ArchivedEntry {
+  node: ClientNode;
+  archivedAt: string;
+}
+
+/** Editable fields of a propertySchema.update write (all optional — patch).
+ *  The owner-2026-10-20 fields ride the keep/clear contract: absent keeps
+ *  the stored value, present-null clears (SCHEMA.md "Class properties"). */
+export interface UpdatePropertySchemaInput {
+  name?: string;
+  /** The schema's icon (nullable MDI name); null clears. */
+  icon?: string | null;
+  /** The locality authority: null clears back to global (empty rejected). */
+  scopeClassIds?: string[] | null;
+  /** Node-typed target classes; null clears the filter. */
+  targetClassFilter?: string[] | null;
+  /** Values single/multiple; null clears back to single. */
+  multi?: boolean | null;
+  /** Value-validation rules; null clears. */
+  validationRules?: ClientValidationRules | null;
+  options?: ClientPropertyOption[];
+  datePrecision?: DatePrecision;
+  dateQualified?: boolean;
+  /** SCHEMA.md "Number formats": absent keeps, null clears (display only). */
+  numberPad?: number | null;
+  numberDecimals?: number | null;
+  numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+  /** The GLOBAL default: absent keeps, null
+   *  clears (PC2-typed at apply against the schema's stored type). */
+  defaultValue?: unknown;
+  /** The render contracts (PROPERTY-level): absent keeps, null clears.
+   *  (`readonly` retired 2026-10-21 — derived from the system list via
+   *  @notees/domain isReadonlyProperty, never stored.) */
+  display?: PropertyDisplay | null;
+  hideWhenEmpty?: boolean | null;
+}
+
+/** A property schema row as listed by the bindings picker's candidate set. */
+export interface ClientPropertySchema {
+  id: string;
+  name: string;
+  type: string;
+  multi: boolean;
+  /** The schema's icon; null = none. */
+  icon: string | null;
+  /** The SOLE locality authority: null = global,
+   *  a non-empty list = local to those classes + their extensions. */
+  scopeClassIds: string[] | null;
+  options: ClientPropertyOption[] | null;
+  targetClassFilter: string[] | null;
+  /** SCHEMA.md "Dates": finest granularity a date value may claim (null = day). */
+  datePrecision: DatePrecision | null;
+  /** SCHEMA.md "Dates": node-typed values may carry date qualifiers. */
+  dateQualified: boolean | null;
+  /** SCHEMA.md "Number formats": display-only formatting (null = unformatted). */
+  numberPad?: number | null;
+  numberDecimals?: number | null;
+  numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+  /** The render contracts (PROPERTY-level; null = panel / unset).
+   *  (`readonly` retired 2026-10-21 — derived from the system list, not
+   *  stored.) */
+  display?: PropertyDisplay | null;
+  hideWhenEmpty?: boolean | null;
+  /** Value-validation rules (null = none). */
+  validationRules?: ClientValidationRules | null;
+  /** The GLOBAL default: parsed JSON, null = none. */
+  defaultValue: unknown | null;
+}
+
+/**
+ * The unified datetime write (SCHEMA.md "Datetime"): one point or a range.
+ * `iso` is a calendar day ("2026-09-27"); the write path ensures the
+ * year/month/day chain and links the ref at the schema's precision. `time`
+ * (a well-formed "HH:MM") rides only day-precision schemas — the write fails
+ * loud otherwise. A null range side writes an open side.
+ */
+export interface DatetimePointInput {
+  iso: string;
+  time?: string;
+}
+
+export type DatetimeValueInput =
+  | DatetimePointInput
+  | { start: DatetimePointInput | null; end: DatetimePointInput | null };
+
+export interface CreatePropertySchemaInput {
+  /**
+   * Defaults to a fresh UUIDv7. Pass the reserved system id to author a
+   * designed schema idempotently (the task family); the
+   * propertySchema.create op has always accepted a caller-chosen id.
+   */
+  id?: string;
+  name: string;
+  type: string;
+  multi?: boolean;
+  /** Locality: omit/null = global; a non-empty
+   *  class-id list scopes the schema to those classes + their extensions. */
+  scopeClassIds?: string[];
+  icon?: string;
+  options?: ClientPropertyOption[];
+  targetClassFilter?: string[];
+  datePrecision?: DatePrecision;
+  dateQualified?: boolean;
+  /** The GLOBAL default (one default per
+   *  property; PC2-typed at apply against the create payload's type). */
+  defaultValue?: unknown;
+  /** The schema-level hide-when-empty render contract (the seeded
+   *  `project` relation is the first carrier; absent = null at the row). */
+  hideWhenEmpty?: boolean;
+}
+
+/**
+ * One effective (schema, idx) row of a node (SCHEMA.md "Class properties"):
+ * authored values and derived class-binding defaults, aggregated across all
+ * the node's classes (first-class-applied-wins). `boundBy` names the class
+ * supplying the property (the winning binder for defaults, bound-empty and
+ * assigned rows; the currently-binding class for authored rows), or null
+ * when no current class binds the schema — an authored value that outlived
+ * its bindings, or a purely node-added assignment. The panel's "C" flag
+ * rides this field: set = the class definition supplies the property.
+ */
+export interface EffectiveProperty {
+  propertySchemaId: string;
+  idx: number;
+  /** The value's stable element id — the address multi-value removes target. */
+  elementId: string;
+  schema: {
+    id: string;
+    name: string;
+    type: string;
+    multi: boolean;
+    /** The schema's stored icon (null = none) — the property-header icon
+     *  falls back to a type-derived one when unset
+     *  (`effectivePropertyIcon`). */
+    icon?: string | null;
+    datePrecision: DatePrecision | null;
+    dateQualified: boolean | null;
+    numberPad?: number | null;
+    numberDecimals?: number | null;
+    numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+    /** The render contracts (PROPERTY-level; null = panel / unset).
+     *  (`readonly` retired 2026-10-21 — derived from the system list.) */
+    display?: PropertyDisplay | null;
+    hideWhenEmpty?: boolean | null;
+  } | null;
+  value: unknown;
+  /** Authored qualifiers (date-node refs or legacy ISO strings). */
+  metadata: Record<string, unknown> | null;
+  /** "assigned" = an assignment WITHOUT a value (*  property.assign; the row renders empty and the editor authors the
+   *  first value later); "bound" = a bound-but-empty VIRTUAL property
+   *  (the virtual/realized assessment — boundBy names the class it comes
+   *  from); both read value null. */
+  source: "authored" | "default" | "assigned" | "bound";
+  boundBy: string | null;
+  /** R4: false on authored rows whose schema's
+   *  scopeClassIds excludes the node — the row SURVIVES (never retroactive)
+   *  and callers render it honestly; derived defaults never materialize for
+   *  ineligible nodes, so they always read true. */
+  eligible: boolean;
+  /** PROPERTY-level: the schema's render contracts — the same for
+   *  every carrier, class-bound or not. (Readonly-ness derives from the
+   *  system property list since.) */
+  hideWhenEmpty: boolean | null;
+  display: PropertyDisplay | null;
+}
+
+/**
+ * The cheap bulk-read variant of {@link EffectiveProperty} (the shells read):
+ * every identity/derivation field of the full row — propertySchemaId, idx,
+ * elementId, schema, metadata, source, boundBy, eligible, hideWhenEmpty,
+ * display — in the SAME order, but `value` ships only for LIGHT property
+ * types (`LIGHT_PROPERTY_VALUE_TYPES`: select, multi_select, boolean,
+ * number, date, datetime). HEAVY types (text, url, node refs, any unknown
+ * type) defer the value: `value` reads null and `valueCount` carries the
+ * cardinality instead. `deferred` is the flag: a deferred row's `value: null`
+ * means "withheld", never "empty" — only assigned/bound empty rows
+ * (`deferred: false, valueCount: 0`) read as empty.
+ */
+export interface PropertyRowShell {
+  propertySchemaId: string;
+  idx: number;
+  elementId: string;
+  schema: EffectiveProperty["schema"];
+  metadata: Record<string, unknown> | null;
+  source: "authored" | "default" | "assigned" | "bound";
+  boundBy: string | null;
+  eligible: boolean;
+  /** LIGHT types carry the value here (identical to EffectiveProperty.value). */
+  value: unknown;
+  /** HEAVY types: value is null; the cardinality is here instead. */
+  valueCount: number;
+  /** True when a value exists but was deferred (heavy type). */
+  deferred: boolean;
+  hideWhenEmpty: boolean | null;
+  display: PropertyDisplay | null;
+}
+
+export interface ClientEdge {
+  id: string;
+  sourceId: string;
+  targetId: string | null;
+  type: string;
+  verb: string | null;
+  metadata: string | null;
+}
+
+/**
+ * One row of a references section (linked or unlinked): the node carrying the
+ * link / literal-text match, plus the breadcrumb of its containing page
+ * (nearest page-type ancestor — the source itself when it is a page).
+ */
+export interface ReferenceEntry {
+  source: ClientNode;
+  containingPageId: string;
+  containingPageName: string;
+  /**
+   * Linked references only: "direct" = the edge targets the node itself;
+   * "containment" = the edge is an outward link from inside the node's
+   * subtree (source-side containment roll-up); "alias" = the edge
+   * targets an alias page of the node (issue #7 node-alias roll-up —
+   * SCHEMA.md "Node aliases"). Unlinked references are always "direct".
+   */
+  kind: "direct" | "containment" | "alias";
+  /**
+   * Linked references only: the edge's verb — a propertySchemaId
+   * when the referencing edge is a property value over a bound verb schema
+   * (the designed targeted path; typed-link marks stay targetless per the
+   * deferred-resolution ruling). The surfaces resolve it to the schema
+   * name. Null for mentions and unlinked references.
+   */
+  verb: string | null;
+}
+
+export interface CreateObjectInput {
+  /** Defaults to a fresh UUIDv7. */
+  id?: string;
+  /**
+   * Render bit (Revision 11): true = the parent's main-children zone +
+   * document chrome when zoomed; false/absent = the inline body (a parented
+   * child defaults to inline; a parentless node defaults to main — the
+   * applier decides when the field is omitted). Classes are declared by
+   * class.create, never by this bit.
+   */
+  isEmbedded?: boolean;
+  /** Omit for a workspace-root page; null is accepted explicitly. */
+  parentId?: string | null;
+  /**
+   * Title-is-content: `name` is NOT a stored field — it becomes the node's
+   * initial text content (a single text token) when `contentAst` is not
+   * given. A page's title IS its content.
+   */
+  name?: string;
+  contentAst?: ContentAst;
+  classIds?: string[];
+  tagIds?: string[];
+  /**
+   * Initial sibling placement in the parent's fractional child order
+   * (object.create / object.move payload): place next to that current
+   * sibling; omit both to append at the end.
+   */
+  afterId?: string;
+  beforeId?: string;
+}
+
+export interface UpdateObjectInput {
+  /**
+   * Render-bit toggle (Revision 11): promotion/demotion — flipping false →
+   * true stringifies the content server-side (the bit never un-flattens).
+   */
+  isEmbedded?: boolean;
+  contentAst?: ContentAst;
+  icon?: string;
+  /** Preset token or #RRGGBB hex; null clears the color. */
+  color?: string | null;
+  /**
+   * The wire node fields (the icon/color precedent — SCHEMA.md "Node
+   * structure"): the page cover/banner asset refs and the main page a node
+   * alias points at. Presence writes; null clears; absence preserves.
+   */
+  coverAssetId?: string | null;
+  bannerAssetId?: string | null;
+  aliasedNodeId?: string | null;
+  /** The page subtitle in the core chrome (store schema v18). */
+  description?: string | null;
+  /** Per-block list style (store schema v23): null clears back to the
+   * bullet default (the color keep/clear contract). */
+  listStyle?: ListStyle | null;
+  /**
+   * Archival bit:
+   * false archives the node (a reversible state — it leaves every default
+   * read, no trash row), true unarchives it. Locked system classes and
+   * family bases refuse the archival direction (write-time guards).
+   */
+  active?: boolean;
+}
+
+export interface DeleteObjectOptions {
+  /** Soft-delete (trash subtree) by default; true hard-deletes. */
+  permanent?: boolean;
+}
+
+/**
+ * One op in a batched gesture (the `applyOps` primitive): the discriminated
+ * union of the high-level write surface. Every multi-op gesture (paste,
+ * clone/template, bulk selection ops, drag stacks, imports) composes its
+ * plan as plain data and applies it in ONE undo-journal batch — one undo
+ * restores the whole gesture — and, on the worker client, in ONE RPC. Ops
+ * apply in order; placement anchors may reference ids created earlier in
+ * the same batch (caller-assigned ids, parents before children — the
+ * synchronous in-order apply resolves every anchor before it is read).
+ */
+export type ClientWriteOp =
+  | { kind: "create"; input: CreateObjectInput }
+  | { kind: "update"; id: string; fields: UpdateObjectInput }
+  | { kind: "move"; id: string; parentId: string | null; afterId?: string; beforeId?: string }
+  | { kind: "delete"; id: string; opts?: DeleteObjectOptions }
+  | { kind: "restore"; id: string }
+  | { kind: "setArchived"; id: string; active: boolean }
+  | {
+      kind: "setProperty";
+      objectId: string;
+      propertySchemaId: string;
+      value: unknown;
+      idx?: number;
+      metadata?: Record<string, unknown>;
+    }
+  | { kind: "unsetProperty"; objectId: string; propertySchemaId: string; idx?: number }
+  | { kind: "assignProperty"; objectId: string; propertySchemaId: string }
+  | { kind: "unassignProperty"; objectId: string; propertySchemaId: string }
+  | { kind: "emptyProperty"; objectId: string; propertySchemaId: string }
+  | { kind: "assignClass"; id: string; classId: string }
+  | { kind: "unassignClass"; id: string; classId: string }
+  | { kind: "assignTag"; id: string; tagId: string }
+  | { kind: "unassignTag"; id: string; tagId: string };
+
+/**
+ * One row of the derived node_asset table (asset.attach op), as read by the
+ * panel: the link between a node (usually an asset-class node referenced by a
+ * node-typed property value) and its content-addressed file metadata.
+ */
+export interface AssetInfo {
+  assetId: string;
+  hash: string;
+  mimeType: string;
+  size: number;
+  originalName: string;
+  uploadedAt: string | null;
+}
+
+/** POST /api/assets response shape (the fields the client consumes). */
+export interface AssetUploadResult {
+  assetId: string;
+  hash: string;
+  mimeType: string;
+  size: number;
+  originalName: string;
+}
+
+/**
+ * Input of an annotation write (SCHEMA.md annotation family, seeded
+ * `highlight` class): the quote excerpt names the object, the seeded
+ * highlight_asset property (…000000000020) links the asset node, the seeded
+ * provenance property (…000000000019) records origin (+ page context),
+ * and an optional note becomes a child block of the annotation page.
+ */
+export interface CreateAnnotationInput {
+  /** The asset NODE id the highlight_asset property links (a chip ref). */
+  assetId: string;
+  /** The quoted text — becomes the annotation object's name. */
+  quote: string;
+  /** Optional page number (free text) — recorded in the provenance string. */
+  page?: string;
+  /** Optional note — authored as a child block of the annotation page. */
+  note?: string;
+}
+
+/** Stored name cap for an annotation (the quote excerpt names the object). */
+const ANNOTATION_NAME_MAX = 160;
+
+/** The write surface createAnnotation composes (both client classes satisfy it). */
+interface AnnotationWriteSurface {
+  createObject(partial: CreateObjectInput): Promise<string>;
+  setProperty(objectId: string, propertySchemaId: string, value: unknown, idx?: number): Promise<void>;
+}
+
+/**
+ * Compose an annotation write from the primitive client ops: the
+ * highlight-classed object named by the quote excerpt, the highlight_asset
+ * link, the provenance text, and the optional note child block. Shared by
+ * WorkspaceClient and WorkerClient (each exposes a thin method over this).
+ */
+export async function createAnnotation(
+  writes: AnnotationWriteSurface,
+  input: CreateAnnotationInput,
+): Promise<string> {
+  const quote = input.quote.trim();
+  if (quote === "") throw new Error("createAnnotation: quote text is required");
+  const page = input.page?.trim() ?? "";
+  const note = input.note?.trim() ?? "";
+  const id = await writes.createObject({
+    isEmbedded: false,
+    name: quote.slice(0, ANNOTATION_NAME_MAX),
+    classIds: [SYSTEM_CLASS_UUIDS.highlight],
+  });
+  await writes.setProperty(id, SYSTEM_PROPERTY_UUIDS.highlightAsset, { nodeId: input.assetId }, 0);
+  // The model has no seeded locator property (the …0018 locator was
+  // withdrawn, never reused), so
+  // the page context rides in the provenance string; the PDF-anchored capture
+  // will need a structured position instead.
+  await writes.setProperty(
+    id,
+    SYSTEM_PROPERTY_UUIDS.provenance,
+    page === "" ? "web" : `web · p. ${page}`,
+    0,
+  );
+  if (note !== "") {
+    await writes.createObject({
+      parentId: id,
+      contentAst: [{ type: "text", text: note }],
+    });
+  }
+  return id;
+}
+
+export interface WorkspaceClientOptions {
+  transport: Transport;
+  /** Defaults to a fixed local actor; pass a real user id when known. */
+  actorId?: string;
+  /**
+   * Raw 32-byte workspace key (E2EE). Present → the SyncEngine seals the
+   * wire and opens sealed snapshots; absent → plaintext passthrough
+   * (keyless/offline workspaces). Memory-only: the client never persists it.
+   */
+  workspaceKey?: Uint8Array;
+  deviceId?: string;
+  client?: string;
+  /**
+   * Server REST access (POST /api/assets upload + download). createHttp
+   * passes these through; tests inject them beside a MemoryTransport so
+   * uploadAsset/downloadAsset can run against a mocked fetch.
+   */
+  serverUrl?: string;
+  apiKey?: string;
+  /** Pre-initialized sql.js module (tests); defaults to initSqlJs(). */
+  sqlJs?: SqlJsStatic;
+  /** Config for the internal initSqlJs() call (browser wasm locateFile). */
+  sqlJsConfig?: Parameters<typeof initSqlJs>[0];
+  /** Semantic conflicts between remote batches and local pending ops. */
+  onConflict?: (conflicts: SyncConflict[]) => void;
+  onSyncError?: (error: Error) => void;
+  /**
+   * Engine sync-phase messages during bootstrap/pull ("Fetching latest
+   * snapshot…", "Catching up… N operations", "Synced") — the connecting
+   * screen renders them verbatim as progress.
+   */
+  onSyncPhase?: (phase: string, message: string) => void;
+  /**
+   * Engine catch-up progress ({applied, total} per catch-up page) — the
+   * connecting screen renders it as a real progress bar + percentage.
+   */
+  onSyncProgress?: (applied: number, total: number) => void;
+}

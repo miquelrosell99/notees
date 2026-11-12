@@ -1,0 +1,126 @@
+/**
+ * NodeResultItem styles
+ *
+ * Shared by the node pickers (and any other component that renders a
+ * searchable list of nodes).
+ */
+
+.node-result-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.node-result-item:hover,
+.node-result-item--highlighted {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-result-item:active {
+  transform: scale(0.98);
+}
+
+/* Breadcrumb path above the row — direction:rtl clips the *left* side so the
+   immediate parent name stays visible. text-align:left realigns the text. */
+.node-result-item__crumbs {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+
+  /* indent by icon width (18px) + gap (8px) so path aligns with the name */
+  padding-left: calc(var(--spacing-6) + var(--spacing-micro));
+  margin-bottom: var(--spacing-hairline);
+}
+
+/* The node-row preview line: the flagged bindings' values, one compact
+   " · "-joined line under the name — the crumbs' indent + measure, cropped
+   the same way (the hover tooltip rides the full string via title). */
+.node-result-item__meta {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  /* same indent as the crumbs — the value aligns with the name */
+  padding-left: calc(var(--spacing-6) + var(--spacing-micro));
+}
+
+/* The row rides the fleet ListRow (the register this surface co-defined);
+   these are the surface deviations: the outer button owns the chrome
+   (padding/radius/hover/scale), so the inner row is chromeless, tighter
+   gap, and the leading slot keeps this surface's 20px icon measure. */
+.node-result-item__row {
+  gap: var(--spacing-2);
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+}
+
+.node-result-item__row .list-row__leading {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+}
+
+.node-result-item__row .list-row__trailing {
+  gap: var(--spacing-2);
+}
+
+.node-result-item__class-pills {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.node-result-item__class-pill {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
+  padding: var(--spacing-hairline) var(--spacing-1-5);
+  border-radius: var(--shape-button-compact);
+  white-space: nowrap;
+}
+
+.node-result-item__check {
+  color: var(--md-sys-color-primary);
+  flex-shrink: 0;
+}
+
+/* Create-new variant */
+.node-result-item--create {
+  color: var(--md-sys-color-primary);
+  font-weight: 500;
+}
+
+.node-result-item--create .list-row__leading {
+  color: var(--md-sys-color-primary);
+}
+
+.node-result-item--create .list-row__primary {
+  color: var(--md-sys-color-primary);
+}
+
+/* Convert-to-class variant */
+.node-result-item--convert .list-row__primary::after {
+  content: " → class";
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  margin-left: var(--spacing-1);
+}

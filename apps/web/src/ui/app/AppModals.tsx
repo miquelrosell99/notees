@@ -1,0 +1,184 @@
+/**
+ * AppModals — the shell's floating-command layer: the Ctrl/Cmd+K command
+ * palette and the modals/popups it and the other surfaces open (quick
+ * add, class create, merge, property view), the S1 property-create host
+ * (the /property slash command, Ctrl/Cmd+Alt+P, the verb create-and-bind),
+ * plus the mobile quick-create FAB and the presentation deck. Pure
+ * composition: every behavior arrives via props from App. The unified
+ * merge modal rides its own app-level host (MergeHost): the palette's
+ * merge rows and the node context menu's "Merge into…" request it through
+ * the module-level queue, in both store modes.
+ */
+
+import type { Dispatch, SetStateAction } from "react";
+
+import type { UndoUiState } from "@/core/undo-journal.js";
+import type { AnyClient } from "./clients.js";
+import { CommandPalette } from "../../features/command-palette/CommandPalette.js";
+import { QuickAddModal } from "../../features/modals/QuickAddModal.js";
+import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
+import { MergeHost, requestMerge } from "../../features/modals/mergeHost.js";
+import { PropertyView } from "../../features/metadata/PropertyView.js";
+import { PropertyCreateHost } from "../../features/metadata/PropertyCreateHost.js";
+import { QuickCreateFab } from "../../features/block-editor/QuickCreateFab.js";
+import { AddSourceHost, requestAddSource } from "../../features/sources/AddSourceHost.js";
+import { ImportHost } from "../../features/import/ImportHost.js";
+import { DeckView } from "../presentation/DeckView.js";
+
+export interface AppModalsProps {
+  client: AnyClient;
+  paletteOpen: boolean;
+  setPaletteOpen: Dispatch<SetStateAction<boolean>>;
+  openPage: (nodeId: string) => void;
+  /** The palette's Shift+Enter peek. */
+  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
+  handleNewPage: (title?: string) => Promise<void>;
+  classCreateOpen: boolean;
+  setClassCreateOpen: Dispatch<SetStateAction<boolean>>;
+  propertyViewFor: string | null;
+  setPropertyViewFor: Dispatch<SetStateAction<string | null>>;
+  selectedPageId: string | null;
+  condensedActive: boolean;
+  setCondensedPref: (value: boolean) => void;
+  openSearchPage: (query?: string) => void;
+  handleSignOut: () => Promise<void>;
+  undoUi: UndoUiState;
+  runUndo: () => void;
+  runRedo: () => void;
+  pagesVersion: number;
+  quickAddOpen: boolean;
+  setQuickAddOpen: Dispatch<SetStateAction<boolean>>;
+  presentingId: string | null;
+  setPresentingId: Dispatch<SetStateAction<string | null>>;
+  /** The sync server coordinates for the add-source host (null = offline). */
+  addSourceServerUrl: string | null;
+  addSourceCredential: string;
+  /** Switch the app to a workspace (the import host's json/markdown flows). */
+  openWorkspace: (workspaceId: string, name: string) => void;
+}
+
+export function AppModals(props: AppModalsProps) {
+  const {
+    client,
+    paletteOpen,
+    setPaletteOpen,
+    openPage,
+    onOpenInSidebar,
+    handleNewPage,
+    classCreateOpen,
+    setClassCreateOpen,
+    propertyViewFor,
+    setPropertyViewFor,
+    selectedPageId,
+    condensedActive,
+    setCondensedPref,
+    openSearchPage,
+    handleSignOut,
+    undoUi,
+    runUndo,
+    runRedo,
+    pagesVersion,
+    quickAddOpen,
+    setQuickAddOpen,
+    presentingId,
+    setPresentingId,
+    addSourceServerUrl,
+    addSourceCredential,
+    openWorkspace,
+  } = props;
+  return (
+    <>
+      <CommandPalette
+        client={client}
+        open={paletteOpen}
+        onRequestOpen={() => setPaletteOpen(true)}
+        onClose={() => setPaletteOpen(false)}
+        onOpenNode={openPage}
+        onOpenInSidebar={onOpenInSidebar}
+        onNewPage={(title) => void handleNewPage(title)}
+        onOpenClassCreate={() => setClassCreateOpen(true)}
+        onOpenAddSource={
+          addSourceServerUrl !== null ? () => requestAddSource({}) : undefined
+        }
+        onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
+        currentNodeId={selectedPageId ?? undefined}
+        onOpenMerge={() => requestMerge(selectedPageId ?? undefined)}
+        onOpenMergeGeneral={() => requestMerge()}
+        condensedActive={condensedActive}
+        onToggleCondensed={
+          selectedPageId !== null ? () => setCondensedPref(!condensedActive) : undefined
+        }
+        onOpenSearch={(query) => openSearchPage(query)}
+        onSignOut={() => void handleSignOut()}
+        undoState={undoUi}
+        onUndo={runUndo}
+        onRedo={runRedo}
+        cacheVersion={pagesVersion}
+      />
+      {quickAddOpen && (
+        <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
+      )}
+      {classCreateOpen && (
+        <ClassCreateModal
+          isOpen
+          client={client}
+          onClose={() => setClassCreateOpen(false)}
+          onCreated={(id) => openPage(id)}
+        />
+      )}
+      {/* The unified merge modal's app-level host: the palette's merge rows
+          and the node context menu's "Merge into…" request the modal through
+          the module-level queue; both store modes ride it (the host holds the
+          mode-picked client). Post-merge the host navigates to the target. */}
+      <MergeHost client={client} onOpenNode={openPage} />
+      {propertyViewFor !== null && (
+        <PropertyView
+          client={client}
+          propertySchemaId={propertyViewFor}
+          onClose={() => setPropertyViewFor(null)}
+          onOpenPage={(id) => {
+            setPropertyViewFor(null);
+            openPage(id);
+          }}
+        />
+      )}
+      {/* The mobile quick-create FAB: hosts its own
+          QuickAddModal; CSS surfaces the button only at narrow widths. */}
+      <QuickCreateFab client={client} />
+      {/* The S1 property-creation modal's app-level host: the slash
+          /property command, the Ctrl/Cmd+Alt+P chord, and the
+          VerbPopover create-and-bind request the modal through the
+          module-level queue. */}
+      <PropertyCreateHost client={client} />
+      {/* The add-source dialog's app-level host: the palette row, the
+          Sources settings button, and the picker's paste-URL row request
+          the dialog through the module-level queue (offline: no server
+          coordinates, the host hides itself). */}
+      <AddSourceHost
+        client={client}
+        serverUrl={addSourceServerUrl}
+        credential={addSourceCredential}
+        onCreated={openPage}
+        onOpenNode={openPage}
+      />
+      {/* The unified import modal's app-level host: the palette's "Import…"
+          row (and later the sidebar/settings entries) request the modal
+          through the module-level queue; the workspace-creating sources
+          switch the app through openWorkspace. */}
+      <ImportHost
+        client={client}
+        serverUrl={addSourceServerUrl}
+        credential={addSourceCredential}
+        onOpenWorkspace={openWorkspace}
+      />
+      {presentingId !== null && (
+        <DeckView
+          client={client}
+          pageId={presentingId}
+          onOpenNode={openPage}
+          onClose={() => setPresentingId(null)}
+        />
+      )}
+    </>
+  );
+}

@@ -1,0 +1,247 @@
+/**
+ * Dropdown Component Styles
+ * 
+ * Note: trigger chrome lives as Tailwind classes in SelectTrigger.tsx
+ * (no co-located CSS sheet).
+ */
+
+
+
+
+/* Container for dropdown + clear button */
+.dropdown-container {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+/* Custom trigger rendered as a real button */
+.dropdown-custom-trigger {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dropdown-custom-trigger:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.dropdown {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.dropdown--disabled {
+  opacity: var(--opacity-50);
+  pointer-events: none;
+}
+
+/* Value */
+.dropdown-value {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--md-sys-color-on-surface);
+}
+
+.dropdown-value--placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-70);
+}
+
+/* Menu — the M3 menu ruling gives the panel the 4dp
+   container shape via --radius-menu (was the 8px --shape-floating-panel).
+   The surface rides the elevated popup register with the ContextMenu
+ (-low blended into the dark content):
+   surface-container-high, the step the calendar-popup fix proved. The
+   popover portal owns positioning now (the --portal class is a marker
+   hook for tests/feature CSS); the trigger width rides the popper's CSS
+   var (JS-set by Radix, allowlisted in the drift gate). */
+.dropdown-menu {
+  /* --z-floating: dropdowns fly above the modal band (the tier exists for
+     menus opened from inside dialogs); the popper wrapper hoists this. */
+  z-index: var(--z-floating);
+  min-width: max(var(--layout-size-2xl), var(--radix-popover-trigger-width, 0px));
+  width: max-content;
+  max-width: var(--layout-size-9xl);
+  max-height: var(--layout-size-7xl);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: dropdownFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-menu);
+  box-shadow: var(--elevation-2);
+}
+
+/* The catalog command root rides inside the fleet menu surface — reset
+   its popover chrome (background/radius/foreground) back to the menu
+   register; the unlayered feature CSS wins over the utility layer. */
+.dropdown-command {
+  background: var(--md-sys-color-surface-container-high);
+  border-radius: 0;
+  color: var(--md-sys-color-on-surface);
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: var(--opacity-0);
+    transform: translateY(calc(-1 * var(--spacing-1)));
+  }
+
+  to {
+    opacity: var(--opacity-100);
+    transform: translateY(0);
+  }
+}
+
+/* Search */
+.dropdown-search {
+  padding: var(--spacing-2);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.dropdown-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--md-sys-color-surface-variant);
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.dropdown-search-input:focus {
+  outline: none;
+  border-color: var(--md-sys-color-outline);
+}
+
+/* No :focus-visible suppression here: the global input focus ring
+   (app.css --shadow-focus-ring) applies — killing it left only the
+   low-contrast border-color shift. */
+
+.dropdown-search-input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Options */
+.dropdown-options {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-1);
+}
+
+.dropdown-empty {
+  padding: var(--spacing-4);
+  text-align: center;
+  color: var(--md-sys-color-outline);
+  font-size: var(--font-size-sm);
+}
+
+/* Group — the catalog group heading slot restores the fleet register
+   (uppercase overline label). */
+.dropdown-group [cmdk-group-heading] {
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--md-sys-color-outline);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-badge);
+}
+
+/* Option */
+.dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: none;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.dropdown-option:hover:not(.dropdown-option--disabled) {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.dropdown-option:active:not(.dropdown-option--disabled) {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+.dropdown-option--selected {
+  background: var(--md-sys-color-primary-container);
+}
+
+.dropdown-option--disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.dropdown-option-icon {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.dropdown-option-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro);
+  min-width: 0;
+}
+
+.dropdown-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-option-description {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-outline);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-option-check {
+  flex-shrink: 0;
+  color: var(--md-sys-color-primary);
+}
+
+/* Error message */
+.dropdown-error-message {
+  margin-top: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-error);
+}
+
+/* Footer */
+.dropdown-footer {
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding: var(--spacing-1);
+}
+

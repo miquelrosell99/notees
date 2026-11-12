@@ -1,0 +1,46 @@
+/* BackendDownLock — full-screen lock once a backend outage turns risky */
+
+.backend-down-lock {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--md-sys-color-background);
+  padding: var(--spacing-6);
+  text-align: center;
+}
+
+.backend-down-lock__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  max-width: var(--modal-width-sm);
+}
+
+.backend-down-lock__title {
+  margin: 0;
+  color: var(--md-sys-color-on-background);
+  font: var(--font-headline-small);
+}
+
+.backend-down-lock__message {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-large);
+}
+
+/* Honest risk statement + escape action on the lock. */
+.backend-down-lock__warning {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-medium);
+  max-width: 52ch;
+}
+
+.backend-down-lock__actions {
+  display: flex;
+  justify-content: center;
+}

@@ -1,0 +1,175 @@
+/**
+ * TopBar styles — slim transparent chrome on the background canvas.
+ *
+ * The header carries no surface fill; only a hairline bottom border
+ * separates it from the workspace canvas (owner-approved shell design).
+ * Every icon button rides the fleet catalog Button.
+ */
+
+.nt-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: var(--topbar-height);
+  padding: 0 var(--spacing-3);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.nt-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.nt-topbar-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 var(--spacing-4);
+  overflow: hidden;
+}
+
+.nt-topbar-center .node-breadcrumbs {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+
+/* The in-app Back/Forward pair: rides at the head of the top bar's right
+   section (relocated off the center — the breadcrumbs
+   alone keep the center). */
+.nt-topbar-nav {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-right: var(--spacing-1);
+}
+
+.nt-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+/* The journal cluster: undo + history chevron + redo as one unit.
+   The chevron is a core hover-reveal affordance: collapsed at rest (the
+   surviving trail gap reads as the undo↔redo gap, so the cluster keeps its
+   footprint) and revealed by hovering the cluster, focusing the chevron, or
+   the history popup staying open (the popup mirrors aria-expanded onto the
+   trigger). */
+.nt-topbar-undo {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--spacing-1);
+}
+
+/* The journal cluster's disabled buttons ride the fleet register's own
+   disabled styling (opacity-50) since the 2026-10-20 catalog conversion. */
+
+/* Revealed chevron: tuck -1px against the undo button so the pair reads as
+   a split button; --height-md matches the sibling icon buttons; the 18px
+   width is the icon canvas (the spacing-4-5 step — the glyph metric, the
+   height tokens would resize the icon). */
+.nt-topbar-undo:hover .nt-topbar-undo__chevron.ui-hover-reveal,
+.nt-topbar-undo__chevron.ui-hover-reveal:focus-visible,
+.nt-topbar-undo__chevron.ui-hover-reveal[aria-expanded="true"] {
+  width: var(--spacing-4-5);
+  height: var(--height-md);
+  margin-left: calc(-1 * var(--border-width-default));
+  opacity: var(--opacity-100);
+}
+
+/* The pressed toggles (focus/condensed/layout/calendar) ride the fleet
+   ghost button's active classes since the 2026-10-20 conversion. */
+
+.nt-wordmark {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  letter-spacing: -0.01em;
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The workspace selector (the wordmark's permanent replacement) sizes to
+   its label in the top bar — the sidebar's full-width default must not
+   stretch the left section. */
+.nt-topbar-left .workspace-switcher {
+  width: auto;
+  max-width: 12rem; /* token-gate: constant workspace-switcher label cap ruling — sizes to its label in the top bar, not a scale step */
+}
+
+.nt-topbar-spacer {
+  flex: 1;
+}
+
+.nt-topbar .nt-sync-status {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-sync-status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-sync-status-error {
+  color: var(--md-sys-color-error);
+}
+
+/* Command-palette trigger: a quiet search-shaped pill. */
+.nt-topbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: var(--height-sm);
+  padding: 0 var(--spacing-3);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-topbar-search:hover {
+  background: var(--md-sys-color-hover-overlay);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
+}
+
+  @media (width <= 768px) {
+  .nt-topbar-search-hint {
+    display: none;
+  }
+
+  .nt-topbar-search {
+    padding: 0 var(--spacing-2);
+  }
+}
+
+.nt-sync-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

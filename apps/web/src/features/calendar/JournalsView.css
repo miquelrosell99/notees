@@ -1,0 +1,140 @@
+/* JournalsView — the today-centered journal feed. The root's full-bleed
+   layout lives in PageCard.css (the hub-surface exception): the shared SurfaceTopBar pins above, the list below scrolls
+   at the card border. */
+
+.journals-list {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  /* Stray unbreakable content (long URLs, wide code) clips instead of
+     scrolling the view horizontally (visible with the
+     side panel open, when the feed is at its narrowest). */
+  overflow-x: clip;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-10);
+  /* No horizontal padding: the entries self-cap (each .journal-entry's
+     .nt-page inherits the 46rem centered measure), so the scroller stays
+     flush to the card border. */
+  padding: var(--spacing-4) 0 var(--spacing-12) var(--spacing-6);
+}
+
+.journals-sentinel {
+  height: 1px;
+  flex-shrink: 0;
+}
+
+.journal-entry {
+  /* The list is a column flex container with a fixed height; without this
+     the items shrink to fit and their taller page content paints over the
+     siblings below. The full-width hairline separators retired: whitespace + the date headings carry the day rhythm —
+     the per-entry-card variant was judged against this and lost (the
+     journal is one continuous stream, not a stack of records; and the
+     sticky page header/footer mask themselves with the card SURFACE,
+     which only holds while entries sit on the surface). */
+  flex-shrink: 0;
+  position: relative;
+  min-height: var(--layout-size-xs);
+}
+
+.journal-entry .nt-page {
+  padding: 0;
+  background: transparent;
+}
+
+/* The unrealized day (the permanent-address model): the realized
+   entries' own embedded date header (the DayPageHeader — weekday + Today
+   flags above the title, the week flag after it) with the ghost's "No
+   page" flag, riding DIRECTLY under .nt-page (the journal zeroes the page
+   padding) — so an empty day sits in the day rhythm, aligned with its
+   written neighbors. (.nt-nodeview-body is the panelled layout's cap and
+   carries spacing-6 inline padding — one padding too many here.) The add
+   affordance IS the outliner's GhostRow (its own co-located CSS) — no
+   local styling. */
+
+/* The embedded feed title is a plain heading, not a link — the
+   navigation rides the explicit "Open page" ghost button beside it
+. */
+.nt-page-title-embed {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-page-title-embed__text {
+  font: var(--font-headline-medium);
+  color: var(--md-sys-color-on-surface);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The Open-page button reveals on title-row hover:
+   hidden at rest on fine pointers so the feed stays clean; the wrap
+   spans the row's free width, so hovering the words OR the space
+   beside them reveals it. Opacity (not visibility) keeps the hidden
+   button in the tab order — keyboard focus reveals it through the
+   wrap's :focus-within — and the reserved width means the reveal
+   never shifts the title. Touch devices (no hover) keep the button
+   always visible. A pointer over the button's box is necessarily
+   hovering the row, so the button is always visible before it can
+   be clicked — no invisible click trap. */
+@media (hover: hover) and (pointer: fine) {
+  .nt-page-title-wrap .nt-page-title-embed__open {
+    opacity: 0;
+    transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  }
+
+  .nt-page-title-wrap:hover .nt-page-title-embed__open,
+  .nt-page-title-wrap:focus-within .nt-page-title-embed__open {
+    opacity: 1;
+  }
+}
+
+@media (width <= 768px) {
+  .journals-list {
+    gap: var(--spacing-6);
+    padding: var(--spacing-4) 0;
+  }
+}
+
+/* The side panel: the mini-month navigator + the
+   events element, riding the calendar view's panel width. The feed and
+   the panel sit in a row under the top bar; the feed keeps the card's
+   scroll border, the panel scrolls independently. */
+.journals-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+/* The raised-card register: the panel wears
+   the SAME card element the frame's side panels do (.nt-page-side-panel,
+   MainContentFrame.css) — sidebar-card fill, hairline frame, card radius —
+   instead of a bare column split by a divider. The feed gains a proper
+   left inset (owner: the content hugged the card border). */
+.journals-panel {
+  flex: 0 0 var(--layout-size-8xl);
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin: 0 var(--spacing-3) var(--spacing-3) 0;
+  padding: var(--spacing-4);
+  overflow-y: auto;
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+}
+
+@media (width <= 768px) {
+  .journals-panel {
+    display: none;
+  }
+}

@@ -1,0 +1,99 @@
+/**
+ * Color preset layer tests: the wire grammar helpers (canonicalColor /
+ * cssColorFor / resolveCssColor) and the PRESET_HEX ↔ variables.css parity
+ * guard — the static token→hex map used for contrast/canvas math MUST
+ * mirror the themed CSS table, or pills compute text contrast against the
+ * wrong color.
+ */
+
+import { describe, expect, it } from "vitest";
+
+import { COLOR_PRESET_TOKENS } from "@notees/protocol";
+
+import {
+  PRESET_COLOR_ENTRIES,
+  PRESET_HEX,
+  canonicalColor,
+  coloredPillStyle,
+  cssColorFor,
+  resolveCssColor,
+} from "../src/components/ui/kit/colorPresets.js";
+
+// The web vitest config aliases node:fs to a browser shim, and jsdom makes
+// import.meta.url non-file — so the parity read escapes through Node 22's
+// process.getBuiltinModule (which bypasses module resolution entirely) with
+// a cwd-relative path (pnpm runs each package's tests from its root).
+const readFile = (
+  process as unknown as {
+    getBuiltinModule(name: "node:fs"): { readFileSync(path: string, encoding: "utf8"): string };
+  }
+).getBuiltinModule("node:fs").readFileSync;
+const variablesCss = readFile(`${process.cwd()}/src/ui/variables.css`, "utf8");
+
+describe("colorPresets", () => {
+  it("PRESET_HEX mirrors variables.css --md-sys-color-preset-* exactly (drift guard)", () => {
+    for (const token of COLOR_PRESET_TOKENS) {
+      const match = new RegExp(`--md-sys-color-preset-${token}:\\s*(#[0-9a-fA-F]{6})`).exec(variablesCss);
+      expect(match, `variables.css lacks --md-sys-color-preset-${token}`).not.toBeNull();
+      // The first (light-scheme) definition is the JS representative; mono
+      // additionally flips in the dark block, hence the dedupe below.
+      expect(PRESET_HEX[token]).toBe(match![1]!.toLowerCase());
+    }
+    // No stray preset vars in CSS that the TS map doesn't know (deduped:
+    // mono is defined in both scheme blocks).
+    const cssVars = [...new Set([...variablesCss.matchAll(/--md-sys-color-preset-([a-z]+):/g)].map((m) => m[1]))];
+    expect([...cssVars].sort()).toEqual([...COLOR_PRESET_TOKENS].sort());
+  });
+
+  it("entries cover every token in hue order + gray, labels human-readable", () => {
+    expect(PRESET_COLOR_ENTRIES.map((e) => e.value)).toEqual([...COLOR_PRESET_TOKENS]);
+    expect(PRESET_COLOR_ENTRIES.every((e) => e.label.length > 0)).toBe(true);
+  });
+
+  it("cssColorFor maps tokens to themed vars and passes hex through", () => {
+    expect(cssColorFor("sky")).toBe("var(--md-sys-color-preset-sky)");
+    expect(cssColorFor("#123abc")).toBe("#123abc");
+  });
+
+  it("resolveCssColor maps tokens to concrete hex and passes hex through", () => {
+    expect(resolveCssColor("sky")).toBe(PRESET_HEX.sky);
+    expect(resolveCssColor("#123abc")).toBe("#123abc");
+  });
+
+  it("canonicalColor folds the retired var() encoding to its token", () => {
+    expect(canonicalColor("var(--md-sys-color-preset-red)")).toBe("red");
+    expect(canonicalColor("var(--md-sys-color-preset-sky)")).toBe("sky");
+    // Unknown var names and everything else pass through untouched.
+    expect(canonicalColor("var(--md-sys-color-preset-nope)")).toBe("var(--md-sys-color-preset-nope)");
+    expect(canonicalColor("teal")).toBe("teal");
+    expect(canonicalColor("#abcdef")).toBe("#abcdef");
+  });
+
+  it("helpers agree: cssColorFor(resolveCssColor(x)) never throws and hex is stable", () => {
+    for (const token of COLOR_PRESET_TOKENS) {
+      expect(cssColorFor(token)).toBe(`var(--md-sys-color-preset-${token})`);
+      expect(resolveCssColor(token)).toMatch(/^#[0-9a-f]{6}$/);
+    }
+  });
+
+  it("coloredPillStyle (PG16 option colors): themed background + readable foreground; null stays undefined", () => {
+    // Tokens resolve to the themed var; the foreground is picked from the
+    // concrete hex luminance (same convention as the class pills).
+    const sky = coloredPillStyle("sky")!;
+    expect(sky.background).toBe("var(--md-sys-color-preset-sky)");
+    expect([ "var(--md-sys-color-black)", "var(--md-sys-color-white)" ]).toContain(sky.color);
+    // A dark custom hex gets light text and passes the hex through.
+    const dark = coloredPillStyle("#102030")!;
+    expect(dark.background).toBe("#102030");
+    expect(dark.color).toBe("var(--md-sys-color-white)");
+    // Mono flips with the scheme — the foreground rides the surface color
+    // (always the swatch's inverse) instead of luminance math on one hex.
+    const mono = coloredPillStyle("mono")!;
+    expect(mono.background).toBe("var(--md-sys-color-preset-mono)");
+    expect(mono.color).toBe("var(--md-sys-color-surface)");
+    // Absence is undefined (callers spread unconditionally).
+    expect(coloredPillStyle(null)).toBeUndefined();
+    expect(coloredPillStyle(undefined)).toBeUndefined();
+    expect(coloredPillStyle("")).toBeUndefined();
+  });
+});

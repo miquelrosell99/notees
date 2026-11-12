@@ -1,0 +1,80 @@
+.context-menu-color-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: none;
+  border-radius: var(--shape-large) var(--shape-large) 0 0;
+}
+
+.context-menu-color-label {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.context-menu-color-swatches {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-wrap: wrap;
+}
+
+.context-menu-color-swatch {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  border-radius: var(--shape-small);
+  border: var(--border-width-thick) solid transparent;
+  cursor: pointer;
+  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.context-menu-color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.context-menu-color-swatch.selected {
+  border-color: var(--md-sys-color-primary);
+  box-shadow: var(--shadow-focus-ring-primary-container);
+}
+
+.context-menu-color-swatch.no-color {
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  position: relative;
+}
+
+.context-menu-color-swatch-line {
+  position: absolute;
+  width: 100%;
+  height: var(--shape-extra-small);
+  background: var(--md-sys-color-error);
+  transform: rotate(-45deg);
+}
+
+/* Bare hosting (the node context menu's Color › flyout): the surrounding
+   submenu card already carries the surface/border/radius, and the submenu
+   trigger row already names the section — strip all three. */
+.context-menu-color-row--bare {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+}
+
+.context-menu-color-row--bare .context-menu-color-label {
+  display: none;
+}
+
+/* The flyout hosting (the node context menu's Color › submenu) rides the
+   kit picker's grid register (color-btn-picker__grid: four columns) — a
+   wrapping flex row raggedly breaks at the flyout's edge; the grid keeps
+   the eleven presets + the no-color strike in a tidy 4×3. */
+.context-menu-color-row--bare .context-menu-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}

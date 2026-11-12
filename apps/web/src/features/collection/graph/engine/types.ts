@@ -1,0 +1,152 @@
+/**
+ * Core type definitions..
+ *
+ * Public API types and internal engine descriptors.
+ */
+
+// ─── Public config ────────────────────────────────────────────────────────────
+
+/** User-facing physics configuration — maps directly from GraphSettings. */
+export interface GraphEnginePhysicsConfig {
+  preset: 'sparse' | 'balanced' | 'compact' | 'clustered';
+  /** Center gravity strength slider (0–100). Maps to componentCenterStrength. */
+  centralGravity: number;
+  linkCountAttraction: boolean;
+  clustering: boolean;
+  /** Mass accumulation: heavy parents (descendant weight) resist movement. */
+  massAccumulation?: boolean;
+  /** Cluster separation slider (0–100) — scales the inter-cluster margin. */
+  clusterSeparation?: number;
+  /**
+   * Starting per-node activity for a FRESH engine only (default 1.0).
+   * GraphView passes 0.2 when ≥70% of the nodes carry cached positions — a
+   * warm layout opens nearly still and finishes cooling in a second or two.
+   * Topology updates and reheats always restore full activity regardless.
+   */
+  initialAlpha?: number;
+}
+
+/** Raw numeric configuration consumed by the engine. */
+export interface GraphEngineConfig {
+  seed: number;
+  springStrength: number;
+  idealDistance: number;
+  clusterStrength: number;
+  clusterRepelStrength: number;
+  /** Size-aware soft-shell repulsion between community centroids. */
+  clusterShellStrength: number;
+  /** Preferred gap between cluster surfaces (the separation margin). */
+  clusterMargin: number;
+  clusterSpacing: number;
+  localRepelStrength: number;
+  localRepelRadius: number;
+  componentCenterStrength: number;
+  componentSpacing: number;
+  // ─── Energy-gated convergence ────────────────────────────────────────────
+  /** Per-tick exponential decay of every node's activity alpha (d3 model). */
+  alphaDecay: number;
+  /** Below this alpha a node contributes no force and is eligible to freeze. */
+  alphaMin: number;
+  /** Per-node activity seeded when a FRESH engine starts (default 1.0). */
+  initialAlpha?: number;
+  /** Mean kinetic energy under which the graph counts as still. */
+  settleEnergyEps: number;
+  /** Consecutive still ticks required before the engine declares settled. */
+  settleTicks: number;
+  /** Radius around a drag within which nodes are reheated. */
+  influenceRadius: number;
+  /** Alpha injected into nodes inside the influence radius on interaction. */
+  reheatAlpha: number;
+  /** Constant per-tick velocity retention (dissipative drag). */
+  drag: number;
+  maxVelocity: number;
+  dt: number;
+  bhTheta: number;
+  linkCountAttraction: boolean;
+  /** True → acceleration divides by the node's mass (integrator). */
+  useMass: boolean;
+}
+
+// ─── Edge descriptor ──────────────────────────────────────────────────────────
+
+export interface GraphEngineEdge {
+  source: string;
+  target: string;
+  type?: string;
+  weight?: number;
+}
+
+// ─── State views ──────────────────────────────────────────────────────────────
+
+/** Typed-array views into the SoA physics state. Valid for indices [0..nodeCount). */
+export interface GraphEngineState {
+  posX: Float32Array;
+  posY: Float32Array;
+  velX: Float32Array;
+  velY: Float32Array;
+  nodeIdArr: string[];
+  nodeCount: number;
+  energy: number;
+  ticks: number;
+  /** True when the graph has converged and frozen (no force is acting). */
+  settled: boolean;
+}
+
+// ─── Internal node descriptor ─────────────────────────────────────────────────
+
+/** Compact node used during engine init — no rendering data. */
+export interface GraphEngineNode {
+  nodeUuid: string;
+  x?: number;
+  y?: number;
+  connectionCount?: number;
+  /** Descendant weight; 1 when absent. Consumed when useMass is on. */
+  mass?: number;
+  pinned?: boolean;
+}
+
+// ─── Per-link-type physics multipliers ────────────────────────────────────────
+
+export const LINK_REST_MULT: Record<string, number> = {
+  parent: 0.6,
+  extends: 0.7,
+  class: 0.8,
+  reference: 1.0,
+  'property-reference': 1.1,
+  cooccurrence: 1.6,
+  temporal: 2.0,
+  // v2 edge kinds (the graph projection families):
+  mention: 1.0,
+  property: 1.1,
+  semantic: 1.6,
+};
+
+export const LINK_STIFF_MULT: Record<string, number> = {
+  parent: 1.3,
+  extends: 1.2,
+  class: 1.0,
+  reference: 0.9,
+  'property-reference': 0.8,
+  cooccurrence: 0.4,
+  temporal: 0.3,
+  // v2 edge kinds:
+  mention: 0.9,
+  property: 0.95,
+  semantic: 0.7,
+};
+
+/** Asymmetry factor applied when a link is shorter than its rest length.
+ *  Values > 1 make the link resist compression more strongly. */
+export const LINK_COMPRESS_MULT: Record<string, number> = {
+  parent: 3.0,
+  extends: 2.5,
+  class: 2.0,
+  reference: 1.0,
+  'property-reference': 1.2,
+  cooccurrence: 0.6,
+  temporal: 0.5,
+  // v2 edge kinds:
+  mention: 0.6,
+  property: 0.7,
+  semantic: 0.4,
+};

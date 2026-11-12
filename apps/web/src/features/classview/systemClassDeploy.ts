@@ -1,0 +1,473 @@
+/**
+ * System-class deployment (#14) — the client-side self-heal that mirrors
+ * the server workspace seed (apps/server/src/seed.ts) one class at a time,
+ * in the meetingFamily.ts / ensureTaskFamily precedent.
+ *
+ * A workspace can be missing seeded system classes it never received
+ * (offline-first devices; workspaces created before a seed joined the
+ * manifest). `deploySystemClass` authors ONE class idempotently at its
+ * fixed seed uuid — the class node, its extends edges (ancestors deployed
+ * first: an edge has nothing to attach to without the parent row), and its
+ * property family from the seed manifest (SYSTEM_PROPERTY_SPECS bound to
+ * the class + the SYSTEM_EXTRA_CLASS_BINDINGS and
+ * SYSTEM_SOURCE_CLASS_BINDINGS rows). Every step checks
+ * existence first, so re-running is a complete no-op — and the binding
+ * steps check the REGISTRY rows only (getRegistryBindings), never the
+ * seed-spec fallback read: the fallback makes a class LOOK bound while no
+ * class_property row exists, which used to defeat this self-heal entirely.
+ * All existing ops — nothing here mints new vocabulary.
+ *
+ * Cache coherence: every no-op guard read rides the clients' *Fresh
+ * (uncached) surface, never the WorkerClient's render cache — a cold or
+ * dirty cache key answers the empty default synchronously (undefined for
+ * getNodeRaw, [] for the list reads, default-on for the feature toggle),
+ * which on a cold boot used to re-stamp seed envelopes for rows the store
+ * already carried — each redundant write journaled by the undo journal, so
+ * undoing an unrelated gesture could invert no-op deploy ops (the
+ * getClassDisplayTemplateFresh precedent: write decisions plan from
+ * uncached reads).
+ *
+ * The `task` family is the one exception to the generic path: its schemas
+ * carry the designed status options + the bullet display position, a
+ * contract that lives in TASK_FAMILY_SEED and is authored by
+ * ensureTaskFamily — deployment delegates to it after the class node
+ * exists.
+ *
+ * The deployment CATALOG (which classes the gallery offers) is this module's `gallerySections` — the domain supplies the
+ * seed manifest + the locked set; this module never mints new vocabulary.
+ */
+
+import {
+  featureForBaseClass,
+  LOCKED_SYSTEM_CLASSES,
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_DESCRIPTIONS,
+  SYSTEM_CLASS_DISPLAY_TEMPLATES,
+  SYSTEM_CLASS_EXTENDS,
+  SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_EXTRA_CLASS_BINDINGS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
+  SYSTEM_PROPERTY_SPECS,
+  SYSTEM_PROPERTY_UUIDS,
+  SYSTEM_SOURCE_CLASS_BINDINGS,
+  sourceBindingPropertyOf,
+  type SystemClassName,
+  type SystemPropertyName,
+} from "@notees/domain";
+
+import type { WorkspaceFeature } from "@notees/protocol";
+
+import { WorkerClient } from "@/core/worker-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
+
+import { ensureTaskFamily } from "./taskFamily.js";
+
+type AnyClient = WorkspaceClient | WorkerClient;
+
+/**
+ * The class's OWN displayTemplate through a FRESH read — never the
+ * WorkerClient's render cache. Deploy-time convergence decides on
+ * `=== null`, and the cached read's cold-cache default IS null: a cold
+ * deploy of an existing class would mistake a user-set template for
+ * "never set" and clobber it (the getChildrenFresh precedent — write
+ * decisions plan from uncached reads). The in-process WorkspaceClient
+ * reads the store directly, so its sync read is already fresh.
+ */
+async function ownDisplayTemplate(client: AnyClient, classId: string): Promise<string | null> {
+  if (client instanceof WorkerClient) {
+    return client.getClassDisplayTemplateFresh(classId);
+  }
+  return client.getClassDisplayTemplate(classId);
+}
+
+/** Set-equality over a stored schema scope (null = global) and the seeded scope. */
+function scopeEquals(stored: string[] | null, seeded: string[] | null): boolean {
+  if (stored === null || seeded === null) return stored === seeded;
+  return stored.length === seeded.length && stored.every((id) => seeded.includes(id));
+}
+
+/**
+ * Deploy one system class at its fixed seed uuid: ancestors first, then
+ * the class node, then the extends edges, then the property family. A
+ * complete no-op once present (including a dropped edge or binding — the
+ * per-step existence checks re-author whatever is missing). The recursion
+ * guard is defensive: the seed's extends graph is a DAG by construction.
+ *
+ * Enable semantics:
+ * picking a class in the gallery ENABLES it. A family base picked while
+ * its feature toggle is off writes `workspace.feature.set {enabled: true}`
+ * FIRST (the F4 inverse — the toggle derivation revives the whole family,
+ * membership rides); any other archived seed is un-archived with
+ * `object.update {active: true}` after the rows exist. Disable is the
+ * delete gesture's routing (never this helper).
+ */
+export async function deploySystemClass(
+  client: AnyClient,
+  key: SystemClassName,
+  visiting: ReadonlySet<SystemClassName> = new Set(),
+): Promise<string> {
+  if (visiting.has(key)) {
+    throw new Error(`deploySystemClass: cycle in the seed extends graph at "${key}"`);
+  }
+  const guard = new Set<SystemClassName>(visiting).add(key);
+  const classId = SYSTEM_CLASS_UUIDS[key];
+
+  // Ancestors first: class.setExtends needs the parent rows to exist.
+  const parents = SYSTEM_CLASS_EXTENDS[key] ?? [];
+  for (const parent of parents) {
+    await deploySystemClass(client, parent, guard);
+  }
+
+  // The F4 inverse: a family base deploy ENABLES its feature — the toggle
+  // derivation archives/revives the whole family, so a disabled family
+  // revives with this one write (the class rows below land active).
+  const ownFeature = featureForBaseClass(key);
+  if (ownFeature !== null && !(await client.isFeatureEnabledFresh(ownFeature))) {
+    await client.setFeatureEnabled(ownFeature, true);
+  }
+
+  if ((await client.getNodeRawFresh(classId)) === undefined) {
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES[key], {
+      id: classId,
+      icon: SYSTEM_CLASS_ICONS[key],
+      // The parentlessRole render contract: flagged
+      // classes' standalone members render Block-role. Extends-children of a
+      // flagged base (meeting/birthday ← event) need no flag — the effective
+      // demote derives at read time.
+      ...(SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK.has(key)
+        ? { parentlessRole: "block" as const }
+        : {}),
+    });
+    // The displayTemplate seed is NOT part of the create — it lands at the
+    // deploy tail (see below), after the property family exists.
+  }
+
+  // Un-archive an archived seed (the gallery's enable pick). The family
+  // rows were revived by the toggle derivation above; this covers every
+  // other archived class (and is a no-op when the bit already stands).
+  if ((await client.getNodeRawFresh(classId))?.isActive === false) {
+    await client.updateObject(classId, { active: true });
+  }
+
+  if (parents.length > 0) {
+    const parentIds = parents.map((parent) => SYSTEM_CLASS_UUIDS[parent]);
+    const current = await client.getClassParentsFresh(classId);
+    if (parentIds.some((id) => !current.includes(id))) {
+      // Replace semantics with exactly the seeded parent set — a re-run
+      // converges with the server seed.
+      await client.setClassExtends(classId, parentIds);
+    }
+  }
+
+  // The task family's contract (options + display) lives in
+  // TASK_FAMILY_SEED, not SYSTEM_PROPERTY_SPECS — delegate. (Its early
+  // return retired: the displayTemplate tail below runs for every key —
+  // a no-op for task, which carries no manifest entry.)
+  if (key === "task") {
+    await ensureTaskFamily(client);
+  } else {
+    // Generic family: the manifest's specs bound to this class (binding rows
+    // carry no order — a pin is a classification, never an order;
+    // sequence retired 2026-10-21). The existence check reads
+    // the REGISTRY only (getRegistryBindings):
+    // getClassBindings read-synthesizes the seed-spec fallback rows, so a
+    // workspace whose binding rows were never authored would LOOK bound
+    // through that read and the self-heal would author nothing — the ClassView
+    // renders configured while the registry-only effective-properties read
+    // sees no bindings. Own rows only: an inherited binding is not this
+    // class's row, and the seeded shape binds every spec on its own class.
+    const family = (
+      Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
+        [SystemPropertyName, (typeof SYSTEM_PROPERTY_SPECS)[SystemPropertyName]]
+      >
+    ).filter(([, spec]) => {
+      if (spec === undefined) return false;
+      // A list-valued bindTo (the multi-class bind — `repeat`) binds the spec
+      // on EVERY named class: the filter is a membership test. Single values
+      // keep the historical strict-match behavior (one-element membership).
+      const bindToNames = Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
+      return bindToNames.includes(key);
+    });
+    if (family.length > 0) {
+      const existing = new Map(
+        (await client.listPropertySchemasFresh()).map((schema) => [schema.id, schema]),
+      );
+      for (const [name, spec] of family) {
+        const schemaId = SYSTEM_PROPERTY_UUIDS[name];
+        // The seeded scope for this spec: global (the scope-audit flips — url,
+        // the task family) unless the spec stays a family-identity field. A
+        // list-valued bindTo seeds the UNION scope (the repeat precedent —
+        // the multi-class bind's family-identity shape); a single bind
+        // reduces to [classId], the historical shape.
+        const seededScope =
+          spec!.global === true
+            ? null
+            : (Array.isArray(spec!.bindTo) ? spec!.bindTo : [spec!.bindTo!]).map(
+                (className) => SYSTEM_CLASS_UUIDS[className],
+              );
+        const stored = existing.get(schemaId);
+        if (stored === undefined) {
+          await client.createPropertySchema({
+            id: schemaId,
+            name: SYSTEM_PROPERTY_DISPLAY_NAMES[name],
+            type: spec!.type,
+            multi: spec!.multi ?? false,
+            // Scoped to this class unless the spec is marked `global` — the
+            // binding rows below land either way (bindings are per-class config).
+            ...(seededScope === null ? {} : { scopeClassIds: seededScope }),
+            // The spec's default is SCHEMA-level (one
+            // global default per property, the Logseq shape).
+            ...(spec!.defaultValue !== undefined ? { defaultValue: spec!.defaultValue } : {}),
+            ...(spec!.options !== undefined ? { options: spec!.options } : {}),
+            ...(spec!.targetClassFilter !== undefined
+              ? { targetClassFilter: spec!.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
+              : {}),
+          });
+        } else if (!scopeEquals(stored.scopeClassIds, seededScope)) {
+          // Pre-ruling drift (url bound to source now — a
+          // stored url schema still scoped [web_page] would make the family
+          // base's binding dead config, R5 rejects it): converge the scope to
+          // the seed BEFORE the binding row below (the offline-first twin of
+          // scripts/migrate-seed-scope-flips.mts).
+          await client.updatePropertySchema(schemaId, { scopeClassIds: seededScope });
+        }
+      }
+      const registry = await client.getRegistryBindingsFresh(classId);
+      const bound = new Set(registry.map((binding) => binding.propertySchemaId));
+      for (const [name, spec] of family) {
+        const schemaId = SYSTEM_PROPERTY_UUIDS[name];
+        // `bind: false`: schema-only seed — no
+        // binding row on `bindTo` (the source pool's type-specific fields bind
+        // on their own classes via SYSTEM_SOURCE_CLASS_BINDINGS below).
+        if (bound.has(schemaId) || spec!.bind === false) continue;
+        await client.setClassProperty(classId, schemaId, {
+          ...(spec!.pinned !== undefined ? { pinned: spec!.pinned } : {}),
+          ...(spec!.showInNodeRows !== undefined ? { showInNodeRows: spec!.showInNodeRows } : {}),
+        });
+      }
+    }
+
+    // The manifest's extra binding rows for this class (an extends-child
+    // re-binding an inherited schema so class-local binding reads see it —
+    // the birthday→eventDate shape). Registry-only check here too: birthday
+    // inherits event's eventDate row once the parent is deployed, and an
+    // extends-aware check would mistake that inheritance for the class-local
+    // row the calendar quick-create eligibility walk reads.
+    for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
+      if (extra.bindTo !== key) continue;
+      const bound = (await client.getRegistryBindingsFresh(classId)).some(
+        (binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property],
+      );
+      if (bound) continue;
+      await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
+        ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
+        ...(extra.showInNodeRows !== undefined ? { showInNodeRows: extra.showInNodeRows } : {}),
+      });
+    }
+
+    // The source library's per-class rows (SYSTEM_SOURCE_CLASS_BINDINGS): the class's Zotero field list re-bound on the class itself
+    // (the pool schemas ride the source base — the recursive parent deploy
+    // above authors them + the base rows). Registry-only check, the same
+    // own-row precedent: an extends-aware check would mistake the inherited
+    // base row for this class's class-local row.
+    const sourceBindings = SYSTEM_SOURCE_CLASS_BINDINGS[key];
+    if (sourceBindings !== undefined) {
+      for (const ref of sourceBindings) {
+        const property = sourceBindingPropertyOf(ref);
+        const pinned = typeof ref === "string" ? undefined : ref.pinned;
+        const showInNodeRows = typeof ref === "string" ? undefined : ref.showInNodeRows;
+        const bound = (await client.getRegistryBindingsFresh(classId)).some(
+          (binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[property],
+        );
+        if (bound) continue;
+        await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[property], {
+          ...(pinned !== undefined ? { pinned } : {}),
+          ...(showInNodeRows !== undefined ? { showInNodeRows } : {}),
+        });
+      }
+    }
+  }
+
+  // The displayTemplate seed — the deploy TAIL, on ONE code path for the
+  // fresh-create and the existing-class cases. Written LAST, after the
+  // property family above exists: the write-time placeholder validation
+  // (SCHEMA.md "Class-level displayTemplate") resolves {{name}} placeholders
+  // against the schemas available to the class, and a fresh class's own
+  // family is authored by this same deploy. Convergence is strictly NULL-
+  // only: a class this deploy just created reads NULL by construction; an
+  // existing non-NULL column (a user-set template OR a user-set "" opt-out)
+  // is NEVER overwritten (the ruling; existing workspaces converge by the
+  // one-time migration — this is the fresh-workspace/offline self-heal
+  // twin). The read is FRESH (ownDisplayTemplate): under the WorkerClient
+  // the render cache's cold-cache default IS null — the exact "never set"
+  // sentinel — so a cached read here would clobber a user-set template on a
+  // cold deploy.
+  const manifestTemplate = SYSTEM_CLASS_DISPLAY_TEMPLATES[key];
+  if (manifestTemplate !== undefined && (await ownDisplayTemplate(client, classId)) === null) {
+    await client.updateClassDisplayTemplate(classId, manifestTemplate);
+  }
+
+  return classId;
+}
+
+/**
+ * Heal the web_page→source extension on EXISTING workspaces (the owner
+ * ruling that made the web page a source-family class). The seed map
+ * carries the edge, so NEW workspaces receive it from the server seed;
+ * a workspace that already has the web_page class but predates the edge
+ * materializes it here — `deploySystemClass` is existence-checked per
+ * step (ancestors first: the source root, then the class node, the edge,
+ * the url family), so a converged workspace is a complete no-op and a
+ * re-run converges by idempotence.
+ *
+ * Declaration-first, the meetingFamily precedent: nothing calls this
+ * automatically — configure now, wire later.
+ */
+export async function ensureWeblinkExtendsSource(client: AnyClient): Promise<void> {
+  const current = await client.getClassParentsFresh(SYSTEM_CLASS_UUIDS.web_page);
+  if (current.includes(SYSTEM_CLASS_UUIDS.source)) return;
+  await deploySystemClass(client, "web_page");
+}
+
+// --- the classes gallery --------------------------------
+//
+// The class-creation entry point is a Capacities-style gallery: a card grid
+// of the system classes the workspace does not have ENABLED, grouped in
+// sections, where picking a card ENABLES the class (deploySystemClass — the
+// F4 inverse for family bases, un-archive for archived seeds). Locked
+// classes never appear (un-removable platform structure); enabled classes
+// are managed on their class pages, not here.
+
+/** Section grouping for the gallery card grid (presentation only). */
+const GALLERY_SECTIONS: Array<{ id: string; title: string; members: SystemClassName[] }> = [
+  {
+    id: "people",
+    title: "People",
+    members: ["person", "organization", "agent"],
+  },
+  {
+    id: "sources",
+    title: "Sources",
+    members: ["source", "book", "journal_article", "thesis", "document", "web_page", "conference"],
+  },
+  {
+    id: "events-tasks",
+    title: "Events & tasks",
+    members: ["event", "meeting", "birthday", "trip", "task"],
+  },
+  {
+    id: "knowledge",
+    title: "Knowledge",
+    members: [
+      "quote",
+      "definition",
+      "idea",
+      "project",
+      "place",
+      "collection",
+      "highlight",
+      "card",
+      "cloze",
+      "note",
+      "tip",
+      "info",
+      "warning",
+      "danger",
+      "success",
+    ],
+  },
+  {
+    id: "media",
+    title: "Media",
+    members: ["film", "song", "tv_series"],
+  },
+  {
+    id: "more",
+    title: "More",
+    members: ["whiteboard"],
+  },
+];
+
+const LOCKED_SET: ReadonlySet<SystemClassName> = new Set(LOCKED_SYSTEM_CLASSES);
+
+export interface GalleryEntry {
+  key: SystemClassName;
+  /** False when the class node exists but is archived (pick re-enables). */
+  missing: boolean;
+}
+
+export interface GallerySection {
+  id: string;
+  title: string;
+  entries: GalleryEntry[];
+}
+
+/**
+ * The gallery's catalog: every non-locked system class the workspace does
+ * not have enabled — the node missing entirely, or present but archived
+ * (the gallery's disabled state). Enabled classes (node exists, active)
+ * are managed on their class pages and never listed. Read through
+ * getNodeRaw; the modal re-reads on every render so a pick drops the card
+ * out of the grid.
+ */
+export function gallerySections(
+  client: Pick<AnyClient, "getNodeRaw">,
+): GallerySection[] {
+  const offered = new Set<SystemClassName>();
+  const sections: GallerySection[] = [];
+  for (const section of GALLERY_SECTIONS) {
+    const entries: GalleryEntry[] = [];
+    for (const key of section.members) {
+      if (LOCKED_SET.has(key) || offered.has(key)) continue;
+      offered.add(key);
+      const node = client.getNodeRaw(SYSTEM_CLASS_UUIDS[key]);
+      if (node !== undefined && node.isActive) continue;
+      entries.push({ key, missing: node === undefined });
+    }
+    if (entries.length > 0) sections.push({ id: section.id, title: section.title, entries });
+  }
+  return sections;
+}
+
+/** The card text pair (display name + one-line description). */
+export function galleryCardText(key: SystemClassName): { label: string; description: string } {
+  return {
+    label: SYSTEM_CLASS_DISPLAY_NAMES[key],
+    description: SYSTEM_CLASS_DESCRIPTIONS[key],
+  };
+}
+
+/**
+ * Enable one ARCHIVED system class (the picker's dimmed Enable row) — the
+ * gallery pick semantics for a class whose node already exists: a family
+ * base writes the toggle's `{enabled: true}` (the F4 inverse — the toggle
+ * derivation revives the whole family's rows); any other archived class
+ * un-archives (`object.update {active: true}`). The minimal seam (no
+ * deploy/ensure — the node exists, only its bit is off).
+ */
+export interface EnableArchivedClient {
+  isFeatureEnabled?(feature: string): boolean;
+  setFeatureEnabled?(feature: WorkspaceFeature, enabled: boolean): Promise<void>;
+  updateObject(id: string, fields: { active?: boolean }): Promise<void>;
+}
+
+export async function enableArchivedSystemClass(
+  client: EnableArchivedClient,
+  key: SystemClassName,
+): Promise<void> {
+  const feature = featureForBaseClass(key);
+  // Absent read / absent writer = enabled / best-effort (minimal seams):
+  // a family base with the toggle off goes through the F4 inverse when the
+  // toggle write is available; the unarchive below is the catch-all.
+  if (
+    feature !== null &&
+    client.setFeatureEnabled !== undefined &&
+    client.isFeatureEnabled?.(feature) === false
+  ) {
+    await client.setFeatureEnabled(feature, true);
+    return;
+  }
+  await client.updateObject(SYSTEM_CLASS_UUIDS[key], { active: true });
+}

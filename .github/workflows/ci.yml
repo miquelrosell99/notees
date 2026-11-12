@@ -20,6 +20,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # brand is the design-token source (git submodule); the core
+          # packages are workspace projects in this repo — no vendor pin.
+          submodules: recursive
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
@@ -49,6 +53,16 @@ jobs:
       - name: OpenAPI route coverage
         run: pnpm -C apps/server exec vitest run test/openapi-coverage.test.ts test/error-taxonomy.test.ts
 
-  # CSS token-drift gate (colors, motion, spacing, z-index) lives in the
-  # notees-web repo — this repo has no app CSS.
-
+  # CSS token-drift gate: app CSS references tokens, never law-owned literals
+  # (colors, motion, spacing, z-index). Dependency-free; no pnpm install.
+  css-token-drift:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Gate self-tests
+        run: node --test scripts/check-css-tokens.test.mjs
+      - name: CSS token drift
+        run: node scripts/check-css-tokens.mjs

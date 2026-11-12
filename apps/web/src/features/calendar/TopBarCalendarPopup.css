@@ -1,0 +1,74 @@
+/* CalendarPopup — top-bar calendar. Tokens from variables.css. */
+
+.calendar-popup {
+  position: fixed;
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--elevation-2);
+  padding: var(--spacing-3);
+  /* --z-floating: transient popups fly above the modal band. */
+  z-index: var(--z-floating);
+  min-width: var(--layout-size-4xl);
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+}
+
+.calendar-nav-row {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.calendar-zoom {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.calendar-year-range {
+  padding: var(--spacing-1) var(--spacing-2);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.calendar-months {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-micro);
+}
+
+.calendar-years {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-micro);
+}
+
+.calendar-month.btn,
+.calendar-year-pick.btn {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-1);
+  position: relative;
+}
+
+/* The invisible 48px hit-area floor (M3's 48dp minimum): the popup's and the datepicker's
+   month/year picks keep their grid geometry; the ::after overlay centered
+   on each reaches ≥48×48. */
+.calendar-month.btn::after,
+.calendar-year-pick.btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}

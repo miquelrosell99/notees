@@ -1,0 +1,1158 @@
+/**
+ * App — boot flow + shell composition.
+ *
+ * Boot flow (offline-first, account-based):
+ *  1. "server"     — enter the sync server URL (prefilled by /config.js or
+ *                    remembered); the client fetches /server-info and picks:
+ *  2. "setup"      — no users on the server yet → create the admin account;
+ *  3. "login"      — email + password → session token;
+ *  4. "workspaces" — pick a workspace, create one, or adopt "this device's"
+ *                    offline workspace (its unpushed backlog pushes on
+ *                    connect — the durable local op log);
+ *  5. "ready"      — the shell over a WorkerClient (OPFS-persisted store):
+ *                    transparent topbar + sidebar straight on the background
+ *                    canvas, one floating content card (PageCard) hosting
+ *                    the node view, and the Ctrl/Cmd+K command palette.
+ *                    "Work offline" skips 1–4 entirely: a local workspace
+ *                    with no server, sync pending until a later login
+ *                    adopts it.
+ *
+ * Session resume (fresh tab with a remembered credential) validates it
+ * against the server first: 401/403 clears it and lands on the sign-in
+ * screen, but a server that does not answer keeps the credential and opens
+ * the remembered workspace from its local copy — the boot is local-first,
+ * the avatar sync badge carries the outage state (badge only — the old
+ * banner was retired, BackendDownLock's risk gate is the one interrupting
+ * surface), and the realtime reconnect catches up when the server returns.
+ * The workspace
+ * switcher and manager fall back the same way: the device-local registry
+ * (workspace-registry.ts — the last server list + which workspaces hold a
+ * copy here) lists every locally-copied workspace while the server can't
+ * answer. Only sign-out, "Disconnect & forget", or a rejected credential
+ * returns to screen 1.
+ *
+ * The shell components live in ./components (TopBar, Sidebar, PageCard,
+ * CommandPalette); App stays composition + boot phases.
+ *
+ * The session token travels in the credential slot the relay API key used
+ * to occupy (X-API-Key / Bearer); the operator API key keeps working for
+ * the CLI. After connect the WS acceleration path is wired (startRealtime)
+ * and the topbar polls the worker's sync status.
+ */
+
+import { useEffect, useRef, useState } from "react";
+
+import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client/index.js";
+import { EMPTY_UNDO_STATE } from "@/core/undo-journal.js";
+import {
+  rememberWorkspaceName,
+  rememberedWorkspaceList,
+} from "@/core/workspace-registry.js";
+import { logout, unlock } from "@/core/auth-api.js";
+import { deriveMasterKey } from "@/core/crypto-custody.js";
+import {
+  clearCryptoCustody,
+  currentMasterKey,
+  ensureWorkspaceKey,
+} from "@/core/crypto-custody.js";
+
+import { titleOfNode } from "./dateDisplay.js";
+import { parentlessBlockResolverOf } from "./renderStateLabel.js";
+import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
+import { rendersAsInlineBlock } from "@notees/domain";
+import { type NavKey } from "./app/Sidebar.js";
+import { recordRecent } from "../features/sidebar/recentPages.js";
+import { resolveAliasOpen } from "../features/metadata/aliasProperty.js";
+import { syncSourceCitekey } from "../features/sources/citekeyTrack.js";
+import { WorkspacesView } from "../features/workspaces/WorkspacesView.js";
+import {
+  SettingsPage,
+  pathForSettingsSection,
+  settingsSectionFromPath,
+  type SettingsSection,
+} from "../features/settings/SettingsPage.js";
+import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "../features/settings/deviceSettings.js";
+import {
+  DEFAULT_SOURCES_QUERY,
+  parseSourcesQuery,
+  sourcesPathFor,
+  type SourcesQueryState,
+} from "../features/sources/sourcesQuery.js";
+import { useCondensedPreference } from "./viewPrefs.js";
+import { UnlockWorkspaceModal } from "../features/modals/UnlockWorkspaceModal.js";
+import { AdoptionOfferModal } from "../features/modals/AdoptionOfferModal.js";
+import { confirmWorkspaceAdoption } from "./app/store-connection.js";
+import {
+  AppBody,
+  AppModals,
+  AppOverlays,
+  AppTopBar,
+  BootForm,
+  HubView,
+  STORAGE_KEYS,
+  clearStored,
+  currentNavUrl,
+  initialNav,
+  initialServerUrl,
+  calendarRouteFromPath,
+  cardsReviewFromPath,
+  pathForCalendar,
+  pathForNav,
+  popStateNavHandler,
+  pushSettingsSection,
+  readStored,
+  recordNavPop,
+  recordNavPush,
+  tabTitle,
+  type CalendarRoute,
+  type CalendarZoom,
+  type CredentialType,
+  type NavStack,
+  useBootFlow,
+  useGlobalGestures,
+  useRailCards,
+  useUndoChrome,
+  useWorkspaceConnection,
+} from "./app/index.js";
+import { ConnectingScreen } from "./app/ConnectingScreen.js";
+import { useTabRelay } from "./app/useTabRelay.js";
+// The global stylesheet family, in cascade order — the contract the
+// 2026-10-28 co-location pass established: app.css was the LAST css import,
+// so every file below imports at this same spot, in this exact order, and
+// the cascade is unchanged. app.css itself is the remnant (the fonts/
+// variables imports, the tailwind layers, the preflight-lite resets);
+// everything else moved here from the old app.css grab-bag, one file per
+// surface, co-located with its owner component. Edit the surface file, not
+// this list's order.
+import "./app.css";
+import "./app/AppShell.css";
+import "./app/PanelLayout.css";
+import "./PageChrome.css";
+import "./BlockRow.css";
+import "../features/collection/ProseView.css";
+import "./EmbedView.css";
+import "./QueryResults.css";
+import "./BlockRowDnD.css";
+import "./PageView.css";
+import "../features/calendar/DatePickerZoom.css";
+import "./PageSections.css";
+import "./InlineTokens.css";
+import "./BlockMedia.css";
+import "./WhiteboardCanvas.css";
+import "./SearchSurface.css";
+import "./NodeLinks.css";
+import "./app/HubSurfaces.css";
+import "./app/ResponsivePass.css";
+import "./BlockTable.css";
+import "./PageHeaderSection.css";
+
+/** Footer status before the first status() snapshot arrives. */
+const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {
+  status: "idle",
+  error: null,
+  pending: 0,
+  failed: 0,
+  quarantined: 0,
+  parked: 0,
+  realtime: false,
+  cursorSeq: 0,
+};
+
+/** Poll cadence for the sync status snapshot while mounted. */
+const STATUS_POLL_MS = 2_000;
+
+/**
+ * Field-wise snapshot compare. `status()` builds a fresh object every
+ * call, so an unguarded setState re-rendered the whole app (and every
+ * render-time store read under it) every 2s poll even when nothing moved.
+ */
+export function syncStatusEqual(a: SyncStatusSnapshot, b: SyncStatusSnapshot): boolean {
+  return (
+    a.status === b.status &&
+    a.error === b.error &&
+    a.pending === b.pending &&
+    a.failed === b.failed &&
+    a.quarantined === b.quarantined &&
+    a.parked === b.parked &&
+    a.realtime === b.realtime &&
+    a.cursorSeq === b.cursorSeq
+  );
+}
+
+export { NodeView } from "./NodeView.js";
+
+export function App() {
+  const conn = useWorkspaceConnection();
+  const {
+    client,
+    clientRef,
+    offline,
+    storeMode,
+    storeReason,
+    unlockRequest,
+    setUnlockRequest,
+    adoptionRequest,
+    setAdoptionRequest,
+    connectProgress,
+    connectProgressFraction,
+    sessionSignedIn,
+    setSessionSignedIn,
+    workspaceName,
+    setWorkspaceName,
+    workspacePlaintext,
+    phase,
+    setPhase,
+    error,
+    setError,
+    connect,
+    closeClient,
+  } = conn;
+  /** The sync indicator's details modal (resync + conflicts). */
+  const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
+  /** The account popup's admin entry: the active workspace's settings (plugins tab). */
+  const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
+  /** Manage Workspaces view, opened from the workspace switcher popup. */
+  const [managerOpen, setManagerOpen] = useState(false);
+  /**
+   * The post-keying honest notice: the workspace id the banner's Key action
+   * just keyed (null = none). Session state only — the notice names its
+   * workspace, so a switch can never carry it elsewhere; dismiss clears it.
+   */
+  const [keyedNoticeFor, setKeyedNoticeFor] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Default: open on desktop, closed on narrow screens. jsdom lacks
+    // matchMedia — default open there.
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+    // 801px is a deliberate non-register threshold (the register runs
+    // 480/768/1024/1440) — it gates the sidebar's open-by-default state, and
+    // behavior preservation beats breakpoint purity here.
+    return window.matchMedia("(width >= 801px)").matches;
+  });
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  /**
+   * The session-only page-layout toggle: false renders
+   * the panelled default (the properties sidebar rides the first column);
+   * true renders the main content as in-flow sections (the compact layout).
+   * Component state — never persisted; the app top bar's layout button
+   * flips it and the icon names the current mode.
+   */
+  const [sectionsLayout, setSectionsLayout] = useState(false);
+  const rail = useRailCards({ client, clientRef, setRightPanelOpen });
+  const {
+    sidebarCards,
+    openInSidebar,
+    closeSidebarCard,
+    closeOtherSidebarCards,
+    closeAllSidebarCards,
+    collapsedCards,
+    toggleSidebarCardCollapsed,
+    collapseOtherSidebarCards,
+    collapseAllSidebarCards,
+    expandAllSidebarCards,
+  } = rail;
+  /**
+   * Post-delete navigation: a deleted page/class lands on its parent page
+   * when one exists, otherwise on the workspace default view (today's page /
+   * journal / pages hub). Inline blocks vanish in place — no navigation.
+   */
+  function handleNodeDeleted(node: ClientNode): void {
+    const live = clientRef.current;
+    if (
+      live !== null &&
+      live !== undefined &&
+      rendersAsInlineBlock(node, live.getNode(node.parentId ?? ""), parentlessBlockResolverOf(live))
+    )
+      return;
+    if (node.parentId !== null) {
+      openPage(node.parentId);
+      return;
+    }
+    openWorkspaceLanding();
+  }
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  /** #14 — the palette's "New class…" command opens the creation modal. */
+  const [classCreateOpen, setClassCreateOpen] = useState(false);
+  /** The palette's Properties section: the picked schema's PropertyView. */
+  const [propertyViewFor, setPropertyViewFor] = useState<string | null>(null);
+  // The palette's merge commands ride the merge modal's app-level host
+  // (requestMerge in features/modals/mergeHost) — no shell state here.
+  const { undoUi, setUndoUi, undoUiRef, scheduleUndoRefresh, runUndo, runRedo } =
+    useUndoChrome(clientRef);
+  /** Top-bar calendar popup (the popup needs the client, so it renders here). */
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const calendarButtonRef = useRef<HTMLButtonElement | null>(null);
+  /** The browsable history popup over the undo journal. */
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
+  /** Focus mode (#12) — device-local; the data attribute drives the shell dim. */
+  const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(() => {
+    // Deep link: /<uuid> in the address bar opens that node once synced.
+    const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
+      window.location.pathname,
+    );
+    return match !== null ? match[1]! : null;
+  });
+  /**
+   * The condensed layer's per-page pref for the ACTIVE page: the TopBar toggle and the command-palette row both flip
+   * this; PageView reads the same seam for the page body. Selection-null
+   * reads the inert "condensed." key — never written, so the toggle stays
+   * hidden (the onToggleLayout gating idiom: no eligible page, no button).
+   */
+  const [condensedActive, setCondensedPref] = useCondensedPreference(selectedPageId ?? "");
+  // The root URL claims the default view on load (every
+  // view is responsible for its URL; a bare "/" rewrites to the boot view's
+  // path with a replace, so refreshing the app never leaves a bare root).
+  useEffect(() => {
+    if (window.location.pathname === "/") {
+      window.history.replaceState(null, "", pathForNav(initialNav()));
+    }
+    // Boot-time only — the initialNav read and this claim must agree.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
+  /**
+   * The calendar surface's parsed route: the /calendar/<zoom>/<iso> in the address bar, or null
+   * when the current URL is not a calendar route. A null zoom inside the
+   * route is the bare path (the `calendarZoom` device setting fills it).
+   * Boot deep links and every popstate landing set it; the view's
+   * push/replace callbacks keep it in step; every other navigation clears
+   * it (the sidebar's calendar row re-lands on the bare default).
+   */
+  const [calendarRoute, setCalendarRoute] = useState<CalendarRoute | null>(() =>
+    calendarRouteFromPath(window.location.pathname),
+  );
+  /**
+   * The cards-review subroute flag (law 9 — /cards/review owns its URL AND
+   * its "Review - Notees" tab title). Boot deep links and every popstate
+   * landing set it; the in-app navigations that leave the surface clear it
+   * (the calendar-route precedent).
+   */
+  const [cardsReview, setCardsReview] = useState<boolean>(() =>
+    cardsReviewFromPath(window.location.pathname),
+  );
+  /**
+   * The calendar view's tab-title contribution while mounted ("October 2026
+   * — Calendar"); null cedes to the hub register (law 9).
+   */
+  const [calendarTitle, setCalendarTitle] = useState<string | null>(null);
+  /**
+   * The in-app Back/Forward stack behind the top-bar arrows: our own
+   * entries + cursor (the browser stack reaches beyond the app — see
+   * recordNavPush/recordNavPop). Boots at the deep-linked URL.
+   */
+  const [navStack, setNavStack] = useState<NavStack>(() => ({
+    entries: [currentNavUrl()],
+    index: 0,
+  }));
+
+  /** Every in-app navigation funnels here: record on our stack, then pushState. */
+  function pushNav(url: string, state: Record<string, unknown>): void {
+    setNavStack((stack) => recordNavPush(stack, url));
+    window.history.pushState(state, "", url);
+  }
+
+  /**
+   * The calendar view's URL seam: a zoom change PUSHES a
+   * new history entry; a selected-day change REPLACES the current one (day
+   * picking must not spam history) — the nav stack's current slot follows
+   * the replaced URL so back/forward stays consistent.
+   */
+  function navigateCalendar(next: { zoom: CalendarZoom; iso: string }, mode: "push" | "replace"): void {
+    const url = pathForCalendar(next.zoom, next.iso);
+    if (mode === "push") {
+      pushNav(url, { nav: "calendar", calendar: next });
+    } else {
+      window.history.replaceState({ nav: "calendar", calendar: next }, "", url);
+      setNavStack((stack) => ({
+        ...stack,
+        entries: stack.entries.map((entry, i) => (i === stack.index ? url : entry)),
+      }));
+    }
+    setCalendarRoute(next);
+  }
+
+  /**
+   * The Sources hub's parsed query state (law 9 — /sources owns its URL):
+   * the `?type=&q=&sort=` grammar in the address bar. Boot deep links and
+   * every popstate landing set it; the hub's filter gestures push/replace
+   * through navigateSources; every other navigation clears it (the
+   * sidebar's Sources row re-lands on the bare default), the calendar
+   * route precedent.
+   */
+  const [sourcesQuery, setSourcesQuery] = useState<SourcesQueryState>(() =>
+    // The grammar is the surface's own: parse it only when booting ON
+    // /sources (another surface's ?q= is its own param — law 9 parity
+    // with the popstate handler's path gate).
+    window.location.pathname === "/sources"
+      ? parseSourcesQuery(window.location.search)
+      : DEFAULT_SOURCES_QUERY,
+  );
+
+  /**
+   * The Sources hub's URL seam (the calendar's navigateCalendar precedent):
+   * a type pick PUSHES a new history entry (a real navigation — back undoes
+   * the filter); q typing and sort changes REPLACE the current slot.
+   */
+  function navigateSources(next: SourcesQueryState, mode: "push" | "replace"): void {
+    const url = sourcesPathFor(next);
+    if (mode === "push") {
+      pushNav(url, { nav: "sources" });
+    } else {
+      window.history.replaceState({ nav: "sources" }, "", url);
+      setNavStack((stack) => ({
+        ...stack,
+        entries: stack.entries.map((entry, i) => (i === stack.index ? url : entry)),
+      }));
+    }
+    setSourcesQuery(next);
+  }
+
+  const boot = useBootFlow(conn, pushNav);
+  const {
+    serverUrl,
+    setServerUrl,
+    user,
+    setUser,
+    token,
+    setToken,
+    authTab,
+    signupEnabled,
+    apiKeyInput,
+    workspaces,
+    hint,
+    setHint,
+    serverSuggestion,
+    setServerSuggestion,
+    connectTo,
+    handleWorkOffline,
+  } = boot;
+  /**
+   * Shares: the coordinates the Share… surface needs. Absent in
+   * offline mode (there is no server to mint against) — the menu item and
+   * modal hide themselves without it.
+   */
+  const shareTarget: ShareTarget | undefined =
+    !offline && serverUrl.trim() !== "" && token !== ""
+      ? { serverUrl, credential: token }
+      : undefined;
+  /**
+   * The settings page route: non-null while the URL is /settings/<section>
+   * (deep link at boot, section nav, back/forward). Takes precedence over
+   * the hub views in the PageCard slot, like an open node.
+   */
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() =>
+    settingsSectionFromPath(window.location.pathname),
+  );
+  /**
+   * The full-page search route: true while the URL is /search (deep link at
+   * boot, the Ctrl/Cmd+Shift+F chord, the palette's "Search all for …" row,
+   * back/forward). Takes the PageCard slot ahead of the hubs, like a
+   * settings section; an initial query rides the ?q= param, read on mount.
+   */
+  const [searchOpen, setSearchOpen] = useState(
+    () => window.location.pathname === "/search",
+  );
+  const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
+  const [pagesVersion, setPagesVersion] = useState(0);
+  /**
+   * Presentation mode: the node id currently decked, or null.
+   * Session-local device state — never persisted, never on the wire.
+   */
+  const [presentingId, setPresentingId] = useState<string | null>(null);
+  const selectedPageIdRef = useRef<string | null>(null);
+  selectedPageIdRef.current = selectedPageId;
+
+  // Browser tab title: the ONE writer — the tabTitle rule (law 9; exported
+  // and unit-tested). pagesVersion keeps the open node's title fresh across
+  // renames and sync updates; searchOpen/activeNav name the selection-less
+  // surfaces (hubs and the full-page search); the calendar hands up its own
+  // period title while mounted (it owns its URL AND its tab title).
+  useEffect(() => {
+    document.title = tabTitle({
+      clientPresent: client !== null,
+      selectedPageId,
+      settingsSection,
+      searchOpen,
+      activeNav,
+      calendarTitle,
+      cardsReview,
+      sourcesMatrix: sourcesQuery.mode === "matrix",
+      nodeName:
+        client !== null && selectedPageId !== null
+          ? (() => {
+              const node = client.getNode(selectedPageId);
+              return node !== undefined
+                ? titleOfNode(node, {
+                    resolveClassName: (classId) => client.getDisplayName(classId),
+                    resolveMentionName: (targetId) => client.getDisplayName(targetId),
+                  })
+                : "";
+            })()
+          : "",
+    });
+  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav, calendarTitle, cardsReview, sourcesQuery.mode]);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  useGlobalGestures({
+    sidebarOpen,
+    setSidebarOpen,
+    clientRef,
+    openPage,
+    openSettingsSection,
+    openSearchPage,
+    setQuickAddOpen,
+    setPresentingId,
+    selectedPageIdRef,
+    undoUiRef,
+    scheduleUndoRefresh,
+    setHistoryOpen,
+    focusMode,
+    setFocusMode,
+  });
+
+  useTabRelay({ clientRef, serverUrl, token, workspacePlaintext, unlockRequest });
+
+  /**
+   * The RAW open: sync the URL, the selection and Recents to exactly `id` —
+   * no alias resolution. The identity-level path: browser deep links and
+   * back/forward land here, and the aliases UI's NAVIGATE (open the alias
+   * node's OWN view) is the one in-app caller that bypasses the redirect.
+   */
+  function openPageAt(id: string): void {
+    setSettingsSection(null);
+    setSearchOpen(false);
+    setSelectedPageId(id);
+    setCalendarRoute(null);
+    setCardsReview(false);
+    setSourcesQuery(DEFAULT_SOURCES_QUERY);
+    pushNav(`/${id}`, { node: id });
+    recordRecent(id);
+  }
+
+  /**
+   * Open a settings section: state + URL together (the pushState seam the
+   * popstate handler maps back on back/forward). Clears the open page and
+   * the search route — the PageCard slot checks the selection FIRST, so a
+   * stale selectedPageId would keep winning the slot over the settings
+   * page (the "Advanced settings does nothing" bug).
+   */
+  function openSettingsSection(section: SettingsSection): void {
+    setSettingsSection(section);
+    setSearchOpen(false);
+    setSelectedPageId(null);
+    setCalendarRoute(null);
+    setCardsReview(false);
+    setSourcesQuery(DEFAULT_SOURCES_QUERY);
+    setNavStack((stack) => recordNavPush(stack, pathForSettingsSection(section)));
+    pushSettingsSection(section);
+  }
+
+  /**
+   * Open a node: THE navigation funnel — every open surface routes through
+   * here (breadcrumbs, links, bullets, sidebar rows, backlink/query result
+   * rows, the command palette, graph clicks). Node aliases resolve to
+   * their terminal here (the single redirect seam — resolveAliasOpen), so
+   * a mention of an alias opens the MAIN page's view.
+   */
+  function openPage(id: string): void {
+    const live = clientRef.current;
+    openPageAt(live !== null ? resolveAliasOpen(live, id) : id);
+  }
+
+  /**
+   * Open the full-page search surface: state + URL together (the pushState
+   * seam the popstate handler maps back on back/forward). An optional query
+   * rides the ?q= param — the palette's "Search all for …" handoff; the
+   * SearchPage reads it on mount.
+   */
+  function openSearchPage(query?: string): void {
+    setSearchOpen(true);
+    setSettingsSection(null);
+    setSelectedPageId(null);
+    setCalendarRoute(null);
+    setCardsReview(false);
+    setSourcesQuery(DEFAULT_SOURCES_QUERY);
+    const path =
+      query !== undefined && query !== "" ? `/search?q=${encodeURIComponent(query)}` : "/search";
+    pushNav(path, { view: "search" });
+  }
+
+  /**
+   * Landing navigation for a workspace opened from the manager: the device's
+   * "default view" preference owns the URL and first screen — today's day
+   * page (chain ensured, page opened), the journal feed, or a hub fallback
+   * for the remaining choices (no graph surface in this slice yet).
+   */
+  function openWorkspaceLanding(): void {
+    const live = clientRef.current;
+    const view = readDeviceSetting<string | null>("defaultView", "today");
+    const toHub = (nav: NavKey, path: string) => {
+      setSettingsSection(null);
+      setSearchOpen(false);
+      setActiveNav(nav);
+      setSelectedPageId(null);
+      setCalendarRoute(null);
+      setCardsReview(false);
+      setSourcesQuery(DEFAULT_SOURCES_QUERY);
+      pushNav(path, { nav });
+    };
+    // The journal toggle gates Today-page management (the protocol's own
+    // words for the journal feature): with it off the Today landing falls
+    // through to the Pages hub — no chain auto-creation (the AppBody
+    // sidebar/palette guard's precedent).
+    if (view === "today" && live !== null && live.isFeatureEnabled("journal")) {
+      const now = new Date();
+      const iso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+        now.getDate(),
+      ).padStart(2, "0")}`;
+      void live.ensureDateChain(iso).then(({ day }) => openPage(day));
+      return;
+    }
+    if (view === "journal") {
+      toHub("journal", "/journals");
+      return;
+    }
+    if (view === "graph") {
+      toHub("graph", "/graph");
+      return;
+    }
+    // "all-pages" / legacy values: the Pages hub.
+    toHub("pages", "/pages");
+  }
+
+  /** Back/forward navigation drives the selection / views / settings section. */
+  useEffect(() => {
+    const onPopState = popStateNavHandler({
+      openManager: () => setManagerOpen(true),
+      closeManager: () => setManagerOpen(false),
+      setNav: setActiveNav,
+      setNode: setSelectedPageId,
+      setSettingsSection,
+      setSearch: setSearchOpen,
+      setCalendarRoute,
+      setCardsReview,
+      setSourcesQuery,
+      onNavigated: (url) => setNavStack((stack) => recordNavPop(stack, url)),
+    });
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  /**
+   * The journal feature flag gates the journal SURFACE (protocol: the
+   * journal entry gates "the journal SURFACES — the journal nav view,
+   * Today-page management/auto-creation"), so with the flag off the
+   * /journal route does not resolve: the fallback is the Pages hub and the
+   * URL is REPLACED, never pushed — a disabled surface leaves no history
+   * entry — with the nav stack's current slot following the replaced URL
+   * (the navigateCalendar replace precedent). The guard is the SINGLE
+   * chokepoint: in-app navigation can't produce journal (the sidebar hides
+   * the row), so this covers the remaining entries — a boot deep link, a
+   * back/forward landing, and the boot default (initialNav falls back to
+   * journal when no device defaultView is set — a bare-/ boot rewrites
+   * twice, /journal then /pages, before sync settles). pagesVersion in the
+   * deps re-fires the guard on a live toggle (a setFeatureEnabled write
+   * rides the client notification): disabling the journal with the feed
+   * open leaves it for the currently-mounted session only until the next
+   * navigation.
+   */
+  useEffect(() => {
+    if (activeNav !== "journal" || client === null || client.isFeatureEnabled("journal")) return;
+    setActiveNav("pages");
+    const url = pathForNav("pages");
+    window.history.replaceState({ node: null, nav: "pages" }, "", url);
+    setNavStack((stack) => ({
+      ...stack,
+      entries: stack.entries.map((entry, i) => (i === stack.index ? url : entry)),
+    }));
+  }, [activeNav, client, pagesVersion]);
+
+  // Appearance (theme / OLED / accent) is device-local; apply it to <html>
+  // on boot (index.html already applied it pre-paint) and re-apply when the
+  // OS color scheme flips while "system" theme is selected.
+  useEffect(() => {
+    applyAppearance();
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyAppearance();
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+
+  /**
+   * The top bar's "New" class picker (the sidebar hosts
+   * its own picker beside its New button; both ride the same create flow).
+   */
+  const [newPickerOpen, setNewPickerOpen] = useState(false);
+  const newButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (client === null) return;
+    undoUiRef.current = EMPTY_UNDO_STATE;
+    setUndoUi(EMPTY_UNDO_STATE);
+    scheduleUndoRefresh();
+    return client.subscribe(() => {
+      setPagesVersion((v) => v + 1);
+      scheduleUndoRefresh();
+    });
+  }, [client, scheduleUndoRefresh]);
+
+  /**
+   * The citekey auto-track watcher: when a change lands on a source-lineage
+   * node (the notification payload is ancestor-expanded, so an edit to the
+   * node's title, authors, publication date — or its citekey carrier — names
+   * the source), an UNPINNED citekey re-renders from the current metadata
+   * and the value is rewritten the moment the render drifts (the
+   * `syncSourceCitekey` engine — the same one PageView's open guard rides).
+   * Scoped notifications with no affected set (structural/scope-unknown)
+   * skip: the next scoped change on the source, or opening it, covers the
+   * mend. The engine idempotently no-ops on converged nodes, so its own
+   * write's notification settles without a second write.
+   */
+  useEffect(() => {
+    if (client === null) return;
+    return client.subscribe((change) => {
+      // Structural batches keep their scope conservative here even though
+      // the payload now carries the affected set: the watcher mends citekeys
+      // on content edits of source-lineage nodes, and a structural gesture's
+      // own writes re-notify through the scoped path.
+      if (change.affectedNodeIds === undefined || change.structural === true) return;
+      for (const nodeId of change.affectedNodeIds) {
+        void syncSourceCitekey(client, nodeId).catch(() => {});
+      }
+    });
+  }, [client]);
+
+  // Poll the (cheap) status snapshot on a cadence and on every worker
+  // notification; state is only set when a field actually changed —
+  // the field-wise guard keeps the 2s cadence from re-rendering the tree).
+  useEffect(() => {
+    if (client === null) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const snapshot = await client.status();
+        // Skip no-op updates: a fresh object every poll would re-render the
+        // whole app twice a second (this used to re-run every
+        // render-time store read in the tree).
+        if (!cancelled) setSyncStatus((prev) => (syncStatusEqual(prev, snapshot) ? prev : snapshot));
+      } catch {
+        // Client closed mid-poll; the effect teardown disposes the interval.
+      }
+    };
+    void refresh();
+    const interval = setInterval(() => void refresh(), STATUS_POLL_MS);
+    const unsubscribe = client.subscribe(() => void refresh());
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, [client]);
+
+  async function handleSignOut() {
+    const url = readStored(STORAGE_KEYS.serverUrl);
+    const sessionToken = readStored(STORAGE_KEYS.sessionToken);
+    if (url !== "" && sessionToken !== "") {
+      try {
+        await logout(url, sessionToken);
+      } catch {
+        // Best-effort: the local credential is cleared regardless.
+      }
+    }
+    clearStored(STORAGE_KEYS.sessionToken);
+    clearStored(STORAGE_KEYS.apiKey);
+    clearCryptoCustody();
+    setToken("");
+    setUser(null);
+    setKeyedNoticeFor(null);
+    closeClient();
+    pushNav("/login", { view: "login" });
+    setPhase({ name: "server" });
+  }
+
+  /**
+   * Sync tab → "Disconnect & forget": drop every stored credential for this
+   * server, sign out, and land back on the boot form with the field reset to
+   * the same-origin guess.
+   */
+  function handleForgetServer() {
+    clearCryptoCustody();
+    clearStored(STORAGE_KEYS.serverUrl);
+    clearStored(STORAGE_KEYS.sessionToken);
+    clearStored(STORAGE_KEYS.apiKey);
+    setToken("");
+    setUser(null);
+    setSessionSignedIn(false);
+    setKeyedNoticeFor(null);
+    closeClient();
+    setServerUrl(initialServerUrl());
+    setError(null);
+    setHint(null);
+    setServerSuggestion(null);
+    pushNav("/login", { view: "login" });
+    setPhase({ name: "server" });
+  }
+
+  /**
+   * Sync tab → "Connect to a different server": leave the shell, then run the
+   * exact connect path the boot form uses (probe → setup/login, or the same
+   * error/suggestion state on failure).
+   */
+  function handleConnectServer(url: string) {
+    closeClient();
+    setServerUrl(url);
+    setPhase({ name: "server" });
+    void connectTo(url);
+  }
+
+  async function handleNewPage(title?: string) {
+    if (client === null) return;
+    const id = await client.createObject({ isEmbedded: false, name: title ?? "Untitled" });
+    setSelectedPageId(id);
+  }
+
+  /**
+   * The banner's "Key this workspace" — the ONE deliberate open-time keying
+   * path besides creation (the no-auto-key ruling: opening a plaintext
+   * workspace never keys it as a side effect). `ensureWorkspaceKey` generates
+   * + wraps + PUTs the key, the reconnect re-resolves it so the engine seals
+   * from here on, and the keyed notice carries the honest post-keying copy
+   * across the reconnect. Only reachable with the master key in memory (the
+   * banner disables the action otherwise).
+   */
+  async function handleKeyWorkspace(): Promise<void> {
+    const master = currentMasterKey();
+    const workspaceId = readStored(STORAGE_KEYS.workspaceId);
+    if (master === null || workspaceId === "") return;
+    await ensureWorkspaceKey(serverUrl, token, workspaceId, master);
+    setKeyedNoticeFor(workspaceId);
+    await connect(serverUrl, token, workspaceId, {
+      isOffline: false,
+      credentialType: sessionSignedIn ? "session" : "apikey",
+      label: workspaceName,
+    });
+  }
+
+  /**
+   * The fail-loud unlock re-prompt: a keyed workspace refused the open (no
+   * master key — a reload dropped it, or an API-key session has no password
+   * path). Rendered from every post-auth phase; the refusal sets
+   * `unlockRequest` and no client exists until the password path re-opens it.
+   */
+  const unlockModal = (
+    <UnlockWorkspaceModal
+      isOpen={unlockRequest !== null}
+      email={user?.email ?? ""}
+      apiKeySession={unlockRequest?.credentialType === "apikey"}
+      onClose={() => {
+        setUnlockRequest(null);
+        setPhase((prev) => {
+          if (prev.name !== "connecting") return prev;
+          return user !== null ? { name: "workspaces", user } : { name: "server" };
+        });
+      }}
+      onSubmit={async (password) => {
+        const request = unlockRequest;
+        if (request === null) return;
+        if (user === null) throw new Error("No account email in this session.");
+        // The unlock endpoint validates the password and returns ONLY the
+        // kdf record — no session is minted (the old login-based flow left
+        // an unused session row per unlock). The master key re-derives into
+        // the custody slot and the open re-rides the EXISTING credential.
+        const response = await unlock(serverUrl, { email: user.email, password });
+        await deriveMasterKey(password, response.kdf);
+        setUnlockRequest(null);
+        await connect(request.url, request.credential, request.workspaceId, {
+          isOffline: false,
+          credentialType: request.credentialType,
+          label: request.name,
+        });
+      }}
+    />
+  );
+
+  /**
+   * The F2 adoption offer: an offline-created workspace met a server that has
+   * never seen it (the open paused before any client existed). Publishing
+   * confirms the create-with-id (the custody device key's wrap rides it) and
+   * reconnects — the second open is a normal keyed open. Keeping it local
+   * re-opens with declinedAdoption: plaintext, zero writes.
+   */
+  const adoptionModal = (
+    <AdoptionOfferModal
+      isOpen={adoptionRequest !== null}
+      workspaceName={adoptionRequest?.name ?? "Workspace"}
+      apiKeySession={adoptionRequest?.credentialType === "apikey"}
+      onKeepLocal={() => {
+        const request = adoptionRequest;
+        if (request === null) return;
+        setAdoptionRequest(null);
+        void connect(request.url, request.credential, request.workspaceId, {
+          isOffline: false,
+          credentialType: request.credentialType,
+          label: request.name,
+          declinedAdoption: true,
+        });
+      }}
+      onPublish={async () => {
+        const request = adoptionRequest;
+        if (request === null) return;
+        await confirmWorkspaceAdoption(
+          request.url,
+          request.credential,
+          request.workspaceId,
+          request.name,
+        );
+        setAdoptionRequest(null);
+        await connect(request.url, request.credential, request.workspaceId, {
+          isOffline: false,
+          credentialType: request.credentialType,
+          label: request.name,
+        });
+      }}
+    />
+  );
+
+  if (
+    phase.name === "server" ||
+    phase.name === "setup" ||
+    phase.name === "login" ||
+    phase.name === "signup"
+  ) {
+    return <BootForm phase={phase} error={error} setError={setError} setPhase={setPhase} boot={boot} />;
+  }
+
+
+  if (phase.name === "workspaces" || managerOpen) {
+    const enteringFromApp = phase.name === "ready" && client !== null;
+    return (
+      <>
+        <WorkspacesView
+        serverUrl={serverUrl}
+        credential={token}
+        user={user}
+        activeClient={client}
+        activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId) !== "" && enteringFromApp ? readStored(STORAGE_KEYS.workspaceId) : null}
+        onEnter={(workspaceId, name) => {
+          setManagerOpen(false);
+          const connectOptions = enteringFromApp
+            ? { isOffline: false, credentialType: (sessionSignedIn ? "session" : "apikey") as CredentialType, label: name }
+            : {
+                isOffline: false,
+                credentialType: (authTab === "apikey" ? "apikey" : "session") as CredentialType,
+                label: name,
+              };
+          if (enteringFromApp) {
+            setSelectedPageId(null);
+          }
+          // The device "default view" preference owns the landing: after the
+          // connect resolves, navigate to today's page / journal / hub and
+          // rewrite the URL (the manager's /workspaces path never survives).
+          void connect(serverUrl, token, workspaceId, connectOptions).then(() =>
+            openWorkspaceLanding(),
+          );
+        }}
+        onRenamed={(id, name) => {
+          rememberWorkspaceName(id, name);
+          setWorkspaceName(name);
+        }}
+        onOpenUserSettings={
+          sessionSignedIn && user !== null
+            ? () => {
+                // The quick modal is gone: the manager's settings entry opens
+                // the full settings page (the shell re-renders once the
+                // manager closes).
+                setManagerOpen(false);
+                openSettingsSection("appearance");
+              }
+            : undefined
+        }
+        onSignOut={() => void handleSignOut()}
+        onClose={enteringFromApp ? () => setManagerOpen(false) : undefined}
+      />
+        {unlockModal}
+        {adoptionModal}
+      </>
+    );
+  }
+
+  if (phase.name === "connecting" || client === null) {
+    return (
+      <>
+        <ConnectingScreen
+          label={phase.name === "connecting" ? (connectProgress ?? phase.label) : "Starting…"}
+          progress={phase.name === "connecting" ? connectProgressFraction : null}
+          error={error}
+        />
+        {unlockModal}
+        {adoptionModal}
+      </>
+    );
+  }
+
+  return (
+    <div className={sidebarOpen ? "nt-app nt-sidebar-open" : "nt-app"}>
+      <a className="nt-skip-link" href="#nt-main-content">
+        Skip to content
+      </a>
+      <AppTopBar
+        client={client}
+        selectedPageId={selectedPageId}
+        openPage={openPage}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        rightPanelOpen={rightPanelOpen}
+        setRightPanelOpen={setRightPanelOpen}
+        canGoBack={navStack.index > 0}
+        canGoForward={navStack.index < navStack.entries.length - 1}
+        calendarOpen={calendarOpen}
+        setCalendarOpen={setCalendarOpen}
+        calendarButtonRef={calendarButtonRef}
+        firstDayOfWeek={firstDayOfWeek}
+        undoUi={undoUi}
+        runUndo={runUndo}
+        runRedo={runRedo}
+        historyOpen={historyOpen}
+        setHistoryOpen={setHistoryOpen}
+        historyButtonRef={historyButtonRef}
+        newPickerOpen={newPickerOpen}
+        setNewPickerOpen={setNewPickerOpen}
+        newButtonRef={newButtonRef}
+        setPaletteOpen={setPaletteOpen}
+        sectionsLayout={sectionsLayout}
+        setSectionsLayout={setSectionsLayout}
+        focusMode={focusMode}
+        setFocusMode={setFocusMode}
+        toggleFocusMode={toggleFocusMode}
+        condensedActive={condensedActive}
+        setCondensedPref={setCondensedPref}
+        offline={offline}
+        serverUrl={serverUrl}
+        token={token}
+        workspaceName={workspaceName}
+        sessionSignedIn={sessionSignedIn}
+        connect={connect}
+        setSelectedPageId={setSelectedPageId}
+        pushNav={pushNav}
+        setManagerOpen={setManagerOpen}
+        setWorkspaceName={setWorkspaceName}
+      />
+      <AppBody
+        client={client}
+        clientRef={clientRef}
+        user={user}
+        offline={offline}
+        sessionSignedIn={sessionSignedIn}
+        syncStatus={syncStatus}
+        setSyncDetailsOpen={setSyncDetailsOpen}
+        setAdminSettingsOpen={setAdminSettingsOpen}
+        selectedPageId={selectedPageId}
+        activeNav={activeNav}
+        focusMode={focusMode}
+        setActiveNav={setActiveNav}
+        setSettingsSection={setSettingsSection}
+        setSearchOpen={setSearchOpen}
+        setSelectedPageId={setSelectedPageId}
+        pushNav={pushNav}
+        openPage={openPage}
+        openPageAt={openPageAt}
+        openInSidebar={openInSidebar}
+        openSettingsSection={openSettingsSection}
+        handleNodeDeleted={handleNodeDeleted}
+        handleSignOut={handleSignOut}
+        handleForgetServer={handleForgetServer}
+        handleConnectServer={handleConnectServer}
+        searchOpen={searchOpen}
+        settingsSection={settingsSection}
+        serverUrl={serverUrl}
+        token={token}
+        shareTarget={shareTarget}
+        sectionsLayout={sectionsLayout}
+        setPresentingId={setPresentingId}
+        rightPanelOpen={rightPanelOpen}
+        setRightPanelOpen={setRightPanelOpen}
+        sidebarCards={sidebarCards}
+        closeSidebarCard={closeSidebarCard}
+        closeOtherSidebarCards={closeOtherSidebarCards}
+        closeAllSidebarCards={closeAllSidebarCards}
+        collapsedCards={collapsedCards}
+        toggleSidebarCardCollapsed={toggleSidebarCardCollapsed}
+        collapseOtherSidebarCards={collapseOtherSidebarCards}
+        collapseAllSidebarCards={collapseAllSidebarCards}
+        expandAllSidebarCards={expandAllSidebarCards}
+        calendarRoute={calendarRoute}
+        onCalendarRouteChange={navigateCalendar}
+        onCalendarTitle={setCalendarTitle}
+        resetCalendarRoute={() => setCalendarRoute(null)}
+        cardsReview={cardsReview}
+        onExitCardsReview={() => {
+          // The navigate callback the review surface's exit rides (the
+          // Task 9 concern: no synthetic popstate — a real pushNav entry,
+          // so the in-app back stack keeps the hub as the back-target).
+          setCardsReview(false);
+          pushNav(pathForNav("cards"), { nav: "cards", node: null });
+        }}
+        resetCardsReview={() => setCardsReview(false)}
+        sourcesQuery={sourcesQuery}
+        onSourcesQueryChange={navigateSources}
+      />
+      <AppModals
+        client={client}
+        paletteOpen={paletteOpen}
+        setPaletteOpen={setPaletteOpen}
+        openPage={openPage}
+        onOpenInSidebar={openInSidebar}
+        handleNewPage={handleNewPage}
+        classCreateOpen={classCreateOpen}
+        setClassCreateOpen={setClassCreateOpen}
+        propertyViewFor={propertyViewFor}
+        setPropertyViewFor={setPropertyViewFor}
+        selectedPageId={selectedPageId}
+        condensedActive={condensedActive}
+        setCondensedPref={setCondensedPref}
+        openSearchPage={openSearchPage}
+        handleSignOut={handleSignOut}
+        undoUi={undoUi}
+        runUndo={runUndo}
+        runRedo={runRedo}
+        pagesVersion={pagesVersion}
+        quickAddOpen={quickAddOpen}
+        setQuickAddOpen={setQuickAddOpen}
+        presentingId={presentingId}
+        setPresentingId={setPresentingId}
+        addSourceServerUrl={shareTarget?.serverUrl ?? null}
+        addSourceCredential={shareTarget?.credential ?? ""}
+        openWorkspace={(id, name) => {
+          setSelectedPageId(null);
+          void connect(serverUrl, token, id, {
+            isOffline: false,
+            credentialType: sessionSignedIn ? "session" : "apikey",
+            label: name,
+          });
+        }}
+      />
+      <AppOverlays
+        client={client}
+        storeMode={storeMode}
+        storeReason={storeReason}
+        syncStatus={syncStatus}
+        syncDetailsOpen={syncDetailsOpen}
+        setSyncDetailsOpen={setSyncDetailsOpen}
+        adminSettingsOpen={adminSettingsOpen}
+        setAdminSettingsOpen={setAdminSettingsOpen}
+        serverUrl={serverUrl}
+        token={token}
+        workspaceName={workspaceName}
+        setWorkspaceName={setWorkspaceName}
+        workspacePlaintext={workspacePlaintext}
+        keyedNoticeFor={keyedNoticeFor}
+        onKeyWorkspace={handleKeyWorkspace}
+        onDismissKeyedNotice={() => setKeyedNoticeFor(null)}
+      />
+    </div>
+  );
+}

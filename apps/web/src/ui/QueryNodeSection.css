@@ -1,0 +1,15 @@
+/* QueryNodeSection — the query node's chrome below the block's content row
+: the nodecollection tab bar + buttons row, the
+   toggleable builder panel wrapped beneath it, and the shared results body.
+   Sober section chrome — indented to read as the block's payload, bordered
+   like the embed-adjacent containers it replaces. */
+
+.nt-query-node {
+  display: block;
+  margin: var(--spacing-micro) 0 var(--spacing-1-5);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-left: var(--border-width-extra-thick) solid var(--md-sys-color-query-accent);
+  border-radius: var(--shape-medium);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
+  background: var(--md-sys-color-surface-container-high);
+}

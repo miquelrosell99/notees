@@ -1,0 +1,165 @@
+/**
+ * ColorButton Styles
+ * 
+ * Styled like Button component with a color fill inside.
+ * Has a gap between the color fill and the button border.
+ */
+
+
+
+
+/* Base button - matches Button component styling. The visible box rides
+   the size variant below; the 48dp M3 touch floor lives on the invisible
+   ::after overlay (the fleet Button contract) — a min-size on the visible
+   box itself defeated every size variant (48px sm buttons). */
+.color-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  background: var(--md-sys-color-surface-container);
+  min-width: 0;
+  min-height: 0;
+  transition: 
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* The invisible hit-area overlay: centered 48×48 regardless of the
+   visible box. Clicks land on the button (pseudo-element of it). */
+.color-btn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--button-min-height);
+  height: var(--button-min-height);
+  transform: translate(-50%, -50%);
+}
+
+.color-btn:hover:not(:disabled) {
+  border-color: var(--md-sys-color-outline);
+  box-shadow: var(--shadow-outline-ring);
+}
+
+.color-btn:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--spacing-micro);
+}
+
+/* Color fill inside the button */
+.color-btn__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Inherit the button's radius — overflow:hidden would clip the
+     ::after hit-area overlay back to the visible box. */
+  border-radius: inherit;
+}
+
+/* The no-color state: an empty swatch must still read as a control —
+   bordered box with the diagonal strike the color-picker row uses for
+   its "no color" entry. Without it the button vanishes (a transparent
+   fill on the surface-container background). */
+.color-btn--empty::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 130%;
+  height: var(--border-width-medium);
+  background: var(--md-sys-color-outline);
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* Size variants - the Button icon-only visible register (square). */
+.color-btn--xs {
+  width: var(--button-icon-only-visible-xs);
+  height: var(--button-icon-only-visible-xs);
+  padding: 0;
+  border-radius: var(--shape-medium);
+}
+
+.color-btn--sm {
+  width: var(--button-icon-only-visible-sm);
+  height: var(--button-icon-only-visible-sm);
+  padding: 0;
+  border-radius: var(--shape-large);
+}
+
+.color-btn--md {
+  width: var(--button-icon-only-visible-md);
+  height: var(--button-icon-only-visible-md);
+  padding: 0;
+  border-radius: var(--shape-large);
+}
+
+.color-btn--lg {
+  width: var(--button-icon-only-visible-lg);
+  height: var(--button-icon-only-visible-lg);
+  padding: 0;
+  border-radius: var(--shape-large);
+}
+
+/* Active state */
+.color-btn--active {
+  border-color: var(--md-sys-color-primary);
+  box-shadow: var(--shadow-focus-ring-primary-thin);
+}
+
+/* Disabled state */
+.color-btn--disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+/* Color Picker Popover */
+.color-btn-picker {
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-2);
+  min-width: 0;
+}
+
+.color-btn-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-micro);
+  margin-bottom: var(--spacing-2);
+}
+
+/* The no-color grid cell: the diagonal strike the ColorPickerRow "no
+   color" swatch carries — an empty swatch with the line through it. */
+.color-btn-picker__none .color-btn__fill {
+  background: var(--md-sys-color-surface-container);
+}
+.color-btn-picker__none::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 130%;
+  height: var(--border-width-medium);
+  background: var(--md-sys-color-outline);
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+
+
+
+.color-btn-picker__custom {
+  display: flex;
+  gap: var(--spacing-1-5);
+  align-items: center;
+  padding-top: var(--spacing-2);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+
+

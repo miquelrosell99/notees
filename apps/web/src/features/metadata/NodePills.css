@@ -1,0 +1,67 @@
+/* NodePills — sortable class pill cluster + the "+N" overflow popup
+   (the popup's class names ride the node-pills-popup* prefix — the TSX in
+   NodePills.tsx is the naming authority). */
+
+.node-pills__sortable {
+  display: inline-flex;
+  touch-action: manipulation;
+}
+
+.node-pills__sortable--dragging {
+  z-index: var(--z-sticky);
+}
+
+.node-pills-popup {
+  /* No min-width: the panel shrink-wraps its pills (the widest pill sets the
+     width) — a fixed floor left dead space on the right of short pill
+     lists. */
+  max-height: var(--layout-size-6xl);
+  overflow-y: auto;
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--shadow-elevation-2);
+  padding: var(--spacing-1);
+}
+
+/* The popup list is a vertical stack of the SAME pill element the inline
+   cluster renders — effective color, hover-reveal ×, click to open. The
+   pill itself is the drag source (no grip); each row wraps its pill in the
+   sortable wrapper, so rows align start and the dragging pill lifts over
+   its siblings. */
+.node-pills-popup__list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-1);
+}
+
+.node-pills-popup__list .node-pills__sortable {
+  display: flex;
+}
+
+/* The trailing add-class entry: the dashed AddPill stretches the panel's
+   width, separated from the pills by a hairline — one footer action, the
+   class picker anchored at itself. */
+.node-pills-popup__add {
+  align-self: stretch;
+  margin-top: var(--spacing-1);
+  padding-top: var(--spacing-1);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.node-pills-popup__add .pill--add {
+  width: 100%;
+  justify-content: center;
+}
+
+/* The help footer: the two rules the popup teaches — the first class rides
+   the block row, drag pills to reorder. Quiet caption register. */
+.node-pills-popup__footer {
+  align-self: stretch;
+  margin-top: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2) 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface-variant);
+}

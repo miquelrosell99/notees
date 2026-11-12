@@ -1,0 +1,578 @@
+/**
+ * WorkspaceSettingsModal Component
+ *
+ * Modal for workspace-level settings: rename (PATCH /workspaces/:id,
+ * owner-only), date format, sidebar visibility, data retention, the feature
+ * toggles (+ the Sources family's settings section), and a shortcuts
+ * reference. Recovered from the archived graph settings modal; where the
+ * archive wrote workspace settings through a server settings endpoint that
+ * no longer exists, controls are device-local (localStorage
+ * `notees.settings.*`) or honestly inert with a "not available in this
+ * build" note.
+ */
+import { useState } from "react";
+
+import type { WorkspaceFeature } from "@notees/protocol";
+import {
+  SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_UUIDS,
+  WORKSPACE_FEATURE_MAP,
+  type FamilyFeature,
+} from "@notees/domain";
+
+import type { AnyClient } from "../../ui/app/Sidebar.js";
+import { titleOf } from "../../ui/dateDisplay.js";
+import { Modal } from "../../components/ui/kit/Modal.js";
+import { BooleanToggle } from "../../components/ui/kit/BooleanToggle.js";
+import { Button } from "../../components/ui/kit/Button.js";
+import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js";
+import { Dropdown } from "../../components/ui/kit/Dropdown.js";
+import { Icon } from "../../ui/Icon.js";
+import { Tabs } from "../../components/ui/kit/Tabs.js";
+import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
+import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
+import { ReadItLaterFeatureRow } from "./ReadItLaterFeatureRow.js";
+import { renameWorkspace } from "./workspaceApi.js";
+import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
+import { SourcesSettingsSection } from "../settings/SourcesSettingsSection.js";
+import { MigrationsSection } from "../settings/MigrationsSection.js";
+import { WorkflowRulesSection } from "../settings/WorkflowRulesSection.js";
+import { WorkflowsSettingsSection } from "../workflows/WorkflowsSettingsSection.js";
+import { useDeviceSetting } from "../settings/deviceSettings.js";
+
+import "../settings/settingsModal.css";
+
+/**
+ * The feature toggles read + write through the shipped `workspace.feature.set`
+ * op + `workspace_feature` derived table (lockstep SHIPPED: GTK/Flutter
+ * v3.0.0). F3's disable confirmation gates the OFF write: turning a family
+ * off with existing instances opens a ConfirmationModal first ("N existing
+ * objects keep their data — the family's surfaces hide"); a family with zero
+ * instances (or an enable) writes immediately.
+ */
+export const FEATURE_TOGGLE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
+
+type DateFormat =
+  | "YYYY/MM/DD"
+  | "YYYY-MM-DD"
+  | "DD/MM/YYYY"
+  | "DD-MM-YYYY"
+  | "MM/DD/YYYY"
+  | "MM-DD-YYYY";
+
+const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string; example: string }[] = [
+  { value: "YYYY/MM/DD", label: "YYYY/MM/DD", example: "2026/01/15" },
+  { value: "YYYY-MM-DD", label: "YYYY-MM-DD", example: "2026-01-15" },
+  { value: "DD/MM/YYYY", label: "DD/MM/YYYY", example: "15/01/2026" },
+  { value: "DD-MM-YYYY", label: "DD-MM-YYYY", example: "15-01-2026" },
+  { value: "MM/DD/YYYY", label: "MM/DD/YYYY", example: "01/15/2026" },
+  { value: "MM-DD-YYYY", label: "MM-DD-YYYY", example: "01-15-2026" },
+];
+
+const TRASH_RETENTION_OPTIONS = [
+  { value: 30, label: "30 days" },
+  { value: 7, label: "7 days" },
+  { value: 90, label: "90 days" },
+  { value: 0, label: "Never" },
+  { value: 365, label: "1 year" },
+];
+
+/** Static reference table of the shell's keyboard shortcuts. */
+const SHORTCUT_GROUPS: { title: string; shortcuts: { description: string; keys: string }[] }[] = [
+  {
+    title: "Global",
+    shortcuts: [
+      { description: "Open command palette", keys: "Ctrl/⌘ + K" },
+      { description: "Quick add note", keys: "Ctrl/⌘ + Shift + N" },
+    ],
+  },
+  {
+    title: "Editor",
+    shortcuts: [
+      { description: "Bold", keys: "Ctrl/⌘ + B" },
+      { description: "Italic", keys: "Ctrl/⌘ + I" },
+      { description: "Strikethrough", keys: "Ctrl/⌘ + Shift + X" },
+      { description: "Open link", keys: "Ctrl/⌘ + K" },
+    ],
+  },
+  {
+    title: "Search",
+    shortcuts: [{ description: "Find & replace in page", keys: "Ctrl/⌘ + Shift + F" }],
+  },
+];
+
+export interface WorkspaceSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  serverUrl: string;
+  credential: string;
+  workspaceId: string;
+  workspaceName: string;
+  /** Membership role from the workspace list ("owner" may rename). */
+  workspaceRole: string;
+  /** Called after a successful rename so the shell can update its label. */
+  onRenamed?: ((name: string) => void) | undefined;
+  /** The tab the modal opens on (the account popup's admin entry lands on plugins). */
+  initialTab?: "general" | "features" | "workflows" | "automation" | "plugins" | "shortcuts" | undefined;
+  /**
+   * The active workspace's client — powers the Features tab's live family
+   * toggles. Only sections whose workspaceId matches the client's are
+   * configurable; without a client (or for another workspace's settings)
+   * the section renders an honest note instead.
+   */
+  client?: AnyClient | undefined;
+  /** Opens the add-source dialog from the Sources section (a contribution point). */
+  onAddSource?: (() => void) | undefined;
+}
+
+export function WorkspaceSettingsModal({
+  isOpen,
+  onClose,
+  serverUrl,
+  credential,
+  workspaceId,
+  workspaceName,
+  workspaceRole,
+  onRenamed,
+  initialTab = "general",
+  client,
+  onAddSource = undefined,
+}: WorkspaceSettingsModalProps) {
+  const [activeTab, setActiveTab] = useState<"general" | "features" | "workflows" | "automation" | "plugins" | "shortcuts">(initialTab);
+  const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
+  const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
+  const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);
+  const [showCalendar, setShowCalendar] = useDeviceSetting("sidebarShowCalendar", true);
+
+  /**
+   * F3 disable confirmation: the pending OFF write for a family with
+   * instances — the ConfirmationModal gates the `workspace.feature.set`.
+   */
+  const [featureConfirm, setFeatureConfirm] = useState<{
+    feature: WorkspaceFeature;
+    label: string;
+    instances: number;
+  } | null>(null);
+
+  const writeFeature = (feature: WorkspaceFeature, enabled: boolean) => {
+    if (client === null || client === undefined) return;
+    void client.setFeatureEnabled(feature, enabled).catch((error: unknown) => {
+      console.warn(`[features] setFeatureEnabled (${feature}) failed:`, error);
+    });
+  };
+
+  const handleFeatureToggle = (feature: WorkspaceFeature, label: string, instances: number, next: boolean) => {
+    // Turning OFF a family with instances asks first (F3: hide surfaces, keep
+    // data); enables and empty families write straight through.
+    if (next === false && instances > 0) {
+      setFeatureConfirm({ feature, label, instances });
+      return;
+    }
+    writeFeature(feature, next);
+  };
+
+  // Rename: edited in a local draft, persisted on blur/Enter when valid.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSuccess, setRenameSuccess] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const canRename = workspaceRole === "owner";
+
+  // --- Features tab: the workspace match gate (sections read the live
+  // store only for the active workspace; another workspace renders an
+  // honest note instead).
+  const clientMatches = client !== undefined && client.getWorkspaceId() === workspaceId;
+
+  if (!isOpen) return null;
+
+  const currentName = workspaceName || "Workspace";
+
+  const commitRename = () => {
+    if (nameDraft === null) return;
+    const trimmed = nameDraft.trim();
+    setNameDraft(null);
+    if (trimmed === "" || trimmed === currentName) return;
+    setRenaming(true);
+    setRenameError(null);
+    setRenameSuccess(false);
+    renameWorkspace(serverUrl, credential, workspaceId, trimmed)
+      .then((result) => {
+        setRenaming(false);
+        setRenameSuccess(true);
+        onRenamed?.(result.name ?? trimmed);
+      })
+      .catch((err: unknown) => {
+        setRenaming(false);
+        setRenameError(err instanceof Error ? err.message : String(err));
+      });
+  };
+
+  const handleDateFormatChange = (newFormat: DateFormat) => {
+    if (newFormat !== dateFormat) {
+      setDateFormat(newFormat);
+    }
+  };
+
+  const tabs = [
+    { id: "general" as const, label: "General" },
+    { id: "features" as const, label: "Features" },
+    { id: "workflows" as const, label: "Workflows" },
+    { id: "automation" as const, label: "Automation" },
+    { id: "plugins" as const, label: "Plugins" },
+    { id: "shortcuts" as const, label: "Shortcuts" },
+  ];
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Workspace Settings"
+      size="lg"
+      closeOnBackdrop={true}
+      closeOnEscape={true}
+      contentClassName="settings-modal__body"
+    >
+      <div className="settings-modal__container">
+        <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs.List>
+            {tabs.map((tab) => (
+              <Tabs.Tab key={tab.id} value={tab.id}>
+                {tab.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
+
+        <div className="settings-modal__content">
+          {activeTab === "features" && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Features</h3>
+              <p className="settings-item__description">
+                Core class families, one toggle each. Turning a family off hides its classes
+                from pickers, search, and hubs — existing objects keep their data and stay in
+                the graph. Family changes cascade to subclasses (events off hides meetings and
+                birthdays too).
+              </p>
+              {clientMatches ? (
+                <>
+                  {(
+                    Object.entries(WORKSPACE_FEATURE_MAP) as Array<
+                      [FamilyFeature, (typeof WORKSPACE_FEATURE_MAP)[FamilyFeature]]
+                    >
+                  ).map(([feature, spec]) => {
+                    const enabled = client!.isFeatureEnabled(feature);
+                    const instances = client!.getFeatureInstanceCount(feature);
+                    const classId = SYSTEM_CLASS_UUIDS[spec.baseClass];
+                    const classNode = client!.getNodeRaw(classId);
+                    const icon = classNode?.icon ?? SYSTEM_CLASS_ICONS[spec.baseClass];
+                    const color = client!.effectiveClassColor(classId);
+                    return (
+                      <div className="settings-item settings-feature-row" key={feature}>
+                        <span
+                          className="settings-feature-row__icon"
+                          style={
+                            color !== null
+                              ? { color: cssColorFor(color), borderColor: cssColorFor(color) }
+                              : undefined
+                          }
+                        >
+                          <Icon path={icon} size={1} />
+                        </span>
+                        <span className="settings-feature-row__text">
+                          <span className="settings-feature-row__title">
+                            {classNode ? titleOf(client!, classId) : spec.label}
+                          </span>
+                          <span className="settings-feature-row__powers">
+                            {spec.powers}
+                            {instances > 0
+                              ? ` — ${instances} existing object${instances === 1 ? "" : "s"}`
+                              : ""}
+                          </span>
+                        </span>
+                        <ToggleSwitch
+                          leftLabel="Off"
+                          rightLabel="On"
+                          checked={enabled}
+                          onChange={(next) => handleFeatureToggle(feature, spec.label, instances, next)}
+                          disabled={!FEATURE_TOGGLE_WRITES_ENABLED || client === null}
+                          size="sm"
+                          aria-label={`${spec.label} feature`}
+                        />
+                      </div>
+                    );
+                  })}
+                  {/* The journal toggle is NOT a
+                      class family — it gates the journal SURFACES (the
+                      journal view, Today-page management) while the date
+                      classes stay always-on. No instance count, no family
+                      icon: a calendar glyph row with surfaces-only copy. */}
+                  {(() => {
+                    const journalEnabled = client!.isFeatureEnabled("journal");
+                    return (
+                      <div className="settings-item settings-feature-row" key="journal">
+                        <span className="settings-feature-row__icon">
+                          <Icon path="mdi-calendar-clock" size={1} />
+                        </span>
+                        <span className="settings-feature-row__text">
+                          <span className="settings-feature-row__title">Journal</span>
+                          <span className="settings-feature-row__powers">
+                            The journal view and Today-page management — the date classes stay
+                            always-on.
+                          </span>
+                        </span>
+                        <ToggleSwitch
+                          leftLabel="Off"
+                          rightLabel="On"
+                          checked={journalEnabled}
+                          onChange={(next) => handleFeatureToggle("journal", "Journal", 0, next)}
+                          disabled={!FEATURE_TOGGLE_WRITES_ENABLED || client === null}
+                          size="sm"
+                          aria-label="Journal feature"
+                        />
+                      </div>
+                    );
+                  })()}
+                  {/* The read-later toggle is a SURFACES gate like journal:
+                      it gates the connector's read-later captures while the
+                      web_page/collection classes stay always-on. The row
+                      itself is vendor-tolerant: until the vendored
+                      WORKSPACE_FEATURES knows `readItLater` it renders
+                      nothing. */}
+                  <ReadItLaterFeatureRow client={client!} />
+                  {/* The write issues a workspace.feature.set through the
+                      normal client op path (lockstep SHIPPED: GTK/Flutter
+                      v3.0.0). F3's disable confirmation gates the OFF write
+                      for families with instances (below). */}
+                  {/* The Sources family's settings block: the citekey pattern with its
+                      live preview (generation always on — no toggle), the
+                      resolver toggle, the
+                      39 source type-classes' visibility list, and the
+                      add-source dialog's button door — every settings write
+                      rides ONE workspace.feature.set with the merged
+                      settings record (read-modify-merge at the section). */}
+                  <SourcesSettingsSection client={client!} onAddSource={onAddSource} />
+                </>
+              ) : (
+                <p className="settings-item__description">
+                  Open this workspace to see its feature toggles.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* F3 disable confirmation: turning a family off with existing
+              instances hides the family's surfaces but keeps the data — the
+              modal states that before the write. */}
+          <ConfirmationModal
+            isOpen={featureConfirm !== null}
+            title={featureConfirm !== null ? `Disable ${featureConfirm.label}?` : "Disable?"}
+            message={
+              featureConfirm !== null
+                ? `${featureConfirm.instances} existing object${featureConfirm.instances === 1 ? "" : "s"} keep their data — the family's surfaces hide.`
+                : ""
+            }
+            confirmLabel="Disable"
+            cancelLabel="Cancel"
+            variant="danger"
+            onConfirm={() => {
+              if (featureConfirm !== null) writeFeature(featureConfirm.feature, false);
+              setFeatureConfirm(null);
+            }}
+            onCancel={() => setFeatureConfirm(null)}
+          />
+
+          {activeTab === "plugins" && (
+            <PluginsSettingsTab serverUrl={serverUrl} credential={credential} />
+          )}
+
+          {activeTab === "workflows" && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Workflows</h3>
+              {clientMatches ? (
+                <WorkflowsSettingsSection client={client!} />
+              ) : (
+                <p className="settings-item__description">
+                  Open this workspace to see its workflows.
+                </p>
+              )}
+            </div>
+          )}
+
+          {activeTab === "automation" && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Automation Rules</h3>
+              <WorkflowRulesSection serverUrl={serverUrl} credential={credential} />
+            </div>
+          )}
+
+          {activeTab === "shortcuts" && (
+            <div className="settings-section">
+              {SHORTCUT_GROUPS.map((group) => (
+                <div key={group.title} className="settings-shortcuts__group">
+                  <h3 className="settings-shortcuts__group-title">{group.title}</h3>
+                  <table className="settings-shortcuts__table">
+                    <tbody>
+                      {group.shortcuts.map((shortcut) => (
+                        <tr key={shortcut.description} className="settings-shortcuts__row">
+                          <td className="settings-shortcuts__description">
+                            {shortcut.description}
+                          </td>
+                          <td className="settings-shortcuts__key">
+                            <kbd className="settings-shortcuts__kbd">{shortcut.keys}</kbd>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === "general" && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Workspace</h3>
+
+              <div className="settings-form-row">
+                <label className="settings-form-label" htmlFor="workspace-settings-name">
+                  Name
+                </label>
+                <input
+                  id="workspace-settings-name"
+                  type="text"
+                  className="settings-form-input"
+                  value={nameDraft ?? currentName}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                  }}
+                  disabled={!canRename || renaming}
+                />
+                {!canRename && (
+                  <p className="settings-item__description">
+                    Only the workspace owner can rename this workspace.
+                  </p>
+                )}
+              </div>
+              {renameError && <div className="settings-error">{renameError}</div>}
+              {renameSuccess && <div className="settings-success">Workspace renamed.</div>}
+
+              <h3 className="settings-section__title settings-section__title--spaced">
+                Graph Settings
+              </h3>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label htmlFor="graph-date-format" className="settings-item__label">
+                    Date format
+                  </label>
+                  <p className="settings-item__description">
+                    Format used for daily and monthly notes in this workspace
+                  </p>
+                </div>
+                <select
+                  id="graph-date-format"
+                  className="settings-item__select"
+                  value={dateFormat}
+                  onChange={(e) => handleDateFormatChange(e.target.value as DateFormat)}
+                >
+                  {DATE_FORMAT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} ({option.example})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <h3 className="settings-section__title settings-section__title--spaced">
+                Sidebar Visibility
+              </h3>
+
+              <div className="settings-item">
+                <BooleanToggle
+                  label="Journals"
+                  description="Show the Journals button in the sidebar"
+                  checked={showJournals}
+                  onChange={(checked) => setShowJournals(checked)}
+                  labelPosition="left"
+                />
+              </div>
+
+              <div className="settings-item">
+                <BooleanToggle
+                  label="Inbox"
+                  description="Show the Inbox button in the sidebar"
+                  checked={showInbox}
+                  onChange={(checked) => setShowInbox(checked)}
+                  labelPosition="left"
+                />
+              </div>
+
+              <div className="settings-item">
+                <BooleanToggle
+                  label="Calendar"
+                  description="Show the Calendar button in the sidebar"
+                  checked={showCalendar}
+                  onChange={(checked) => setShowCalendar(checked)}
+                  labelPosition="left"
+                />
+              </div>
+
+              <h3 className="settings-section__title settings-section__title--spaced">
+                Data Retention
+              </h3>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label htmlFor="trash-retention" className="settings-item__label">
+                    Trash auto-empty
+                  </label>
+                  <p className="settings-item__description">
+                    Automatically and permanently delete items that have been in trash for longer
+                    than this period
+                  </p>
+                  <p className="settings-item__description">Not available in this build.</p>
+                </div>
+                <Dropdown
+                  id="trash-retention"
+                  options={TRASH_RETENTION_OPTIONS}
+                  value={30}
+                  onChange={() => undefined}
+                  size="sm"
+                  disabled
+                />
+              </div>
+
+              <div className="settings-item retention-toggle-item">
+                <BooleanToggle
+                  label="Activity log retention"
+                  description="Automatically delete activity log entries older than the selected number of days"
+                  checked={false}
+                  onChange={() => undefined}
+                  labelPosition="left"
+                  disabled
+                />
+                <span className="settings-unavailable">Not available in this build.</span>
+              </div>
+
+              <div className="settings-item retention-toggle-item">
+                <BooleanToggle
+                  label="Task completion retention"
+                  description="Automatically delete task completion history older than the selected number of days"
+                  checked={false}
+                  onChange={() => undefined}
+                  labelPosition="left"
+                  disabled
+                />
+                <span className="settings-unavailable">Not available in this build.</span>
+              </div>
+
+              {clientMatches && <MigrationsSection client={client!} />}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}

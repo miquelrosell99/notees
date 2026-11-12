@@ -1,0 +1,1023 @@
+/**
+ * MetadataSection styles — the metadata panel rows: classes pills (+ the add
+ * ghost pill), the effective-property rows (labels, hints, scalar editor,
+ * grouped pill rows), the hidden asset file input, and the date-range /
+ * link-qualifier controls. The property pickers render their own ported
+ * styles (see ./pickers/*).
+ *
+ * All colors/spacing resolve to design tokens — no raw hex values.
+ */
+
+.node-metadata-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.node-metadata-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  font-size: var(--font-size-sm);
+}
+
+.section-label {
+  flex-shrink: 0;
+  width: var(--layout-size-sm);
+  font: var(--font-title-medium);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+  margin-right: var(--spacing-2);
+  white-space: nowrap;
+}
+
+.node-metadata-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+
+.pill__text {
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  min-width: 0;
+}
+
+span.pill__text {
+  cursor: default;
+}
+
+.pill__right-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  flex-shrink: 0;
+  border-radius: var(--shape-medium);
+}
+
+/* Hover-reveal right icon: the pill only grows horizontally (the text never
+.pill--hover-reveal-right .pill__text {
+  flex-shrink: 0;
+}
+
+.pill--hover-reveal-right .pill__right-button {
+  max-width: 0;
+  opacity: var(--opacity-0);
+  overflow: hidden;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    max-width var(--motion-duration-short) var(--motion-easing-standard),
+    margin var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.pill--hover-reveal-right:hover .pill__right-button,
+.pill--hover-reveal-right:focus-within .pill__right-button {
+  max-width: var(--spacing-6);
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
+.pill--hover-reveal-right .pill__right-button:hover {
+  opacity: var(--opacity-100);
+}
+
+/* The annotations affordance stays visible (it is a primary action on
+   asset pills, not a removal). */
+.pill--hover-reveal-right .pill__right-button.nt-chip-annotations {
+  max-width: var(--spacing-6);
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
+.nt-chip-annotations:hover,
+.nt-chip-annotations[aria-expanded="true"] {
+  opacity: var(--opacity-100);
+}
+
+/* "+ Add class" / "+ Add tag" picker anchor (the pill is the AddPill
+   primitive from components/ui). */
+.nt-class-add-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* --- effective-property rows ---------------------------------------------- */
+
+/* Notion-style property table: internal row separators only (top edge +
+   between rows + bottom of last row); no side borders. Classes/tags live
+   above, outside the table. */
+.nt-properties-list {
+  list-style: none;
+  margin: var(--spacing-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.nt-properties-list > li {
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding: var(--spacing-1-5) 0;
+  margin: 0;
+}
+
+.nt-property {
+  position: relative;
+}
+
+/* --- the properties sidebar (the main layout's first column) -------------- */
+
+/* A set of rows, one per property: a property-name row followed by its
+   value-cell row. A hairline under each property is the only horizontal
+   separator — the value cells below span the card's
+   full width, so the empty ones read as empty fields. The rows ride a
+   collapsible NodeViewSection (the header names the card); the card frame
+   carries the panel look while the section is collapsed. */
+.nt-props-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.nt-props-sidebar__prop {
+  padding-bottom: var(--spacing-2);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.nt-props-sidebar__name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: var(--font-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-props-sidebar__name:hover {
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-props-sidebar__value {
+  margin-top: var(--spacing-1);
+  min-width: 0;
+  /* The value cell spans the column's full width even when empty
+ — an empty property reads as an empty field. */
+  width: 100%;
+}
+
+/* The reused value-row components keep their own li chrome — strip the
+   table-row bits (min height, row flex) and their internal label/hints,
+   which the name row above already carries. */
+.nt-props-sidebar__value > .nt-property {
+  min-height: 0;
+  padding: 0;
+  border-bottom: none;
+}
+
+.nt-props-sidebar__value .nt-property-name,
+.nt-props-sidebar__value .nt-property-hint {
+  display: none;
+}
+
+.nt-property-hint {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-full);
+  padding: 0 var(--spacing-2);
+  flex-shrink: 0;
+}
+
+/* Inside the name cell the badge needs its own breathing room (the label
+   column is a plain text run). */
+.nt-property-name .nt-property-hint {
+  margin-left: var(--spacing-2);
+}
+
+/* The property-header icon rides left of the label (the name row in the
+   sidebar, the label span in the table) — breathing room only; size and
+   color inherit the Icon component + the name cell's tone. */
+.nt-property-name__icon {
+  margin-inline-end: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+/* The unchecked boolean box on the panel card: the catalog border-outline
+   is tuned against the app surface, one tone darker than the sidebar card
+   (--md-sys-color-sidebar-card) — on the card the false state vanished.
+   Pin the unchecked border to on-surface-variant (and keep the fleet hover
+   contract) so false reads at a glance in both panels. */
+.nt-property-boolean .checkbox-input {
+  border-color: color-mix(in oklab, var(--md-sys-color-on-surface-variant) 70%, transparent);
+}
+.nt-property-boolean .checkbox-input:hover:not(:disabled) {
+  border-color: var(--md-sys-color-primary);
+}
+
+.nt-property-default .nt-property-value {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-property-default .section-label,
+.nt-property-default .nt-property-name {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-property-value {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  /* The Zotero-like field register (the owner's reference): the editable
+     value cells read as FIELDS — a subtle surface-container-low background
+     at rest, one step lighter on hover, the accent border on focus. The
+     border rides transparent at rest so the focus border draws without a
+     layout shift; the read-only projection stays super-clean. */
+  border: var(--border-width-default) solid transparent;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  min-width: var(--layout-size-md);
+  max-width: 100%;
+}
+
+/* The field register applies to the EDITABLE cells only (the value inputs
+   and the scalar cell) — read-only spans stay transparent. */
+input.nt-property-value,
+button.nt-property-value {
+  background: var(--md-sys-color-surface-container-low);
+}
+
+input.nt-property-value:hover,
+button.nt-property-value:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+input.nt-property-value:focus,
+button.nt-property-value:focus {
+  outline: none;
+  background: var(--md-sys-color-surface-container);
+  border-color: var(--md-sys-color-primary);
+}
+
+input.nt-property-value:focus-visible,
+button.nt-property-value:focus-visible {
+  /* Keyboard focus keeps the accent ring on top of the border. */
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* The legacy scalar cell (the resolver/create flow's shape for freshly
+   authored values — a plain-string value on a text schema): rides a BLOCK
+   ROW now, the same bullet + content shape the carrier rows render, so
+   every text value reads as a block (single-value rows included); the
+   first edit mints the carrier block carrying the string and opens the
+   block editor (the nt-block classes come from BlockRow — the content
+   button resets to plain text so it reads as a block, not a control). */
+.nt-property-scalar-content {
+  border: none;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: text;
+}
+
+/* The empty-state cell rides the platform ghost row (ui/GhostRow): the row
+   grows to the value width, the optional trailing affordance (the citekey
+   regenerate) sits at its right edge. */
+.nt-property-ghost {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-property-ghost .nt-ghost-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-property-ghost .nt-property-value-field__action {
+  position: static;
+  flex-shrink: 0;
+}
+
+/* The scalar block row stays aligned with the carrier collection's rows:
+   the block chrome keeps its own metrics; only the content's end padding
+   clears the trailing in-row affordance (the citekey regenerate). */
+.nt-property-scalar-block .nt-property-value-field__action {
+  position: static;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* The SINGLE-value property row hides its value bullets — one value is not
+   a list, the bullet is noise (the 2026-11-02 ruling, refined: the bullet
+   is the MULTI-value discriminator, shown there). Nested children keep
+   theirs (the collapse affordance) in both. */
+.nt-property-text--single .nt-block-tree > .outline-tree-row > .nt-block > .nt-block-row .nt-bullet,
+.nt-property-text--single .nt-property-scalar-block > .nt-block-row > .nt-bullet {
+  display: none;
+}
+
+/* The trailing in-field affordance (the citekey regenerate button): the
+   wrapper is the field's positioning context; the button rides at the
+   right edge INSIDE the field (the searchbox clear-x pattern); the cell's
+   end padding clears the button so the text never underlaps it. */
+.nt-property-value-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-property-value-field > .nt-property-value {
+  width: 100%;
+  padding-inline-end: calc(var(--spacing-2) + 1.75em);
+}
+
+.nt-property-value-field__action {
+  position: absolute;
+  inset-inline-end: var(--spacing-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-1);
+  border: none;
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-property-value-field__action:hover:not(:disabled) {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-property-value-field__action:disabled {
+  opacity: var(--opacity-40);
+  cursor: not-allowed;
+}
+
+/* The citekey pin toggle (the Zotero-parity pinning slice): a small icon
+   button beside the property NAME — shape-independent (scalar and carrier
+   values render different cells; the pin must toggle from either). The
+   pinned state reads accent, the unpinned hover reads like the field
+   actions. */
+.nt-property-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-1);
+  border: none;
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-property-pin:hover:not(:disabled) {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-property-pin:disabled {
+  opacity: var(--opacity-40);
+  cursor: not-allowed;
+}
+
+.nt-property-pin--pinned,
+.nt-property-pin--pinned:hover:not(:disabled) {
+  color: var(--md-sys-color-primary);
+}
+
+/* S5 block-to-property drop affordance. While a
+   block drag is live, a text row the drop WOULD land on reads as a drop
+   target — the empty placeholder carries an accent ring (Capacities-grade
+   discoverability, no permanent chrome); the row under the pointer rides a
+   state-layer; a refused row (foreign block, occupied single slot,
+   ineligible schema) shows the no-drop cursor. No layout shift anywhere. */
+.nt-property--droppable .nt-property-value:placeholder-shown {
+  box-shadow: var(--shadow-focus-ring-primary-thin);
+}
+
+.nt-property--drop-over .nt-property-value {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-property--no-drop .nt-property-value {
+  cursor: no-drop;
+}
+
+/* email rows: the external-link affordance beside the text editor (the
+   `url` property type is retired — no click-to-open href for its values). */
+.nt-property-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--md-sys-color-on-surface-variant);
+  text-decoration: none;
+  border-radius: var(--shape-full);
+  padding: var(--spacing-1);
+}
+
+.nt-property-link:hover {
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-variant);
+}
+
+/* The picker popover styles moved with the ported pickers
+ * (./pickers/NodeSelector.css, ./pickers/PropertyCell.css); the asset file
+ * input and picker error stay here with their rows. */
+.nt-file-input {
+  display: none;
+}
+
+.nt-picker-error {
+  color: var(--md-sys-color-error);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+/* --- link qualifiers ------------------------------------------------------- */
+
+.nt-chip-qualifier {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-inline-start: var(--spacing-2);
+}
+
+/* Node-backed text property: editable block inside the value cell. */
+.nt-property-blockcell {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-micro) 0;
+}
+
+/* --- the single-value selection cell (node-typed / date properties) ------- */
+
+/* The full-width dropdown control: the trigger spans the value cell, the
+   selected node rides the content area as a read-only block row (never a
+   pill), empty shows the muted "Select" placeholder. */
+.nt-property-select {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-property-select__trigger {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  padding: var(--spacing-micro) var(--spacing-2);
+  border-radius: var(--shape-medium);
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-property-select__trigger:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-property-select__trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.nt-property-select__content {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-property-select__placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+.nt-property-select__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The → navigate button: beside the chevron, the
+   table's pinned Open-button idiom — the value click owns the picker, the
+   button owns navigation. */
+.nt-property-select__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+}
+
+.nt-property-select__nav:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-primary);
+}
+
+.nt-property-select__nav:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* The trailing chrome's kit Dropdown (the date repeat picker) defaults to
+   width:100% of its flex row — inside the select cell it must hug its
+   icon and never push over the trigger content. */
+.nt-property-select .dropdown-container {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.nt-property-select__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--shape-medium);
+  opacity: var(--opacity-60);
+}
+
+.nt-property-select__clear:hover,
+.nt-property-select__clear:focus-visible {
+  opacity: var(--opacity-100);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* Hover-reveal chrome: at rest the cell reads as pure
+   value text — the → navigate button, the dropdown chevron, and the ×
+   clear collapse (the pill × max-width idiom) and expand on cell hover /
+   focus-in, the content flexing out of their way. */
+.nt-property-select__nav,
+.nt-property-select__chevron,
+.nt-property-select__clear {
+  max-width: 0;
+  padding-inline: 0;
+  margin-inline-start: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              max-width var(--motion-duration-short) var(--motion-easing-standard),
+              margin var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-property-select:hover .nt-property-select__nav,
+.nt-property-select:hover .nt-property-select__chevron,
+.nt-property-select:hover .nt-property-select__clear,
+.nt-property-select:focus-within .nt-property-select__nav,
+.nt-property-select:focus-within .nt-property-select__chevron,
+.nt-property-select:focus-within .nt-property-select__clear,
+.nt-property-select__nav:focus-visible {
+  max-width: var(--spacing-6);
+  padding-inline: var(--spacing-1);
+  margin-inline-start: var(--spacing-1);
+  overflow: visible;
+  opacity: var(--opacity-100);
+}
+
+.nt-property-select__broken code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-small);
+  overflow-wrap: anywhere;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Empty text property: the muted placeholder rides the full-width cell. */
+.nt-property-value::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+.nt-property-blockcell .nt-refblock-tree {
+  padding: 0;
+}
+
+/* Text property as a blocks list: one row, the carrier blocks
+   stack as an editable mini-outline — values are blocks, never repeated
+   label entries. */
+.nt-property-textcell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: var(--spacing-micro);
+}
+
+.nt-property-textcell .nt-refblock-tree {
+  padding: 0;
+}
+
+.nt-property-textcell > .nt-property-value {
+  width: 100%;
+}
+
+/* The rest→edit swap must not move the content: the editable inherits the
+   content box's exact text metrics and contributes no box of its own (no
+   intrinsic min-width, no padding) — the wrapper .nt-block-content owns
+   the line floor (1lh) and the width floor (8ch) in BOTH modes, so the
+   swap is a pure content exchange inside one stable box. Scoped to the
+   property cell: the panel's smaller font-size context makes the shared
+   editor rule's 1ch floor and UA contentEditable defaults visible; the
+   page body rides the same contract unchanged. */
+.nt-property-textcell .nt-block-content .nt-block-text {
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+
+/* Properties table look: aligned label column (rows are flex); class-derived
+   (not yet realized) rows render muted so provenance is visible. */
+.node-metadata-row > .section-label:first-child {
+  flex: 0 0 var(--layout-size-md);
+}
+
+/* Vertical divider between the label column and the value column (Notion /
+   Capacities). The label stretches to the row height so the line is
+   continuous down the table; classes/tags sit above, outside it. */
+.nt-properties-list > li > .section-label:first-child {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  padding-right: var(--spacing-3);
+  margin-right: var(--spacing-3);
+}
+
+.nt-property-default {
+  opacity: 0.55;
+}
+
+/* Hairline between the metadata section and the child blocks. */
+.nt-metadata-divider {
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  margin: var(--spacing-3) 0 var(--spacing-4);
+}
+
+/* "+ Add property": ghost button under the table + anchored picker popup. */
+.nt-add-property {
+  position: relative;
+  margin-top: var(--spacing-2);
+}
+
+.nt-add-property-popup {
+  position: absolute;
+  top: calc(100% + var(--spacing-1));
+  left: 0;
+  z-index: var(--z-70);
+  width: var(--layout-size-6xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.nt-add-property-popup input {
+  padding: var(--spacing-1-5) var(--spacing-2-5);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+}
+
+/* The global input focus ring applies — no suppression, per the
+   2026-10-15 ruling that reversed the old quiet-focus exception. */
+.nt-add-property-popup input:focus {
+  border-color: var(--md-sys-color-outline);
+}
+
+.nt-add-property-popup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: var(--layout-size-2xl);
+  overflow-y: auto;
+}
+
+.nt-add-property-popup li > button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-button);
+  text-align: left;
+}
+
+.nt-add-property-popup li > button:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-add-property-type {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-xs);
+}
+
+/* The REALIZE tag: bound-but-unrealized properties lead the picker, tagged
+   with their nearest binder so the class origin reads at a glance. */
+.nt-add-property-type--realize {
+  color: var(--md-sys-color-primary);
+}
+
+/* The ineligible search matches (the guided scope remedy, Tier 3):
+   dimmed + disabled, with the "Let <class> extend <scope class>?"
+   offer nested beneath — never a silent dead end. */
+.nt-add-property-ineligible > button {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nt-add-property-ineligible > button:hover {
+  background: transparent;
+}
+
+.nt-add-property-ineligible .nt-scope-remedy {
+  padding-inline: var(--spacing-2);
+}
+
+.nt-add-property-create {
+  border: none;
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--spacing-1-5) var(--spacing-2);
+  font-size: var(--font-size-sm);
+  text-align: left;
+}
+
+.nt-add-property-create:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* PB1 broken property reference: the value survives its target's deletion —
+   the pill shows the raw id in a dashed, muted chip (broken-mention policy). */
+.pill--broken {
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-chip-label--broken code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-small);
+  overflow-wrap: anywhere;
+}
+
+/* --- the asset property row ---------------------------------------------- */
+
+/* The value cell: the asset list and the authoring buttons stack in one
+   column (the buttons sit at the list's bottom in multi rows). */
+.nt-property-assets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-asset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-asset-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-asset-item--default {
+  opacity: 0.55;
+}
+
+.nt-asset-item__thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--spacing-5-5);
+  height: var(--spacing-5-5);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+  object-fit: cover;
+}
+
+.nt-asset-item--broken .nt-asset-item__thumb,
+.nt-asset-item__thumb--broken {
+  background: transparent;
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
+}
+
+.nt-asset-item__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+}
+
+.nt-asset-item__name:hover {
+  color: var(--md-sys-color-primary-hover);
+}
+
+.nt-asset-item__name--broken code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-small);
+  overflow-wrap: anywhere;
+}
+
+.nt-asset-item__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--shape-medium);
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  opacity: var(--opacity-60);
+}
+
+.nt-asset-item:hover .nt-asset-item__remove,
+.nt-asset-item__remove:focus-visible {
+  opacity: var(--opacity-100);
+}
+
+.nt-asset-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* The property settings modal's field chrome — the classes below had no
+   styles at all (the modal stacked inline labels with UA-default inputs).
+   Field = label above control (the settings register), token inputs. */
+.nt-property-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-3);
+}
+
+.nt-property-settings__label {
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-property-settings__input {
+  width: 100%;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  background: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
+  border: var(--spacing-hairline) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-sm);
+  font: var(--font-body-small);
+}
+
+.nt-property-settings__input:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+  border-color: var(--md-sys-color-primary);
+}
+
+.nt-property-settings__meta {
+  margin: calc(-1 * var(--spacing-1)) 0 var(--spacing-3);
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-label-small);
+}
+
+.nt-property-settings__check {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+}
+
+/* PG16 settings-modal option rows: color dot + label input + remove. */
+.nt-property-settings__options {
+  list-style: none;
+  margin: 0 0 var(--spacing-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-property-settings__option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-property-settings__option .nt-property-settings__input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The per-option icon trigger — an icon-only button showing the
+   option's current icon (tinted with its color) or an add-glyph placeholder. */
+.nt-property-settings__option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--spacing-5-5);
+  height: var(--spacing-5-5);
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-property-settings__option-icon:hover {
+  background: var(--md-sys-color-hover-overlay);
+}

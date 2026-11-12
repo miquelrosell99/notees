@@ -1,0 +1,374 @@
+/**
+ * Structural edit application — the save-path replacement for
+ * `astFromProse`'s flatten-everything behavior (see prose.ts).
+ *
+ * Given the old token array and the new plain-text draft, the change is
+ * applied to the token stream instead of replacing it with a single text
+ * run (the `setNodeText` pattern): the common prefix/suffix between the old
+ * prose and the draft brackets the changed middle, and only the tokens the
+ * middle covers are touched —
+ *
+ * - fully covered runs drop (their marks drop with them),
+ * - partially covered text runs get their text spliced (marks kept),
+ * - untouched runs keep their marks and object identity,
+ * - the replacement text parses into plain text / hard_break runs; the
+ *   first run inherits the marks of the text run abutting the splice start
+ *   (typing at the end of a bold run stays bold — contentEditable behavior),
+ *   the last run inherits the marks abutting the splice end.
+ *
+ * Rich tokens (mention, typed_link, class_link, math, quote)
+ * are prose-visible but not structurally editable: a change strictly before
+ * or after them leaves them intact (a mention stores no link text — its
+ * label is the target's re-resolved name). A change that COVERS a rich token is
+ * ambiguous (the
+ * diff cannot know if the user meant to edit the mention), so the covered
+ * span falls back to the old flatten behavior — plain text / hard_break
+ * runs built from the span's prose — while everything outside the span is
+ * preserved.
+ *
+ * Mention labels ride the same re-resolution the DOM build uses: pass
+ * `resolveMentionName` (the editor threads it) so the prose projection the
+ * diff brackets matches the projection the caller's DOM/textContent rides
+ * — a re-resolved label's length differs from the captured text's, and a
+ * mismatch here would splice at wrong offsets.
+ *
+ * Class chips are the exception to the cover-flatten rule: the chip is an
+ * ATOMIC display token (its label is re-resolved, never stored), so a chip
+ * the splice touches is never cut and never flattened away — a boundary
+ * landing inside its label expands to the whole chip, and covered chips
+ * ride through the splice in order (their labels excluded from the
+ * flattened replacement prose). Without this, typing anywhere near a chip
+ * would silently destroy it (its zero-length/label span lands in `covered`).
+ */
+
+import type { ContentAst, Mark } from "@notees/protocol";
+
+import {
+  proseFromAst,
+  proseSpans,
+  type ClassNameResolver,
+  type MentionNameResolver,
+} from "@/editor/prose.js";
+
+/** A location in the token stream, from a prose offset. */
+interface StreamLoc {
+  tokenIndex: number;
+  /** Offset inside the located token's prose (0 for boundaries). */
+  inner: number;
+}
+
+function isTextToken(token: unknown): token is { type: "text"; text: string; marks?: Mark[] } {
+  return (
+    typeof token === "object" &&
+    token !== null &&
+    (token as Record<string, unknown>).type === "text" &&
+    typeof (token as Record<string, unknown>).text === "string"
+  );
+}
+
+function isPlainToken(token: unknown): boolean {
+  if (typeof token !== "object" || token === null) return true;
+  const type = (token as Record<string, unknown>).type;
+  return type === "text" || type === "hard_break";
+}
+
+/** A class_link token — the atomic display reference (label re-resolved). */
+export function isChipToken(token: unknown): boolean {
+  return (
+    typeof token === "object" &&
+    token !== null &&
+    (token as Record<string, unknown>).type === "class_link"
+  );
+}
+
+/** A mention token — also atomic in splices: the wire stores no link text
+ *, so a boundary can never trim a stored string. */
+export function isMentionToken(token: unknown): boolean {
+  return (
+    typeof token === "object" &&
+    token !== null &&
+    (token as Record<string, unknown>).type === "mention"
+  );
+}
+
+function tokenMarks(token: unknown): Mark[] | undefined {
+  if (!isTextToken(token)) return undefined;
+  const marks = (token as { marks?: unknown }).marks;
+  return Array.isArray(marks) ? (marks as Mark[]) : undefined;
+}
+
+/** First token whose prose extends past `offset`; end-of-stream if none. */
+function locate(spans: ReturnType<typeof proseSpans>, offset: number): StreamLoc {
+  for (const span of spans) {
+    if (span.end > offset) return { tokenIndex: span.tokenIndex, inner: offset - span.start };
+  }
+  return { tokenIndex: spans.length, inner: 0 };
+}
+
+function textRun(text: string, marks: Mark[] | undefined): Record<string, unknown> {
+  return marks !== undefined && marks.length > 0 ? { type: "text", text, marks } : { type: "text", text };
+}
+
+/** Split draft text into text / hard_break runs (draft "\n" ⇄ hard_break). */
+function parseRuns(text: string): Record<string, unknown>[] {
+  const runs: Record<string, unknown>[] = [];
+  text.split("\n").forEach((segment, index, segments) => {
+    if (segment !== "") runs.push(textRun(segment, undefined));
+    if (index < segments.length - 1) runs.push({ type: "hard_break" });
+  });
+  return runs;
+}
+
+function sameMarks(a: Mark[] | undefined, b: Mark[] | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return a.length === b.length && a.every((mark) => b.includes(mark));
+}
+
+/** Merge adjacent text runs carrying the same marks (never mutates inputs). */
+function mergeAdjacentTextRuns(tokens: unknown[]): ContentAst {
+  const out: unknown[] = [];
+  for (const token of tokens) {
+    const last = out[out.length - 1];
+    if (isTextToken(last) && isTextToken(token) && sameMarks(tokenMarks(last), tokenMarks(token))) {
+      out[out.length - 1] = {
+        ...last,
+        text: (last as { text: string }).text + (token as { text: string }).text,
+      };
+    } else {
+      out.push(token);
+    }
+  }
+  return out as ContentAst;
+}
+
+/** Nearest text run whose prose ends exactly at the splice start. */
+function precedingMarks(
+  previous: readonly unknown[],
+  spans: ReturnType<typeof proseSpans>,
+  from: StreamLoc,
+  start: number,
+): Mark[] | undefined {
+  if (from.inner > 0) return tokenMarks(previous[from.tokenIndex]);
+  for (let i = from.tokenIndex - 1; i >= 0; i -= 1) {
+    if (spans[i]!.end === start) return tokenMarks(previous[i]);
+  }
+  return undefined;
+}
+
+/** Nearest text run whose prose starts exactly at the splice end. */
+function followingMarks(
+  previous: readonly unknown[],
+  spans: ReturnType<typeof proseSpans>,
+  to: StreamLoc,
+  oldEnd: number,
+): Mark[] | undefined {
+  if (to.inner > 0) return tokenMarks(previous[to.tokenIndex]);
+  for (let i = to.tokenIndex; i < previous.length; i += 1) {
+    if (spans[i]!.start === oldEnd) return tokenMarks(previous[i]);
+  }
+  return undefined;
+}
+
+/**
+ * Apply a plain-text draft to the previous token stream, structurally.
+ * `draft` is the contentEditable textContent (CRLF normalized like
+ * `astFromProse`). Returns `previous` untouched when the prose is identical.
+ * `resolveClassName` keeps chip label lengths consistent with the caller's
+ * prose projection (the editor threads it; omitting it makes chips
+ * prose-invisible). `resolveMentionName` does the same for mention labels
+ * (the editor threads it; omitting it makes a label-less mention
+ * prose-invisible).
+ */
+export function applyTextEdit(
+  previous: readonly unknown[],
+  draft: string,
+  resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
+): ContentAst {
+  const prose = proseFromAst(previous, resolveClassName, resolveMentionName);
+  const next = draft.replace(/\r\n?/g, "\n");
+  if (next === prose) return previous as ContentAst;
+
+  // setNodeText pattern: bracket the change with a common prefix/suffix.
+  let start = 0;
+  const minLen = Math.min(prose.length, next.length);
+  while (start < minLen && prose.charCodeAt(start) === next.charCodeAt(start)) start += 1;
+  let oldEnd = prose.length;
+  let newEnd = next.length;
+  while (
+    oldEnd > start &&
+    newEnd > start &&
+    prose.charCodeAt(oldEnd - 1) === next.charCodeAt(newEnd - 1)
+  ) {
+    oldEnd -= 1;
+    newEnd -= 1;
+  }
+
+  const spans = proseSpans(previous, resolveClassName, resolveMentionName);
+  let from = locate(spans, start);
+  let to = locate(spans, oldEnd);
+  const inserted = next.slice(start, newEnd);
+
+  // Chips are atomic: a boundary landing inside a chip's label expands to
+  // the whole chip (a chip is never cut), and covered chips ride through
+  // the splice below — never flattened away.
+  if (from.inner > 0 && isChipToken(previous[from.tokenIndex])) {
+    from = { tokenIndex: from.tokenIndex, inner: 0 };
+  }
+  if (to.inner > 0 && isChipToken(previous[to.tokenIndex])) {
+    to = { tokenIndex: to.tokenIndex + 1, inner: 0 };
+  }
+  const coveredChips: unknown[] = [];
+  const coveredChipRanges: Array<{ start: number; end: number }> = [];
+  for (let i = from.tokenIndex; i < to.tokenIndex; i += 1) {
+    if (!isChipToken(previous[i])) continue;
+    coveredChips.push(previous[i]);
+    const range = spans[i]!;
+    if (range.end > range.start) coveredChipRanges.push(range);
+  }
+
+  // A change is ambiguous when it touches a prose-visible token the splice
+  // cannot edit structurally (mention / typed_link / quote / ...): fall back
+  // to flattening the COVERED SPAN only, preserving everything outside it.
+  // Chips are exempt — they are atomic and ride through (see above).
+  const covered = previous.slice(from.tokenIndex, to.tokenIndex);
+  const ambiguous =
+    covered.some((token) => !isPlainToken(token) && !isChipToken(token)) ||
+    (from.inner > 0 && !isTextToken(previous[from.tokenIndex])) ||
+    (to.inner > 0 && !isTextToken(previous[to.tokenIndex]));
+
+  const out: unknown[] = previous.slice(0, from.tokenIndex);
+  if (ambiguous) {
+    // Span prose = old prose of the covered tokens with the change applied;
+    // stored back as plain runs (the old flatten behavior, span-local).
+    // Covered chips' labels are display-resolved (never stored): they are
+    // excluded from the flattened prose and the chips re-ride after it.
+    const spanStart = spans[from.tokenIndex] !== undefined ? spans[from.tokenIndex]!.start : prose.length;
+    const spanEnd =
+      to.tokenIndex < previous.length
+        ? to.inner > 0
+          ? spans[to.tokenIndex]!.end
+          : spans[to.tokenIndex]!.start
+        : prose.length;
+    let spanProse: string;
+    if (coveredChipRanges.length === 0) {
+      spanProse = prose.slice(spanStart, start) + inserted + prose.slice(oldEnd, spanEnd);
+    } else {
+      // Walk the span, skipping covered chip label ranges, splicing the
+      // edit at its offsets.
+      let acc = "";
+      let cursor = spanStart;
+      const advance = (to: number): void => {
+        let c = cursor;
+        for (const range of coveredChipRanges) {
+          if (range.end <= c || range.start >= to) continue;
+          if (range.start > c) acc += prose.slice(c, range.start);
+          c = Math.max(c, range.end);
+        }
+        if (to > c) acc += prose.slice(c, to);
+        cursor = to;
+      };
+      advance(Math.min(start, spanEnd));
+      acc += inserted;
+      cursor = oldEnd;
+      advance(spanEnd);
+      spanProse = acc;
+    }
+    out.push(...parseRuns(spanProse));
+    out.push(...coveredChips);
+  } else {
+    if (from.inner > 0) {
+      const head = previous[from.tokenIndex] as { text: string };
+      out.push({ ...head, text: head.text.slice(0, from.inner) });
+    }
+    const firstMarks = precedingMarks(previous, spans, from, start);
+    const lastMarks = followingMarks(previous, spans, to, oldEnd);
+    const runs = parseRuns(inserted);
+    // Covered chips ride through the splice ahead of the inserted runs
+    // (their labels were part of the covered prose the inserted text
+    // replaces).
+    out.push(...coveredChips);
+    if (runs.length > 0) {
+      const firstText = runs.findIndex((run) => run.type === "text");
+      const lastText = runs.length - 1 - [...runs].reverse().findIndex((run) => run.type === "text");
+      runs.forEach((run, index) => {
+        if (run.type !== "text") return;
+        const inherited =
+          index === firstText ? firstMarks : index === lastText ? lastMarks : undefined;
+        if (inherited !== undefined && inherited.length > 0) run.marks = [...inherited];
+      });
+      out.push(...runs);
+    }
+    if (to.inner > 0) {
+      const tail = previous[to.tokenIndex] as { text: string };
+      out.push({ ...tail, text: tail.text.slice(to.inner) });
+    }
+  }
+  const tailStart = to.tokenIndex + (to.inner > 0 ? 1 : 0);
+  out.push(...previous.slice(tailStart));
+  return mergeAdjacentTextRuns(out);
+}
+
+/**
+ * The prose-bearing string field of a token (capture-splice boundary trims).
+ * text / typed_link carry `text`, math carries `expression`. Mentions and
+ * class chips carry neither — a mention stores no link text at all, so both are atomic in
+ * splices (see sliceBoundaryToken).
+ */
+function tokenProseField(token: unknown): { field: "text" | "expression"; value: string } | null {
+  if (typeof token !== "object" || token === null) return null;
+  const t = token as Record<string, unknown>;
+  if (typeof t.text === "string" && (t.type === "text" || t.type === "typed_link"))
+    return { field: "text", value: t.text };
+  if (typeof t.expression === "string" && t.type === "math") return { field: "expression", value: t.expression };
+  return null;
+}
+
+/** Boundary token sliced to [from, to) of its prose; null when the slice is empty.
+ *  A class chip or a mention is atomic: any cover keeps the WHOLE token (the
+ *  label cannot be partially trimmed — it is re-resolved at render, and a
+ *  mention's wire text is gone entirely). */
+function sliceBoundaryToken(token: unknown, from: number, to: number | undefined): unknown | null {
+  if (isChipToken(token) || isMentionToken(token)) return token;
+  const proseField = tokenProseField(token);
+  if (proseField === null) return null; // hard_break / prose-less tokens have no partial cover
+  const sliced = to === undefined ? proseField.value.slice(from) : proseField.value.slice(from, to);
+  if (sliced === "") return null;
+  return { ...(token as Record<string, unknown>), [proseField.field]: sliced };
+}
+
+/**
+ * Capture-splice: replace the prose range [start, end) with the given tokens
+ * (mention / class_link / typed_link insertion). Unlike `applyTextEdit` the
+ * caller is authoritative — tokens land verbatim, no ambiguity flatten. Runs
+ * outside the range keep their marks and identity; boundary text runs are
+ * trimmed; boundary rich tokens that store no prose text (a mention — the
+ * wire stores no link text; a class chip) are kept whole (atomic — see
+ * sliceBoundaryToken). `resolveClassName` keeps chip label lengths consistent
+ * with the caller's prose projection; `resolveMentionName` does the same for
+ * mention labels (the re-resolved full title).
+ */
+export function spliceTokens(
+  previous: readonly unknown[],
+  start: number,
+  end: number,
+  tokens: readonly unknown[],
+  resolveClassName?: ClassNameResolver,
+  resolveMentionName?: MentionNameResolver,
+): ContentAst {
+  const spans = proseSpans(previous, resolveClassName, resolveMentionName);
+  const from = locate(spans, start);
+  const to = locate(spans, end);
+  const out: unknown[] = previous.slice(0, from.tokenIndex);
+  if (from.inner > 0) {
+    const head = sliceBoundaryToken(previous[from.tokenIndex], 0, from.inner);
+    if (head !== null) out.push(head);
+  }
+  out.push(...tokens);
+  if (to.inner > 0) {
+    const tail = sliceBoundaryToken(previous[to.tokenIndex], to.inner, undefined);
+    if (tail !== null) out.push(tail);
+  }
+  out.push(...previous.slice(to.tokenIndex + (to.inner > 0 ? 1 : 0)));
+  return mergeAdjacentTextRuns(out);
+}

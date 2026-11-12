@@ -1,0 +1,40 @@
+/**
+ * EmptyState Component Styles
+ */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  text-align: center;
+  padding: var(--spacing-16) var(--spacing-8);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.empty-state__icon {
+  opacity: var(--opacity-60);
+  margin-bottom: var(--spacing-1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-state__title {
+  font: var(--font-title-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  margin: 0;
+}
+
+.empty-state__description {
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  /* The ~60% subtitle step of the empty-state recipe. */
+  opacity: var(--opacity-60);
+  max-width: 40ch;
+  margin: 0;
+}
+
+.empty-state__action {
+  margin-top: var(--spacing-2);
+}

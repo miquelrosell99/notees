@@ -1,0 +1,219 @@
+/**
+ * AddSourceDialog styles — the add-source flow's resolve step: the input,
+ * the PDF drop zone + selected-file row, the inline error/note. Token-only.
+ * The actions ride the fleet Modal's footer slot (the AssetUploadModal
+ * composition); the selected-file row mirrors the AssetUploadModal register.
+ */
+
+.add-source-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) 0;
+}
+
+.add-source-dialog__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.add-source-dialog__section-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface-container-low);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.add-source-dialog__doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-12);
+  height: var(--spacing-12);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.add-source-dialog__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-md);
+  color: var(--md-sys-color-on-surface);
+}
+
+.add-source-dialog__sub {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__chip {
+  padding: 0 var(--spacing-2);
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-badge);
+  text-transform: uppercase;
+}
+
+.add-source-dialog__note {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-error);
+}
+
+/* The failure row: the honest error beside the manual
+   path — never a dead-end. */
+.add-source-dialog__error-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.add-source-dialog__error-row .add-source-dialog__error {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* The fetched-record preview card (the Fetch step): the resolved title,
+   the authors · year · venue line, and the matched identifier chips.
+   Column layout inside the shared preview shell. */
+.add-source-dialog__preview--card {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+/* The inline Fetch row: the identifier field grows, the button sits at
+   the field's baseline (the action at its object). */
+.add-source-dialog__fetch-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+}
+
+.add-source-dialog__fetch-row .text-field,
+.add-source-dialog__fetch-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The duplicate pause: "Already in your library" with Open-existing /
+   Create-anyway — one click, never a silent duplicate. */
+.add-source-dialog__duplicate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.add-source-dialog__duplicate-text {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__duplicate-link {
+  border: none;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--md-sys-color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-1);
+}
+
+.add-source-dialog__duplicate-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.add-source-dialog__preview-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+.add-source-dialog__preview-meta {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.add-source-dialog__preview-ids {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-badge);
+  text-transform: uppercase;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The OA-link row's remove affordance (the fetched chip is dismissible —
+   the picker file supersedes it). */
+.add-source-dialog__clear {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-8);
+  height: var(--spacing-8);
+  border: none;
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.add-source-dialog__clear:hover {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}

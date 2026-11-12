@@ -1,0 +1,415 @@
+/**
+ * Auth API — the account surface of the sync server (routes-auth.ts). Plain
+ * fetch helpers; the sync transport itself is unchanged (the session token
+ * travels in the X-API-Key / Bearer slots the API key used to occupy).
+ */
+
+/**
+ * An HTTP error response from the sync server's account API. Carries the
+ * status so callers can tell "the server rejected this credential" (401/403 —
+ * sign in again) apart from "the server did not answer at all" (a raw fetch
+ * TypeError, never an AuthRequestError — work offline instead).
+ */
+export class AuthRequestError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "AuthRequestError";
+    this.status = status;
+  }
+}
+
+export interface ServerInfo {
+  name: string;
+  version: string;
+  protocolVersion: number;
+  setupRequired: boolean;
+  /** NOTEES_SIGNUP_ENABLED on the server: the login screen offers "Create one". */
+  signupEnabled: boolean;
+}
+
+export interface AccountUser {
+  id: string;
+  email: string;
+  displayName: string | null;
+  name: string | null;
+  surnames: string | null;
+  avatarUrl: string | null;
+  isAdmin: boolean;
+}
+
+export interface LoginResponse {
+  token: string;
+  expiresAt: number;
+  user: AccountUser;
+  /** Password-derived key record (E2EE groundwork): scrypt params + wrapped master key. */
+  kdf: {
+    algorithm: "scrypt";
+    N: number;
+    r: number;
+    p: number;
+    salt: string;
+    wrappedMasterKey: string;
+    keyVerifier: string;
+    /** Master-key fingerprint (absent on legacy records). */
+    keyFp?: string;
+  };
+}
+
+export interface WorkspaceEntry {
+  id: string;
+  name: string | null;
+  role: string;
+  createdAt: number;
+  envelopeCount: number;
+  latestSeq: number;
+  /**
+   * The server reports a `workspace_key` row for this workspace. Optional on
+   * the type because device-local remembered lists (offline selector) may
+   * predate the flag — absent reads as "not known encrypted".
+   */
+  encrypted?: boolean;
+}
+
+async function request<T>(
+  serverUrl: string,
+  path: string,
+  init: RequestInit = {},
+  token?: string,
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  // Content-Type only when bytes ride along: Fastify rejects an empty body
+  // with a declared JSON type (API-key revoke + workspace delete 400'd).
+  if (init.body !== undefined && init.body !== null) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api${path}`, {
+    ...init,
+    headers,
+  });
+  await ensureOk(response);
+  return (await response.json()) as T;
+}
+
+/** Throw the AuthRequestError for a non-2xx response (shared by all helpers). */
+async function ensureOk(response: Response): Promise<void> {
+  if (response.ok) return;
+  let message = `HTTP ${response.status}`;
+  try {
+    const body = (await response.json()) as { error?: { message?: string } };
+    if (body.error?.message) message = body.error.message;
+  } catch {
+    // Keep the HTTP status message.
+  }
+  throw new AuthRequestError(response.status, message);
+}
+
+export function fetchServerInfo(serverUrl: string): Promise<ServerInfo> {
+  return request<ServerInfo>(serverUrl, "/server-info");
+}
+
+export function setupAccount(
+  serverUrl: string,
+  input: { email: string; password: string; displayName?: string | undefined },
+): Promise<LoginResponse> {
+  return request<LoginResponse>(serverUrl, "/setup", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function login(serverUrl: string, input: { email: string; password: string }): Promise<LoginResponse> {
+  return request<LoginResponse>(serverUrl, "/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export interface UnlockResponse {
+  /**
+   * The password-derived key record ONLY — the endpoint mints no session
+   * (the unlock re-prompt reuses the caller's live credential).
+   */
+  kdf: LoginResponse["kdf"];
+}
+
+/**
+ * The unlock re-prompt's password check: validates the password (same
+ * rate limits and lockout as login — it is a password oracle) and returns
+ * the kdf record for the master-key re-derivation. No token, no session.
+ */
+export function unlock(serverUrl: string, input: { email: string; password: string }): Promise<UnlockResponse> {
+  return request<UnlockResponse>(serverUrl, "/auth/unlock", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export type KdfRecordWire = LoginResponse["kdf"];
+
+/**
+ * Rewrap the account master key under a new password. The route verifies the
+ * current password AND that the new record's keyFp matches the stored one
+ * (same master key) — a mistyped new password would otherwise lock every
+ * other device out, unrecoverably. Sessions stay valid.
+ */
+export function changePassword(
+  serverUrl: string,
+  token: string,
+  input: { currentPassword: string; newKdfRecord: KdfRecordWire },
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(
+    serverUrl,
+    "/auth/change-password",
+    { method: "POST", body: JSON.stringify(input) },
+    token,
+  );
+}
+
+// --- recovery codes (opaque wraps; the plaintext code never reaches storage) ----
+
+export interface RecoveryRecordWire {
+  /** b64u(SHA256(plaintext code)) — the public lookup id. */
+  id: string;
+  salt: string;
+  /** AES-GCM wrap of the master key under scrypt(code, salt). */
+  wrappedRecovery: string;
+  /** HMAC the redeem route compares (wrong code → 401, record NOT burned). */
+  verifier: string;
+}
+
+/** Install a fresh recovery set (revokes the previous one). Session required. */
+export function installRecoveryCodes(
+  serverUrl: string,
+  token: string,
+  records: RecoveryRecordWire[],
+): Promise<{ ok: boolean; count: number }> {
+  return request<{ ok: boolean; count: number }>(
+    serverUrl,
+    "/auth/recovery-codes",
+    { method: "POST", body: JSON.stringify({ records }) },
+    token,
+  );
+}
+
+/** The account's live recovery records (ids + creation stamps only). */
+export function listRecoveryCodes(
+  serverUrl: string,
+  token: string,
+): Promise<{ codes: Array<{ id: string; createdAt: number }> }> {
+  return request<{ codes: Array<{ id: string; createdAt: number }> }>(
+    serverUrl,
+    "/auth/recovery-codes",
+    {},
+    token,
+  );
+}
+
+/** A record's public material for the redeem flow (no verifier — server-side only). */
+export function fetchRecoveryRecord(
+  serverUrl: string,
+  id: string,
+): Promise<{ salt: string; wrappedRecovery: string }> {
+  return request<{ salt: string; wrappedRecovery: string }>(serverUrl, `/auth/recovery/${id}`);
+}
+
+/** Redeem: burn the code and install the new kdf record. Public (the caller is locked out). */
+export function redeemRecovery(
+  serverUrl: string,
+  input: { id: string; verifier: string; newKdfRecord: KdfRecordWire },
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(serverUrl, "/auth/redeem-recovery", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Open registration — only exists when the server's signup flag is on (404 otherwise). */
+export function signup(
+  serverUrl: string,
+  input: { email: string; password: string; displayName?: string | undefined },
+): Promise<LoginResponse> {
+  return request<LoginResponse>(serverUrl, "/auth/signup", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function logout(serverUrl: string, token: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(serverUrl, "/auth/logout", { method: "POST" }, token);
+}
+
+export function fetchMe(serverUrl: string, token: string): Promise<AccountUser> {
+  return request<AccountUser>(serverUrl, "/auth/me", {}, token);
+}
+
+/**
+ * GET /workspaces/:id/key — the workspace's wrapped E2EE key. Resolves
+ * undefined when the workspace is keyless (404); any other failure throws
+ * (network vs rejected credential stay distinguishable via AuthRequestError).
+ */
+export async function fetchWorkspaceKey(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+): Promise<string | undefined> {
+  try {
+    const response = await request<{ wrappedKey: string }>(
+      serverUrl,
+      `/workspaces/${encodeURIComponent(workspaceId)}/key`,
+      {},
+      token,
+    );
+    return response.wrappedKey;
+  } catch (error) {
+    if (error instanceof AuthRequestError && error.status === 404) return undefined;
+    throw error;
+  }
+}
+
+/** PUT /workspaces/:id/key — store the workspace's wrapped key (204, no body). */
+export async function storeWorkspaceKey(
+  serverUrl: string,
+  token: string,
+  workspaceId: string,
+  wrappedKey: string,
+): Promise<void> {
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  });
+  const response = await fetch(
+    `${serverUrl.replace(/\/$/, "")}/api/workspaces/${encodeURIComponent(workspaceId)}/key`,
+    { method: "PUT", headers, body: JSON.stringify({ wrappedKey }) },
+  );
+  await ensureOk(response);
+}
+
+export function updateMe(
+  serverUrl: string,
+  token: string,
+  input: {
+    displayName?: string | null;
+    name?: string | null;
+    surnames?: string | null;
+    avatarUrl?: string | null;
+  },
+): Promise<AccountUser> {
+  return request<AccountUser>(
+    serverUrl,
+    "/auth/me",
+    { method: "PATCH", body: JSON.stringify(input) },
+    token,
+  );
+}
+
+export function listWorkspaces(serverUrl: string, token: string): Promise<{ workspaces: WorkspaceEntry[] }> {
+  return request<{ workspaces: WorkspaceEntry[] }>(serverUrl, "/workspaces", {}, token);
+}
+
+
+/**
+ * Create a workspace. `id` is the F2 adoption path only: an offline-created
+ * workspace publishes under its EXISTING id (the local store is keyed by it);
+ * absent, the server mints a fresh one. The keying gate reads the explicit id
+ * server-side; a taken id answers 409 and nothing is created.
+ */
+export function createWorkspace(
+  serverUrl: string,
+  token: string,
+  name?: string,
+  wrappedKey?: string,
+  id?: string,
+): Promise<{ id: string }> {
+  return request<{ id: string }>(
+    serverUrl,
+    "/workspaces",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        ...(id !== undefined ? { id } : {}),
+        ...(name ? { name } : {}),
+        ...(wrappedKey !== undefined ? { wrappedKey } : {}),
+      }),
+    },
+    token,
+  );
+}
+
+// --- API keys (user settings → machine credentials) -------------------------------
+
+/**
+ * The scope vocabulary the server's enforcement understands (`scopes.ts`),
+ * with human labels for the settings UI. ALL selected = full access (the
+ * key is created without a scope list); unchecking withholds a permission.
+ */
+export const API_SCOPES: Array<{ id: string; label: string }> = [
+  { id: "objects.read", label: "Read objects" },
+  { id: "objects.write", label: "Write objects" },
+  { id: "objects.delete", label: "Delete objects" },
+  { id: "assets.read", label: "Read assets" },
+  { id: "assets.write", label: "Upload assets" },
+  { id: "search", label: "Search" },
+  { id: "export", label: "Export" },
+  { id: "admin", label: "Admin" },
+];
+
+export interface ApiKeyEntry {
+  id: string;
+  userId: string;
+  name: string;
+  prefix: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+  revokedAt: number | null;
+  /** The scope set, or null = unrestricted (full access). */
+  scopes: string[] | null;
+  /** Machine key: carries custody — possession opens encrypted workspaces without the password. */
+  machine: boolean;
+}
+
+export function listApiKeys(serverUrl: string, token: string): Promise<{ apiKeys: ApiKeyEntry[] }> {
+  return request<{ apiKeys: ApiKeyEntry[] }>(serverUrl, "/api-keys", {}, token);
+}
+
+export function createApiKey(
+  serverUrl: string,
+  token: string,
+  name: string,
+  options: { scopes?: string[] | undefined } = {},
+): Promise<{ apiKey: ApiKeyEntry; token: string }> {
+  return request<{ apiKey: ApiKeyEntry; token: string }>(
+    serverUrl,
+    "/api-keys",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        // All-on keeps the unrestricted default (omit the key); a partial
+        // selection sends the allow-list.
+        ...(options.scopes !== undefined && options.scopes.length > 0 ? { scopes: options.scopes } : {}),
+      }),
+    },
+    token,
+  );
+}
+
+/** Install a machine key's opaque custody record (two-phase mint, phase 2; 204, no body). */
+export async function installApiKeyCustody(
+  serverUrl: string,
+  token: string,
+  keyId: string,
+  record: { salt: string; wrappedMaster: string },
+): Promise<void> {
+  const response = await fetch(
+    `${serverUrl.replace(/\/$/, "")}/api/api-keys/${encodeURIComponent(keyId)}/custody`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(record),
+    },
+  );
+  await ensureOk(response);
+}
+
+export function revokeApiKey(serverUrl: string, token: string, id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(serverUrl, `/api-keys/${id}`, { method: "DELETE" }, token);
+}

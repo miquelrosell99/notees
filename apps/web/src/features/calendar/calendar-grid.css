@@ -1,0 +1,174 @@
+/* CalendarDayGrid — the day-grid shared by the top-bar popup and the
+   Calendar view's MonthCalendar panel. Tokens from variables.css; the
+   calendar-day treatments (today / has-note / selected) are one convention
+   for every calendar surface. */
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-micro);
+  margin-bottom: var(--spacing-1);
+}
+
+.calendar-weekday {
+  text-align: center;
+  font: var(--font-label-small);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--spacing-1);
+}
+
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-micro);
+}
+
+.calendar-day-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-day.btn {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font: var(--font-body-small);
+  position: relative;
+}
+
+/* The invisible 48px hit-area floor (M3's 48dp minimum): the visible
+   disc rides the grid width untouched; the ::after overlay centered on the
+   cell reaches ≥48×48. The dated dot moved to a real span
+   (.calendar-day__dot) so the overlay owns ::after. */
+.calendar-day.btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+/* The calendar title register — ONE convention for every
+   calendar surface (the top-bar popup and the Calendar view's MonthCalendar
+   panel): the container centers the period name(s); the month rides
+   prominent, the year greyed; both are clickable buttons opening the
+   month/year pages when the host wires the callbacks (inert spans wear the
+   same classes, cursor aside). */
+.calendar-title {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  gap: var(--spacing-1);
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface);
+}
+
+.calendar-title-btn {
+  background: none;
+  border: none;
+  padding: 0 var(--spacing-1);
+  font: var(--font-title-small);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+}
+
+.calendar-title-btn:hover {
+  color: var(--md-sys-color-primary);
+}
+
+.calendar-title-btn--month {
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+span.calendar-title-btn,
+span.calendar-title-btn--month {
+  cursor: default;
+}
+
+/* The has-note fill is the genuine active identity (a day page exists): the
+   combined rule keeps primary-container while hovered — the hover ruling's
+   pattern; hover must not wash the active fill away. */
+.calendar-day.btn.has-note,
+.calendar-day.btn.has-note:hover {
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  font-weight: 600;
+}
+
+.calendar-day.btn.today {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-weight: 600;
+}
+
+.calendar-day.btn.today:hover {
+  background: var(--md-sys-color-primary-hover);
+  color: var(--md-sys-color-on-primary);
+}
+
+/* The panel's outlined selection — ring, not fill, so it composes with the
+   today fill and the has-note container. */
+.calendar-day.btn.selected {
+  box-shadow: var(--shadow-focus-ring-primary);
+}
+
+.calendar-day.btn.selected:hover {
+  box-shadow: var(--shadow-focus-ring-primary);
+}
+
+/* Today + selected: the primary ring is invisible on the primary today
+   fill (and its antialiased seam read as a double edge)
+   — the ring switches to on-primary so the outlined selection stays
+   legible on the filled disc. */
+.calendar-day.btn.today.selected,
+.calendar-day.btn.today.selected:hover {
+  box-shadow: 0 0 0 var(--spacing-micro) var(--md-sys-color-on-primary);
+}
+
+/* Range-aware dot: objects (date refs, date_range ends) point at
+   this day but no day page exists — a small primary dot under the number,
+   composing with the has-note fill and the today fill. A real span (not
+   ::after — the hit-area overlay owns the pseudo-element now). */
+.calendar-day__dot {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--md-sys-color-primary);
+}
+
+.calendar-day.btn.today .calendar-day__dot {
+  background: var(--md-sys-color-on-primary);
+}
+
+/* Reviewed tint: a tertiary dot at the top-right corner, on top
+   of every other treatment. */
+.calendar-day.btn.reviewed::before {
+  content: "";
+  position: absolute;
+  top: 8%;
+  right: 12%;
+  width: var(--spacing-1);
+  height: var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--md-sys-color-tertiary);
+}

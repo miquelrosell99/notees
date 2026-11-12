@@ -1,0 +1,1814 @@
+/**
+ * NodeSelector — universal node selection component.
+ *
+ * Trigger modes:
+ * - 'pill-row': row of node pills with an add button (for tags/types/classes)
+ * - 'inline': always-expanded search + results list, no toggle — the
+ *   permanent-field idiom (the graph rail's search-to-select): there is no
+ *   picker to close, so outside press / Escape never clears the query
+ * - anchored (anchorEl + onClose): only the picker panel, portaled and
+ *   anchored below the given element — for embedding the picker under a
+ *   custom trigger.
+ *
+ * The empty-query picker opens to the workspace's RECENTLY USED nodes,
+ * in the command palette home's section order (the shared
+ * `recentUseSections` composition): recently CREATED chrome pages first
+ * (createdAt, "Recently created" caption), then recently LINKED targets
+ * the created arm didn't claim (mention/tag edge recency, "Recently
+ * linked" caption), MRU within each. Merely OPENED pages do not count
+ * (opening feeds the sidebar's device-local Recents, not this list); the
+ * first keystroke replaces the list with search hits. Class-scoped pickers
+ * keep their member listing; the classes picker is unaffected.
+ *
+ * All modes render the shared NodeResultItem rows; keyboard navigation,
+ * date suggestions, and create-from-query are built in (`noCreate` turns
+ * the create affordance off — search-without-match shows the honest empty
+ * state instead). The create row hoists ABOVE the results while the query
+ * has no partial-exact candidate ("gmi" prefixes "GMI Dental", so the row
+ * stays below; a query nothing starts with puts creation first — no
+ * scrolling). A query shaped like a DOI, an arXiv id/URL, an ISBN, or
+ * an http(s) URL additionally offers "Create source from link" below the
+ * create row (source-library task 6) — the gesture routes into the
+ * add-source dialog via the app-level queue (or the host's
+ * `onCreateSourceFromLink` override). With `scopeTabs`
+ * the picker adds Main/Blocks tabs scoping the results to document-chrome
+ * nodes vs inline child blocks. `searchMode="blocks"` is the block-
+ * linking candidate set — inline blocks only, each labeled with its
+ * containing-page path. A leading `class:<name>` prefix in the query
+ * refines any non-classes mode to that class's members; the create row
+ * answers the rest of the query and carries the refined class. Data wiring
+ * goes through the workspace client (search/list/create/class-assign).
+ *
+ * `/` filter mode: a leading `/` swaps the results for
+ * a Filters option list (the fleet FilterMenu) — the filter kinds (Daily
+ * pages, Pages, Blocks, Classes, With class…) narrowed by the slash text,
+ * with a class browse behind "With class…". Applying an option renders it
+ * as a removable chip (the fleet FilterChips) above the list and scopes
+ * the results: the kind chips feed the same predicates as the inline
+ * text prefixes (`is_daily:`/`is_page:`/`is_class:` — they compose, AND)
+ * and a With-class chip joins `classFilters`/`class:<name>` in
+ * `effectiveClassIds`, so the empty-query member listing, the create row,
+ * and the QuickCreateModal reroute all honor it. Backspace on an empty
+ * query pops the last chip. The command palette shares the model
+ * (`features/search-filters/filterModel.ts`).
+ *
+ * Async reads: the worker-backed client answers from a cache that converges
+ * through a "changed" notify — the picker subscribes (search hits render
+ * the moment they land, no retype needed) and renders a "Searching…" state
+ * while the current query's read is pending (the client's `searchPending`
+ * seam) instead of a lying "No matches found". Keystrokes coalesce through
+ * a short debounce before the query hits the ranked index (async clients
+ * only — one worker round-trip per query, not per keystroke), so the input
+ * leads the list by at most the debounce. A create that returns an id
+ * resolves through `waitForNode` — the fresh node is not readable until the
+ * create's sync push lands, and picking must wait for it or the mention
+ * never inserts.
+ */
+
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+import {
+  chainNodeIds,
+  parseDateNodeId,
+  systemClassNameForId,
+  SYSTEM_CLASS_UUIDS,
+  type SystemClassName,
+} from "@notees/domain";
+import type { WorkspaceFeature } from "@notees/protocol";
+import { foldSearchText } from "@notees/store";
+
+import { MAX_SYNCED_RECENTS, type ClientNode } from "@/core/workspace-client/index.js";
+import { titleOfNode } from "../../ui/dateDisplay.js";
+import {
+  parentlessBlockResolverOf,
+  rendersAsInlineBlockOf,
+  rendersWithDocumentChromeOf,
+} from "../../ui/renderStateLabel.js";
+import { Icon } from "../../ui/Icon.js";
+import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
+import { NodePill } from "../metadata/NodePill.js";
+import { NodeResultItem } from "./NodeResultItem.js";
+import {
+  buildContainingPagePath,
+  buildParentPath,
+  getDisplayClasses,
+} from "./nodeBreadcrumbs.js";
+import { registerPendingCreatedName } from "./pendingCreatedName.js";
+import { useKeyboardListNav } from "./useKeyboardListNav.js";
+import { useViewportPosition } from "./useViewportPosition.js";
+import { QuickCreateModal } from "../modals/QuickCreateModal.js";
+import { classifySourceInput } from "../sources/resolver.js";
+import { requestAddSource } from "../sources/AddSourceHost.js";
+import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
+import { classClosureFrom } from "../metadata/schemaEligibility.js";
+import type { QuickCreateClient } from "../modals/quickCreate.js";
+import { collectSelfAndAncestors } from "../modals/quickCreate.js";
+import { Tabs } from "../../components/ui/kit/Tabs.js";
+import { FilterChips } from "../../components/ui/kit/FilterChips.js";
+import { FilterMenu } from "../../components/ui/kit/FilterMenu.js";
+import { SearchField } from "../../components/ui/kit/SearchField.js";
+import {
+  filterChipIcon,
+  filterChipLabel,
+  filterKey,
+  listClassOptions,
+  listFilterOptions,
+} from "../search-filters/filterModel.js";
+import { recentUseSections } from "../search-filters/recentUse.js";
+import { foldedIncludes, foldedQueryOf } from "../search-filters/foldSearch.js";
+import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
+import { Spinner } from "../../components/ui/kit/Spinner.js";
+import { useDelayedVisible } from "../../components/ui/kit/useDelayedVisible.js";
+import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
+import "./NodeSelector.css";
+
+/**
+ * The client surface the picker drives — structural, so both full clients
+ * (in-process WorkspaceClient, WorkerClient proxy) and the outliner's
+ * context client satisfy it. Extends the quick-create surface: the picker's
+ * built-in create row opens the class-driven QuickCreateModal under a class
+ * filter — and since an
+ * identifier-shaped typed query under a source-family filter reroutes to
+ * the app-level add-source dialog instead (the resolved record's own type
+ * picks the prefill class); a plain title keeps the modal.
+ */
+export interface NodeSelectorClient extends QuickCreateClient {
+  getNode(id: string): ClientNode | undefined;
+  getNodeRaw(id: string): ClientNode | undefined;
+  /** The parent's display name (the chrome-flattened breadcrumb titles). */
+  getDisplayName(id: string): string | null;
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  effectiveClassParentlessBlock(classId: string): boolean;
+  /** The document-chrome node pool (filter-prefix listings). */
+  listPages(): ClientNode[];
+  /**
+   * Recently linked targets — distinct mention/tag edge targets by most
+   * recent incoming link, newest first (ids + the edge's op timestamp).
+   * The empty-query "Recently used" listing's link arm. Both full clients
+   * (in-process WorkspaceClient, WorkerClient proxy) carry it.
+   */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }>;
+  search(query: string): ClientNode[];
+  /**
+   * Async clients only (the worker proxy): true while `query`'s search read
+   * is still in flight. A miss and a real no-match both read `[]`
+   * synchronously, so this is the only "loading" signal. Sync clients omit
+   * it — their `search` answers immediately.
+   */
+  searchPending?(query: string): boolean;
+  createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
+  /** The archival bit (the archived-class Enable row, 2026-10-22). */
+  updateObject(id: string, fields: { active?: boolean }): Promise<void>;
+  /**
+   * The F4 inverse for an archived family base (the Enable row). Optional:
+   * minimal seams (the outliner's context client) omit it — they degrade
+   * to no archived-class rows.
+   */
+  setFeatureEnabled?(feature: WorkspaceFeature, enabled: boolean): Promise<void>;
+  /** Archived class nodes (the classes picker's dimmed Enable matches). */
+  listArchivedClasses?(): ClientNode[];
+}
+
+/**
+ * Read `id` from the projection, waiting — bounded — for the async notify
+ * that applies a just-created node. A write's RPC resolution can outrun the
+ * sync push that materializes the node in the local store, so the immediate
+ * read after `await ensureDateChain` answers undefined; the subscription
+ * catches the landing notify. Both real clients (in-process WorkspaceClient,
+ * WorkerClient proxy) expose `subscribe`; a host without it degrades to the
+ * immediate read (the pre-fix behavior).
+ */
+async function waitForNode(
+  client: NodeSelectorClient & { subscribe?: (listener: () => void) => () => void },
+  id: string,
+  timeoutMs = 2000,
+): Promise<ClientNode | undefined> {
+  const existing = client.getNode(id);
+  if (existing !== undefined) return existing;
+  if (client.subscribe === undefined) return undefined;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (node: ClientNode | undefined) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(node);
+    };
+    const unsubscribe = client.subscribe!(() => {
+      const node = client.getNode(id);
+      if (node !== undefined) finish(node);
+    });
+    const timer = setTimeout(() => finish(client.getNode(id)), timeoutMs);
+  });
+}
+
+type AnyClient = NodeSelectorClient;
+
+export type NodeSearchMode = "pages" | "classes" | "all" | "blocks";
+type TriggerMode = "pill-row" | "inline";
+
+/**
+ * How a node was picked — reported alongside the node on every `onAdd` call.
+ * Plain picks carry `withLabel: false`.
+ */
+export interface NodePickContext {
+  /**
+   * Picked via Ctrl/Cmd+Enter or Ctrl/Cmd+click. The editor's `@` popup
+   * treats the query as a custom label (the "insert link with label" path);
+   * its `+` popup treats it as DIRECT INLINE INSERTION — assign the class
+   * AND splice a class_link at the trigger in one gesture.
+   */
+  withLabel: boolean;
+  /** The picker's current search query (trimmed). */
+  query: string;
+}
+
+/** Viewport edge clearance for the anchored picker. */
+const PICKER_EDGE_PADDING = 8;
+/** Default number of results shown before "Show more results". */
+const DEFAULT_DISPLAY_LIMIT = 10;
+/**
+ * Async-client keystroke coalescing: the query that actually hits the
+ * ranked index lags the input by this much, so typing a 10-character query
+ * costs ONE worker round-trip instead of ten (the FTS itself is fast; the
+ * per-keystroke postMessage + reindex on a huge workspace is not). Sync
+ * clients (no `searchPending`) answer in microseconds and search every
+ * keystroke — debouncing them would only add latency.
+ */
+const SEARCH_DEBOUNCE_MS = 150;
+
+interface NodeSelectorProps {
+  /** The nodes to display as pills ('pill-row' mode) or exclude as assigned. */
+  nodes?: ClientNode[] | undefined;
+  /** Alternative: provide node ids instead of ClientNode objects. */
+  value?: string | string[] | null | undefined;
+  /** The workspace client driving search/create. */
+  client: AnyClient;
+  /** Search mode — determines what types of nodes to show. */
+  searchMode?: NodeSearchMode;
+  /** Class ids to filter search results by (nodes must carry one of them). */
+  classFilters?: string[] | undefined;
+  /**
+   * Render Main/Blocks scope tabs above the search input, scoping the
+   * results to document-chrome nodes (top-level + present-as-main children,
+   * plus classes) or to inline child blocks respectively. Default tab is
+   * Main. Editor mention pickers use this; pickers with a fixed narrow
+   * scope (pages/classes modes, or callers filtering via canAdd) don't.
+   */
+  scopeTabs?: boolean;
+  /**
+   * The scope tab the picker opens on (only meaningful with `scopeTabs`) —
+   * hosts that know the current target's role (the link-edit modal opening
+   * on a block target) start on the matching tab instead of always Main.
+   */
+  initialScope?: "main" | "blocks";
+  /** Trigger style: 'pill-row' (default) or 'inline' (always expanded). */
+  trigger?: TriggerMode;
+  /** Placeholder text for empty state */
+  placeholder?: string;
+  /** Title/aria-label of the add button ('pill-row' mode). */
+  emptyText?: string;
+  /** Placeholder + aria-label of the search input. */
+  searchPlaceholder?: string;
+  /**
+   * Optional row pinned before every result while the query is empty. The
+   * New-node class picker uses this for "No class"; typing hides it so the
+   * keyboard path keeps answering the class query.
+   */
+  emptyQueryOption?: { label: string; icon?: string; onPick: () => void } | undefined;
+  /** Callback when clicking a pill. */
+  onNodeClick?: ((node: ClientNode) => void) | undefined;
+  /** Callback when removing a node (shows the pill's remove button). */
+  onRemove?: ((node: ClientNode) => void) | undefined;
+  /** Callback when changing a node's color via the pill's right-click menu. */
+  onColorChange?: ((node: ClientNode, color: string | null) => void) | undefined;
+  /** Callback when adding a node from the picker (receives the pick context). */
+  onAdd?: ((node: ClientNode, context: NodePickContext) => void) | undefined;
+  /**
+   * Assigned-row pick handler (opt-in). When set, picking a row whose node
+   * is already assigned (the checkmarked rows that resurface under a
+   * matching query) reports HERE instead of the default idempotent
+   * acknowledgment-close — the caller owns the semantics. The pick context
+   * carries the same `withLabel` Ctrl/Cmd modifier as any pick (the
+   * editor's `+` popup: a plain pick removes the class, a Ctrl/Cmd pick
+   * converts the trigger to inline text). Anchored hosts own the close
+   * (the callback unmounts the picker); pill-row closes itself as usual.
+   */
+  onAssignedPick?: ((node: ClientNode, context: NodePickContext) => void) | undefined;
+  /** Callback when the value changes (value-based API). */
+  onChange?: ((value: string | string[] | null) => void) | undefined;
+  /** Callback when creating a new node (overrides the built-in create). */
+  onCreateNew?: ((name: string) => void | Promise<ClientNode | string | void>) | undefined;
+  /** Whether to show the "Create" option when a query is typed (default true). */
+  allowCreate?: boolean;
+  /** Always show the create row, even with an empty query (e.g. upload flows). */
+  alwaysShowCreate?: boolean;
+  /**
+   * Suppress the create-from-query affordance entirely: a search
+   * without a match shows the honest empty state instead of a create path
+   * (the QuickCreateModal flow included). Default false.
+   */
+  noCreate?: boolean;
+  /** Function to determine if a node can be added (filters search results). */
+  canAdd?: (node: ClientNode) => boolean;
+  /** Node id to exclude from search results (e.g. the current node). */
+  excludeNodeId?: string | undefined;
+  /** Whether pills are read-only (hides remove button and color menu). */
+  readOnly?: boolean;
+  /** Initial search query to pre-fill when the picker opens. */
+  initialSearchQuery?: string;
+  /** Additional CSS class. */
+  className?: string;
+  /**
+   * When provided, renders the picker panel as a portal anchored to this
+   * element (no trigger is rendered — use with onClose for dismissal).
+   */
+  anchorEl?: HTMLElement | null | undefined;
+  /**
+   * Viewport-coordinate anchor for the anchored panel when there is no
+   * element to anchor to (editor caret popups: `{top}` = caret bottom,
+   * `{left}` = caret left). Behaves exactly like `anchorEl` with a zero-size
+   * rect at this position.
+   */
+  anchorRect?: { top: number; left: number } | null | undefined;
+  /** Called when the anchored panel should close (Escape / click outside). */
+  onClose?: (() => void) | undefined;
+  /** Custom label for the create row (default: `Create "<query>"`). */
+  createLabel?: string | undefined;
+  /**
+   * The paste-URL row's host hook (a contribution point): a query shaped
+   * like a DOI (10.xxxx/…), an arXiv id/URL, an ISBN, or an http(s) URL
+   * offers "Create source from link" below the create row; the callback
+   * receives the raw query. Defaults to the app-level add-source queue
+   * (the created source links into this picker like a create-row result).
+   */
+  onCreateSourceFromLink?: ((raw: string) => void) | undefined;
+  /**
+   * Classes picker only — the "Browse all classes…" footer row's host hook:
+   * opens the classes gallery (the ClassCreateModal), carrying the typed
+   * query. The return resolves like onCreateNew's (created id → assigned).
+   */
+  onBrowseAllTypes?: ((query: string) => void | Promise<string | undefined>) | undefined;
+  /**
+   * Faint one-line mode banner rendered above the search field — the
+   * editor's selection-link gestures use it to announce what the pending
+   * pick will do ("Replacing selection with link" / 'Link with custom label
+   * "…"').
+   */
+  hint?: string | undefined;
+  /** ID for the root element. */
+  id?: string;
+  /** Hide the pill's remove icon until the pill is hovered or focused. */
+  rightIconHoverReveal?: boolean;
+}
+
+function toIso(year: number, month: number, day: number): string {
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function NodeSelector({
+  nodes: nodesProp,
+  value,
+  client,
+  searchMode = "pages",
+  classFilters,
+  scopeTabs = false,
+  initialScope = "main",
+  trigger = "pill-row",
+  placeholder = "Select node...",
+  emptyText = "Add",
+  searchPlaceholder = "Search...",
+  emptyQueryOption,
+  onNodeClick,
+  onRemove,
+  onColorChange,
+  onAdd,
+  onAssignedPick,
+  onChange,
+  onCreateNew,
+  allowCreate,
+  alwaysShowCreate = false,
+  noCreate = false,
+  canAdd,
+  excludeNodeId,
+  readOnly = false,
+  initialSearchQuery = "",
+  className = "",
+  anchorEl,
+  anchorRect,
+  onClose,
+  createLabel,
+  onCreateSourceFromLink,
+  onBrowseAllTypes,
+  hint,
+  id,
+  rightIconHoverReveal = false,
+}: NodeSelectorProps) {
+  const isAnchored = anchorEl != null || anchorRect != null;
+  const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  /**
+   * The query the search pipeline actually runs — `searchQuery` coalesced
+   * through the debounce below on async clients. The input shows
+   * `searchQuery` (every keystroke); results, the create row, and the
+   * filter prefixes all answer THIS value, so the list, the create label,
+   * and the searched text never disagree.
+   */
+  const [debouncedQuery, setDebouncedQuery] = useState(initialSearchQuery);
+  const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
+  /** Active scope-tab filter (only rendered when scopeTabs is set). */
+  const [scope, setScope] = useState<"main" | "blocks">(initialScope);
+  /**
+   * `/` filter mode: the applied chips and the "With class…" browse
+   * sub-state (the class listing replaces the option list until a class is
+   * picked or the slash text is cleared). Chips answer the debounce-free
+   * input — in filter mode the results list steps aside for the option
+   * menu, so nothing searched lags the typed slash text.
+   */
+  const [activeFilters, setActiveFilters] = useState<SearchFilter[]>([]);
+  const [filterBrowse, setFilterBrowse] = useState<"options" | "classes">("options");
+  const filterMode = searchQuery.startsWith("/");
+  const narrowText = filterMode ? searchQuery.slice(1) : "";
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // Virtual zero-size anchor for viewport-coordinate anchoring (editor caret
+  // popups): getBoundingClientRect is all the positioning hook reads.
+  const virtualAnchor = useMemo<{ getBoundingClientRect(): DOMRect } | null>(() => {
+    if (anchorRect == null) return null;
+    return {
+      getBoundingClientRect: () =>
+        ({
+          x: anchorRect.left,
+          y: anchorRect.top,
+          top: anchorRect.top,
+          left: anchorRect.left,
+          right: anchorRect.left,
+          bottom: anchorRect.top,
+          width: 0,
+          height: 0,
+          toJSON: () => ({}),
+        }) as DOMRect,
+    };
+  }, [anchorRect]);
+  const anchorRef = useRef<HTMLElement | { getBoundingClientRect(): DOMRect } | null>(null);
+  /** The parentlessRole "block" demote resolver for the role predicates. */
+  // Memoized on the client: the resolver is a fresh closure per call, and an
+  // unstable identity would invalidate every memo listing it (the recents
+  // listing re-sorted per render — and re-searched per render, one extra
+  // ranked-index call per keystroke settle).
+  const parentlessBlock = useMemo(() => parentlessBlockResolverOf(client), [client]);
+  // Latest-value ref assignment during render so the layout-phase position
+  // hook measures the current anchor on the same commit that opens the picker.
+  anchorRef.current = anchorEl ?? virtualAnchor;
+  // The dismissal layer's anchor exemption takes a real element only (the
+  // virtual rect anchor has none — any outside press closes, its contract).
+  const dismissalAnchorRef = useRef<HTMLElement | null>(null);
+  dismissalAnchorRef.current = anchorEl ?? null;
+
+  // Compute value ids for fetching and exclusion.
+  const valueIds = useMemo(() => {
+    if (!value) return [];
+    return Array.isArray(value) ? value : [value];
+  }, [value]);
+
+  // Resolve nodes from the value ids when no nodes prop is given.
+  const resolvedNodesFromValue = useMemo(
+    () =>
+      valueIds
+        .map((nodeId) => client.getNode(nodeId))
+        .filter((node): node is ClientNode => node !== undefined),
+    [client, valueIds],
+  );
+
+  const nodes = nodesProp ?? resolvedNodesFromValue;
+
+  // Assigned ids: pills' nodes + raw value ids (exclusion works pre-resolution).
+  const assignedIds = useMemo(() => {
+    const ids = new Set(nodes.map((n) => n.id));
+    for (const valueId of valueIds) ids.add(valueId);
+    return ids;
+  }, [nodes, valueIds]);
+
+  const handleAdd = (node: ClientNode, withLabel = false): void => {
+    if (assignedIds.has(node.id)) {
+      if (onAssignedPick !== undefined) {
+        // The caller owns assigned-row semantics (the editor's toggle).
+        const query = searchQuery.trim();
+        onAssignedPick(node, { withLabel: withLabel && query.length > 0, query });
+        if (trigger === "pill-row") {
+          setIsPickerOpen(false);
+          setSearchQuery("");
+          resetFilters();
+        }
+        return;
+      }
+      // Otherwise an idempotent acknowledgment, not a write: the row carries
+      // the checkmark — close like any pick.
+      if (isAnchored) {
+        onClose?.();
+      } else if (trigger === "pill-row") {
+        setIsPickerOpen(false);
+        setSearchQuery("");
+        resetFilters();
+      }
+      return;
+    }
+    if (onChange) {
+      const newValue = Array.isArray(value) ? [...value, node.id] : node.id;
+      onChange(newValue);
+    } else {
+      const query = searchQuery.trim();
+      onAdd?.(node, { withLabel: withLabel && query.length > 0, query });
+    }
+    if (trigger === "pill-row") {
+      setIsPickerOpen(false);
+      setSearchQuery("");
+      resetFilters();
+    }
+  };
+
+  const handleRemove = (node: ClientNode): void => {
+    if (onChange) {
+      if (Array.isArray(value)) {
+        onChange(value.filter((valueId) => valueId !== node.id));
+      } else {
+        onChange(null);
+      }
+    } else {
+      onRemove?.(node);
+    }
+  };
+
+  // Inline filter prefixes (suggestion-popup row, the original popup's
+  // filter family): `daily:` (bare = daily pages only), `is_daily:`,
+  // `is_page:` and `is_class:` booleans refine any non-classes search. The
+  // tokens are stripped from the search text before FTS/name matching (and
+  // before the create row, so a filter never becomes a page title). Runs on
+  // the debounced query — the prefixes coalesce with the rest of the input.
+  const inlineFilters = useMemo(() => {
+    const filters: { daily: boolean | null; page: boolean | null; cls: boolean | null } = {
+      daily: null,
+      page: null,
+      cls: null,
+    };
+    const stripped = debouncedQuery
+      .replace(/\b(is_daily|is_page|is_class)\s*:\s*(true|false)\b/gi, (_match, prefix: string, value: string) => {
+        const bool = value.toLowerCase() === "true";
+        const which = prefix.toLowerCase();
+        if (which === "is_daily") filters.daily = bool;
+        else if (which === "is_page") filters.page = bool;
+        else filters.cls = bool;
+        return " ";
+      })
+      .replace(/\bdaily\s*:/gi, () => {
+        filters.daily = true;
+        return " ";
+      });
+    return { filters, query: stripped };
+  }, [debouncedQuery]);
+
+  /**
+   * The `/`-chip mirror of the inline prefixes — same predicate family, AND
+   * semantics (a chip and a contradictory prefix both hold, so nothing
+   * matches; the empty state says so honestly).
+   */
+  const chipFilterState = useMemo(
+    () => ({
+      daily: activeFilters.some((f) => f.kind === "daily"),
+      pages: activeFilters.some((f) => f.kind === "pages"),
+      blocks: activeFilters.some((f) => f.kind === "blocks"),
+      cls: activeFilters.some((f) => f.kind === "classes"),
+    }),
+    [activeFilters],
+  );
+
+  /** The filter predicates over one candidate node (daily reads the deterministic date id). */
+  const matchesInlineFilters = (node: ClientNode): boolean => {
+    const { daily, page, cls } = inlineFilters.filters;
+    if (chipFilterState.daily && parseDateNodeId(node.id)?.precision !== "day") return false;
+    if (chipFilterState.pages && !rendersWithDocumentChromeOf(client, node))
+      return false;
+    if (chipFilterState.blocks && !rendersAsInlineBlockOf(client, node))
+      return false;
+    if (chipFilterState.cls && !node.isClass) return false;
+    if (daily !== null && (parseDateNodeId(node.id)?.precision === "day") !== daily) return false;
+    if (page !== null && rendersWithDocumentChromeOf(client, node) !== page)
+      return false;
+    if (cls !== null && node.isClass !== cls) return false;
+    return true;
+  };
+
+  // Class refine: a leading `class:<name>` prefix scopes the
+  // search to that class's members. The name is resolved greedily over the
+  // class list — the LONGEST display-name prefix wins, so spaced names
+  // ("class:My Class ada") parse unambiguously; an unknown name leaves the
+  // query untouched (the raw text just searches).
+  const classRefine = useMemo((): { classId: string | null; query: string } => {
+    if (searchMode === "classes") return { classId: null, query: inlineFilters.query };
+    const raw = inlineFilters.query.trim();
+    if (!/^class:/i.test(raw)) return { classId: null, query: inlineFilters.query };
+    const rest = raw.slice("class:".length).trimStart();
+    const restLower = foldSearchText(rest.toLowerCase());
+    const hit = client
+      .listClasses()
+      .map((cls) => {
+        const raw = titleOfNode(cls) ?? "";
+        return { cls, raw, folded: foldSearchText(raw.toLowerCase()) };
+      })
+      .filter(
+        (entry) =>
+          entry.folded !== "" &&
+          (restLower === entry.folded || restLower.startsWith(entry.folded + " ")),
+      )
+      .sort((a, b) => b.folded.length - a.folded.length)[0];
+    if (hit === undefined) return { classId: null, query: inlineFilters.query };
+    return { classId: hit.cls.id, query: rest.slice(hit.raw.length) };
+  }, [client, inlineFilters.query, searchMode]);
+
+  // Effective class ids: caller-side classFilters plus the refined class —
+  // the create row and the empty-query member listing both honor them. A
+  // With-class chip joins the same set: it scopes the results like
+  // `class:<name>` and the created node carries it.
+  const chipClassIds = useMemo(
+    () =>
+      activeFilters.flatMap((f) => (f.kind === "memberOf" && f.classId !== undefined ? [f.classId] : [])),
+    [activeFilters],
+  );
+  const effectiveClassIds = useMemo(() => {
+    const ids = new Set<string>(classFilters ?? []);
+    if (classRefine.classId !== null) ids.add(classRefine.classId);
+    for (const id of chipClassIds) ids.add(id);
+    return [...ids];
+  }, [classFilters, classRefine, chipClassIds]);
+
+  /**
+   * The class-aware create request: when the picker's
+   * create row runs under a class filter, the class-driven QuickCreateModal
+   * opens with that class (the dynamic properties form) instead of silently
+   * creating a plain page. The modal completes the create and hands the id
+   * back through resolveCreateResult.
+   */
+  const [quickCreate, setQuickCreate] = useState<{
+    classId: string;
+    name: string;
+  } | null>(null);
+
+  // Built-in create: pages pickers create a page (carrying the effective
+  // class filters), classes pickers create a class. Callers override via
+  // onCreateNew. A single class filter reroutes to the class-driven
+  // quick-create modal (the dynamic properties form); a multi-class filter
+  // set keeps the plain create (the modal carries one class).
+  //, class lock retired round 4
+  // (2026-10-26): a source-family filter whose typed query IS an
+  // identifier/link (DOI/ISBN/arXiv/URL) reroutes further — the create row
+  // opens the add-source dialog through the app-level requestAddSource
+  // seam; the resolved record's own type picks the prefill class. A PLAIN
+  // typed title keeps the create modal: the dialog resolves identifiers,
+  // it has no honest path for a non-resolvable title. An asset-family
+  // filter keeps the plain create (an asset create rides the upload flow).
+  const defaultCreateNew = (name: string): Promise<string> | void => {
+    if (searchMode === "classes") {
+      return client.createClass(name);
+    }
+    if (onCreateNew === undefined && effectiveClassIds.length > 0) {
+      const inFamily = (base: string): boolean =>
+        effectiveClassIds.some((id) => collectSelfAndAncestors(client, id).has(base));
+      if (
+        inFamily(SYSTEM_CLASS_UUIDS.source) &&
+        classifySourceInput(name) !== null &&
+        onCreateSourceFromLink === undefined
+      ) {
+        // The same dismissal + cleanup contract as the paste-URL row.
+        if (trigger === "pill-row") {
+          setIsPickerOpen(false);
+        }
+        setSearchQuery("");
+        resetFilters();
+        requestAddSource({
+          initialInput: name,
+          onCreated: (id) => resolveCreateResult(id),
+        });
+        return;
+      }
+      if (!inFamily(SYSTEM_CLASS_UUIDS.asset) && effectiveClassIds.length === 1) {
+        // The bare source family base resolves to its book default (the
+        // routeNewNodeClass carve-out — the citation analogue of the retired
+        // superclass defaults).
+        const classId =
+          effectiveClassIds[0] === SYSTEM_CLASS_UUIDS.source
+            ? SYSTEM_CLASS_UUIDS.book
+            : effectiveClassIds[0]!;
+        setQuickCreate({ classId, name });
+        return;
+      }
+    }
+    return client.createObject({
+      isEmbedded: false,
+      name,
+      ...(effectiveClassIds.length > 0 ? { classIds: effectiveClassIds } : {}),
+    });
+  };
+
+  /**
+   * An optimistic stand-in for a just-created pick, spliced the moment the
+   * create RPC resolves instead of waiting (up to 2 s) for the change
+   * notification to materialize the node in the read cache. Consumers read
+   * only `id` (verified across every NodeSelector onAdd/onChange site); the
+   * name seeds the editor's label fallback (pendingCreatedName) so the pill
+   * renders the created title immediately — the wire token itself stays
+   * bare, labels re-resolve from the graph.
+   */
+  const optimisticCreatedPick = (id: string, name: string): ClientNode =>
+    ({
+      id,
+      workspaceId: "",
+      isClass: false,
+      isEmbedded: false,
+      parentId: null,
+      classIds: [],
+      tagIds: [],
+      name,
+      contentAst: [{ type: "text", text: name }],
+      icon: null,
+      color: null,
+      coverAssetId: null,
+      bannerAssetId: null,
+      aliasedNodeId: null,
+      description: null,
+      listStyle: null,
+      parentlessRole: "page",
+      isActive: true,
+      createdAt: null,
+      updatedAt: null,
+    }) as ClientNode;
+
+  const resolveCreateResult = (result: ClientNode | string | void, createdName?: string): void => {
+    if (typeof result === "string") {
+      // Fast path (the built-in create row): the name is the query the row
+      // answered — pick immediately on the RPC resolution; the mention pill
+      // must not wait for the change notification to materialize the node
+      // (the worker read cache lags the create by a round-trip, and the wait
+      // used to leave the user staring at plain trigger text for exactly
+      // that long).
+      if (createdName !== undefined) {
+        registerPendingCreatedName(result, createdName);
+        handleAdd(optimisticCreatedPick(result, createdName));
+        return;
+      }
+      // Name unknown at the call site (dialog-created sources): the original
+      // bounded wait for the read cache to materialize the node.
+      void waitForNode(client, result).then((node) => {
+        if (node !== undefined) handleAdd(node);
+      });
+    } else if (result !== undefined && typeof result === "object" && "id" in result) {
+      handleAdd(result);
+    }
+  };
+
+  // Create support: default on for page/class pickers. The create row answers
+  // the EFFECTIVE query — under a `class:` refine the prefix scopes the
+  // search; it must not become part of the created node's title.
+  // `noCreate` suppresses the whole affordance (row + the
+  // QuickCreateModal route + the alwaysShowCreate upload override): a
+  // search-without-match then renders the honest empty state.
+  const effectiveQuery = classRefine.query.trim();
+  const createEnabled = (allowCreate ?? true) && !noCreate;
+  const effectiveCreateNew = onCreateNew ?? defaultCreateNew;
+  // The classes picker's create row is a duplicate-class trap: an exact-name
+  // hit means the class ALREADY exists (assigned or not), so the row offers
+  // nothing but a same-named second class — suppress it (the existing class
+  // rides the results, checkmarked when assigned).
+  const exactClassNameMatch = useMemo(() => {
+    if (searchMode !== "classes" || effectiveQuery === "") return false;
+    const q = foldSearchText(effectiveQuery.toLowerCase());
+    return client
+      .listClasses()
+      .some((cls) => foldSearchText((titleOfNode(cls) ?? "").toLowerCase()) === q);
+  }, [client, searchMode, effectiveQuery]);
+  const showCreateOption =
+    !!effectiveCreateNew &&
+    createEnabled &&
+    (alwaysShowCreate || effectiveQuery.length > 0) &&
+    !exactClassNameMatch;
+  // A bare year the date system does NOT claim (outside the 1900..2200
+  // date-node window — 1711, 1066…) still gets a plain create, but labeled
+  // as a year so it reads as a year page rather than a numbered page.
+  // (Inside the window the date suggestion row already offers the journal.)
+  const createRowLabel =
+    createLabel ??
+    (isPlainYearQuery(effectiveQuery)
+      ? `Create year "${effectiveQuery}"`
+      : `Create "${effectiveQuery}"`);
+
+  /**
+   * The paste-URL detection row (source-library slice 3 task 6): a query
+   * shaped like a DOI (10.xxxx/…), an arXiv id/URL, an ISBN, or an http(s)
+   * URL offers "Create source from link" below the create row — the gesture
+   * routes into the add-source dialog (identifier mode; a bare URL with the
+   * resolver off creates a plain weblink instead). Classification runs on
+   * the effective query (filter prefixes stripped), never the raw input.
+   */
+  const sourceLinkMatch = useMemo(
+    () => (searchMode === "classes" ? null : classifySourceInput(effectiveQuery)),
+    [searchMode, effectiveQuery],
+  );
+  const showSourceLinkOption =
+    createEnabled && sourceLinkMatch !== null && effectiveQuery.length > 0 && !exactClassNameMatch;
+  const handleCreateSourceFromLink = () => {
+    if (sourceLinkMatch === null) return;
+    const raw = effectiveQuery;
+    // The same dismissal + cleanup contract as the create row.
+    if (trigger === "pill-row") {
+      setIsPickerOpen(false);
+    }
+    setSearchQuery("");
+    resetFilters();
+    if (onCreateSourceFromLink !== undefined) {
+      onCreateSourceFromLink(raw);
+      return;
+    }
+    // The default route: the app-level add-source queue, the created source
+    // linking into this picker like a create-row result.
+    requestAddSource({ initialInput: raw, onCreated: (id) => resolveCreateResult(id) });
+  };
+
+  const handleCreateNew = () => {
+    if (effectiveCreateNew === undefined) return;
+    // Empty-query create is only meaningful for override flows (upload,
+    // quick-create modals): the built-in create needs a title, so the row
+    // stays inert without a query unless the caller overrode it.
+    if (effectiveQuery === "" && onCreateNew === undefined) return;
+    const result = effectiveCreateNew(effectiveQuery);
+    const onCreated = (created: ClientNode | string | void): void => {
+      // The built-in create answers the query as the new node's title
+      // (title-is-content) — the string case can pick optimistically; other
+      // seams (dialog-created sources) keep the bounded materialization wait.
+      resolveCreateResult(created, typeof created === "string" ? effectiveQuery : undefined);
+    };
+    if (result instanceof Promise) {
+      result.then(onCreated).catch(() => {});
+    } else {
+      onCreated(result);
+    }
+    if (trigger === "pill-row") {
+      setIsPickerOpen(false);
+    }
+    setSearchQuery("");
+    resetFilters();
+  };
+
+  // Parse the query for date formats and offer the date-page suggestion
+  // (hidden in the classes picker — the original boundary).
+  const parsedDate = useMemo(() => {
+    if (searchMode === "classes") return null;
+    return parseDate(inlineFilters.query.trim());
+  }, [inlineFilters.query, searchMode]);
+
+  // The chain ids are pure (derived from the iso date); existence is read
+  // live each render so the suggestion label tracks graph changes under an
+  // open picker (the chain can appear while the popup is up).
+  const dateTarget = useMemo(() => {
+    if (!parsedDate) return null;
+    const iso =
+      parsedDate.type === "day" && parsedDate.month !== undefined && parsedDate.day !== undefined
+        ? toIso(parsedDate.year, parsedDate.month, parsedDate.day)
+        : parsedDate.type === "month" && parsedDate.month !== undefined
+          ? toIso(parsedDate.year, parsedDate.month, 1)
+          : toIso(parsedDate.year, 1, 1);
+    const ids = chainNodeIds(iso);
+    return {
+      iso,
+      refId:
+        parsedDate.type === "year" ? ids.year : parsedDate.type === "month" ? ids.month : ids.day,
+    };
+  }, [parsedDate]);
+  const dateTargetExists =
+    dateTarget !== null && client.getNodeRaw(dateTarget.refId) !== undefined;
+
+  const dateSuggestion = useMemo(() => {
+    if (!parsedDate || dateTarget === null) return undefined;
+    const dateTypeLabel =
+      parsedDate.type === "day" ? "daily" : parsedDate.type === "month" ? "monthly" : "yearly";
+    const label = dateTargetExists
+      ? `Link to ${dateTypeLabel} page: ${parsedDate.label}`
+      : `Create ${dateTypeLabel} page: ${parsedDate.label}`;
+    return {
+      key: `${dateTarget.iso}:${dateTarget.refId}`,
+      label,
+      onSelect: () => {
+        void (async () => {
+          await client.ensureDateChain(dateTarget.iso);
+          // The chain lands through the projection's async notify — reading
+          // the node synchronously after the RPC resolves can answer with
+          // undefined (the worker's sync push has not arrived), which dropped
+          // the pick and left the row flipped to "Link to" (create-and-link
+          // is ONE gesture: the mention inserts on this same click). Wait
+          // for the node to appear, then hand it to the pick.
+          const node = await waitForNode(client, dateTarget.refId);
+          if (node !== undefined) handleAdd(node);
+        })();
+      },
+    };
+  }, [parsedDate, dateTarget, dateTargetExists, client]); // eslint-disable-line react-hooks/exhaustive-deps -- handleAdd reads stable state setters only.
+
+  // Scope-tab filter: Main keeps classes plus every document-chrome node
+  // (top-level or present-as-main children); Blocks keeps only parented
+  // non-class children with the render bit unset. The two are exhaustive
+  // over non-class nodes, and classes live in Main.
+  const matchesScopeTab = (node: ClientNode): boolean => {
+    if (!scopeTabs || searchMode === "classes") return true;
+    return scope === "main"
+      ? node.isClass || rendersWithDocumentChromeOf(client, node)
+      : rendersAsInlineBlockOf(client, node);
+  };
+
+  // The worker-backed client answers reads synchronously from a cache that
+  // converges through a "changed" notify: a first search of a new query
+  // returns [] and the real hits land a macrotask later. Without a
+  // subscription the picker never re-renders on that landing — the hits sat
+  // in the cache until the NEXT keystroke re-ran the memo (the reported
+  // "results only appear after I change the query"). Subscribe and bump a
+  // version the search memo depends on, so the landing re-renders the picker
+  // on its own. Clients without subscribe (the outliner's context client)
+  // are synchronous and degrade to the pre-fix behavior.
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(() => {
+    // Called as a method (client.subscribe) — WorkspaceClient binds `this`.
+    const sub = client as { subscribe?: (listener: () => void) => () => void };
+    if (typeof sub.subscribe !== "function") return;
+    return sub.subscribe(() => setDataVersion((v) => v + 1));
+  }, [client]);
+
+  // --- `/` filter mode: options, chips, apply --------------------------------
+
+  /** The class cache behind the filter menu and the chip labels/icons. */
+  const classesCache = useMemo(() => client.listClasses(), [client, dataVersion]);
+
+  const filterOptions = useMemo<FilterOption[]>(() => {
+    if (!filterMode) return [];
+    return filterBrowse === "classes"
+      ? listClassOptions(classesCache, narrowText)
+      : listFilterOptions({ narrowText, classes: classesCache, mode: searchMode });
+  }, [filterMode, filterBrowse, narrowText, classesCache, searchMode]);
+
+  const applyFilterOption = (option: FilterOption): void => {
+    if (option.filter.kind === "memberOf" && option.filter.classId === undefined) {
+      // The "With class…" family row: swap the menu to the class browse.
+      setFilterBrowse("classes");
+      setSearchQuery("/");
+      setSelectedIndex(0);
+      return;
+    }
+    const key = filterKey(option.filter);
+    setActiveFilters((prev) =>
+      prev.some((f) => filterKey(f) === key) ? prev : [...prev, option.filter],
+    );
+    setSearchQuery("");
+    setFilterBrowse("options");
+    setSelectedIndex(0);
+    setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
+  };
+
+  const removeFilterChip = (id: string): void => {
+    setActiveFilters((prev) => prev.filter((filter) => filterKey(filter) !== id));
+  };
+
+  const chipItems = activeFilters.map((filter) => ({
+    id: filterKey(filter),
+    label: filterChipLabel(filter, classesCache),
+    icon: filterChipIcon(filter, classesCache),
+  }));
+
+  // Coalesce keystrokes before the query hits the ranked index — async
+  // clients only (see SEARCH_DEBOUNCE_MS). Sync clients mirror immediately:
+  // their search is a local call, and tests + small workspaces expect the
+  // results to track the input synchronously.
+  const isAsyncSearch = client.searchPending !== undefined;
+  useEffect(() => {
+    if (!isAsyncSearch) {
+      setDebouncedQuery(searchQuery);
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery, isAsyncSearch]);
+
+  // The filter's subclass closure (the extends-aware BOTH-directions
+  // membership test): a search hit matches when the node's OWN class is the
+  // filter class OR any of its transitive subclasses — exactly the browse
+  // path's getClassMembers semantics (persona under an Agent filter hits).
+  // Built once per filter set by scanning the class list: a class belongs
+  // when its ancestor closure (the schemaEligibility walk) reaches a filter
+  // id. The retired direct-membership test dropped subclass members the
+  // moment the owner typed a name — the third instance of this bug class.
+  const effectiveClassClosure = useMemo(() => {
+    if (effectiveClassIds.length === 0) return null;
+    const filter = new Set(effectiveClassIds);
+    const closure = new Set(effectiveClassIds);
+    for (const cls of client.listClasses()) {
+      if (closure.has(cls.id)) continue;
+      let reachesFilter = false;
+      for (const id of classClosureFrom(client, [cls.id])) {
+        if (filter.has(id)) {
+          reachesFilter = true;
+          break;
+        }
+      }
+      if (reachesFilter) closure.add(cls.id);
+    }
+    return closure;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the closure is a pure function of the filter set and the class graph (dataVersion rides the landing notify like the search memo).
+  }, [client, effectiveClassIds, dataVersion]);
+
+  /**
+   * The empty-query "recently used" listing — the shared recency
+   * composition (`recentUseSections`, the palette home's section recipe):
+   * recently CREATED chrome pages first (createdAt, newest first), then
+   * recently LINKED targets the created arm didn't claim (mention/tag edge
+   * recency). Merely OPENED pages do not count anywhere — opening feeds the
+   * sidebar's device-local Recents, a different list (that mismatch was the
+   * bug: the picker showed recently opened pages at the top). Kept OUT of
+   * the search memo below: its deps are data-only (no query inputs), so
+   * keystrokes don't re-sort the pool. Each arm is filtered per the picker's
+   * role/scope like any other candidate set — a blocks-mode picker lists no
+   * created pages (created blocks are not enumerable from the page pool),
+   * so only LINKED blocks surface there. The search memo's final branch
+   * returns `rows` when no other empty-query listing (member pool, filter
+   * pool) claims the slot; class-scoped pickers keep their member listing,
+   * the classes picker never reaches here.
+   */
+  const recentsListing = useMemo(() => {
+    const sections = recentUseSections(client, client.listPages(), MAX_SYNCED_RECENTS);
+    const roleFilter = (node: ClientNode): boolean => {
+      if (searchMode === "pages" && !rendersWithDocumentChromeOf(client, node))
+        return false;
+      if (searchMode === "blocks" && !rendersAsInlineBlockOf(client, node))
+        return false;
+      return matchesScopeTab(node);
+    };
+    const created = sections.created.filter(roleFilter);
+    const linked = sections.linked.filter(roleFilter);
+    return { created, linked, rows: [...created, ...linked] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- roleFilter derives from searchMode/scopeTabs/scope (deps); the memoized parentlessBlock resolver stays a dep because the bound role helpers derive from it via the client (client-stable); dataVersion rides the async landing notify like the search memo.
+  }, [client, searchMode, scopeTabs, scope, parentlessBlock, dataVersion]);
+
+  // Search results through the client. Classes are matched by name over the
+  // class list (name filtering is the better picker behavior for short
+  // queries); object/block hits go through the ranked FTS index — the
+  // class appliers reindex too, so "all"-mode search surfaces classes as
+  // well. A `class:` refine narrows the candidates to the refined
+  // class's members; "blocks" mode keeps only inline-body blocks — the
+  // `((` block-linking candidate set. `dataVersion` is in the deps so the
+  // async client's landing notify re-computes the hits from the warmed
+  // cache (see the subscription above).
+  const searchResults = useMemo(() => {
+    // `/` filter mode steps aside for the option menu — no result set at all.
+    if (filterMode) return [];
+    const q = foldedQueryOf(classRefine.query);
+    if (searchMode === "classes") {
+      const classes = client.listClasses().filter((node) => {
+        if (!matchesInlineFilters(node)) return false;
+        if (q === "") return true;
+        const name = titleOfNode(node) ?? node.id;
+        return foldedIncludes(q, name);
+      });
+      return classes;
+    }
+    const hits = q === "" ? [] : client.search(classRefine.query.trim());
+    const filtered = hits.filter((node) => {
+      if (searchMode === "pages" && !rendersWithDocumentChromeOf(client, node))
+        return false;
+      if (searchMode === "blocks" && !rendersAsInlineBlockOf(client, node))
+        return false;
+      if (!matchesInlineFilters(node)) return false;
+      if (!matchesScopeTab(node)) return false;
+      if (effectiveClassClosure !== null) {
+        if (!node.classIds.some((id) => effectiveClassClosure.has(id))) return false;
+      }
+      return true;
+    });
+    if (q !== "") return filtered;
+    // An empty effective query in a class-scoped picker lists the target
+    // classes' members (the picker's natural candidate set); unfiltered
+    // pickers wait for input — EXCEPT when an inline filter prefix or a
+    // `/` chip is live: `daily:` alone (or a Daily pages chip) must list
+    // the matching pool (the filter IS the query). A Blocks chip has no
+    // pool listing — blocks are not enumerable from the page list — so it
+    // waits for text like an unfiltered picker.
+    const inlineActive =
+      inlineFilters.filters.daily !== null ||
+      inlineFilters.filters.page !== null ||
+      inlineFilters.filters.cls !== null ||
+      chipFilterState.daily ||
+      chipFilterState.pages ||
+      chipFilterState.cls;
+    if (inlineActive && searchMode !== "blocks") {
+      const pool =
+        searchMode === "all" ? [...client.listPages(), ...client.listClasses()] : client.listPages();
+      return pool.filter(matchesInlineFilters).filter(matchesScopeTab);
+    }
+    if (effectiveClassIds.length > 0) {
+      const seen = new Set<string>();
+      return effectiveClassIds
+        .flatMap((id) => client.getClassMembers(id))
+        .filter((node) => {
+          if (seen.has(node.id)) return false;
+          seen.add(node.id);
+          return true;
+        })
+        .filter(matchesInlineFilters)
+        .filter(matchesScopeTab)
+        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlockOf(client, node));
+    }
+    // The empty-query default: the shared recency listing (see
+    // `recentsListing` above) — created section first, then linked, MRU
+    // within each. The first keystroke replaces the list with search hits.
+    return recentsListing.rows;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (debouncedQuery) and chipFilterState (activeFilters); matchesScopeTab derives from scope/scopeTabs/searchMode.
+  }, [client, debouncedQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope, dataVersion, filterMode, chipFilterState, recentsListing]);
+
+  // The classes picker's disabled-class matches:
+  // the query names an ARCHIVED system class — listClasses() filters
+  // active, so the dimmed Enable row rides the archived read. The row
+  // enables via the gallery pick semantics (the F4 inverse for family
+  // bases), then assigns like any pick.
+  const archivedMatches = useMemo(() => {
+    if (searchMode !== "classes" || effectiveQuery === "") return [] as ClientNode[];
+    if (client.listArchivedClasses === undefined) return [] as ClientNode[];
+    const q = foldSearchText(effectiveQuery.toLowerCase());
+    return client
+      .listArchivedClasses()
+      .filter((cls) => foldSearchText((titleOfNode(cls) ?? "").toLowerCase()).includes(q));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dataVersion rides the async landing notify like the search memo.
+  }, [client, searchMode, effectiveQuery, dataVersion]);
+
+  const handleEnableArchived = (node: ClientNode): void => {
+    if (client.listArchivedClasses === undefined) return;
+    const key = systemClassNameForId(node.id) as SystemClassName | null;
+    if (key === null) return;
+    void enableArchivedSystemClass(client, key)
+      .then(() => handleAdd(node))
+      .catch(() => {});
+  };
+
+  const handleBrowseAllTypes = (): void => {
+    if (onBrowseAllTypes === undefined) return;
+    const result = onBrowseAllTypes(effectiveQuery);
+    if (result instanceof Promise) {
+      result.then((created) => {
+        if (created !== undefined) resolveCreateResult(created);
+      }).catch(() => {});
+    }
+    if (trigger === "pill-row") setIsPickerOpen(false);
+    setSearchQuery("");
+    resetFilters();
+  };
+
+  // "Searching…" state: on an async client the current query's read may be
+  // in flight while the memo already returned the empty default — without
+  // this the picker showed "No matches found" for results that were simply
+  // still loading. Sync clients have no pending concept and never search.
+  const searchText = classRefine.query.trim();
+  const searching =
+    searchText !== "" &&
+    searchMode !== "classes" &&
+    (client.searchPending?.(searchText) ?? false);
+  // The empty state speaks for the SETTLED query only: while keystrokes are
+  // still coalescing (async clients) the memo answers the previous query,
+  // and "No matches found" for a search that hasn't run yet is a lie.
+  const querySettled = debouncedQuery === searchQuery;
+
+  const filteredResults = useMemo(
+    () =>
+      searchResults
+        // Assigned nodes hide while browsing (the picker's candidate set is
+        // the UNASSIGNED pool); a non-empty query surfaces them again —
+        // marked selected (the row checkmark) — so an exact search for an
+        // already-assigned class/tag acknowledges the pick instead of
+        // dead-ending into the create row (the class picker's create row
+        // would open the create-class modal for an existing class).
+        .filter((node) => !assignedIds.has(node.id) || effectiveQuery !== "")
+        .filter((node) => node.id !== excludeNodeId)
+        .filter((node) => canAdd === undefined || canAdd(node)),
+    [searchResults, assignedIds, effectiveQuery, excludeNodeId, canAdd],
+  );
+
+  const visibleResults = useMemo(
+    () => filteredResults.slice(0, displayLimit),
+    [filteredResults, displayLimit],
+  );
+  const showMoreOption = filteredResults.length > visibleResults.length;
+
+  /**
+   * A "partial exact match": the folded query prefixes a candidate's folded
+   * title or one of its words ("gmi" matches "GMI Dental", "GMI Chile") —
+   * the typed text IS the beginning of something that exists, so the create
+   * row stays below the hits. With NO such candidate the hits are merely
+   * approximate (a fuzzy "gmi" hit on something unrelated) and the create
+   * row hoists ABOVE them — the user never scrolls past approximate
+   * candidates to create.
+   */
+  const hasPartialExactMatch = useMemo(() => {
+    const q = foldSearchText(effectiveQuery.toLowerCase());
+    if (q === "") return false;
+    const boundary = new RegExp(
+      `(^|[^\\p{L}\\p{N}])${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+      "u",
+    );
+    return filteredResults.some((node) =>
+      boundary.test(foldSearchText((titleOfNode(node) ?? "").toLowerCase())),
+    );
+  }, [filteredResults, effectiveQuery]);
+
+  /**
+   * The create row's slot: hoisted above the approximate candidates while
+   * the query names nothing that starts with it (and the query is non-empty
+   * — an empty query's listing, recents or members, keeps the create row
+   * below).
+   */
+  const createFirst =
+    showCreateOption && effectiveQuery !== "" && !hasPartialExactMatch;
+  /**
+   * The recents listing is live: an empty effective query with no filter
+   * prefix and no class scope in a non-classes picker (the same condition
+   * the search memo's final branch answers). Gates the section captions
+   * only — selection math is unchanged.
+   */
+  const recentsActive =
+    searchMode !== "classes" &&
+    classRefine.query.trim() === "" &&
+    inlineFilters.filters.daily === null &&
+    inlineFilters.filters.page === null &&
+    inlineFilters.filters.cls === null &&
+    chipFilterState.daily === false &&
+    chipFilterState.pages === false &&
+    chipFilterState.cls === false &&
+    activeFilters.length === 0 &&
+    effectiveClassIds.length === 0;
+
+  /**
+   * The two section captions over the recents rows. The created caption
+   * rides above the list while any visible row came from the created arm;
+   * the linked caption is spliced before the first visible row the created
+   * arm did NOT claim (-1 = no linked rows to caption). Assigned-row hiding
+   * and the display limit can shrink a section, so both derive from the
+   * VISIBLE rows, not the section sizes.
+   */
+  const recentsCreatedIds = new Set(recentsListing.created.map((node) => node.id));
+  const recentsCreatedCaptionVisible =
+    recentsActive && visibleResults.some((node) => recentsCreatedIds.has(node.id));
+  const recentsLinkedCaptionIndex =
+    recentsActive && recentsListing.linked.length > 0
+      ? visibleResults.findIndex((node) => !recentsCreatedIds.has(node.id))
+      : -1;
+
+  /** The pinned escape owns index 0 only while the query is empty. */
+  const emptyQueryOptionActive =
+    emptyQueryOption !== undefined && classRefine.query.trim() === "";
+
+  // Assigned-row gesture hint: rides the picker's bottom while a checkmarked
+  // row is on screen (the gestures apply to it). Callers with onAssignedPick
+  // own the assigned-row semantics (the editor's `+` toggle) and show the
+  // unassigned-row hint too (their Ctrl/Cmd+Enter adds the class inline);
+  // everywhere else a checkmarked pick acknowledges idempotently.
+  const assignedVisible = visibleResults.some((node) => assignedIds.has(node.id));
+  const assignedHintFooter =
+    onAssignedPick !== undefined ? (
+      <div className="node-selector__assigned-hint">
+        {assignedVisible ? "↵ remove · ⌃↵ convert to link" : "↵ add class · ⌃↵ add inline"}
+      </div>
+    ) : assignedVisible ? (
+      <div className="node-selector__assigned-hint">✓ already assigned</div>
+    ) : null;
+
+  // Position the pill-row / anchored picker (fixed, flips above, clamped).
+  const position = useViewportPosition(
+    isAnchored ? anchorRef : buttonRef,
+    isPickerOpen,
+    { popupRef: pickerRef, edgePadding: PICKER_EDGE_PADDING },
+  );
+
+  const resetFilters = () => {
+    setActiveFilters([]);
+    setFilterBrowse("options");
+  };
+
+  const handleClosePicker = () => {
+    if (isAnchored) {
+      onClose?.();
+    } else if (trigger !== "inline") {
+      // Inline mode is permanent — there is no picker to close and the
+      // always-visible search field keeps its query on outside press.
+      setIsPickerOpen(false);
+      setSearchQuery("");
+      resetFilters();
+    }
+  };
+
+  // Dismissal rides the shared layer (usePopupDismissal), replacing
+  // the hand-rolled outside-click/Escape pair: Escape closes unless it
+  // originated inside the popup (the search input's own keydown closes via
+  // the list nav), and a pointer-down outside closes with the trigger
+  // exempted — clicking the add button / a real anchor toggles instead of
+  // dismissing. The virtual rect anchor (editor caret popups) has no
+  // element, so any outside press closes, exactly the old contract.
+  // While the class-aware quick-create modal is open it owns the
+  // interaction (its backdrop is outside the picker): the picker's
+  // dismissal stands down so a backdrop press or Escape reaches only the
+  // modal's own overlay stack.
+  usePopupDismissal({
+    popupRef: pickerRef,
+    anchorRefs: isAnchored ? (anchorEl != null ? [dismissalAnchorRef] : []) : [buttonRef],
+    isOpen: isPickerOpen && quickCreate === null,
+    onClose: handleClosePicker,
+  });
+
+  // Focus the search input once the open picker is positioned. The popup
+  // renders visibility:hidden until measured, and browsers refuse focus
+  // inside a hidden subtree — keying on `position` (set by the positioning
+  // layout effect) guarantees the panel is visible before focus() runs, so
+  // typing reaches the popup instead of staying in the edited block.
+  useEffect(() => {
+    if (isPickerOpen && position !== null && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isPickerOpen, position]);
+
+  // Total selectable items. The optional empty-query escape rides before the
+  // date suggestion; both offset the ordinary result list. The hoisted
+  // create row takes one slot right after them when no partial-exact match
+  // exists, shifting the results (and everything below) down by one.
+  const leadingOffset = (emptyQueryOptionActive ? 1 : 0) + (dateSuggestion ? 1 : 0);
+  const archivedCount = archivedMatches.length;
+  // Row order: [emptyQueryOption] [dateSuggestion] ([create — hoisted])
+  // results, then the archived-class Enable rows, the create row (when not
+  // hoisted), the paste-URL source row, the browse-all-types row, the
+  // show-more pager.
+  const resultStart = leadingOffset + (createFirst ? 1 : 0);
+  const createIndex = createFirst ? leadingOffset : resultStart + visibleResults.length + archivedCount;
+  const sourceLinkIndex = createIndex + (showCreateOption ? 1 : 0);
+  const showBrowseAll = searchMode === "classes" && onBrowseAllTypes !== undefined;
+  const browseAllIndex = sourceLinkIndex + (showSourceLinkOption ? 1 : 0);
+  const showMoreIndex = browseAllIndex + (showBrowseAll ? 1 : 0);
+  const totalItems = filterMode
+    ? filterOptions.length
+    : visibleResults.length +
+      leadingOffset +
+      archivedCount +
+      (showCreateOption ? 1 : 0) +
+      (showSourceLinkOption ? 1 : 0) +
+      (showBrowseAll ? 1 : 0) +
+      (showMoreOption ? 1 : 0);
+
+  const handleSelectByIndex = (index: number, modifiers: { ctrlKey: boolean; metaKey: boolean }) => {
+    if (filterMode) {
+      // `/` mode: the flat index answers the filter option list.
+      const option = filterOptions[index];
+      if (option !== undefined) applyFilterOption(option);
+      return;
+    }
+    if (emptyQueryOptionActive && index === 0) {
+      emptyQueryOption.onPick();
+      return;
+    }
+    if (dateSuggestion && index === (emptyQueryOptionActive ? 1 : 0)) {
+      dateSuggestion.onSelect();
+      return;
+    }
+    const offset = index - leadingOffset;
+    // The hoisted create row owns the first slot after the leading rows.
+    if (createFirst && offset === 0) {
+      handleCreateNew();
+      return;
+    }
+    const adjusted = offset - (createFirst ? 1 : 0);
+    if (adjusted < visibleResults.length) {
+      const node = visibleResults[adjusted]!;
+      handleAdd(node, modifiers.ctrlKey || modifiers.metaKey);
+    } else if (adjusted < visibleResults.length + archivedCount) {
+      handleEnableArchived(archivedMatches[adjusted - visibleResults.length]!);
+    } else if (showCreateOption && adjusted === visibleResults.length + archivedCount) {
+      handleCreateNew();
+    } else if (
+      showSourceLinkOption &&
+      adjusted === visibleResults.length + archivedCount + (showCreateOption ? 1 : 0)
+    ) {
+      handleCreateSourceFromLink();
+    } else if (
+      showBrowseAll &&
+      adjusted ===
+        visibleResults.length +
+          archivedCount +
+          (showCreateOption ? 1 : 0) +
+          (showSourceLinkOption ? 1 : 0)
+    ) {
+      handleBrowseAllTypes();
+    } else if (
+      showMoreOption &&
+      adjusted ===
+        visibleResults.length +
+          archivedCount +
+          (showCreateOption ? 1 : 0) +
+          (showSourceLinkOption ? 1 : 0) +
+          (showBrowseAll ? 1 : 0)
+    ) {
+      setDisplayLimit((prev) => prev + 20);
+    }
+  };
+
+  // 'inline' mode is always active; other modes are active when open.
+  const isNavActive = trigger === "inline" || isPickerOpen;
+  const { selectedIndex, setSelectedIndex, listRef, handleKeyDown } = useKeyboardListNav({
+    totalItems,
+    onSelect: handleSelectByIndex,
+    onClose: handleClosePicker,
+    isOpen: isNavActive,
+  });
+
+  const handleSearchChange = (newQuery: string) => {
+    setSearchQuery(newQuery);
+    setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
+    // Leaving `/` mode drops any half-entered class browse.
+    if (!newQuery.startsWith("/")) setFilterBrowse("options");
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // The token-field contract: Backspace on an empty query pops the last chip.
+    if (event.key === "Backspace" && searchQuery === "" && activeFilters.length > 0) {
+      setActiveFilters((prev) => prev.slice(0, -1));
+    }
+    handleKeyDown(event);
+  };
+
+  // The loading-timing rule (<300ms nothing): a fast worker round-trip never
+  // flashes the spinner — results just land.
+  const spinnerVisible = useDelayedVisible(searching);
+
+  /** Switch the Main/Blocks scope: re-page results and keep typing in the search box. */
+  const handleScopeChange = (next: "main" | "blocks") => {
+    setScope(next);
+    setDisplayLimit(DEFAULT_DISPLAY_LIMIT);
+    searchInputRef.current?.focus();
+  };
+
+  const renderResults = (emptyClassName: string, createIconSize: number) => (
+    <>
+      {emptyQueryOptionActive && emptyQueryOption !== undefined && (
+        <NodeResultItem
+          key="__empty-query-option"
+          node={{ name: emptyQueryOption.label }}
+          isHighlighted={selectedIndex === 0}
+          onClick={emptyQueryOption.onPick}
+          onMouseEnter={() => setSelectedIndex(0)}
+          className="node-result-item--empty-query"
+          iconOverride={
+            <Icon path={emptyQueryOption.icon ?? "mdi-file-outline"} size={createIconSize} />
+          }
+        />
+      )}
+      {recentsCreatedCaptionVisible && (
+        <div className="node-selector__recent-caption" aria-hidden="true">
+          Recently created
+        </div>
+      )}
+      {dateSuggestion && (
+        <NodeResultItem
+          key={dateSuggestion.key}
+          node={{ name: dateSuggestion.label }}
+          isHighlighted={selectedIndex === (emptyQueryOptionActive ? 1 : 0)}
+          onClick={dateSuggestion.onSelect}
+          onMouseEnter={() => setSelectedIndex(emptyQueryOptionActive ? 1 : 0)}
+          className="node-result-item--date"
+          iconOverride={<Icon path="mdi-calendar" size={0.7} />}
+        />
+      )}
+      {createFirst && (
+        <NodeResultItem
+          key="__create"
+          node={{ name: createRowLabel }}
+          isHighlighted={selectedIndex === createIndex}
+          onClick={handleCreateNew}
+          onMouseEnter={() => setSelectedIndex(createIndex)}
+          className="node-result-item--create"
+          iconOverride={<Icon path="mdi-plus" size={createIconSize} />}
+        />
+      )}
+      {visibleResults.map((node, index) => {
+        const globalIndex = resultStart + index;
+        return (
+          <Fragment key={node.id}>
+            {index === recentsLinkedCaptionIndex && (
+              <div className="node-selector__recent-caption" aria-hidden="true">
+                Recently linked
+              </div>
+            )}
+            <NodeResultItem
+              node={node}
+              client={client}
+              parentPath={
+                rendersWithDocumentChromeOf(client, node)
+                  ? buildParentPath(client, node)
+                  : buildContainingPagePath(client, node)
+              }
+              displayClasses={getDisplayClasses(client, node)}
+              isHighlighted={globalIndex === selectedIndex}
+              isSelected={assignedIds.has(node.id)}
+              onClick={() => handleAdd(node)}
+              onCtrlClick={() => handleAdd(node, true)}
+              onMouseEnter={() => setSelectedIndex(globalIndex)}
+            />
+          </Fragment>
+        );
+      })}
+      {archivedMatches.map((node, index) => {
+        const globalIndex = resultStart + visibleResults.length + index;
+        const name = titleOfNode(node) ?? node.id;
+        return (
+          <NodeResultItem
+            key={node.id}
+            node={node}
+            client={client}
+            isHighlighted={globalIndex === selectedIndex}
+            onClick={() => handleEnableArchived(node)}
+            onMouseEnter={() => setSelectedIndex(globalIndex)}
+            className="node-selector__archived-match"
+            after={
+              <span className="node-selector__enable-badge">
+                <Icon path="mdi-archive-arrow-up-outline" size={0.7} />
+                Enable
+              </span>
+            }
+            iconOverride={
+              <span title={`${name} is disabled`}>
+                <Icon path={node.icon ?? "mdi-shape-outline"} size={createIconSize} />
+              </span>
+            }
+          />
+        );
+      })}
+      {showCreateOption && !createFirst && (
+        <NodeResultItem
+          key="__create"
+          node={{ name: createRowLabel }}
+          isHighlighted={selectedIndex === createIndex}
+          onClick={handleCreateNew}
+          onMouseEnter={() => setSelectedIndex(createIndex)}
+          className="node-result-item--create"
+          iconOverride={<Icon path="mdi-plus" size={createIconSize} />}
+        />
+      )}
+      {showSourceLinkOption && (
+        <NodeResultItem
+          key="__source-link"
+          node={{ name: "Create source from link" }}
+          isHighlighted={selectedIndex === sourceLinkIndex}
+          onClick={handleCreateSourceFromLink}
+          onMouseEnter={() => setSelectedIndex(sourceLinkIndex)}
+          className="node-result-item--create"
+          iconOverride={<Icon path="mdi-link-variant" size={createIconSize} />}
+        />
+      )}
+      {showBrowseAll && (
+        <button
+          type="button"
+          className={`node-selector__browse-all ${selectedIndex === browseAllIndex ? "node-selector__browse-all--highlighted" : ""}`}
+          onClick={handleBrowseAllTypes}
+          onMouseEnter={() => setSelectedIndex(browseAllIndex)}
+        >
+          <Icon path="mdi-shape-outline" size={0.7} />
+          Browse all classes…
+        </button>
+      )}
+      {showMoreOption && (
+        <button
+          type="button"
+          className={`node-selector__show-more ${selectedIndex === showMoreIndex ? "node-selector__show-more--highlighted" : ""}`}
+          onClick={() => setDisplayLimit((prev) => prev + 20)}
+          onMouseEnter={() => setSelectedIndex(showMoreIndex)}
+        >
+          Show more results
+        </button>
+      )}
+      {searching && spinnerVisible && (
+        <div className="node-selector__searching">
+          <Spinner size="sm" label="Searching…" centered />
+        </div>
+      )}
+      {totalItems === 0 && !searching && querySettled && (
+        <div className={emptyClassName}>
+          {searchQuery ? "No matches found" : "Start typing to search"}
+        </div>
+      )}
+    </>
+  );
+
+  /**
+   * Search input + results. With scopeTabs the body wraps in a Tabs root:
+   * the tablist scopes the results (the shared search input sits between
+   * list and panel), and the active tab's panel hosts the results list so
+   * tab aria-controls resolves to the region it actually controls.
+   */
+  const renderBody = (createIconSize: number) =>
+    scopeTabs && searchMode !== "classes" ? (
+      <Tabs value={scope} onChange={handleScopeChange} className="node-selector__scope-tabs">
+        <Tabs.List variant="ghost" className="node-selector__scope-tablist">
+          <Tabs.Tab value="main">Main</Tabs.Tab>
+          <Tabs.Tab value="blocks">Blocks</Tabs.Tab>
+        </Tabs.List>
+        {hint !== undefined && hint !== "" && (
+          <div className="node-selector__mode-hint">{hint}</div>
+        )}
+        <SearchField
+          ref={searchInputRef}
+          className="node-selector__search-field"
+          size="sm"
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          onClear={() => handleSearchChange("")}
+        />
+        <FilterChips items={chipItems} onRemove={removeFilterChip} className="node-selector__filter-chips" />
+        <Tabs.Panel value={scope}>
+          <div className="node-selector__options" ref={listRef}>
+            {filterMode ? (
+              <FilterMenu
+                title={filterBrowse === "classes" ? "Classes" : "Filters"}
+                options={filterOptions}
+                activeIndex={selectedIndex}
+                onSelect={(id) => {
+                  const option = filterOptions.find((entry) => entry.id === id);
+                  if (option !== undefined) applyFilterOption(option);
+                }}
+                onHover={setSelectedIndex}
+                emptyText="No filters in this picker"
+              />
+            ) : (
+              renderResults("node-selector__no-results", createIconSize)
+            )}
+          </div>
+        </Tabs.Panel>
+        {assignedHintFooter}
+      </Tabs>
+    ) : (
+      <>
+        {hint !== undefined && hint !== "" && (
+          <div className="node-selector__mode-hint">{hint}</div>
+        )}
+        <SearchField
+          ref={searchInputRef}
+          className="node-selector__search-field"
+          size="sm"
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          onClear={() => handleSearchChange("")}
+        />
+        <FilterChips items={chipItems} onRemove={removeFilterChip} className="node-selector__filter-chips" />
+        <div className="node-selector__options" ref={listRef}>
+          {filterMode ? (
+            <FilterMenu
+              title={filterBrowse === "classes" ? "Classes" : "Filters"}
+              options={filterOptions}
+              activeIndex={selectedIndex}
+              onSelect={(id) => {
+                const option = filterOptions.find((entry) => entry.id === id);
+                if (option !== undefined) applyFilterOption(option);
+              }}
+              onHover={setSelectedIndex}
+              emptyText="No filters in this picker"
+            />
+          ) : (
+            renderResults("node-selector__no-results", createIconSize)
+          )}
+        </div>
+        {assignedHintFooter}
+      </>
+    );
+
+  // ── inline mode: always-expanded search + results ─────────────────────
+  if (trigger === "inline") {
+    return (
+      <div id={id} className={`node-selector node-selector--inline ${className}`} data-editor-companion>
+        {renderBody(0.7)}
+        {quickCreate !== null && (
+          <QuickCreateModal
+            isOpen
+            client={client}
+            classId={quickCreate.classId}
+            initialName={quickCreate.name}
+            onClose={() => setQuickCreate(null)}
+            onCreated={(createdId) => resolveCreateResult(createdId)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ── anchored mode: only the picker panel, portaled ────────────────────
+  if (isAnchored) {
+    return (
+      <>
+        {createPortal(
+          <div
+            className="node-selector__picker"
+            ref={pickerRef}
+            role="dialog"
+            aria-label="Select node"
+            data-editor-companion
+            style={
+              position
+                ? { top: position.top, left: position.left, visibility: "visible" }
+                : { visibility: "hidden" }
+            }
+          >
+            {renderBody(0.55)}
+          </div>,
+          document.body,
+        )}
+        {quickCreate !== null && (
+          <QuickCreateModal
+            isOpen
+            client={client}
+            classId={quickCreate.classId}
+            initialName={quickCreate.name}
+            onClose={() => setQuickCreate(null)}
+            onCreated={(createdId) => resolveCreateResult(createdId)}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ── pill-row mode (default) ───────────────────────────────────────────
+  const showAddButton = !!onAdd || !!onChange;
+
+  return (
+    <div id={id} className={`node-selector ${className}`}>
+      {nodes.map((node) => (
+        <NodePill
+          key={node.id}
+          node={node}
+          onClick={() => onNodeClick?.(node)}
+          onRemove={onRemove || onChange ? () => handleRemove(node) : undefined}
+          onColorChange={onColorChange ? (color) => onColorChange(node, color) : undefined}
+          readOnly={readOnly}
+          rightIconHoverReveal={rightIconHoverReveal}
+        />
+      ))}
+
+      {showAddButton && !readOnly && (
+        <div className="node-selector__add-wrapper" ref={buttonRef}>
+          <button
+            type="button"
+            className="node-selector__add-btn"
+            onClick={() => setIsPickerOpen((prev) => !prev)}
+            onKeyDown={(e) => {
+              // Prevent space/enter from closing the picker when it's already open.
+              if (isPickerOpen && (e.key === " " || e.key === "Enter")) {
+                e.preventDefault();
+              }
+            }}
+            title={emptyText}
+            aria-label={emptyText || "Add"}
+          >
+            <Icon path="mdi-plus" size={0.6} />
+          </button>
+
+          {isPickerOpen && (
+            <div
+              className="node-selector__picker"
+              ref={pickerRef}
+              role="dialog"
+              aria-label="Select node"
+              data-editor-companion
+              style={
+                position
+                  ? { top: position.top, left: position.left, visibility: "visible" }
+                  : { visibility: "hidden" }
+              }
+            >
+              {renderBody(0.55)}
+            </div>
+          )}
+        </div>
+      )}
+      {quickCreate !== null && (
+        <QuickCreateModal
+          isOpen
+          client={client}
+          classId={quickCreate.classId}
+          initialName={quickCreate.name}
+          onClose={() => setQuickCreate(null)}
+          onCreated={(createdId) => resolveCreateResult(createdId)}
+        />
+      )}
+    </div>
+  );
+}

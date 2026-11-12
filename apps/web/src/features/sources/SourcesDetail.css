@@ -1,0 +1,41 @@
+/**
+ * SourcesDetail styles — the detail pane's CONTENT registers: the column chrome (padding, scroll, rhythm) rides the
+ * frame's canonical panel-content register (.nt-main-frame__panel-content,
+ * MainContentFrame.css — the root class in SourcesDetail.tsx); this file
+ * owns only the content internals: the inline-editable title, the
+ * type-chip + actions row. Token-only (variables.css); values that track
+ * type metrics take the adaptive form.
+ */
+
+.nt-sources-detail__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  cursor: text;
+  /* An empty title keeps a clickable line box (the untitled source). */
+  min-height: 1.3em;
+}
+
+.nt-sources-detail__title-input {
+  width: 100%;
+}
+
+.nt-sources-detail__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-sources-detail__type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
+.nt-sources-detail__spacer {
+  flex: 1;
+}

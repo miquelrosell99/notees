@@ -1,0 +1,16 @@
+/* CardBuckets — the cards-hub bucket strip: the review action + the two
+   informational count chips. Tokens from variables.css. */
+
+.card-buckets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  margin-bottom: var(--spacing-3);
+}
+
+.card-buckets__pill {
+  flex-shrink: 0;
+}

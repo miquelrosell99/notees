@@ -1,0 +1,128 @@
+/**
+ * SystemSections styles — the card-bottom reference lists.
+ * Rows are full-width quiet buttons (page icon + name + context), with the
+ * restyled for the card.
+ */
+
+/* The page-flow section stack: ONE chromeless
+   container hosts every section-mounted chrome below the body — the
+   variant's class sections, the date aggregations, Created, Extended by,
+   and the system sections. The container owns no hairline, no hide, no gap:
+   each section's own top border IS its separator (it renders iff the
+   section does — the "line only when something exists" question answers
+   itself), and this rule spaces the survivors — the margin rides the first
+   rendered section, so the ghost row to first section gap and the
+   section-to-section gap are the same spacing-4, margins collapsing
+   between siblings. The retired alternative — a group wrapper drawing a
+   single boundary hairline and suppressing the sections' borders — died
+   with the group: it forced an all-empty gate whose only job was
+   protecting the wrapper (2026-10-20). DayPageSections mounts a container
+   div around its Sections: the container rides the stack slot; its inner
+   sections keep their own rhythm (no stack margin inside it). Sections
+   elsewhere (side panel, graph cards) don't ride this stack and are
+   untouched. */
+.nt-page-section-stack > .node-view-section {
+  margin-top: var(--spacing-4);
+}
+
+.nt-page-section-stack > .day-page-sections {
+  margin-top: var(--spacing-4);
+}
+
+.nt-page-section-stack > .day-page-sections > .node-view-section {
+  margin-top: 0;
+}
+
+.nt-section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-section-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  padding: var(--spacing-2);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-base);
+}
+
+.nt-section-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-section-row-name,
+.nt-section-crumb {
+  min-width: 0;
+}
+
+.nt-section-crumb {
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-section-source {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-section-context {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.nt-section-empty {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-2);
+}
+
+/* Reference rows: the standard outline rows (the grouped rendering
+   lives in OutlineView.css — these are the section-specific bits). */
+
+/* Editable reference trees: same block chrome as the editor. */
+.nt-refblock-tree {
+  padding: var(--spacing-micro) var(--spacing-2) var(--spacing-micro) 0;
+}
+
+/* The unlinked-references action pair: quiet icon buttons that
+   ride the reference row's trailing seam, beside the verb badge. */
+.nt-ref-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-micro);
+  vertical-align: middle;
+}
+
+.nt-ref-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-xs);
+  height: var(--height-xs);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-ref-action:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}

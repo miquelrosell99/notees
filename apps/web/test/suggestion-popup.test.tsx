@@ -1,0 +1,532 @@
+/**
+ * Suggestion-popup rows — the #/+ capture popup (NodeSelector
+ * machinery):
+ *
+ * - Single-pick contract: a row click or Enter assigns
+ *   THE picked node and closes — the same picker behavior as the @ mention
+ *   picker, no checkboxes / picked set / Apply footer. Ctrl/Cmd+Enter picks
+ *   the highlighted row too (on `@` it keeps the query as a custom label;
+ *   on `+` it assigns the class AND splices the inline class link in the
+ *   same gesture — direct inline insertion).
+ * - The `+` popup's assigned-class rows: they hide from
+ *   the empty-query browse and resurface checkmark-marked under a matching
+ *   query — a plain pick REMOVES the class (the toggle), a Ctrl/Cmd pick
+ *   (Enter or click) splices the inline class link (`class_link` token).
+ *   Membership stays: the classes pills are a derived view that hides
+ *   inline-referenced classes, and the edge index never treats the token as
+ *   a link (no backlinks/graph edges).
+ * - Filter prefixes: `daily:` (bare = day pages only) plus the boolean
+ *   family `is_daily:` / `is_page:` / `is_class:` refine the candidates;
+ *   the tokens strip from the search text (never a created title) and a
+ *   bare filter lists its pool.
+ *
+ * Same harness as capture.test.tsx.
+ */
+
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { PageView } from "../src/ui/PageView.js";
+
+const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+});
+
+async function seedClient(): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(new MemoryRelay()),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+function clickIntoBlock(container: HTMLElement): HTMLElement {
+  const content = container.querySelector<HTMLElement>(".nt-block-content");
+  if (content === null) throw new Error("no .nt-block-content");
+  fireEvent.click(content);
+  const editor = content.querySelector<HTMLElement>(".nt-block-text");
+  if (editor === null) throw new Error("editor did not mount after click");
+  return editor;
+}
+
+function typeWithCaret(editor: HTMLElement, text: string): void {
+  editor.textContent = text;
+  const node = editor.firstChild;
+  if (node !== null) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(node, text.length);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+  fireEvent.input(editor);
+}
+
+const picker = () => screen.queryByRole("dialog", { name: "Select node" });
+
+function searchBox(): HTMLElement {
+  const panel = picker();
+  if (panel === null) throw new Error("picker is not open");
+  return within(panel).getByRole("textbox");
+}
+
+function typeInPicker(text: string): void {
+  fireEvent.change(searchBox(), { target: { value: text } });
+}
+
+function pickerRows(): HTMLElement[] {
+  const panel = picker();
+  if (panel === null) return [];
+  return Array.from(panel.querySelectorAll<HTMLElement>(".node-result-item"));
+}
+
+/** Result rows only (the create row is chrome, not a candidate). */
+function resultRows(): HTMLElement[] {
+  return pickerRows().filter((el) => !el.classList.contains("node-result-item--create"));
+}
+
+function rowByText(text: string): HTMLElement {
+  const row = pickerRows().find((el) => el.textContent?.includes(text));
+  if (row === undefined) throw new Error(`no picker row for ${text}`);
+  return row;
+}
+
+/** Seed a page with one empty block; returns ids. */
+async function seedBlock(client: WorkspaceClient): Promise<{ pageId: string; blockId: string }> {
+  const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+  const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+  return { pageId, blockId };
+}
+
+describe("suggestion popup single-pick (# tags, + classes)", () => {
+  it("a row click assigns exactly that node and closes the popup", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const alpha = await client.createObject({ isEmbedded: false, name: "TagA" });
+    await client.createObject({ isEmbedded: false, name: "TagB" });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "#");
+    typeInPicker("Tag"); // matches TagA and TagB
+    fireEvent.click(rowByText("TagA"));
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.tagIds).toEqual([alpha]);
+    expect(editor.textContent).toBe(""); // trigger stripped
+    expect(picker()).toBeNull(); // no accumulation — the popup is gone
+  });
+
+  it("Ctrl+Enter on an unassigned class assigns AND inserts the inline link in one gesture", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    await client.createClass("ClassB");
+    const classA = await client.createClass("ClassA");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("ClassA");
+    // The query pins exactly one row; Ctrl+Enter is the DIRECT INLINE
+    // INSERTION: the class is assigned AND the
+    // class_link token splices at the trigger — the same end state as the
+    // older assign-then-⌃↵-convert two-step, reached in one gesture.
+    fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([classA]);
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "class_link", classId: classA }]);
+    expect(editor.textContent).toBe("ClassA"); // the link renders the label
+    expect(picker()).toBeNull();
+  });
+
+  it("a plain Enter assigns the highlighted row and closes", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const alpha = await client.createObject({ isEmbedded: false, name: "TagA" });
+    const axe = await client.createObject({ isEmbedded: false, name: "TagAxe" });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "#");
+    typeInPicker("TagA"); // prefix-matches TagA and TagAxe
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    const tagIds = client.getNode(blockId)?.tagIds ?? [];
+    expect(tagIds).toHaveLength(1);
+    expect([alpha, axe]).toContain(tagIds[0]);
+    expect(picker()).toBeNull();
+  });
+
+  it("no checkbox chrome: the popup renders no multi footer", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    await client.createClass("ClassA");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("ClassA");
+
+    const panel = picker()!;
+    expect(panel.querySelector(".node-selector__multi-footer")).toBeNull();
+    expect(panel.querySelector(".node-selector__multi-check")).toBeNull();
+  });
+});
+
+describe("suggestion popup assigned-class gestures (+ popup)", () => {
+  it("assigned classes hide from the empty-query browse", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const assigned = await client.createClass("Assigned");
+    const free = await client.createClass("Free");
+    await client.assignClass(blockId, assigned);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    // Empty query: the browse lists only the addable pool…
+    const labels = resultRows().map((row) => row.textContent ?? "");
+    expect(labels.some((l) => l.includes("Free"))).toBe(true);
+    expect(labels.some((l) => l.includes("Assigned"))).toBe(false);
+  });
+
+  it("a plain pick on an assigned class REMOVES it — and dissolves the inline link to plain text", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    // The block references the class inline too — the removal ruling
+    //: the reference dissolves into plain text with the
+    // same gesture, never a dangling link.
+    await client.updateObject(blockId, {
+      contentAst: [
+        { type: "text", text: "meet " },
+        { type: "class_link", classId },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    // Append the trigger as a real text node (the shared typeWithCaret
+    // REPLACES the editable text, which would flatten the class_link atom);
+    // the input handler's structure-preserving applyTextEdit keeps the atom
+    // and opens the capture on the trailing " +". The space gives the "+"
+    // its word boundary (capture.ts).
+    editor.appendChild(document.createTextNode(" +"));
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(editor.lastChild!, 2);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.input(editor);
+    typeInPicker("correo");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([]);
+    expect(client.getNode(blockId)?.contentAst).toEqual([
+      { type: "text", text: "meet " },
+      { type: "text", text: "correo" },
+      { type: "text", text: " " },
+    ]);
+    expect(editor.textContent).toBe("meet correo "); // trigger stripped, link dissolved
+    expect(picker()).toBeNull();
+  });
+
+  it("a plain pick on an assigned class REMOVES it (no inline link: content untouched)", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    // The assigned row resurfaces with the checkmark…
+    const row = rowByText("correo");
+    expect(row.querySelector(".node-result-item__check")).not.toBeNull();
+
+    // …and a plain Enter toggles the class OFF.
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([]);
+    expect(editor.textContent).toBe(""); // trigger stripped
+    expect(picker()).toBeNull();
+  });
+
+  it("Ctrl+Enter on an assigned class splices the inline link — membership stays", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
+    await act(async () => {});
+
+    // The `+` drops and a class_link token splices at the trigger; the
+    // MEMBERSHIP stays (the pill row hides inline-referenced
+    // classes — the link IS the marker).
+    const ast = client.getNode(blockId)?.contentAst;
+    expect(ast).toEqual([{ type: "class_link", classId }]);
+    expect(editor.textContent).toBe("correo"); // the link renders the label
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    expect(picker()).toBeNull();
+  });
+
+  it("Ctrl+click on the assigned row splices the inline link too — membership stays", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    fireEvent.click(rowByText("correo"), { ctrlKey: true });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "class_link", classId }]);
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    expect(picker()).toBeNull();
+  });
+
+  it("the classes pills hide a class that is referenced inline (membership untouched)", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const inline = await client.createClass("correo");
+    const pillOnly = await client.createClass("proyecto");
+    await client.assignClass(blockId, inline);
+    await client.assignClass(blockId, pillOnly);
+    // The block references `correo` inline; `proyecto` rides the pill row.
+    await client.updateObject(blockId, {
+      contentAst: [{ type: "class_link", classId: inline }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Only the non-inline class wears a pill (the block row's classes
+    // column); the inline-referenced class is still assigned (the picker's
+    // checkmarked toggle still removes it).
+    const pills = container.querySelectorAll(".nt-block-classes .pill:not(.pill--add)");
+    expect(pills.length).toBe(1);
+    expect(client.getNode(blockId)?.classIds).toEqual([inline, pillOnly]);
+  });
+
+  it("a class link added AFTER mount hides the pill reactively (the memo follows the content AST)", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const cls = await client.createClass("correo");
+    await client.assignClass(blockId, cls);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    expect(container.querySelectorAll(".nt-block-classes .pill:not(.pill--add)").length).toBe(1);
+
+    // The inline reference lands after the row mounted: the pill must hide
+    // without a remount. The hide-memo depends on the content AST itself —
+    // a [client, nodeId]-only memo never recomputed (the client object is
+    // stable across pushes), so the pill stayed visible.
+    await act(async () => {
+      await client.updateObject(blockId, { contentAst: [{ type: "class_link", classId: cls }] });
+    });
+
+    expect(container.querySelectorAll(".nt-block-classes .pill:not(.pill--add)").length).toBe(0);
+    expect(client.getNode(blockId)?.classIds).toEqual([cls]); // membership untouched
+  });
+
+  it("an exact-name query offers NO create row — the class already exists", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+
+    // Only the checkmarked class row — creating would duplicate the class.
+    expect(rowByText("correo")).not.toBeNull();
+    expect(pickerRows().some((row) => row.classList.contains("node-result-item--create"))).toBe(
+      false,
+    );
+  });
+
+  it("the gesture hint rides the picker — the unassigned and checkmarked wording", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    // Unassigned-only results: the hint names the add / add-inline gestures.
+    typeInPicker("dirección");
+    const unassignedHint = picker()!.querySelector(".node-selector__assigned-hint");
+    expect(unassignedHint?.textContent).toContain("add class");
+    expect(unassignedHint?.textContent).toContain("add inline");
+    expect(unassignedHint?.textContent).toContain("⌃");
+
+    // The checkmarked row appears: the hint names both gestures.
+    typeInPicker("correo");
+    const hint = picker()!.querySelector(".node-selector__assigned-hint");
+    expect(hint?.textContent).toContain("remove");
+    expect(hint?.textContent).toContain("⌃");
+  });
+
+  it("the unassigned path: Enter assigns, Ctrl+Enter assigns AND inserts inline", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    // No checkmark — the class is not assigned yet.
+    expect(rowByText("correo").querySelector(".node-result-item__check")).toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    // Ctrl+Enter is the direct inline insertion: the class_link token
+    // splices at the trigger alongside the assignment.
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "class_link", classId }]);
+    expect(editor.textContent).toBe("correo"); // the link renders the label
+    expect(picker()).toBeNull();
+  });
+});
+
+describe("suggestion popup filter prefixes", () => {
+  it("`daily:` alone lists only day-precision pages", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    await client.createObject({ isEmbedded: false, name: "Daily habits" });
+    await client.ensureDateChain("2026-02-14");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("daily:");
+
+    const labels = resultRows().map((row) => row.textContent ?? "");
+    expect(labels.length).toBeGreaterThan(0);
+    // Only the deterministic day page matches — the plain "Daily habits"
+    // page is filtered out despite the name overlap.
+    const dayPage = client
+      .listPages()
+      .find((p) => p.id.startsWith("00000000-0000-0000-00dd-"));
+    expect(dayPage).not.toBeUndefined();
+    expect(labels.some((l) => l.includes("Daily habits"))).toBe(false);
+  });
+
+  it("`daily:` combined with text filters the name inside the daily pool", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    await client.ensureDateChain("2026-02-14");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    // The day page's label is the formatted date ("Feb 14, 2026"-ish).
+    typeInPicker("daily: feb");
+    const labels = resultRows().map((row) => row.textContent ?? "");
+    expect(labels).toHaveLength(1);
+    expect(labels[0]!.toLowerCase()).toContain("feb");
+  });
+
+  it("`is_page:` / `is_class:` refine the candidate set", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    await client.createObject({ isEmbedded: false, name: "Some page" });
+    await client.createClass("Some class");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("some is_class:true");
+    let labels = resultRows().map((row) => row.textContent ?? "");
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toContain("Some class");
+
+    typeInPicker("some is_page:true");
+    labels = resultRows().map((row) => row.textContent ?? "");
+    expect(labels).toHaveLength(1);
+    expect(labels[0]).toContain("Some page");
+  });
+});
+
+describe("picker row hover tooltip", () => {
+  it("the name span's title carries the full uncropped title", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    // Past the 80-char display-name budget: the row renders the capped
+    // display name, the tooltip must keep the whole title.
+    const longName = `Longtitle ${"very ".repeat(18).trimEnd()} page`;
+    await client.createObject({ isEmbedded: false, name: longName });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("longtitle");
+
+    const name = resultRows()[0]?.querySelector<HTMLElement>(
+      ".node-result-item__row .list-row__primary > span",
+    );
+    expect(name).not.toBeNull();
+    expect(name?.textContent?.length).toBe(80); // the capped line
+    expect(name?.getAttribute("title")).toBe(longName); // the full title
+  });
+
+  it("the create row's tooltip is its label", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedBlock(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Brand new page");
+
+    const createRow = pickerRows().find((row) =>
+      row.classList.contains("node-result-item--create"),
+    );
+    expect(createRow).not.toBeUndefined();
+    const name = createRow!.querySelector<HTMLElement>(
+      ".node-result-item__row .list-row__primary > span",
+    );
+    expect(name?.getAttribute("title")).toBe('Create "Brand new page"');
+  });
+});

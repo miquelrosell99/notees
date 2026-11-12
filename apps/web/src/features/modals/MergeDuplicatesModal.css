@@ -1,0 +1,62 @@
+/**
+ * MergeDuplicatesModal Styles — the duplicates merge dialog. The modal
+ * chrome rides the shared Modal registers (Modal.css); this file owns
+ * only the dialog body: the description, the Keep dropdown row, the
+ * dry-run summary line, and the error line (the MergeNodesModal.css
+ * register, token-only — variables.css).
+ */
+
+.merge-duplicates-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.merge-duplicates-modal__description {
+  margin: 0;
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.merge-duplicates-modal__target-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.merge-duplicates-modal__target-label {
+  font: var(--font-body-medium);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.merge-duplicates-modal__target-dropdown {
+  flex: 1;
+  min-width: 0;
+}
+
+.merge-duplicates-modal__summary {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-small);
+  line-height: 1.5;
+}
+
+.merge-duplicates-modal__error {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font: var(--font-body-small);
+}
+
+.merge-duplicates-modal__footer {
+  display: flex;
+  gap: var(--spacing-2);
+  justify-content: flex-end;
+  width: 100%;
+}

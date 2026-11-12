@@ -1,0 +1,374 @@
+/* GraphView — token-only chrome. The canvases draw the graph
+   itself; everything here is the surrounding toolbar/tooltip chrome. */
+
+.nt-graph {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 420px; /* token-gate: constant graph stage min-height ruling — one-off chrome height, not a scale step */
+  background: var(--graph-bg);
+  /* The rail width — one source for the rail itself and the toolbar's
+     rail-open right inset (the toolbar never runs beneath the rail). */
+  --graph-rail-w: clamp(16rem, 26%, 22rem); /* token-gate: constant graph rail width clamp ruling (16rem/22rem rail min/max), not a scale step */
+}
+
+.nt-graph--loading,
+.nt-graph--error {
+  align-items: center;
+  justify-content: center;
+}
+
+/* The top bar is a transparent overlay: it floats on the graph, no
+   background, no rule — the canvas runs edge to edge beneath it. With the
+   rail open its right edge pulls in to the rail (the rail owns that edge). */
+.nt-graph__toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-3);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-sm);
+  pointer-events: none;
+}
+
+.nt-graph--rail-open .nt-graph__toolbar {
+  right: var(--graph-rail-w);
+}
+
+.nt-graph__toolbar > * {
+  pointer-events: auto;
+}
+
+.nt-graph__counts {
+  margin-left: var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The layout mode bar (the v1 register): a transparent dock centered at
+   the bottom edge of the stage, overlaying the graph. The time-lapse
+   toggle rides the same bar (row layout, token gap). */
+.nt-graph__modebar {
+  position: absolute;
+  bottom: var(--spacing-3, var(--spacing-2));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-3);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* The bottom-left control dock (mirrors the minimap's bottom-right):
+   recenter/pause/zoom/focus as quiet ghost icon buttons. */
+.nt-graph__dock {
+  position: absolute;
+  left: var(--spacing-sm);
+  bottom: var(--spacing-sm);
+  z-index: var(--z-3);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+/* The time-lapse timeline strip: a slim docked bar just above the mode
+   bar — play/pause, the scrubber, the Edges switch, close. */
+.nt-graph__timelapse {
+  position: absolute;
+  bottom: calc(var(--spacing-3, var(--spacing-2)) + var(--spacing-10));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-3);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-1) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline);
+  box-shadow: var(--shadow-md);
+}
+
+.nt-graph__timelapse-slider {
+  width: 220px; /* token-gate: constant time-lapse scrubber width ruling — one-off slider width, not a scale step */
+}
+
+/* The stage is the keyboard surface (+/- zoom, arrows pan, F/R). Pointer
+   focus stays clean (an always-on inset outline read as a
+   border around the whole content card) but keyboard focus gets the accent
+   ring — an outline:none with no replacement fails the a11y rule. */
+.nt-graph__stage:focus {
+  outline: none;
+}
+
+.nt-graph__stage:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--border-width-thick) * -1);
+}
+
+.nt-graph__toolbar-spacer {
+  flex: 1;
+}
+
+/* The main row: the stage (flex 1) and the right rail (fixed adaptive
+   width) are siblings — the stage's drawable area excludes the rail and
+   the minimap (absolute in the stage) hugs the remaining canvas. */
+.nt-graph__main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.nt-graph__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The stage loading overlay: between "topology projected" and "first
+   pixels" (engine init + warmup at 7.4k nodes). Sits over the canvases,
+   under the toolbar (z-index 3). */
+.nt-graph__stage-loading {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--md-sys-color-surface);
+}
+
+/* The empty surfaces (nothing to graph / empty neighborhood / everything
+   filtered out) ride the stage's slot: centered, no canvas mounted. */
+.nt-graph__stage--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+/* The local-mode depth control: the labeled slider + value readout (the
+   reference neighborhood control). */
+.nt-graph__depth {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-graph__depth .slider {
+  width: 96px; /* token-gate: constant local-mode depth slider width ruling — one-off slider width, not a scale step */
+}
+
+.nt-graph__depth-value {
+  min-width: 1ch;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-graph__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.nt-graph__canvas:active {
+  cursor: grabbing;
+}
+
+.nt-graph__labels {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.nt-graph__tooltip {
+  position: absolute;
+  z-index: var(--z-10);
+  max-width: 280px; /* token-gate: constant graph tooltip max-width ruling — one-off tooltip width, not a scale step */
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+
+.nt-graph__tooltip-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  overflow-wrap: anywhere;
+}
+
+.nt-graph__tooltip-hint {
+  margin-top: var(--spacing-micro);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
+.nt-graph__tooltip-evidence {
+  margin-top: var(--spacing-1);
+  padding-top: var(--spacing-1);
+  border-top: 1px solid var(--md-sys-color-outline);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-graph__filters-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.nt-graph__minimap {
+  position: absolute;
+  right: var(--spacing-sm);
+  bottom: var(--spacing-sm);
+  width: 200px; /* token-gate: constant minimap canvas box — must match the GraphView.tsx canvas backing-store attributes (200×140) that the GraphMinimap renderer draws into */
+  height: 140px; /* token-gate: constant minimap canvas box — must match the GraphView.tsx canvas backing-store attributes (200×140) that the GraphMinimap renderer draws into */
+  border-radius: var(--radius-md);
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--graph-btn-bg);
+  cursor: crosshair;
+}
+
+/* ── The right rail (Selection + Colors) ──────────────────────────────────
+   A flex sibling of the stage (see .nt-graph__main): fixed adaptive width,
+   scrolls when both sections are tall. Composed from the kit — Card
+   container, NodeViewSection collapsibles — so the CSS here is only the
+   rail's own box + the section-body spacing and quiet label rows. */
+
+.nt-graph__rail {
+  width: var(--graph-rail-w);
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+}
+
+.nt-graph__rail-card {
+  height: fit-content;
+}
+
+.nt-graph__rail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-graph__rail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.nt-graph__rail-row--topline {
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.nt-graph__rail-heading {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-graph__rail-hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-graph__rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.nt-graph__rail-error {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-error);
+}
+
+/* ── The settings popover (the cog) ─────────────────────────────────────── */
+
+.nt-graph__settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-sm);
+}
+
+.nt-graph__settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-graph__settings-label {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-graph__settings-hint {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-graph__settings-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-graph__settings-visibility {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.nt-graph__settings-heading {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ── The selected list (the rail's Selection section) ───────────────────── */
+
+.nt-graph__selected-item {
+  min-height: var(--height-sm);
+}
+
+.nt-graph__selected-name {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

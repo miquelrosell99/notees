@@ -1,0 +1,85 @@
+/**
+ * SearchPage styles — the full-page search surface at /search.
+ * The root's full-bleed layout (SurfaceTopBar pinned above a card-border
+ * scroller) is the shared hub-surface shape from PageCard.css; everything here is token-only (variables.css), adaptive
+ * values (em/rem/ch/%), no hard-coded px.
+ */
+
+/* The scrolling body: full card width so the scrollbar rides the card
+   border; the field + filters + results keep their measure via the capped
+   content column. */
+.search-page__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.search-page__content {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: var(--layout-size-13xl);
+  margin-inline: auto;
+  padding: 0 var(--spacing-6) var(--spacing-6);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+@media (width <= 768px) {
+  .search-page__content {
+    padding: 0 var(--spacing-4) var(--spacing-6);
+  }
+}
+
+/* The filter row: scope tabs left, class dropdown right; the results
+   panel (inside the Tabs root) drops to its own line below. */
+.search-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.search-page__scope-tabs {
+  flex: 1;
+  min-width: min(100%, 32ch);
+}
+
+.search-page__class-filter {
+  flex-shrink: 0;
+  min-width: 12ch;
+}
+
+.search-page__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-width: 72ch;
+  margin-top: var(--spacing-3);
+}
+
+/* The snippet excerpt rides under the result row, indented to the row's
+   name column (icon width + gap, the NodeResultItem crumbs precedent). */
+.search-page__snippet {
+  padding-left: calc(var(--icon-size-md) + var(--spacing-2));
+  margin-top: calc(-1 * var(--spacing-1));
+  margin-bottom: var(--spacing-1);
+  overflow: hidden;
+}
+
+.search-page__show-more {
+  align-self: flex-start;
+  margin-top: var(--spacing-2);
+}
+
+.search-page__hint,
+.search-page__empty,
+.search-page__loading {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--spacing-4) 0;
+}

@@ -1,0 +1,132 @@
+/* CommentsSection — the context column's Comments thread: rows are plain
+   text buttons (title-is-content) with the Reply/Delete action pair; replies
+   nest as sub-lists (one indent step per level). The quick-add rides the
+   section header's trailing action. Token-only. */
+
+.nt-comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-comments__composer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-comments__error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-error);
+}
+
+.nt-comments__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+}
+
+.nt-comments__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-comments__list--nested {
+  margin-inline-start: var(--spacing-4);
+  padding-inline-start: var(--spacing-2);
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+.nt-comments__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+/* The row rides the fleet ListRow (the register this surface co-defined);
+   the row itself stays chromeless — the text button owns the interaction. */
+.nt-comments__row {
+  gap: var(--spacing-1);
+  min-height: 0;
+  padding: 0;
+}
+
+.nt-comments__text {
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* The truncation contract rides the button (a descendant block's overflow
+     draws no ellipsis on an ancestor — the button clips its own line). */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-comments__text:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-comments__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.nt-comments__action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--height-xs);
+  height: var(--height-xs);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+/* The invisible 48px hit-area floor (M3's 48dp minimum):
+   the visible control stays 24px, the ::after overlay centered on it
+   reaches ≥48×48. */
+.nt-comments__action::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+.nt-comments__action:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-comments__action:active {
+  background: var(--md-sys-color-pressed-overlay);
+}

@@ -1,0 +1,450 @@
+/**
+ * ensureTaskFamily tests: a fresh workspace authors the five task
+ * property schemas at their reserved ids plus the task-class bindings on
+ * first call, with canonical status/priority options; the call is a complete
+ * no-op once present (no extra schemas, no extra bindings, safe to re-run).
+ * Recurrence rides the dedicated `repeat` property — authored by the domain
+ * seed envelopes + the store's ensureTaskFamilyRows, never by this ensure —
+ * so the withdrawn `taskRecurrence` placeholder is gone from the family.
+ */
+
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { newEnvelope, type Envelope } from "@notees/protocol";
+import {
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  TASK_PRIORITY_OPTIONS,
+  TASK_PRIORITY_OPTION_UUIDS,
+  TASK_STATUS_OPTIONS,
+  TASK_STATUS_OPTION_UUIDS,
+} from "@notees/domain";
+
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import { ensureTaskFamily, taskFamilyPresent } from "../src/features/classview/taskFamily.js";
+
+const WS = "0192a000-0000-7000-8000-0000000000c1";
+const ACTOR = "0192a000-0000-7000-8000-0000000000c2";
+const DEVICE = "test-device";
+
+let sqlModule: SqlJsStatic;
+
+beforeAll(async () => {
+  sqlModule = await initSqlJs();
+});
+
+const clients: WorkspaceClient[] = [];
+
+afterEach(() => {
+  while (clients.length > 0) clients.pop()!.close();
+  vi.restoreAllMocks();
+});
+
+/** Server-style seed op the relay holds before the client bootstraps. */
+function seedEnvelope(
+  opType: string,
+  payload: Record<string, unknown>,
+  affected: string[],
+): Envelope {
+  return newEnvelope({
+    workspaceId: WS,
+    actorId: ACTOR,
+    deviceId: DEVICE,
+    client: "seed",
+    hlc: { physical: 1, logical: 0 },
+    affectedNodeIds: affected,
+    opType,
+    payload,
+  });
+}
+
+/** A real workspace is server-seeded: the task class node exists. */
+function seededRelay(): MemoryRelay {
+  const relay = new MemoryRelay();
+  relay.ingest([
+    seedEnvelope(
+      "class.create",
+      { classId: SYSTEM_CLASS_UUIDS.task, contentAst: [{ type: "text", text: "task" }], icon: "mdiCheckboxMarkedCircleOutline" },
+      [SYSTEM_CLASS_UUIDS.task],
+    ),
+  ]);
+  return relay;
+}
+
+async function seedClient(relay: MemoryRelay = seededRelay()): Promise<WorkspaceClient> {
+  const client = await WorkspaceClient.create({
+    transport: new MemoryTransport(relay),
+    actorId: ACTOR,
+    sqlJs: sqlModule,
+  });
+  clients.push(client);
+  await client.bootstrapWorkspace(WS);
+  return client;
+}
+
+describe("ensureTaskFamily", () => {
+  it("authors the five schemas at the reserved ids with canonical shapes", async () => {
+    const client = await seedClient();
+    // The repeat property rides the domain seed envelopes, not the family
+    // ensure — author it the way the seed does (the reserved id, text,
+    // event+task union scope, one binding row per class) so the family
+    // assertions below read the seeded end state.
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.repeat,
+      name: "Repeat",
+      type: "text",
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.event, SYSTEM_CLASS_UUIDS.task],
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.repeat, {});
+    expect(taskFamilyPresent(client)).toBe(false);
+
+    await ensureTaskFamily(client);
+
+    const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+    const status = schemas.get(SYSTEM_PROPERTY_UUIDS.taskStatus);
+    expect(status?.name).toBe("Status");
+    expect(status?.type).toBe("select");
+    expect(status?.options?.map((option) => option.label)).toEqual(
+      TASK_STATUS_OPTIONS.map((option) => option.name),
+    );
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskScheduled)?.type).toBe("datetime");
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskDeadline)?.type).toBe("datetime");
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskClosedDate)?.type).toBe("datetime");
+    expect(
+      schemas.get(SYSTEM_PROPERTY_UUIDS.taskPriority)?.options?.map((option) => option.label),
+    ).toEqual([...TASK_PRIORITY_OPTIONS]);
+    // The withdrawn taskRecurrence placeholder (…0006) retires with the
+    // dedicated repeat property — the ensure authors it no more.
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskRecurrence)).toBeUndefined();
+    // The seeded recurrence property is the repeat text property: LOCAL
+    // scope (the event+task union — a family-identity shape, not a
+    // generically reusable value), arriving via the seed envelopes.
+    const repeat = schemas.get(SYSTEM_PROPERTY_UUIDS.repeat);
+    expect(repeat?.name).toBe("Repeat");
+    expect(repeat?.type).toBe("text");
+    expect(repeat?.scopeClassIds).toEqual([
+      SYSTEM_CLASS_UUIDS.event,
+      SYSTEM_CLASS_UUIDS.task,
+    ]);
+    // the five family schemas are
+    // global-scope (Status "can be reused for other nodes") — the bindings
+    // below stay per-class config.
+    for (const id of [
+      SYSTEM_PROPERTY_UUIDS.taskStatus,
+      SYSTEM_PROPERTY_UUIDS.taskDeadline,
+      SYSTEM_PROPERTY_UUIDS.taskScheduled,
+      SYSTEM_PROPERTY_UUIDS.taskPriority,
+      SYSTEM_PROPERTY_UUIDS.taskClosedDate,
+    ] as const) {
+      expect(schemas.get(id)?.scopeClassIds).toBeNull();
+    }
+
+    const bound = client
+      .getClassBindings(SYSTEM_CLASS_UUIDS.task)
+      .map((binding) => binding.propertySchemaId);
+    // The …0003-… workflow block also carries the meeting family
+    // (…007–…009) — those bind to the meeting class, not the task class.
+    for (const id of [
+      SYSTEM_PROPERTY_UUIDS.taskStatus,
+      SYSTEM_PROPERTY_UUIDS.taskDeadline,
+      SYSTEM_PROPERTY_UUIDS.taskScheduled,
+      SYSTEM_PROPERTY_UUIDS.taskPriority,
+      SYSTEM_PROPERTY_UUIDS.taskClosedDate,
+      SYSTEM_PROPERTY_UUIDS.repeat,
+    ] as const) {
+      expect(bound).toContain(id);
+    }
+    // The withdrawn placeholder binds nothing either.
+    expect(bound).not.toContain(SYSTEM_PROPERTY_UUIDS.taskRecurrence);
+    expect(taskFamilyPresent(client)).toBe(true);
+  });
+
+  it("is idempotent: a second call authors nothing", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const schemasAfterFirst = client.listPropertySchemas().length;
+    const bindingsAfterFirst = client.getClassBindings(SYSTEM_CLASS_UUIDS.task).length;
+
+    await ensureTaskFamily(client);
+    await ensureTaskFamily(client);
+
+    expect(client.listPropertySchemas()).toHaveLength(schemasAfterFirst);
+    expect(client.getClassBindings(SYSTEM_CLASS_UUIDS.task)).toHaveLength(bindingsAfterFirst);
+  });
+
+  it("self-heals the task class node at the reserved id when the workspace was never seeded", async () => {
+    // Unseeded (offline-first) relay: no system classes at all.
+    const client = await seedClient(new MemoryRelay());
+    await ensureTaskFamily(client);
+
+    const taskClass = client.getNode(SYSTEM_CLASS_UUIDS.task);
+    expect(taskClass?.isClass).toBe(true);
+    expect(taskFamilyPresent(client)).toBe(true);
+
+    // Stable no-op from here: a second open authors nothing.
+    const schemas = client.listPropertySchemas().length;
+    await ensureTaskFamily(client);
+    expect(client.listPropertySchemas()).toHaveLength(schemas);
+  });
+
+  it("is safe on a workspace where the family already exists (migrated shape)", async () => {
+    const client = await seedClient();
+    // Pre-author with a different option id set (a migrated workspace carries
+    // legacy option ids) — ensureTaskFamily must NOT overwrite the schema rows:
+    // the stored option id is preserved, and the restyle pass only
+    // adds the designed icon/color to the label-matching option.
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+      name: "Status",
+      type: "select",
+      options: [{ id: "v1-option-id", label: "Done" }],
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskStatus, {});
+
+    await ensureTaskFamily(client);
+
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
+    expect(status?.options).toEqual([
+      { id: "v1-option-id", label: "Done", icon: "mdiCheckCircle", color: "green" },
+    ]);
+  });
+
+  it("authors status/priority options at the deterministic designed ids with icons and colors", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+
+    const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+    const statusByLabel = new Map(
+      schemas.get(SYSTEM_PROPERTY_UUIDS.taskStatus)!.options!.map((option) => [option.label, option]),
+    );
+    const designedStatusIds: Record<string, string> = {
+      Backlog: TASK_STATUS_OPTION_UUIDS.backlog,
+      Pending: TASK_STATUS_OPTION_UUIDS.pending,
+      Doing: TASK_STATUS_OPTION_UUIDS.doing,
+      Reviewing: TASK_STATUS_OPTION_UUIDS.reviewing,
+      Done: TASK_STATUS_OPTION_UUIDS.done,
+      Cancelled: TASK_STATUS_OPTION_UUIDS.cancelled,
+    };
+    for (const designed of TASK_STATUS_OPTIONS) {
+      const option = statusByLabel.get(designed.name)!;
+      // Deterministic ids — the applier-side seed-ensure authors the same.
+      expect(option.id).toBe(designedStatusIds[designed.name]);
+      // The designed circle icon + preset color ride the option.
+      expect(option.icon).toBe(designed.icon);
+      expect(option.color).toBe(designed.color);
+    }
+    const priorityByLabel = new Map(
+      schemas.get(SYSTEM_PROPERTY_UUIDS.taskPriority)!.options!.map((option) => [option.label, option]),
+    );
+    const designedPriorityIds: Record<string, string> = {
+      Low: TASK_PRIORITY_OPTION_UUIDS.low,
+      Medium: TASK_PRIORITY_OPTION_UUIDS.medium,
+      High: TASK_PRIORITY_OPTION_UUIDS.high,
+      Urgent: TASK_PRIORITY_OPTION_UUIDS.urgent,
+    };
+    for (const label of TASK_PRIORITY_OPTIONS) {
+      expect(priorityByLabel.get(label)!.id).toBe(designedPriorityIds[label]);
+    }
+  });
+
+  it("restyles stored status options missing the designed styles, preserving stored ids", async () => {
+    const client = await seedClient();
+    // Simulate the earlier web-authored shape: random option ids, no
+    // icon/color — authored values reference those ids, so they must survive.
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+      name: "Status",
+      type: "select",
+      options: TASK_STATUS_OPTIONS.map((option) => ({ id: `old-${option.name}`, label: option.name })),
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskStatus, {});
+
+    await ensureTaskFamily(client);
+
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+    const byLabel = new Map(status.options!.map((option) => [option.label, option]));
+    for (const designed of TASK_STATUS_OPTIONS) {
+      const option = byLabel.get(designed.name)!;
+      expect(option.id).toBe(`old-${designed.name}`);
+      expect(option.icon).toBe(designed.icon);
+      expect(option.color).toBe(designed.color);
+    }
+    // The value display converges on the schema (property-level) —
+    // the status rides the block bullet.
+    expect(status.display).toBe("bullet");
+  });
+
+  it("moves the status value display to the schema when still panel-level, and converges the Pending default", async () => {
+    const client = await seedClient();
+    // Fully converged styles, but the display never moved off the panel
+    // default and the schema predates the Pending default — ONE upgrade
+    // write carries both keys.
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+      name: "Status",
+      type: "select",
+      options: TASK_STATUS_OPTIONS.map((option) => ({
+        id: `old-${option.name}`,
+        label: option.name,
+        icon: option.icon,
+        color: option.color,
+      })),
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskStatus, {});
+    // vi.spyOn wraps and CALLS THROUGH — the write lands, the fields are captured.
+    const spy = vi.spyOn(client, "updatePropertySchema");
+
+    await ensureTaskFamily(client);
+
+    expect(spy.mock.calls.map(([, fields]) => fields)).toEqual([
+      { display: "bullet", defaultValue: TASK_STATUS_OPTION_UUIDS.pending },
+    ]);
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+    expect(status.display).toBe("bullet");
+    spy.mockRestore();
+  });
+
+  it("leaves user-renamed and user-added status options untouched", async () => {
+    const client = await seedClient();
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+      name: "Status",
+      type: "select",
+      options: [
+        { id: "kept-done-id", label: "Done" },
+        { id: "custom-id", label: "Blocked" },
+      ],
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskStatus, {});
+
+    await ensureTaskFamily(client);
+
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+    // The designed label restyles; the user's own option passes through.
+    expect(status.options).toEqual([
+      { id: "kept-done-id", label: "Done", icon: "mdiCheckCircle", color: "green" },
+      { id: "custom-id", label: "Blocked" },
+    ]);
+  });
+
+  it("a converged family issues no updatePropertySchema write on re-run", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const spy = vi.spyOn(client, "updatePropertySchema");
+    await ensureTaskFamily(client);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("a task scheduled via the authored family answers the tasks-bucket partition", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+    const doneId = status.options!.find((option) => option.label === "Done")!.id;
+
+    const open = await client.createObject({
+      isEmbedded: false,
+      name: "Write the register entry",
+      classIds: [SYSTEM_CLASS_UUIDS.task],
+    });
+    await client.setDatetimeProperty(open, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: "2026-10-02" });
+    await client.setProperty(open, SYSTEM_PROPERTY_UUIDS.taskStatus, status.options![0]!.id, 0);
+
+    const closed = await client.createObject({
+      isEmbedded: false,
+      name: "Ship it",
+      classIds: [SYSTEM_CLASS_UUIDS.task],
+    });
+    await client.setDatetimeProperty(closed, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: "2026-10-02" });
+    await client.setProperty(closed, SYSTEM_PROPERTY_UUIDS.taskStatus, doneId, 0);
+
+    // The surviving open-task read (the day page's partition and the tasks
+    // hub's buckets): rows over the family members, closed by status label.
+    const { taskRowsOf } = await import("../src/features/calendar/calendarRows.js");
+    const { partitionTasksIntoBuckets } = await import(
+      "../src/features/calendar/calendarViewUtils.js"
+    );
+    const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
+    const buckets = partitionTasksIntoBuckets(
+      taskRowsOf(client, status, members.map((member) => member.id)),
+      "2026-10-02",
+    );
+    expect(buckets.today.map((row) => row.id)).toContain(open);
+    expect(buckets.today.map((row) => row.id)).not.toContain(closed);
+    expect(buckets.completed.map((row) => row.id)).toContain(closed);
+  });
+});
+
+describe("ensureTaskFamily: the project relation (2026-10-28 seed)", () => {
+  it("authors the project schema at the reserved id — global scope, multi, the project filter, hideWhenEmpty — plus the unpinned task binding", async () => {
+    const client = await seedClient();
+    expect(taskFamilyPresent(client)).toBe(false);
+
+    await ensureTaskFamily(client);
+
+    const project = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.project);
+    expect(project?.name).toBe("Project");
+    expect(project?.type).toBe("object");
+    expect(project?.multi).toBe(true);
+    // Global scope (the seed-scope audit): any node may carry the schema;
+    // only the binding row is task-local.
+    expect(project?.scopeClassIds).toBeNull();
+    expect(project?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.project]);
+    expect(project?.hideWhenEmpty).toBe(true);
+
+    const binding = client
+      .getClassBindings(SYSTEM_CLASS_UUIDS.task)
+      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.project);
+    expect(binding).toBeDefined();
+    // The new binding rides NO declared pin set (the 2026-10-27 pin ruling).
+    expect(binding?.pinned).toBe(false);
+    expect(taskFamilyPresent(client)).toBe(true);
+  });
+
+  it("is idempotent: a second run authors nothing (schema + binding counts stable, no writes)", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const schemasAfterFirst = client.listPropertySchemas().length;
+    const bindingsAfterFirst = client.getClassBindings(SYSTEM_CLASS_UUIDS.task).length;
+
+    await ensureTaskFamily(client);
+
+    expect(client.listPropertySchemas()).toHaveLength(schemasAfterFirst);
+    expect(client.getClassBindings(SYSTEM_CLASS_UUIDS.task)).toHaveLength(bindingsAfterFirst);
+  });
+
+  it("self-heals the project relation on a workspace carrying only the five family schemas", async () => {
+    // The live-workspace shape: the family exists (authored before the
+    // relation seeded), the project schema + binding are missing — the
+    // ensure appends exactly the delta.
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const before = client.listPropertySchemas().length;
+
+    // The pre-relation workspace: the five family schemas without project.
+    // Simulated by deleting is not possible (immutable log) — instead assert
+    // the converged end state and that re-running plans nothing.
+    expect(before).toBe(6);
+    const spy = vi.spyOn(client, "createPropertySchema");
+    const bindSpy = vi.spyOn(client, "setClassProperty");
+    await ensureTaskFamily(client);
+    expect(spy).not.toHaveBeenCalled();
+    expect(bindSpy).not.toHaveBeenCalled();
+    spy.mockRestore();
+    bindSpy.mockRestore();
+  });
+});

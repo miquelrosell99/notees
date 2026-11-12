@@ -1,0 +1,955 @@
+/**
+ * WorkspaceClient — the Notees web data path (slice 1).
+ *
+ * A thin, fully Node-testable layer over three pieces: a Store over the sql.js
+ * backend (local derived state), a SyncEngine (outbox push + seq-cursor
+ * catch-up pull + snapshot shortcut), and a Transport (HttpTransport against a
+ * relay server in the app, MemoryTransport over a MemoryRelay in tests).
+ *
+ * Reads always hit the LOCAL store. Writes build protocol envelopes
+ * (`newEnvelope`, deviceId "web"), apply optimistically via the engine's
+ * enqueue (local-first), then push. `subscribe` is a naive notification fired
+ * on local apply and on sync completion — enough for a render-refresh loop.
+ *
+ * The class is composed, not inherited: a shared ClientContext
+ * (client-context.ts) holds the infrastructure (store handle + options,
+ * envelope/outbox seam, engine lifecycle, notify funnel, read caches, undo
+ * journal), and the operation domains (client-*.ts) are standalone classes the
+ * client owns and delegates its entire public surface to — one-line
+ * delegations below, grouped by domain. The public API (class name, method
+ * surface, factories, the `store` field) is exactly the former concrete
+ * class's; ~110 importers and `instanceof WorkspaceClient` are unaffected.
+ */
+
+import initSqlJs, { type SqlJsStatic } from "sql.js";
+
+import { HttpTransport, OfflineTransport } from "@notees/sync";
+import type { CompileOptions } from "@notees/query";
+import type { ContentAst, Envelope, OpPayload } from "@notees/protocol";import { Store, type GraphOptions } from "@notees/store";
+import { sqljsBackend } from "@notees/store/sqljs";
+import type { WorkspaceFeature } from "@notees/protocol";
+import {
+  CARD_PROPERTY_UUIDS,
+  type CardSrsState,
+  type SrsAlgorithm,
+  type WorkflowOpStep,
+} from "@notees/domain";
+
+import type { ClientWriteOp, WorkspaceClientOptions } from "./types.js";
+import type { PrefsPatch } from "./prefs.js";
+import type {
+  AssetUploadResult,
+  ChangeNotification,
+  ClientNode,
+  CreateAnnotationInput,
+  CreateObjectInput,
+  CreatePropertySchemaInput,
+  DatetimeValueInput,
+  DeleteObjectOptions,
+  SetClassPropertyInput,
+  UpdateObjectInput,
+  UpdatePropertySchemaInput,
+} from "./types.js";
+import { ClientContext } from "./client-context.js";
+import { WorkspaceClientReads } from "./client-reads.js";
+import { WorkspaceClientReadsProps } from "./client-reads-props.js";
+import { WorkspaceClientReadsRefs } from "./client-reads-refs.js";
+import { WorkspaceClientSync } from "./client-sync.js";
+import { WorkspaceClientServer } from "./client-server.js";
+import { WorkspaceClientUndo, buildUndoCaptureSource } from "./client-undo.js";
+import { WorkspaceClientWrites } from "./client-writes.js";
+import { WorkspaceClientDates } from "./client-dates.js";
+import { WorkspaceClientMigrations } from "./client-migrations.js";
+import type { MigrationPlanReport } from "../migrations/registry.js";
+import {
+  applyWorkflowStep,
+  stepConverged,
+  type WorkflowMaterializeResult,
+} from "../../features/workflows/materialize.js";
+
+export class WorkspaceClient {
+  /** The shared infrastructure the domains delegate to. */
+  private readonly ctx: ClientContext;
+  private readonly reads: WorkspaceClientReads;
+  private readonly readsProps: WorkspaceClientReadsProps;
+  private readonly readsRefs: WorkspaceClientReadsRefs;
+  private readonly syncDomain: WorkspaceClientSync;
+  private readonly server: WorkspaceClientServer;
+  private readonly undoDomain: WorkspaceClientUndo;
+  private readonly writes: WorkspaceClientWrites;
+  private readonly dates: WorkspaceClientDates;
+  private readonly migrations: WorkspaceClientMigrations;
+
+  readonly store: Store;
+
+  constructor(store: Store, options: WorkspaceClientOptions) {
+    this.store = store;
+    this.ctx = new ClientContext(store, options, buildUndoCaptureSource);
+    this.reads = new WorkspaceClientReads(this.ctx);
+    this.readsProps = new WorkspaceClientReadsProps(this.ctx, this.reads);
+    this.readsRefs = new WorkspaceClientReadsRefs(this.ctx, this.reads, this.readsProps);
+    this.syncDomain = new WorkspaceClientSync(this.ctx);
+    this.server = new WorkspaceClientServer(this.ctx);
+    this.undoDomain = new WorkspaceClientUndo(this.ctx);
+    this.writes = new WorkspaceClientWrites(this.ctx, this.reads, this.readsProps);
+    this.dates = new WorkspaceClientDates(this.reads, this.readsProps, this.writes);
+    this.migrations = new WorkspaceClientMigrations(this.ctx);
+  }
+
+  /** Open a Store over the sql.js backend and wrap it in a client. */
+  static async create(options: WorkspaceClientOptions): Promise<WorkspaceClient> {
+    const SQL = options.sqlJs ?? (await initSqlJs(options.sqlJsConfig));
+    const store = Store.open(sqljsBackend(SQL));
+    return new WorkspaceClient(store, options);
+  }
+
+  /**
+   * Wrap an already-open Store (worker persistence path: the caller restores
+   * saved bytes into the store before wrapping it).
+   */
+  static wrap(store: Store, options: WorkspaceClientOptions): WorkspaceClient {
+    return new WorkspaceClient(store, options);
+  }
+
+  /** Factory for the app path: HTTP transport against a relay server. The
+   * `apiKey` slot carries the credential — the operator API key or an
+   * account session token (the server accepts both, see routes-auth). */
+  static async createHttp(options: {
+    serverUrl: string;
+    apiKey: string;
+    workspaceId: string;
+    sqlJsConfig?: Parameters<typeof initSqlJs>[0];
+    /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+    workspaceKey?: Uint8Array;
+    onSyncPhase?: (phase: string, message: string) => void;
+    onSyncProgress?: (applied: number, total: number) => void;
+  }): Promise<WorkspaceClient> {
+    const transport = new HttpTransport({
+      baseUrl: options.serverUrl,
+      apiKey: options.apiKey,
+      workspaceId: options.workspaceId,
+    });
+    return WorkspaceClient.create({
+      transport,
+      serverUrl: options.serverUrl,
+      apiKey: options.apiKey,
+      sqlJsConfig: options.sqlJsConfig,
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
+      ...(options.onSyncPhase !== undefined ? { onSyncPhase: options.onSyncPhase } : {}),
+      ...(options.onSyncProgress !== undefined ? { onSyncProgress: options.onSyncProgress } : {}),
+    });
+  }
+
+  /**
+   * Offline-first factory: no server, no account. Edits apply locally and
+   * are recorded in the durable local op log; when the user later connects
+   * this workspace to a server (login), the backlog pushes through the
+   * normal outbox path. Offline workspaces are keyed at rest (Task 9): the
+   * device-local key seals the engine's wire/snapshot boundary like the
+   * online path, so the backlog drains sealed on the first sync.
+   */
+  static async createOffline(options: {
+    workspaceId: string;
+    sqlJs?: SqlJsStatic;
+    sqlJsConfig?: Parameters<typeof initSqlJs>[0];
+    /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+    workspaceKey?: Uint8Array;
+  }): Promise<WorkspaceClient> {
+    return WorkspaceClient.create({
+      transport: new OfflineTransport(),
+      ...(options.sqlJs !== undefined ? { sqlJs: options.sqlJs } : {}),
+      ...(options.sqlJsConfig !== undefined ? { sqlJsConfig: options.sqlJsConfig } : {}),
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
+    });
+  }
+
+  // --- identity + lifecycle (context) ------------------------------------------
+
+  getWorkspaceId(): string {
+    return this.ctx.getWorkspaceId();
+  }
+
+  graphTopology(options?: GraphOptions) {
+    return this.ctx.graphTopology(options);
+  }
+
+  subscribe(listener: (change: ChangeNotification) => void): () => void {
+    return this.ctx.subscribe(listener);
+  }
+
+  /**
+   * The session's current store revision (the monotonic counter every
+   * ChangeNotification carries): the render-path memo key for reads that
+   * must re-derive per store change but not per unrelated re-render.
+   */
+  get revision(): number {
+    return this.ctx.revision;
+  }
+
+  close(): void {
+    this.ctx.close(() => this.syncDomain.stopRealtime());
+  }
+
+  // --- sync (engine bootstrap, push/pull, realtime, status) ---------------------
+
+  bootstrapWorkspace(workspaceId: string): Promise<void> {
+    return this.syncDomain.bootstrapWorkspace(workspaceId);
+  }
+
+  sync(): Promise<void> {
+    return this.syncDomain.sync();
+  }
+
+  push(): Promise<void> {
+    return this.syncDomain.push();
+  }
+
+  pull(): Promise<void> {
+    return this.syncDomain.pull();
+  }
+
+  startRealtime(): void {
+    this.syncDomain.startRealtime();
+  }
+
+  stopRealtime(): void {
+    this.syncDomain.stopRealtime();
+  }
+
+  isRealtimeActive(): boolean {
+    return this.syncDomain.isRealtimeActive();
+  }
+
+  conflictHistory() {
+    return this.syncDomain.conflictHistory();
+  }
+
+  status() {
+    return this.syncDomain.status();
+  }
+
+  applyRemoteBatch(envelopes: Envelope[], seqs?: Record<string, number> | null): void {
+    this.syncDomain.applyRemoteBatch(envelopes, seqs);
+  }
+
+  // --- node + listing + class-binding reads -------------------------------------
+
+  getNode(id: string) {
+    return this.reads.getNode(id);
+  }
+
+  getNodeRaw(id: string) {
+    return this.reads.getNodeRaw(id);
+  }
+
+  getNodeRawFresh(id: string) {
+    return this.reads.getNodeRawFresh(id);
+  }
+
+  getDisplayName(id: string) {
+    return this.reads.getDisplayName(id);
+  }
+
+  getDisplayNameFresh(id: string) {
+    return this.reads.getDisplayNameFresh(id);
+  }
+
+  getPage(id: string) {
+    return this.reads.getPage(id);
+  }
+
+  listPages() {
+    return this.reads.listPages();
+  }
+
+  /**
+   * The lean page-listing read (PageSummary rows, title pre-flattened) —
+   * the same query as listPages() without the full-node wire shape.
+   */
+  listPageSummaries() {
+    return this.reads.listPageSummaries();
+  }
+
+  roots() {
+    return this.reads.roots();
+  }
+
+  listTrashed() {
+    return this.reads.listTrashed();
+  }
+
+  /** The Archived surface's read — archived rows (no trash row), newest first. */
+  listArchived() {
+    return this.reads.listArchived();
+  }
+
+  /** Archived CLASS nodes (the class picker's dimmed enable matches). */
+  listArchivedClasses() {
+    return this.reads.listArchivedClasses();
+  }
+
+  listClasses() {
+    return this.reads.listClasses();
+  }
+
+  classIcons() {
+    return this.reads.classIcons();
+  }
+
+  effectiveClassIcons() {
+    return this.reads.effectiveClassIcons();
+  }
+
+  getClassParents(classId: string) {
+    return this.reads.getClassParents(classId);
+  }
+
+  getClassParentsFresh(classId: string) {
+    return this.reads.getClassParentsFresh(classId);
+  }
+
+  getDirectClassChildren(classId: string) {
+    return this.reads.getDirectClassChildren(classId);
+  }
+
+  getClassChildren(classId: string) {
+    return this.reads.getClassChildren(classId);
+  }
+
+  getClassMembers(classId: string) {
+    return this.reads.getClassMembers(classId);
+  }
+
+  getClassMembersFresh(classId: string) {
+    return this.reads.getClassMembersFresh(classId);
+  }
+
+  getClassMemberCount(classId: string) {
+    return this.reads.getClassMemberCount(classId);
+  }
+
+  getClassBindings(classId: string) {
+    return this.reads.getClassBindings(classId);
+  }
+
+  getRegistryBindings(classId: string) {
+    return this.reads.getRegistryBindings(classId);
+  }
+
+  getRegistryBindingsFresh(classId: string) {
+    return this.reads.getRegistryBindingsFresh(classId);
+  }
+
+  // --- property + asset + tree + search/query reads -------------------------------
+
+  getEffectiveProperties(id: string) {
+    return this.readsProps.getEffectiveProperties(id);
+  }
+
+  getEffectivePropertiesFresh(id: string) {
+    return this.readsProps.getEffectivePropertiesFresh(id);
+  }
+
+  getPropertyRowShells(id: string) {
+    return this.readsProps.getPropertyRowShells(id);
+  }
+
+  getPropertyReferences(schemaId: string) {
+    return this.readsProps.getPropertyReferences(schemaId);
+  }
+
+  getCoverReferences(assetId: string) {
+    return this.readsProps.getCoverReferences(assetId);
+  }
+
+  getAssetInfo(id: string) {
+    return this.readsProps.getAssetInfo(id);
+  }
+
+  getAssetDataUrl(assetNodeId: string) {
+    return this.readsProps.getAssetDataUrl(assetNodeId);
+  }
+
+  getAnnotationsForAsset(assetId: string) {
+    return this.readsProps.getAnnotationsForAsset(assetId);
+  }
+
+  listPropertySchemas() {
+    return this.readsProps.listPropertySchemas();
+  }
+
+  listPropertySchemasFresh() {
+    return this.readsProps.listPropertySchemasFresh();
+  }
+
+  getBlockTree(pageId: string, depth?: number | null) {
+    return this.readsProps.getBlockTree(pageId, depth);
+  }
+
+  search(query: string, limit?: number) {
+    return this.readsProps.search(query, limit);
+  }
+
+  searchPage(
+    query: string,
+    opts?: { limit?: number; cursor?: string | null } | null,
+  ) {
+    return this.readsProps.searchPage(query, opts);
+  }
+
+  getSearchSnippet(
+    nodeId: string,
+    query: string,
+    opts?: { maxTokens?: number; ellipsis?: string } | null,
+  ) {
+    return this.readsProps.getSearchSnippet(nodeId, query, opts);
+  }
+
+  resolveNodeByName(name: string) {
+    return this.readsProps.resolveNodeByName(name);
+  }
+
+  runQueryAst(rawAst: unknown, options?: CompileOptions) {
+    return this.readsProps.runQueryAst(rawAst, options);
+  }
+
+  runAggregateAst(rawAst: unknown, options?: CompileOptions) {
+    return this.readsProps.runAggregateAst(rawAst, options);
+  }
+
+  getChildren(id: string) {
+    return this.readsProps.getChildren(id);
+  }
+
+  getChildrenFresh(id: string) {
+    return this.readsProps.getChildrenFresh(id);
+  }
+
+  // --- references + render derivation + features -----------------------------------
+
+  effectiveClassColor(classId: string) {
+    return this.readsRefs.effectiveClassColor(classId);
+  }
+
+  effectiveClassIcon(classId: string) {
+    return this.readsRefs.effectiveClassIcon(classId);
+  }
+
+  /** Extends-aware parentlessRole "block" demote — the
+   * resolver the domain role predicates take for the parentless cascade
+   * branch. */
+  effectiveClassParentlessBlock(classId: string) {
+    return this.readsRefs.effectiveClassParentlessBlock(classId);
+  }
+
+  /** Node-level: true when ANY of the node's classes effectively carries
+   * parentlessRole "block" (the one-way demote over the class set). */
+  nodeHasParentlessBlockClass(node: Pick<ClientNode, "classIds">) {
+    return this.readsRefs.nodeHasParentlessBlockClass(node);
+  }
+
+  effectiveNodeIcon(
+    node: Pick<ClientNode, "icon" | "classIds" | "isClass" | "isEmbedded" | "parentId">,
+  ) {
+    return this.readsRefs.effectiveNodeIcon(node);
+  }
+
+  effectiveNodeColor(node: Pick<ClientNode, "color" | "classIds">) {
+    return this.readsRefs.effectiveNodeColor(node);
+  }
+
+  getBacklinks(id: string) {
+    return this.readsRefs.getBacklinks(id);
+  }
+
+  /** Recently linked mention targets, newest incoming link first (palette home). */
+  recentLinkTargets(limit: number): Array<{ id: string; linkedAt: string | null }> {
+    return this.readsRefs.recentLinkTargets(limit);
+  }
+
+  getLinkedReferences(id: string) {
+    return this.readsRefs.getLinkedReferences(id);
+  }
+
+  getReferences(id: string) {
+    return this.readsRefs.getReferences(id);
+  }
+
+  getReferenceCount(id: string) {
+    return this.readsRefs.getReferenceCount(id);
+  }
+
+  getUnlinkedReferences(id: string) {
+    return this.readsRefs.getUnlinkedReferences(id);
+  }
+
+  getUnlinkedReferenceCount(id: string) {
+    return this.readsRefs.getUnlinkedReferenceCount(id);
+  }
+
+  getForwardPaths(id: string, depthCap?: number) {
+    return this.readsRefs.getForwardPaths(id, depthCap);
+  }
+
+  aliasNodesOf(id: string) {
+    return this.readsRefs.aliasNodesOf(id);
+  }
+
+  resolveAlias(id: string) {
+    return this.readsRefs.resolveAlias(id);
+  }
+
+  getChildPages(id: string) {
+    return this.readsRefs.getChildPages(id);
+  }
+
+  getBacklinkCount(id: string) {
+    return this.readsRefs.getBacklinkCount(id);
+  }
+
+  isFeatureEnabled(feature: WorkspaceFeature) {
+    return this.readsRefs.isFeatureEnabled(feature);
+  }
+
+  isFeatureEnabledFresh(feature: WorkspaceFeature) {
+    return this.readsRefs.isFeatureEnabledFresh(feature);
+  }
+
+  listFeatureRows() {
+    return this.readsRefs.listFeatureRows();
+  }
+
+  getFeatureInstanceCount(feature: WorkspaceFeature) {
+    return this.readsRefs.getFeatureInstanceCount(feature);
+  }
+
+  setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean) {
+    return this.readsRefs.setFeatureEnabled(feature, enabled);
+  }
+
+  addCollectionMember(collectionId: string, objectId: string) {
+    this.writes.addCollectionMember(collectionId, objectId);
+  }
+
+  setFeatureSettings(feature: WorkspaceFeature, settings: Record<string, unknown>) {
+    return this.readsRefs.setFeatureSettings(feature, settings);
+  }
+
+  resolveExternalRef(ref: string) {
+    return this.readsRefs.resolveExternalRef(ref);
+  }
+
+  externalRefsOf(nodeId: string) {
+    return this.readsRefs.externalRefsOf(nodeId);
+  }
+
+  setExternalRef(ref: string, nodeId: string) {
+    return this.readsRefs.setExternalRef(ref, nodeId);
+  }
+
+  removeExternalRef(ref: string) {
+    return this.readsRefs.removeExternalRef(ref);
+  }
+
+  getChildPageCount(id: string) {
+    return this.readsRefs.getChildPageCount(id);
+  }
+
+  // --- server-facing REST (assets, prefs, section views, history feeds) ------------
+
+  getPrefs() {
+    return this.server.getPrefs();
+  }
+
+  patchPrefs(patch: PrefsPatch) {
+    return this.server.patchPrefs(patch);
+  }
+
+  listSectionViews(nodeId: string, sectionKey: string) {
+    return this.server.listSectionViews(nodeId, sectionKey);
+  }
+
+  createSectionView(input: {
+    nodeId: string;
+    sectionKey: string;
+    name: string;
+    queryAst: unknown;
+  }) {
+    return this.server.createSectionView(input);
+  }
+
+  renameSectionView(nodeId: string, sectionKey: string, viewId: string, name: string) {
+    return this.server.renameSectionView(nodeId, sectionKey, viewId, name);
+  }
+
+  updateSectionViewAst(nodeId: string, sectionKey: string, viewId: string, queryAst: unknown) {
+    return this.server.updateSectionViewAst(nodeId, sectionKey, viewId, queryAst);
+  }
+
+  reorderSectionViews(nodeId: string, sectionKey: string, orderedIds: string[]) {
+    return this.server.reorderSectionViews(nodeId, sectionKey, orderedIds);
+  }
+
+  deleteSectionView(nodeId: string, sectionKey: string, viewId: string) {
+    return this.server.deleteSectionView(nodeId, sectionKey, viewId);
+  }
+
+  uploadAsset(file: Blob, filename: string) {
+    return this.server.uploadAsset(file, filename);
+  }
+
+  attachAsset(objectId: string, asset: AssetUploadResult) {
+    return this.server.attachAsset(objectId, asset);
+  }
+
+  fetchAssetBytes(assetId: string) {
+    return this.server.fetchAssetBytes(assetId);
+  }
+
+  downloadAsset(assetId: string) {
+    return this.server.downloadAsset(assetId);
+  }
+
+  fetchOperationsFor(objectId: string, propertySchemaId: string) {
+    return this.server.fetchOperationsFor(objectId, propertySchemaId);
+  }
+
+  fetchNodeHistory(nodeId: string) {
+    return this.server.fetchNodeHistory(nodeId);
+  }
+
+  // --- undo journal chrome ----------------------------------------------------------
+
+  undoState() {
+    return this.undoDomain.undoState();
+  }
+
+  undoHistory() {
+    return this.undoDomain.undoHistory();
+  }
+
+  undo() {
+    return this.undoDomain.undo();
+  }
+
+  redo() {
+    return this.undoDomain.redo();
+  }
+
+  undoDepth() {
+    return this.undoDomain.undoDepth();
+  }
+
+  // --- writes (objects, classes, tags, property schemas, property values) -------------
+
+  createObject(partial: CreateObjectInput) {
+    return this.writes.createObject(partial);
+  }
+
+  /** The generic batch-write primitive (one undo entry, one worker RPC). */
+  applyOps(ops: ClientWriteOp[], opts: { verb?: string } = {}) {
+    return this.writes.applyOps(ops, opts);
+  }
+
+  /** The multiRead delta stamp for one cached-read key (read-revisions.ts). */
+  readStamp(method: string, args: unknown[]): string {
+    return this.ctx.readStamp(method, args);
+  }
+
+  updateObject(id: string, fields: UpdateObjectInput) {
+    return this.writes.updateObject(id, fields);
+  }
+
+  setArchived(id: string, active: boolean) {
+    return this.writes.setArchived(id, active);
+  }
+
+  beginClassedCreate(input: {
+    classId: string;
+    title: string;
+    unarchive: boolean;
+    properties?: Array<{ propertySchemaId: string; value: unknown; idx?: number }>;
+  }) {
+    return this.writes.beginClassedCreate(input);
+  }
+
+  deleteObject(id: string, opts: DeleteObjectOptions = {}) {
+    return this.writes.deleteObject(id, opts);
+  }
+
+  restoreObject(id: string) {
+    return this.writes.restoreObject(id);
+  }
+
+  emptyTrash() {
+    return this.writes.emptyTrash();
+  }
+
+  moveObject(id: string, parentId: string | null, afterId?: string, beforeId?: string) {
+    return this.writes.moveObject(id, parentId, afterId, beforeId);
+  }
+
+  mergeNodes(sourceId: string, targetId: string) {
+    return this.writes.mergeNodes(sourceId, targetId);
+  }
+
+  planMergeSummary(sourceId: string, targetId: string) {
+    return this.writes.planMergeSummary(sourceId, targetId);
+  }
+
+  // --- content migrations (the keyed-side runner — F3) ----------------------------
+
+  /**
+   * True when this client holds a workspace key — the workspace is keyed,
+   * so the sync engine seals every write (the migrations surface's hint
+   * copy reads this).
+   */
+  isKeyedWorkspace(): boolean {
+    return this.ctx.workspaceKey !== null;
+  }
+
+  /** The content-class migrations pending on THIS workspace (each core's `isPending` probe). */
+  listPendingMigrations(): MigrationPlanReport[] {
+    return this.migrations.listPendingMigrations();
+  }
+
+  /** The dry-run report for one migration — counts + conflict rows, zero writes. */
+  planMigration(id: string): MigrationPlanReport {
+    return this.migrations.planMigration(id);
+  }
+
+  /**
+   * Run one migration client-side: plan against the local UNSEALED store,
+   * payload-validate, commit as ONE undo batch through the single enqueue
+   * seam — the sync engine seals + pushes the ops on a keyed workspace
+   * like any write (no new crypto, no wire change).
+   */
+  runMigration(id: string): MigrationPlanReport {
+    return this.migrations.runMigration(id);
+  }
+
+  assignClass(id: string, classId: string) {
+    return this.writes.assignClass(id, classId);
+  }
+
+  reorderClasses(id: string, classIds: string[]) {
+    return this.writes.reorderClasses(id, classIds);
+  }
+
+  unassignClass(id: string, classId: string) {
+    return this.writes.unassignClass(id, classId);
+  }
+
+  assignTag(id: string, tagId: string) {
+    return this.writes.assignTag(id, tagId);
+  }
+
+  unassignTag(id: string, tagId: string) {
+    return this.writes.unassignTag(id, tagId);
+  }
+
+  createClass(
+    name: string,
+    opts?: {
+      icon?: string;
+      color?: string;
+      id?: string;
+      parentlessRole?: "page" | "block";
+      displayTemplate?: string;
+    },
+  ) {
+    return this.writes.createClass(name, opts);
+  }
+
+  setClassExtends(classId: string, parentClassIds: string[]) {
+    return this.writes.setClassExtends(classId, parentClassIds);
+  }
+
+  updateClassParentlessRole(classId: string, parentlessRole: "page" | "block" | null) {
+    return this.writes.updateClassParentlessRole(classId, parentlessRole);
+  }
+
+  /** The class's own displayTemplate (registry column, store v36). */
+  getClassDisplayTemplate(classId: string) {
+    return this.reads.getClassDisplayTemplate(classId);
+  }
+
+  /** The class's EFFECTIVE displayTemplate (the store's extends-aware
+   *  resolver) — the title seam's template axis read. */
+  resolveEffectiveDisplayTemplate(classId: string) {
+    return this.reads.resolveEffectiveDisplayTemplate(classId);
+  }
+
+  /** Write or clear a class's displayTemplate (class.update {displayTemplate}). */
+  updateClassDisplayTemplate(classId: string, template: string | null) {
+    return this.writes.updateClassDisplayTemplate(classId, template);
+  }
+
+  setClassProperty(classId: string, propertySchemaId: string, fields: SetClassPropertyInput) {
+    return this.writes.setClassProperty(classId, propertySchemaId, fields);
+  }
+
+  unsetClassProperty(classId: string, propertySchemaId: string) {
+    return this.writes.unsetClassProperty(classId, propertySchemaId);
+  }
+
+  createPropertySchema(input: CreatePropertySchemaInput) {
+    return this.writes.createPropertySchema(input);
+  }
+
+  updatePropertySchema(propertySchemaId: string, fields: UpdatePropertySchemaInput) {
+    return this.writes.updatePropertySchema(propertySchemaId, fields);
+  }
+
+  deletePropertySchema(propertySchemaId: string) {
+    return this.writes.deletePropertySchema(propertySchemaId);
+  }
+
+  setProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: unknown,
+    idx = 0,
+    metadata?: Record<string, unknown>,
+    elementId?: string,
+  ) {
+    return this.writes.setProperty(objectId, propertySchemaId, value, idx, metadata, elementId);
+  }
+
+  unsetProperty(objectId: string, propertySchemaId: string, idx = 0) {
+    return this.writes.unsetProperty(objectId, propertySchemaId, idx);
+  }
+
+  assignProperty(objectId: string, propertySchemaId: string) {
+    return this.writes.assignProperty(objectId, propertySchemaId);
+  }
+
+  unassignProperty(objectId: string, propertySchemaId: string) {
+    return this.writes.unassignProperty(objectId, propertySchemaId);
+  }
+
+  emptyProperty(objectId: string, propertySchemaId: string) {
+    return this.writes.emptyProperty(objectId, propertySchemaId);
+  }
+
+  /**
+   * The workflow-toggle gesture (research-tier2 slice 2b): the domain
+   * plan's steps applied as ONE undo-journal batch — one undo restores the
+   * whole toggle. Each step is existence-checked at APPLY time (the
+   * deploySystemClass idiom; a converged step writes nothing), and the
+   * batch lives INSIDE the client so the gesture survives the WorkerClient
+   * RPC boundary (one call, one journal entry — the reviewCard precedent).
+   * The step mapping + convergence checks are the web executor's
+   * (`features/workflows/materialize.ts`, D2: one definition, two
+   * executors).
+   */
+  async applyWorkflowSteps(steps: WorkflowOpStep[]): Promise<WorkflowMaterializeResult> {
+    let applied = 0;
+    let skipped = 0;
+    await this.ctx.undoJournal.batchAsync(async () => {
+      for (const step of steps) {
+        if (stepConverged(this, step)) {
+          skipped += 1;
+          continue;
+        }
+        await applyWorkflowStep(this, step);
+        applied += 1;
+      }
+    });
+    return { applied, skipped };
+  }
+
+  /** Append the card.review audit-history op (never journaled — see the writes domain). */
+  recordCardReview(payload: OpPayload<"card.review">) {
+    return this.writes.recordCardReview(payload);
+  }
+
+  /**
+   * The grade gesture (memorization cards): write the next SRS state into
+   * the six card-family property values as ONE undo-journal batch — a
+   * grade is a single gesture, so ONE undo reverts the whole grade's
+   * schedule writes (including the due-day date-chain creates the cardDue
+   * write triggers inside the batch). The batch lives INSIDE the client so
+   * the gesture survives the WorkerClient RPC boundary (one call, one
+   * journal entry). The card.review audit record is a separate, never-
+   * journaled op the caller appends after this resolves. The inactive
+   * algorithm's fields stay byte-for-byte stale (the srs.ts mid-deck
+   * switch contract); every write addresses the row's EXISTING idx (the
+   * taskCycle precedent, re-read at write time).
+   */
+  async reviewCard(input: {
+    cardId: string;
+    stateAfter: CardSrsState;
+    algorithm: SrsAlgorithm;
+  }): Promise<void> {
+    const { cardId, stateAfter, algorithm } = input;
+    await this.ctx.undoJournal.batchAsync(async () => {
+      const props = this.readsProps.getEffectiveProperties(cardId);
+      const idxOf = (schemaId: string): number =>
+        props.find((row) => row.propertySchemaId === schemaId)?.idx ?? 0;
+      await this.dates.setDatetimeProperty(
+        cardId,
+        CARD_PROPERTY_UUIDS.cardDue,
+        { iso: stateAfter.due! },
+        idxOf(CARD_PROPERTY_UUIDS.cardDue),
+      );
+      await this.writes.setProperty(
+        cardId,
+        CARD_PROPERTY_UUIDS.cardReps,
+        stateAfter.reps,
+        idxOf(CARD_PROPERTY_UUIDS.cardReps),
+      );
+      await this.writes.setProperty(
+        cardId,
+        CARD_PROPERTY_UUIDS.cardInterval,
+        stateAfter.interval,
+        idxOf(CARD_PROPERTY_UUIDS.cardInterval),
+      );
+      if (algorithm === "sm2") {
+        await this.writes.setProperty(
+          cardId,
+          CARD_PROPERTY_UUIDS.cardEase,
+          stateAfter.ease,
+          idxOf(CARD_PROPERTY_UUIDS.cardEase),
+        );
+      } else {
+        await this.writes.setProperty(
+          cardId,
+          CARD_PROPERTY_UUIDS.cardDifficulty,
+          stateAfter.difficulty,
+          idxOf(CARD_PROPERTY_UUIDS.cardDifficulty),
+        );
+        await this.writes.setProperty(
+          cardId,
+          CARD_PROPERTY_UUIDS.cardStability,
+          stateAfter.stability,
+          idxOf(CARD_PROPERTY_UUIDS.cardStability),
+        );
+      }
+    });
+  }
+
+  promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0) {
+    return this.writes.promotePropertyCarrier(objectId, propertySchemaId, idx);
+  }
+
+  // --- dates + annotations -----------------------------------------------------------
+
+  ensureDateChain(isoDate: string) {
+    return this.dates.ensureDateChain(isoDate);
+  }
+
+  setDatetimeProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: DatetimeValueInput,
+    idx = 0,
+    metadata?: Record<string, unknown>,
+  ) {
+    return this.dates.setDatetimeProperty(objectId, propertySchemaId, value, idx, metadata);
+  }
+
+  createAnnotation(input: CreateAnnotationInput) {
+    return this.dates.createAnnotation(input);
+  }
+}

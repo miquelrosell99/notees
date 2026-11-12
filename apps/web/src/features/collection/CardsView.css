@@ -1,0 +1,511 @@
+/**
+ * CardsView — the card grid and the card chrome (token-only).
+ *
+ * The card look recovery. The original card mode ("looks great", owner)
+ * registered: an adaptive CSS-columns masonry on a RAISED container panel
+ * (surface-container-high mat, spacing-4 padding, shape-large radius) —
+ * today the panel hosts three FLOW arrangements: the
+ * masonry is that original multicol; the stack lays one full-width card per
+ * row; the grid aligns rows (cards stretch to the row height);
+ * surface-level cards with a subtle-but-visible blended border
+ * (outline at 50% over outline-variant), the 12px --shape-extra-large
+ * radius (roundness stepped down from the 20px
+ * --shape-card), and
+ * ZERO elevation shadow (the design-system mandate — the original Card
+ * elevation was deliberately "none"); row-based padding (the card itself
+ * unpadded —
+ * the original Card ran padding=false and each row carried spacing-2 spacing-3)
+ * with no interior dividers; the hover-reveal select checkbox riding the
+ * top corner on a surface chip; and the selected wash = surface-container-high
+ * + the primary focus ring. The cover is a matted slot (surface-container-high
+ * background, spacing-2 inset — the image never bleeds to the card edge).
+ * The newer machinery is untouched: useWindowed paging, selection export, the
+ * CoverLayoutToggle, useLazyInView covers (the 16:9 cover slot
+ * stays so the pending placeholder and the empty Add-cover affordance
+ * keep its size before bytes arrive),
+ * content-visibility skipping, and NodeCard shared with the grouped board
+ * (which rides no flow — its columns are the property groupBy).
+ */
+
+/* ─── The grid — the raised panel every flow rides on ─── */
+
+.cards-grid {
+  /* The raised container panel so the surface-level cards read against the
+     page surface; the flow modifiers below arrange the cards inside it. */
+  background: var(--md-sys-color-surface-container-high);
+  padding: var(--spacing-4);
+  border-radius: var(--shape-large);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* The masonry flow (the default): the recovered original adaptive masonry —
+   CSS columns derive the column count from available space and the card min
+   width; cards keep their natural height and pack vertically. */
+.cards-grid--masonry {
+  column-width: var(--layout-size-6xl);
+  column-gap: var(--spacing-4);
+}
+
+/* Horizontal-cover cards are wider per column. NO min(..., 100%) here — a
+   percentage inside column-width resolves against the multicol box itself
+   (circular), computing to FULL WIDTH and collapsing the grid to ONE column
+   (measured in a playwright repro). column-width alone
+   degrades gracefully: below two columns' worth of space it yields one. */
+.cards-grid--masonry:has(.node-card--cover-left, .node-card--cover-right) {
+  column-width: var(--layout-size-9xl);
+}
+
+/* The stack flow: one full-width card per row. */
+.cards-grid--stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+/* The grid flow: row-aligned columns (cards stretch to the row height).
+   The min track derives from available space like the masonry column-width;
+   below one track's worth of space the single column fills the width. */
+.cards-grid--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--layout-size-6xl), 1fr));
+  gap: var(--spacing-4);
+}
+
+.cards-grid--grid:has(.node-card--cover-left, .node-card--cover-right) {
+  grid-template-columns: repeat(auto-fill, minmax(var(--layout-size-9xl), 1fr));
+}
+
+/* The affordance spans every column (a masonry item otherwise; the grid row
+   it lands in otherwise). */
+.cards-grid > .nt-window-more {
+  column-span: all;
+}
+
+.cards-grid--grid > .nt-window-more {
+  grid-column: 1 / -1;
+}
+
+/* ─── The card — the original chrome ─────────────────────────────── */
+
+.node-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  /* The original Card padding=false: rows pad themselves; the masonry must
+     not split a card across columns. */
+  padding: 0;
+  gap: 0;
+  break-inside: avoid;
+  /* "visible border in card view — the container background matches
+     outline-variant, so blend outline and outline-variant for a subtle but
+     visible edge." */
+  border: var(--border-width-default) solid color-mix(in srgb, var(--md-sys-color-outline) 50%, var(--md-sys-color-outline-variant));
+  border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface);
+  /* lazy rendering: off-screen cards skip layout/paint entirely;
+     the intrinsic size keeps the scrollbar stable while skipped. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px; /* token-gate: constant lazy-render intrinsic-size estimate for windowed cards — scrollbar stability placeholder, not a scale step */
+}
+
+/* Hover raises the border from the blended hairline to full outline — the
+   card-grid recipe's quiet lift: no shadow, no scale. */
+.node-card:hover {
+  border-color: var(--md-sys-color-outline);
+}
+
+/* clip (not hidden) so the cover image inside doesn't create a BFC
+   that constrains its sizing. */
+.node-card--cover-top,
+.node-card--cover-left,
+.node-card--cover-right {
+  overflow: clip;
+}
+
+.node-card__content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* ─── Cover — the matted slot ────────────────────────────────────── */
+
+.node-card__cover {
+  position: relative;
+  box-sizing: border-box;
+  /* The cover is a mat — the image floats on a surface-container-high
+     slot inset by spacing-2, never bleeding to the card edge. */
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface-container-high);
+}
+
+/* the lazy placeholder: same slot, no bytes, a quiet pulse
+   until the viewport nears and the real fetch starts. */
+.node-card__cover--pending {
+  background:
+    linear-gradient(
+      var(--md-sys-color-surface-container-highest),
+      var(--md-sys-color-surface-container)
+    );
+  animation: node-card-cover-pulse var(--motion-duration-cover-pulse) ease-in-out infinite;
+}
+
+@keyframes node-card-cover-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-card__cover--pending {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* The loaded cover is a button (click → the ImageModal lightbox); the
+   button chrome resets and the img fills the mat slot. */
+.node-card__cover--button {
+  display: block;
+  padding: var(--spacing-2);
+  border: none;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.node-card__cover--button:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+/* The empty slot: under a cover layout the slot renders
+   even when the node has no cover — the quiet Add affordance (the CoverCard
+   precedent) names the missing cover and opens the image-only upload modal.
+   The mat slot chrome carries over (the background + spacing-2 inset). */
+.node-card__cover--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  border: none;
+  color: var(--md-sys-color-outline);
+  font: var(--font-body-small);
+  cursor: pointer;
+}
+
+.node-card__cover--empty:hover,
+.node-card__cover--empty:focus-visible {
+  color: var(--md-sys-color-primary);
+}
+
+.node-card__cover--empty:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.node-card__cover--button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The top cover keeps the image's slot at a stable ratio (the current code
+   keeps the 16/9 so the pending placeholder holds its size before bytes). */
+.node-card--cover-top .node-card__cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+/* The horizontal covers: the CONTENT is a two-
+   column grid. Column one carries the COVER as a card element in its cell (a
+   matted, rounded sub-card); column two carries the LEAD stack — breadcrumbs,
+   title, classes, tags. The cover and the lead share the first row track and
+   stretch together, so the cover is exactly as tall as the lead stack. Then
+   the properties section and the content row span BOTH columns. The image
+   fills the mat absolutely: a portrait no longer stretches the card beyond
+   its rows. */
+.node-card--cover-left .node-card__content,
+.node-card--cover-right .node-card__content {
+  display: grid;
+  grid-template-columns: clamp(var(--layout-size-xl), 38%, var(--layout-size-2xl)) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.node-card--cover-right .node-card__content {
+  grid-template-columns: minmax(0, 1fr) clamp(var(--layout-size-xl), 38%, var(--layout-size-2xl));
+}
+
+/* The lead stack beside the cover (a plain column in the default flow too). */
+.node-card__lead {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.node-card--cover-left .node-card__lead {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.node-card--cover-right .node-card__lead {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+/* The cover cell: a card element inside its cell — mat background, spacing-2
+   inset, rounded corners. */
+.node-card--cover-left .node-card__cover,
+.node-card--cover-right .node-card__cover {
+  min-height: var(--layout-size-2xl);
+  margin: var(--spacing-2);
+  /* The card-grid recipe: covers carry the 12px radius. */
+  border-radius: var(--shape-extra-large);
+  overflow: clip;
+}
+
+.node-card--cover-left .node-card__cover {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.node-card--cover-right .node-card__cover {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* The loaded image fills the mat absolutely (left/right only — the top
+   cover keeps its 16/9 flow slot above). */
+.node-card--cover-left .node-card__cover--button,
+.node-card--cover-right .node-card__cover--button {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+}
+
+.node-card--cover-left .node-card__cover--button img,
+.node-card--cover-right .node-card__cover--button img {
+  position: absolute;
+  inset: var(--spacing-2);
+  width: auto;
+  height: auto;
+  object-fit: cover;
+  border-radius: var(--shape-small);
+}
+
+/* The properties section and the content row span BOTH columns (below the
+   cover + lead pair). */
+.node-card--cover-left .node-card__properties,
+.node-card--cover-left .node-card__content-row,
+.node-card--cover-right .node-card__properties,
+.node-card--cover-right .node-card__content-row {
+  grid-column: 1 / -1;
+}
+
+/* ─── Toolbar ────────────────────────────────────────────────────── */
+
+.cards-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-2);
+}
+
+/* ─── The blocks row — header (chevron + label) over the child blocks ── */
+
+/* Original body: padded rows; the content row's header carries the hairline
+   above it (every card row is hairline-separated). */
+.node-card__body {
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.node-card__content-row-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  min-width: 0;
+}
+
+.node-card__content-row-label {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Card header — the title row (the v1 header register: the row carries
+   the padding; typography carries the hierarchy) ── */
+
+.node-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+}
+
+/* The FIRST row: the containing-page breadcrumbs. The chain walks the
+   parents — a parentless node renders nothing inside, and the empty row
+   collapses away. */
+.node-card__breadcrumbs {
+  padding: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.node-card__breadcrumbs:empty {
+  display: none;
+}
+
+/* The collapse chevron: bordered only when the card carries children (v1). */
+.node-card__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0;
+  transition:
+    color var(--motion-duration-short) var(--motion-easing-standard),
+    background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-card__collapse-btn:hover {
+  color: var(--md-sys-color-on-surface);
+  background-color: var(--md-sys-color-hover-overlay);
+}
+
+.node-card__collapse-btn--has-children {
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+/* ─── The card title — the page-view title row itself (BlockRow
+   variant="title", read-only): the content stream renders its inline
+   tokens (class links, mentions). The page-headline typography stays in
+   the page header — the card title rides the original card-title register. ─── */
+
+.node-card__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.node-card__title .nt-page-title {
+  font: inherit;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface);
+  /* The card-grid recipe: title is a single line with ellipsis. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The title opens the node (read-only trampoline) — the pointer + the
+   hover tint the old head button carried. */
+.node-card__title .nt-title-content {
+  cursor: pointer;
+}
+
+.node-card__title .nt-title-content:hover {
+  color: var(--md-sys-color-primary);
+}
+
+/* ─── Metadata rows — classes + tags chips: their OWN rows, hairline-
+   separated (the v1 row structure, the dividers new;
+   v1 carried no row dividers, only the cover mat's edges). ─────── */
+
+.node-card__metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+}
+
+/* ─── The properties section — the nodeview properties table itself
+   (PropertiesTable): the table's own list chrome (name
+   column | value column rows, hairline-separated) renders inside a padded
+   wrapper; the table's top border IS the section hairline. ────── */
+
+.node-card__properties {
+  min-width: 0;
+  padding: 0 var(--spacing-3) var(--spacing-2);
+}
+
+/* The table ships margin-top spacing-2 for the panel's gap — inside the
+   card the wrapper owns the rhythm. */
+.node-card__properties .nt-properties-list {
+  margin-top: 0;
+}
+
+/* The tags row rides the page header's TagsRow composition — the card row
+   carries no "Tags:" label (chips only; the label's 140px column would
+   misalign it — the corner precedent). */
+.node-card__tags-row .section-label {
+  display: none;
+}
+
+/* ─── Cover badge — the original cover bullet rode the TOP-LEFT corner
+   (the modal-open bullet), leaving the top-right for the select checkbox. */
+.node-card__cover-badge {
+  position: absolute;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: var(--z-10);
+}
+
+/* ─── Selection — the original hover-reveal corner checkbox ─────── */
+
+.node-card__select {
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  z-index: var(--z-10);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-micro);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-surface);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-card:hover .node-card__select,
+.node-card:focus-within .node-card__select,
+.node-card__select:focus-within,
+.node-card--selected .node-card__select {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Original selected wash: the surface-container-high background + the primary
+   focus ring — not the primary-container fill. */
+.node-card--selected {
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--shadow-focus-ring-primary);
+}

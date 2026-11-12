@@ -237,8 +237,7 @@ own repo (context = that repo's root):
   (`pnpm --filter @notees/server deploy --prod /out` pruned copy), `runtime`
   (`node:22-alpine`, `USER node`, `VOLUME /data`, `EXPOSE 8377`, wget
   `/healthz` healthcheck).
-- **`apps/web/Dockerfile`** (the [`notees-web`](https://github.com/miquelrosell99/notees-web)
-  repo) — `deps` + `build` (`pnpm --filter @notees/web... build` → vite dist: static assets + worker chunk + sql.js wasm; the core packages resolve from the repo's pinned `vendor/notees` submodule, which the build context must carry — initialize submodules before building), then
+- **`apps/web/Dockerfile`** — `deps` + `build` (`pnpm --filter @notees/web... build` → vite dist: static assets + worker chunk + sql.js wasm; the core packages resolve from this repo's workspace — the build context must carry `packages/`, which `COPY . .` does; initialize the `brand` submodule before building), then
   `nginx:1.27-alpine`. The stock `/docker-entrypoint.d` mechanism runs
   `50-notees-config.sh`, which writes `/config.js`
   (`window.NOTEES_CONFIG = { serverUrl: … }`) from `NOTEES_SERVER_URL`

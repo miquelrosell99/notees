@@ -1,0 +1,84 @@
+/* SearchField — the bits the utility layer can't express: the 3-column
+   pill anatomy (leading icon lane | input | trailing clear lane — the
+   grid the flex row approximated without lane discipline), the wrapper-
+   carried focus ring (it hugs the whole pill, not the input box inside
+   the padding — relocated from the inner input, not suppressed), the
+   clear button's invisible hit-area floor (::after), the webkit cancel
+   glyph suppression, and the borderless marker-class variant (the
+   command palette and sheet headers pass `search-field--borderless` as
+   a class hook). The fills/hover/focus-within registers ride utilities. */
+
+.search-field {
+  /* The 3-column anatomy: leading icon lane | the input
+     | trailing clear lane. The middle column is minmax(0, 1fr) so the input
+     shrinks before the pill does; the lanes' insets ride the wrapper's
+     horizontal padding (anchored picker panels included — the panel margin
+     is the outer air there, never a substitute for the icon lane's
+     padding). */
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--spacing-2);
+  background: var(--md-sys-color-surface-container);
+}
+
+/* Hover: the state-layer wash over the fill (the hover ruling). */
+.search-field:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Focused: the fill steps to the base surface — the field reads "active". */
+.search-field:focus-within {
+  background: var(--md-sys-color-surface);
+}
+
+/* Focus ring: carried by the wrapper so it hugs the whole pill. */
+.search-field:has(.search-field__input:focus-visible) {
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.search-field .search-field__input:focus-visible {
+  box-shadow: none;
+}
+
+.search-field__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* The clear affordance's invisible hit-area floor — the visible glyph
+   stays 18px. */
+.search-field__clear::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+}
+
+/* Borderless variant — on existing filled surfaces (the command palette,
+   sheet headers). Even the fill would stack there; the wrapper ring (base
+   rule above) still carries focus. */
+.search-field--borderless,
+.search-field--borderless:hover,
+.search-field--borderless:focus-within {
+  background: transparent;
+}
+
+/* The sm pill rides compact chrome rows and anchored picker popovers at the
+   sm button height (--height-button-sm). The input swaps h-button-md for
+   h-button-sm (twMerge); the compound selector tightens the inline padding
+   to the picker row grid. Block padding lives nowhere on the pill — at
+   every size the wrapper's height IS the input's button-height token
+ (the old py-2 stacked on h-button-md and doubled the
+   vertical air — the padding fix is universal, not per-callsite). */
+.search-field.search-field--sm {
+  padding-left: var(--spacing-2);
+  padding-right: var(--spacing-2);
+}
+
+.search-field.search-field--sm .search-field__icon {
+  width: var(--icon-size-md);
+}

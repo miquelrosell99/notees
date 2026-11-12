@@ -1,0 +1,90 @@
+import { isReadonlyProperty } from "@notees/domain";
+import { Icon } from "../../ui/Icon.js";
+
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
+
+import { Checkbox } from "../../components/ui/kit/Checkbox.js";
+import type { AnyClient } from "./shared.js";
+
+/**
+ * One boolean property: the ported checkbox toggle writes the slot directly.
+ */
+export function BooleanPropertyRow({
+  client,
+  nodeId,
+  propertySchemaId,
+  label,
+  rows,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
+  /** Read-only projection: the checkbox renders disabled. */
+  readOnly = false,
+  /** Extra li class (the R4 ineligible rendering — " nt-property-ineligible"). */
+  rowClassName = "",
+  /** The host knows the property is class-supplied even when rows carry no boundBy
+   *  (the empty assigned/bound reduction) — the from-class badge rides this. */
+  classBound = false,
+  /** The property-header icon (effectivePropertyIcon). */
+  icon,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  propertySchemaId: string;
+  label: string;
+  rows: EffectiveProperty[];
+  bare?: boolean;
+  readOnly?: boolean | undefined;
+  rowClassName?: string;
+  classBound?: boolean;
+  icon: string;
+}) {
+  const ordered = [...rows].sort((a, b) => a.idx - b.idx);
+  const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
+  const classSourced = rows.some((row) => row.boundBy !== null) || classBound;
+
+  return (
+    <>
+      {ordered.map((row) => (
+        <li
+          key={`${propertySchemaId}:${row.idx}`}
+          className={
+            allDefault
+              ? `nt-property nt-property-default nt-property-boolean node-metadata-row${rowClassName}`
+              : `nt-property nt-property-boolean node-metadata-row${rowClassName}`
+          }
+        >
+          {!bare && (
+            <>
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}><Icon path={icon} size={0.8} className="nt-property-name__icon" />{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
+            </>
+          )}
+          <Checkbox
+            size="sm"
+            checked={row.value === true}
+            disabled={readOnly || isReadonlyProperty(propertySchemaId)}
+            aria-label={`Property ${label}`}
+            onChange={(checked) => {
+              void client.setProperty(nodeId, propertySchemaId, checked, row.idx);
+            }}
+          />
+        </li>
+      ))}
+      {ordered.length === 0 && (
+        <li className={`nt-property nt-property-boolean node-metadata-row${rowClassName}`}>
+          {!bare && (
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}><Icon path={icon} size={0.8} className="nt-property-name__icon" />{label}</span>
+          )}
+          <Checkbox
+            size="sm"
+            checked={false}
+            disabled={readOnly}
+            aria-label={`Property ${label}`}
+            onChange={(checked) => {
+              void client.setProperty(nodeId, propertySchemaId, checked, 0);
+            }}
+          />
+        </li>
+      )}
+    </>
+  );
+}

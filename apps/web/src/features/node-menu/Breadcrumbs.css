@@ -1,0 +1,212 @@
+/**
+ * components/nodes/NodeBreadcrumbs.css). Class names unchanged; only the
+ * edits the current shell needs were made (the popup backdrop is a button, the per-item
+ */
+
+.node-breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--spacing-1);
+  font: var(--font-label-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+}
+
+.node-breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.node-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--md-sys-color-on-surface-variant);
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    color var(--motion-duration-short) var(--motion-easing-standard);
+  font: inherit;
+  min-width: 0;
+}
+
+.node-breadcrumb-link:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The static trail (the peek-card header): plain text — no pointer, no
+   hover wash. */
+.node-breadcrumb-link--static {
+  cursor: default;
+}
+
+.node-breadcrumb-link--static:hover {
+  background: none;
+  color: inherit;
+}
+
+.node-breadcrumb-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.node-breadcrumb-name {
+  max-width: var(--layout-size-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-breadcrumb-separator {
+  /* The trail chevron rides the icon role (on-surface-variant): outline
+     is a border token and read as nearly invisible between crumbs. */
+  color: var(--md-sys-color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+/* ─── Property hops (`showPropertyHops`) ───────────────────────────────── */
+
+/* A property entry is metadata, not a place: no button, no hover wash — the
+   tag glyph + the italic schema name read as "the row below is stored
+   THROUGH this property". Clipped like a crumb name. */
+.node-breadcrumb-property {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-style: italic;
+  color: var(--md-sys-color-on-surface-variant);
+  min-width: 0;
+}
+
+.node-breadcrumb-property-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.node-breadcrumb-property-name {
+  max-width: var(--layout-size-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The inert variant inside the overflow popup. */
+.node-breadcrumbs-popup-property {
+  cursor: default;
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+/* ─── Ellipsis / overflow collapse ─────────────────────────────────────── */
+
+.node-breadcrumb-ellipsis-container {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.node-breadcrumb-ellipsis {
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 1px;
+  min-width: var(--spacing-7);
+  justify-content: center;
+}
+
+/* ─── Overflow popup ───────────────────────────────────────────────────── */
+
+.node-breadcrumb-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sticky);
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.node-breadcrumb-popup-anchor {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--z-fixed);
+  padding-top: var(--spacing-1);
+}
+
+.node-breadcrumbs-popup {
+  display: flex;
+  flex-direction: column;
+  min-width: var(--layout-size-xl);
+  max-width: var(--layout-size-6xl);
+  max-height: var(--layout-size-8xl);
+  overflow-y: auto;
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  padding: var(--spacing-1);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.node-breadcrumbs-popup-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
+  font: var(--font-label-medium);
+  text-align: left;
+  white-space: nowrap;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-breadcrumbs-popup-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.node-breadcrumb-popup-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+/* ─── Parent-edit gestures ─────────────────────────────────────────────── */
+
+/* The chevron is the core hover-reveal affordance (HoverRevealButton):
+   zero footprint at rest, revealed by hovering the crumb item (the
+   `.ui-hover-reveal-group` on the item), keyboard focus, or an anchored
+   popup left open. The `node-breadcrumb-edit` class stays as the host hook
+   for tests and crumb-scoped overrides; the behavior lives in the kit. */
+
+/* ─── Right-anchored trails (sidebar card headers) ─────────────────────── */
+
+/* Pack the trail toward the RIGHT end; overflow spills invisibly on the
+   LEFT (top-level parents). The lead "…" is absolutely pinned at the visible
+   left edge over a solid chip (the host passes its surface via
+   --breadcrumb-clip-bg), and pops up the full trail. */
+.node-breadcrumbs--anchor-right {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.node-breadcrumbs--anchor-right .node-breadcrumb-lead-clip {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-1);
+  background: var(--breadcrumb-clip-bg, var(--md-sys-color-surface));
+  border-radius: var(--shape-small);
+  padding-right: var(--spacing-1);
+}

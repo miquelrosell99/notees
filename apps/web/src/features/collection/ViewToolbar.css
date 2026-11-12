@@ -1,0 +1,13 @@
+.view-toolbar {
+  /* Wraps so an inline NodeCollectionToolbar's structured panel can take a full-width
+     line beneath the control row; also the anchor for floating toolbar
+     children. */
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  width: 100%;
+  min-height: var(--height-sm);
+}
