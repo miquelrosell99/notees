@@ -281,8 +281,8 @@ describe("class property binding routes", () => {
     });
     expect(bound.statusCode).toBe(200);
     // The binding echo carries ONLY the per-class mechanics (the
-    // soft-unbind + pinned tier flags — sequence retired 2026-10-21,
-    // panels render in pin tiers).
+    // soft-unbind + pinned tier + showInNodeRows preview flags — sequence
+    // retired 2026-10-21, panels render in pin tiers).
     expect(bound.json()).toMatchObject({
       classId,
       propertySchemaId: schemaId,
@@ -366,6 +366,33 @@ describe("class property binding routes", () => {
       payload: { propertySchemaId: schemaId, pinned: false },
     });
     expect(unPinned.json().binding).toMatchObject({ active: false, pinned: false });
+  });
+
+  it("POST binds showInNodeRows: the node-row preview flag rides the binding echo with the same patch contract", async () => {
+    const classId = await createClass("pg7-shelf-rows");
+    const schemaId = await createSchema("pg7-code-rows", { scopeClassIds: [classId] });
+
+    const bound = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, showInNodeRows: true },
+    });
+    expect(bound.statusCode).toBe(200);
+    expect(bound.json()).toMatchObject({
+      classId,
+      propertySchemaId: schemaId,
+      binding: { propertySchemaId: schemaId, active: true, pinned: false, showInNodeRows: true },
+    });
+
+    // The patch contract: an active-only patch keeps the stored flag.
+    const patched = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, active: false },
+    });
+    expect(patched.json().binding).toMatchObject({ active: false, showInNodeRows: true });
+
+    // The flip back rides the same op (patch semantics, row LWW).
+    const unflagged = await api("POST", `/api/classes/${classId}/properties`, {
+      payload: { propertySchemaId: schemaId, showInNodeRows: false },
+    });
+    expect(unflagged.json().binding).toMatchObject({ active: false, showInNodeRows: false });
   });
 
   it("PATCH fails loud on a wrong-typed schema defaultValue and POST fails loud on unknown class/schema", async () => {

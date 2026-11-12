@@ -23,6 +23,7 @@ import type { AccountUser } from "@/core/auth-api.js";
 import { inProcessReason, type StoreMode } from "./storeMode.js";
 import type { AnyClient } from "./clients.js";
 import {
+  AdoptionOfferError,
   EncryptedWorkspaceLockedError,
   openStoreConnection,
   type ConnectOptions,
@@ -51,6 +52,21 @@ export interface UnlockRequest {
   credentialType: "session" | "apikey";
 }
 
+/**
+ * A paused open (F2): an offline-created workspace opened online against a
+ * server that has never seen it, with content in the local store. The App
+ * renders the adoption offer; publishing confirms (`confirmWorkspaceAdoption`
+ * + reconnect), keeping it local re-opens with `declinedAdoption` (plaintext,
+ * zero writes).
+ */
+export interface AdoptionRequest {
+  url: string;
+  credential: string;
+  workspaceId: string;
+  name: string;
+  credentialType: "session" | "apikey";
+}
+
 export interface WorkspaceConnection {
   client: AnyClient | null;
   /** The single owner of the live client for imperative reads + teardown. */
@@ -61,6 +77,9 @@ export interface WorkspaceConnection {
   /** Non-null while a refused encrypted open waits for the unlock re-prompt. */
   unlockRequest: UnlockRequest | null;
   setUnlockRequest: Dispatch<SetStateAction<UnlockRequest | null>>;
+  /** Non-null while an offline-created open waits on the adoption offer (F2). */
+  adoptionRequest: AdoptionRequest | null;
+  setAdoptionRequest: Dispatch<SetStateAction<AdoptionRequest | null>>;
   /**
    * The engine's current sync-phase message during connect ("Fetching latest
    * snapshot…", "Catching up… N operations") — the connecting screen's
@@ -74,6 +93,12 @@ export interface WorkspaceConnection {
   setSessionSignedIn: Dispatch<SetStateAction<boolean>>;
   workspaceName: string;
   setWorkspaceName: Dispatch<SetStateAction<string>>;
+  /**
+   * Positive knowledge that the open workspace carries no wrapped key (from
+   * the connect's key resolution) — the not-encrypted banner's gate. Cleared
+   * on close; false means keyed, offline, or indeterminate (no banner).
+   */
+  workspacePlaintext: boolean;
   phase: Phase;
   setPhase: Dispatch<SetStateAction<Phase>>;
   error: string | null;
@@ -99,11 +124,13 @@ export function useWorkspaceConnection(): WorkspaceConnection {
   const [offline, setOffline] = useState(false);
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
   const [unlockRequest, setUnlockRequest] = useState<UnlockRequest | null>(null);
+  const [adoptionRequest, setAdoptionRequest] = useState<AdoptionRequest | null>(null);
   const [connectProgress, setConnectProgress] = useState<string | null>(null);
   const [connectProgressFraction, setConnectProgressFraction] = useState<number | null>(null);
   const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
   const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
+  const [workspacePlaintext, setWorkspacePlaintext] = useState(false);
   const [phase, setPhase] = useState<Phase>({ name: "server" });
   const [error, setError] = useState<string | null>(null);
 
@@ -128,6 +155,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     setError(null);
     setConnectProgress(null);
     setConnectProgressFraction(null);
+    setWorkspacePlaintext(false);
     const previous = clientRef.current;
     clientRef.current = null;
     previous?.close();
@@ -146,6 +174,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
         },
       });
       setUnlockRequest(null);
+      setAdoptionRequest(null);
       clientRef.current = outcome.client;
       setClient(outcome.client);
       setConnectProgress(null);
@@ -155,6 +184,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
       setStoreReason(outcome.mode === "in-process" ? inProcessReason() : undefined);
       setSessionSignedIn(outcome.sessionSignedIn);
       setWorkspaceName(outcome.workspaceName);
+      setWorkspacePlaintext(outcome.workspacePlaintext);
       setPhase({ name: "ready" });
       // Realtime acceleration is best-effort: sync already works without it.
       try {
@@ -178,6 +208,21 @@ export function useWorkspaceConnection(): WorkspaceConnection {
         });
         return;
       }
+      if (err instanceof AdoptionOfferError) {
+        // The open paused before any client was created: an offline-created
+        // workspace with local content meets a server that has never seen it.
+        // The App renders the adoption offer over the connecting screen;
+        // confirm reconnects (the create publishes the wrap), decline
+        // re-opens with declinedAdoption (plaintext, zero writes).
+        setAdoptionRequest({
+          url: err.url,
+          credential: err.credential,
+          workspaceId: err.workspaceId,
+          name: err.workspaceName,
+          credentialType: err.credentialType,
+        });
+        return;
+      }
       setPhase({ name: "server" });
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -188,6 +233,7 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     clientRef.current = null;
     live?.close();
     setClient(null);
+    setWorkspacePlaintext(false);
   }
 
   return {
@@ -198,12 +244,15 @@ export function useWorkspaceConnection(): WorkspaceConnection {
     storeReason,
     unlockRequest,
     setUnlockRequest,
+    adoptionRequest,
+    setAdoptionRequest,
     connectProgress,
     connectProgressFraction,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,
     setWorkspaceName,
+    workspacePlaintext,
     phase,
     setPhase,
     error,

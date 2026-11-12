@@ -20,10 +20,13 @@
  * ellipsis) are IDENTITY DISPLAY ONLY — the name is NOT a button. NOTHING
  * else in the body — no chevron, no expansion, no inline fields, no drag.
  * Inactive bindings dim the name (the only disabled cue). Hover reveals
- * exactly THREE right-side affordances (no row tint, no
+ * exactly FOUR right-side affordances (no row tint, no
  * name-hover glow, no grip): the PIN toggle (pin/unpin the property —
  * writes class.property.set {pinned} so the property joins/leaves the
- * pinned first tier), the COG (definition settings — opens the S2
+ * pinned first tier), the EYE toggle (show/hide the bound value in the
+ * node's picker/search row — writes class.property.set {showInNodeRows},
+ * the node-row preview flag; a flagged row shows a filled eye at rest),
+ * the COG (definition settings — opens the S2
  * base-definition modal, PropertyEditModal, where the default editor lives
  * now, at the schema level; present even for system property schemas) and
  * the REMOVE × (the section-level danger confirm; hidden for system
@@ -189,6 +192,7 @@ function BindingRow({
   binding,
   schema,
   onTogglePinned,
+  onTogglePreview,
   onOpenDefinition,
   onRemoveRequest,
 }: {
@@ -196,6 +200,9 @@ function BindingRow({
   schema: ClientPropertySchema | undefined;
   /** Pin/unpin — writes class.property.set {pinned} (the tier toggle). */
   onTogglePinned: () => void;
+  /** Show/hide the bound value in node picker/search rows — writes
+   *  class.property.set {showInNodeRows} (the node-row preview flag). */
+  onTogglePreview: () => void;
   /** The row's single action — opens the S2 base-definition modal. */
   onOpenDefinition: () => void;
   /** "Remove from class" — the section-level danger confirm. */
@@ -212,9 +219,11 @@ function BindingRow({
       {/* The row body is IDENTITY DISPLAY ONLY (the
           name is not a button — a text-looking row must not pretend to be
           clickable; the explicit COG below is the affordance). The row's
-          THREE hover surfaces (no row tint, no grip): the PIN toggle
+          FOUR hover surfaces (no row tint, no grip): the PIN toggle
           (pin/unpin — the tier membership, a filled pin shows at rest on
-          pinned rows), the COG
+          pinned rows), the EYE toggle (show/hide the bound value in node
+          rows — the node-row preview flag, a filled eye shows at rest on
+          flagged rows), the COG
           (definition settings — the S2 base-definition modal, where the
           default editor lives now at the schema level) and the REMOVE ×
           (the section-level danger confirm; hidden for system property
@@ -226,6 +235,22 @@ function BindingRow({
           </span>
           <span className="nt-propdef-name">{name}</span>
         </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={binding.showInNodeRows ? "mdi-eye" : "mdi-eye-outline"}
+          className={`nt-propdef-preview${binding.showInNodeRows ? " nt-propdef-preview--on" : ""}`}
+          aria-label={
+            binding.showInNodeRows
+              ? `Hide ${name} from node rows`
+              : `Show ${name} in node rows`
+          }
+          aria-pressed={binding.showInNodeRows}
+          onClick={(event) => {
+            event.stopPropagation();
+            onTogglePreview();
+          }}
+        />
         <Button
           variant="ghost"
           size="sm"
@@ -324,6 +349,14 @@ export function PropertyDefinitionsSection({
     void client.setClassProperty(classId, binding.propertySchemaId, { pinned: !binding.pinned });
   };
 
+  /** Show/hide the bound value in node picker/search rows — the node-row
+   *  preview flag (a per-binding toggle, extends-inherited like the pin). */
+  const togglePreview = (binding: ClassBinding) => {
+    void client.setClassProperty(classId, binding.propertySchemaId, {
+      showInNodeRows: !binding.showInNodeRows,
+    });
+  };
+
   /** The "Create …" row opens the S1 modal pre-filled (no instant bind). */
   const createFromQuery = () => {
     setPickerOpen(false);
@@ -376,6 +409,7 @@ export function PropertyDefinitionsSection({
                   .listPropertySchemas()
                   .find((s) => s.id === binding.propertySchemaId)}
                 onTogglePinned={() => togglePinned(binding)}
+                onTogglePreview={() => togglePreview(binding)}
                 onOpenDefinition={() => setEditFor(binding.propertySchemaId)}
                 onRemoveRequest={() => setRemoveFor(binding)}
               />

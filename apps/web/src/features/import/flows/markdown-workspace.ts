@@ -15,6 +15,7 @@ import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import { parseLogseqMd, type LogseqMdBlock } from "@notees/export";
 
 import { createWorkspace } from "@/core/auth-api.js";
+import { keyBundleForCreate } from "@/core/crypto-custody.js";
 import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { createNodeWithId } from "../import-writes.js";
 
@@ -45,8 +46,14 @@ export async function importMarkdownWorkspace(
   options: ImportMarkdownWorkspaceOptions,
 ): Promise<MarkdownWorkspaceReport> {
   const { serverUrl, credential, name } = options;
-  const workspaceId =
-    options.workspaceId ?? (await createWorkspace(serverUrl, credential, name)).id;
+  let workspaceId = options.workspaceId;
+  if (workspaceId === undefined) {
+    // Keyless (API-key session): null bundle → the create POSTs WITHOUT a
+    // wrappedKey and the server decides (422 keying_required hatch on /
+    // legacy 201 hatch off) — this flow's rejection carries the answer.
+    const bundle = await keyBundleForCreate();
+    workspaceId = (await createWorkspace(serverUrl, credential, name, bundle?.wrappedKey)).id;
+  }
 
   // The side client rides the ordinary HTTP sync path, exactly like the
   // app's own in-process connect branch (store-connection.ts).

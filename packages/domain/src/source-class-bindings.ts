@@ -43,12 +43,18 @@ import type { SystemClassName, SystemPropertyName } from "./seeds.js";
 
 /**
  * One source-class binding entry: a bare property name (every entry today),
- * or a ref carrying the binding row's tier flag — `pinned` (additive
+ * or a ref carrying the binding row's flags — `pinned` (additive
  * 2026-10-27, see `SystemPropertySpec.pinned`: pinned properties render
- * first, alphabetical within each tier). Wiring only: no entry pins
- * anything yet.
+ * first, alphabetical within each tier) and `showInNodeRows` (additive
+ * 2026-11-08, see `SystemPropertySpec.showInNodeRows`: the bound value
+ * renders in the node's row). Wiring only: no entry pins or previews
+ * anything — the source family's preview flags ride the BASE rows
+ * (authors/publicationDate on `source`, extends-aware to every
+ * type-class), never per-subclass rows.
  */
-export type SystemSourceBindingRef = SystemPropertyName | { property: SystemPropertyName; pinned?: boolean };
+export type SystemSourceBindingRef =
+  | SystemPropertyName
+  | { property: SystemPropertyName; pinned?: boolean; showInNodeRows?: boolean };
 
 /** The bound property name of one binding entry (bare name or ref). */
 export function sourceBindingPropertyOf(ref: SystemSourceBindingRef): SystemPropertyName {

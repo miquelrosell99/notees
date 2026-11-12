@@ -166,6 +166,7 @@ function sourceSeedEnvelopes(): Envelope[] {
           classId: SYSTEM_CLASS_UUIDS.source,
           propertySchemaId: SYSTEM_PROPERTY_UUIDS[name],
           ...(spec!.pinned !== undefined ? { pinned: spec!.pinned } : {}),
+          ...(spec!.showInNodeRows !== undefined ? { showInNodeRows: spec!.showInNodeRows } : {}),
         },
         step(),
       ),
@@ -183,6 +184,7 @@ function sourceSeedEnvelopes(): Envelope[] {
           classId: SYSTEM_CLASS_UUIDS[extra.bindTo],
           propertySchemaId: SYSTEM_PROPERTY_UUIDS[extra.property],
           ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
+          ...(extra.showInNodeRows !== undefined ? { showInNodeRows: extra.showInNodeRows } : {}),
         },
         step(),
       ),
@@ -382,6 +384,41 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         for (const ref of properties) {
           expect(
             pinnedOf(name as SystemClassName, sourceBindingPropertyOf(ref)),
+            `${name} → ${sourceBindingPropertyOf(ref)}`,
+          ).toBe(0);
+        }
+      }
+    });
+
+    it("seed node-row preview flags land on the right binding rows — and ONLY those (2026-11-08 declaration)", () => {
+      const store = makeStore();
+      seedStore(store);
+      const previewOf = (className: SystemClassName, property: SystemPropertyName): number =>
+        (
+          store.database
+            .prepare(
+              "SELECT show_in_node_rows FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            )
+            .get(SYSTEM_CLASS_UUIDS[className], SYSTEM_PROPERTY_UUIDS[property]) as
+            | { show_in_node_rows: number }
+            | undefined
+        )?.show_in_node_rows ?? -1;
+
+      // The source base's declared preview set: authors/publicationDate
+      // ride the flag; the rest of the base family stays without it.
+      expect(previewOf("source", "authors")).toBe(1);
+      expect(previewOf("source", "publicationDate")).toBe(1);
+      for (const property of ["citekey", "doi", "linkedAuthors", "url", "isbn", "publisher", "editors", "attachments"] as SystemPropertyName[]) {
+        expect(previewOf("source", property), `source → ${property}`).toBe(0);
+      }
+      // web_page's OWN url row (the extra binding) previews nothing.
+      expect(previewOf("web_page", "url")).toBe(0);
+      // Every type-class source binding row stays without the preview (the
+      // base rows carry it — extends-aware resolution supplies it).
+      for (const [name, properties] of Object.entries(SYSTEM_SOURCE_CLASS_BINDINGS)) {
+        for (const ref of properties) {
+          expect(
+            previewOf(name as SystemClassName, sourceBindingPropertyOf(ref)),
             `${name} → ${sourceBindingPropertyOf(ref)}`,
           ).toBe(0);
         }

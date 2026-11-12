@@ -272,20 +272,39 @@
 
 .nt-apikey-new {
   display: flex;
-  gap: var(--spacing-2);
+  flex-direction: column;
+  gap: var(--spacing-3);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-3);
 }
 
-.nt-apikey-new input {
-  flex: 1;
+.nt-apikey-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-2-5);
+}
+
+.nt-apikey-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-apikey-new input[type="text"],
+.nt-apikey-new input[type="password"] {
   font: inherit;
   padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--md-sys-color-outline);
-  border-radius: var(--shape-extra-large);
+  border-radius: var(--shape-medium);
   background: var(--md-sys-color-background);
   color: var(--md-sys-color-on-surface);
 }
 
 .nt-apikey-new button {
+  align-self: flex-start;
   border: 1px solid var(--md-sys-color-primary);
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
@@ -296,6 +315,71 @@
 
 .nt-apikey-new button:disabled {
   opacity: 0.55;
+}
+
+.nt-apikey-badges {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-wrap: wrap;
+}
+
+.nt-apikey-badge {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+  padding: 0 var(--spacing-1-5);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-apikey-badge-machine {
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-primary);
+}
+
+.nt-apikey-access {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+}
+
+.nt-apikey-access legend {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0;
+  margin-bottom: var(--spacing-1);
+}
+
+.nt-apikey-acl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.nt-apikey-acl th {
+  text-align: left;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-weight: 500;
+}
+
+.nt-apikey-acl td {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.nt-apikey-acl td.nt-apikey-acl-check {
+  text-align: center;
+  width: 3em;
+}
+
+.nt-apikey-seal-note {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-apikey-fresh {

@@ -66,6 +66,14 @@ export interface QuickCreateClient {
   getClassMembers(classId: string): ClientNode[];
   listPropertySchemas(): ClientPropertySchema[];
   /**
+   * Uncached alias of listPropertySchemas for write-time decisions (the
+   * flush's staged-kind re-derivation) — never the render cache, whose
+   * cold key would leave a datetime row staged as text. Both full clients
+   * carry the raw-RPC / in-process variant; minimal hosts omit it and the
+   * flush falls back to their sync read (already fresh in-process).
+   */
+  listPropertySchemasFresh?(): Promise<ClientPropertySchema[]>;
+  /**
    * The class's bound properties (extends-aware, alphabetical by property
    * name — the staged form's row source).
    */
@@ -315,8 +323,10 @@ export function stagedBindingsOf(client: AnyClient, classId: string): StagedProp
     const lineage = collectSelfAndAncestors(client, classId);
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       if (spec === undefined || spec.bindTo === undefined || spec.bind === false) continue;
-      const bindClassId = SYSTEM_CLASS_UUIDS[spec.bindTo];
-      if (!lineage.has(bindClassId)) continue;
+      // A list-valued bindTo (the multi-class bind — `repeat`) binds when ANY
+      // bound class is in the lineage.
+      const bindTargets = Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
+      if (!bindTargets.some((className) => lineage.has(SYSTEM_CLASS_UUIDS[className]))) continue;
       const id = SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS];
       if (byId.has(id)) continue;
       const schema = schemaOf(id);
@@ -331,6 +341,7 @@ export function stagedBindingsOf(client: AnyClient, classId: string): StagedProp
         dateQualified: null,
         active: true,
         pinned: spec.pinned ?? false,
+        showInNodeRows: spec.showInNodeRows ?? false,
       });
     }
   }
@@ -374,6 +385,7 @@ export function stagedPrefillRowsOf(
         dateQualified: null,
         active: true,
         pinned: spec?.pinned ?? false,
+        showInNodeRows: spec?.showInNodeRows ?? false,
       },
       schema,
     });
@@ -677,9 +689,16 @@ export async function flushClassedCreate(
   // a caller that staged entries before the self-heal (the add-source
   // dialog's direct create on a fresh/offline workspace) typed unknown
   // schemas as text — publicationDate must stage as a DATE once the
-  // datetime schema is real, or the property write fails loud.
+  // datetime schema is real, or the property write fails loud. The read is
+  // FRESH (never the render cache): a cold cache's [] would leave a
+  // datetime row staged as text — a lawless property write.
   {
-    const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+    const fresh = client.listPropertySchemasFresh;
+    const schemas = new Map(
+      (await (fresh !== undefined ? fresh.call(client) : client.listPropertySchemas())).map(
+        (schema) => [schema.id, schema],
+      ),
+    );
     for (const entry of entries) {
       const schema = schemas.get(entry.row.binding.propertySchemaId);
       if (schema === undefined) continue;
@@ -750,7 +769,12 @@ export async function ensureCitationFamily(
     "familyName",
     ...venueKeys.filter((key): key is SystemPropertyName => key in SYSTEM_PROPERTY_UUIDS),
   ];
-  const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
+  const freshSchemas = client.listPropertySchemasFresh;
+  const have = new Set(
+    (await (freshSchemas !== undefined ? freshSchemas.call(client) : client.listPropertySchemas())).map(
+      (schema) => schema.id,
+    ),
+  );
   // True when the class-local venue binding row is already authored (the
   // class.property.set upsert is idempotent, but a skipped no-op is quieter).
   const venueBound = (schemaId: string): boolean =>
@@ -775,7 +799,14 @@ export async function ensureCitationFamily(
       continue;
     }
     if (spec === undefined) continue;
-    const bindTo = spec.bindTo !== undefined ? SYSTEM_CLASS_UUIDS[spec.bindTo] : undefined;
+    // A list-valued bindTo (the multi-class bind — `repeat`) scopes the
+    // schema to every bound class.
+    const bindToIds =
+      spec.bindTo === undefined
+        ? []
+        : (Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo]).map(
+            (className) => SYSTEM_CLASS_UUIDS[className],
+          );
     await client.createPropertySchema({
       id,
       name: SYSTEM_PROPERTY_DISPLAY_NAMES[key],
@@ -783,7 +814,7 @@ export async function ensureCitationFamily(
       ...(spec.multi === true ? { multi: true } : {}),
       // Scoped to the bound class (the sole locality authority) unless the seed declares the schema global (url is the
       // precedent — global schema, binding row on the family base).
-      ...(spec.global === true || bindTo === undefined ? {} : { scopeClassIds: [bindTo] }),
+      ...(spec.global === true || bindToIds.length === 0 ? {} : { scopeClassIds: bindToIds }),
       ...(spec.targetClassFilter !== undefined
         ? {
             targetClassFilter: spec.targetClassFilter.map(
@@ -801,8 +832,12 @@ export async function ensureCitationFamily(
       // A carried venue field binds class-locally (the pool's bind: false
       // contract — visibility rides the picked class, not the family base).
       await client.setClassProperty(bindVenueToClassId, id, {});
-    } else if (bindTo !== undefined && spec.bind !== false) {
-      await client.setClassProperty(bindTo, id, {});
+    } else if (spec.bind !== false) {
+      // A bound spec seeds a class_property row per bound class (the
+      // multi-class bind — `repeat` — lands on every list member).
+      for (const bindClassId of bindToIds) {
+        await client.setClassProperty(bindClassId, id, {});
+      }
     }
   }
 }

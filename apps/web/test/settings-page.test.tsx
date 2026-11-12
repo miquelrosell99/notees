@@ -338,12 +338,19 @@ describe("SettingsPage", () => {
   });
 
   it("manages API keys against the real endpoints in the Account section", async () => {
+    const { createKdfRecord, generateMasterKey } = await import("@notees/protocol");
+    const kdf = await createKdfRecord(await generateMasterKey(), "correct horse battery staple");
     interface Key {
       id: string;
       name: string;
-      revokedAt: null;
+      revokedAt: number | null;
+      scopes: string[] | null;
+      machine: boolean;
     }
-    let keys: Key[] = [{ id: "k1", name: "laptop CLI", revokedAt: null }];
+    let keys: Key[] = [
+      { id: "k1", name: "laptop CLI", revokedAt: null, scopes: null, machine: false },
+      { id: "k0", name: "retired probe", revokedAt: 1_700_000_000_000, scopes: null, machine: false },
+    ];
     const envelope = (k: Key) => ({
       id: k.id,
       userId: "u1",
@@ -352,21 +359,30 @@ describe("SettingsPage", () => {
       createdAt: 0,
       lastUsedAt: null,
       revokedAt: k.revokedAt,
+      scopes: k.scopes,
+      machine: k.machine,
     });
-    const calls: { url: string; method: string }[] = [];
+    const calls: { url: string; method: string; body: string | null }[] = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
         const method = init?.method ?? "GET";
-        calls.push({ url, method });
+        calls.push({ url, method, body: (init?.body as string) ?? null });
         if (url.endsWith("/api/api-keys") && method === "GET") {
           return Response.json({ apiKeys: keys.map(envelope) });
         }
         if (url.endsWith("/api/api-keys") && method === "POST") {
-          const created: Key = { id: "k2", name: "desktop CLI", revokedAt: null };
+          const created: Key = { id: "k2", name: "desktop CLI", revokedAt: null, scopes: null, machine: false };
           keys = [...keys, created];
           return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
+        }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
         }
         if (url.endsWith("/api/api-keys/k1") && method === "DELETE") {
           keys = keys.filter((k) => k.id !== "k1");
@@ -378,17 +394,31 @@ describe("SettingsPage", () => {
 
     renderPage({ section: "account" });
 
-    // Existing key listed.
+    // Existing key listed: legacy keys carry the password-gated badge; the
+    // scope chips render.
     expect(await screen.findByText("laptop CLI")).toBeInTheDocument();
+    expect(screen.getByText("password-gated (legacy)")).toBeInTheDocument();
+    expect(screen.getByText("full access")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Read objects" })).toBeInTheDocument();
+    // Revoked keys are history — the list shows the live set only.
+    expect(screen.queryByText("retired probe")).not.toBeInTheDocument();
 
-    // Create a new key: POST /api-keys, secret shown once.
+    // Create a new key: password seals it (custody installed), secret shown once.
     fireEvent.change(screen.getByPlaceholderText(/key name/i), {
       target: { value: "desktop CLI" },
     });
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /create key/i }));
     expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
+    const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
+    expect(create).toBeDefined();
+    // The default is every permission on → full access: no scope list rides.
+    expect(JSON.parse(String(create?.body))).toEqual({ name: "desktop CLI" });
+    // Custody installed under the same flow.
     expect(
-      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys")),
+      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys/k2/custody")),
     ).toBe(true);
 
     // Revoke the first key: inline confirmation, then DELETE.
@@ -399,6 +429,184 @@ describe("SettingsPage", () => {
       calls.some((c) => c.method === "DELETE" && c.url.endsWith("/api/api-keys/k1")),
     ).toBe(true);
   });
+
+  it("scoped keys: chip selection posts the scope list and rows render scope badges", async () => {
+    const { createKdfRecord, generateMasterKey } = await import("@notees/protocol");
+    const kdf = await createKdfRecord(await generateMasterKey(), "correct horse battery staple");
+    interface Key {
+      id: string;
+      name: string;
+      revokedAt: null;
+      scopes: string[] | null;
+      machine: boolean;
+    }
+    let keys: Key[] = [
+      { id: "k1", name: "export bot", revokedAt: null, scopes: ["objects.read", "export"], machine: false },
+    ];
+    const envelope = (k: Key) => ({
+      id: k.id,
+      userId: "u1",
+      name: k.name,
+      prefix: "nk_ab",
+      createdAt: 0,
+      lastUsedAt: null,
+      revokedAt: k.revokedAt,
+      scopes: k.scopes,
+      machine: k.machine,
+    });
+    const calls: { url: string; method: string; body: string | null }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: (init?.body as string) ?? null });
+        if (url.endsWith("/api/api-keys") && method === "GET") {
+          return Response.json({ apiKeys: keys.map(envelope) });
+        }
+        if (url.endsWith("/api/api-keys") && method === "POST") {
+          const body = JSON.parse(String(init?.body)) as { scopes?: string[] };
+          const created: Key = {
+            id: "k2",
+            name: "reader",
+            revokedAt: null,
+            scopes: body.scopes ?? null,
+            machine: false,
+          };
+          keys = [...keys, created];
+          return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
+        }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    renderPage({ section: "account" });
+    expect(await screen.findByText("export bot")).toBeInTheDocument();
+    // The label appears twice: the row's scope badge and the ACL table row.
+    // (The checkbox itself is matched by role + accessible name.)
+    expect(screen.getAllByText("Read objects")).toHaveLength(2);
+    expect(screen.getAllByText("Export")).toHaveLength(2);
+
+    // Every permission starts on (full access). Uncheck two → create (with
+    // the seal password) → the POST carries the remaining allow-list.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Admin" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Upload assets" }));
+    fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "reader" } });
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create key/i }));
+    await screen.findByText(/copy it now/i);
+    const create = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/api-keys"));
+    expect(JSON.parse(String(create?.body))).toEqual({
+      name: "reader",
+      scopes: ["objects.read", "objects.write", "objects.delete", "assets.read", "search", "export"],
+    });
+  });
+
+  it("custody is the norm: a mint seals the key, legacy rows wear the password-gated badge", async () => {
+    const {
+      b64uDecode,
+      createKdfRecord,
+      deriveMachineKey,
+      generateMasterKey,
+      importMasterKey,
+      masterKeyFp,
+      unwrapWorkspaceKey,
+    } = await import("@notees/protocol");
+    const master = await generateMasterKey();
+    const kdf = await createKdfRecord(master, "correct horse battery staple");
+    const expectedFp = masterKeyFp(new Uint8Array(await crypto.subtle.exportKey("raw", master)));
+
+    interface Key {
+      id: string;
+      name: string;
+      scopes: string[] | null;
+      machine: boolean;
+    }
+    let keys: Key[] = [
+      { id: "k1", name: "ci bot", scopes: null, machine: true },
+      { id: "k0", name: "old key", scopes: null, machine: false },
+    ];
+    const envelope = (k: Key) => ({
+      id: k.id,
+      userId: "u1",
+      name: k.name,
+      prefix: "nk_ab",
+      createdAt: 0,
+      lastUsedAt: null,
+      revokedAt: null,
+      scopes: k.scopes,
+      machine: k.machine,
+    });
+    const calls: { url: string; method: string; body: string | null }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: (init?.body as string) ?? null });
+        if (url.endsWith("/api/api-keys") && method === "GET") {
+          return Response.json({ apiKeys: keys.map(envelope) });
+        }
+        if (url.endsWith("/api/api-keys") && method === "POST") {
+          const created: Key = { id: "k2", name: "ci bot 2", scopes: null, machine: false };
+          keys = [...keys, created];
+          return Response.json({ apiKey: envelope(created), token: "nk_machine_token_000000000000000000" });
+        }
+        if (url.endsWith("/api/auth/unlock") && method === "POST") {
+          return Response.json({ kdf });
+        }
+        if (url.endsWith("/api/api-keys/k2/custody") && method === "POST") {
+          keys = keys.map((k) => (k.id === "k2" ? { ...k, machine: true } : k));
+          return new Response(null, { status: 204 });
+        }
+        return new Response("unexpected", { status: 500 });
+      }),
+    );
+
+    renderPage({ section: "account" });
+    // Custody-carrying keys wear no badge (the norm); the legacy one is flagged.
+    expect(await screen.findByText("ci bot")).toBeInTheDocument();
+    expect(screen.getByText("old key")).toBeInTheDocument();
+    expect(screen.getByText("password-gated (legacy)")).toBeInTheDocument();
+    expect(screen.queryByText("machine")).not.toBeInTheDocument();
+
+    // Mint: the seal password is required before submit is enabled.
+    fireEvent.change(screen.getByPlaceholderText(/key name/i), { target: { value: "ci bot 2" } });
+    expect(screen.getByRole("button", { name: /create key/i })).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText(/seals the key/i), {
+      target: { value: "correct horse battery staple" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create key/i }));
+    expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
+
+    // The unlock oracle checked the password (with the account email)…
+    const unlockCall = calls.find((c) => c.url.endsWith("/api/auth/unlock"));
+    expect(JSON.parse(String(unlockCall?.body))).toEqual({
+      email: "ada@example.com",
+      password: "correct horse battery staple",
+    });
+    // …and the installed wrap opens under a key derived from the once-shown
+    // token, reproducing the account master key.
+    const install = calls.find((c) => c.url.endsWith("/api/api-keys/k2/custody"));
+    expect(install).toBeDefined();
+    const record = JSON.parse(String(install?.body)) as { salt: string; wrappedMaster: string };
+    const machineKey = await importMasterKey(
+      deriveMachineKey("nk_machine_token_000000000000000000", b64uDecode(record.salt)),
+    );
+    const reopened = await unwrapWorkspaceKey(machineKey, record.wrappedMaster);
+    const reopenedBytes = new Uint8Array(await crypto.subtle.exportKey("raw", reopened as never));
+    expect(masterKeyFp(reopenedBytes)).toBe(expectedFp);
+  });
+
 
   it("signs out from the Account section", () => {
     stubFetch({});

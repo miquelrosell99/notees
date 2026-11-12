@@ -253,12 +253,3 @@
 .date-picker-remove:hover {
   background: var(--md-sys-color-hover-overlay);
 }
-
-/* ==================== Repeat row ==================== */
-.date-picker-repeat-row {
-  justify-content: flex-start;
-}
-
-.date-picker-repeat-row .nt-repeat-trigger {
-  font: var(--font-body-small);
-}

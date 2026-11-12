@@ -20,6 +20,7 @@ import type { WebSocket } from "ws";
 
 import type { Envelope } from "@notees/protocol";
 import type { ServerContext } from "./context.js";
+import { KEYING_EXEMPT_WORKSPACE_IDS } from "./auth.js";
 import { AppError } from "./errors.js";
 import type { Principal } from "./identity.js";
 import { resolvePrincipal, rethrowImageError } from "./routes-auth.js";
@@ -142,7 +143,9 @@ export function authorizeWorkspace(
     // also how a migrated workspace (data present, no membership rows yet)
     // is claimed by its owner. Migration assigns memberships explicitly.
     try {
-      ctx.auth.createWorkspace({ id: workspaceId });
+      // The direct log-ingest path — the only creation path allowed to mint
+      // the seeded demo fixtures (the keying allowlist, see auth.ts).
+      ctx.auth.createWorkspace({ id: workspaceId }, { fixtureAllowlist: KEYING_EXEMPT_WORKSPACE_IDS });
     } catch {
       // UNIQUE conflict: the workspace row already exists.
     }

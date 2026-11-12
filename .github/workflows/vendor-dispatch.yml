@@ -1,0 +1,25 @@
+name: vendor-dispatch
+
+# This repo's main moved: notify the clients that vendor the core through a
+# pinned vendor/notees submodule. Post-ADR-001 that is notees-cli only —
+# the web client lives in this repo and consumes the packages directly.
+# Requires the VENDOR_DISPATCH_TOKEN secret — a fine-grained PAT with
+# Contents: write on miquelrosell99/notees-cli. When the secret is unset
+# this is a silent no-op (the CLI's weekly scheduled vendor-bump is the
+# drift net), and a failed dispatch never fails this workflow — a main
+# push is never blocked on client bookkeeping.
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Notify notees-cli
+        if: ${{ secrets.VENDOR_DISPATCH_TOKEN != '' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.VENDOR_DISPATCH_TOKEN }}
+        run: gh api -X POST repos/miquelrosell99/notees-cli/dispatches -f event_type=notees-sync-updated -F "client_payload[sha]=${{ github.sha }}"

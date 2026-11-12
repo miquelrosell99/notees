@@ -3,13 +3,14 @@
  * recurring task's occurrence (the calendar day view's checkbox before the
  * 2026-10-23 outline-collections pass retired it — the write path is
  * shared, still driven by the day page's Tasks section and the tasks hub)
- * records the DATE in the taskScheduled value's metadata
- * (`completedOccurrences`) instead of the node-level status — the occurrence
- * renders done on that day while every other occurrence stays open, and
- * reopening removes the date. Occurrences stay virtual (no nodes). A plain
- * task's toggle keeps the hub's exact status write. Harness: in-process
- * WorkspaceClient + MemoryRelay; the write path is exercised directly
- * (`setTaskDone`, the same call the checkbox surfaces make).
+ * records the DATE in the Repeat value's metadata (`completedOccurrences`)
+ * instead of the node-level status — the occurrence renders done on that
+ * day while every other occurrence stays open, and reopening removes the
+ * date. The rule itself rides the Repeat value, untouched by the toggle.
+ * Occurrences stay virtual (no nodes). A plain task's toggle keeps the
+ * hub's exact status write. Harness: in-process WorkspaceClient +
+ * MemoryRelay; the write path is exercised directly (`setTaskDone`, the
+ * same call the checkbox surfaces make).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -54,6 +55,8 @@ async function seedClient(): Promise<WorkspaceClient> {
   return client;
 }
 
+const WEEKLY_RRULE = "RRULE:FREQ=WEEKLY";
+
 /** A weekly task anchored two weeks ago (today is an occurrence). */
 async function makeRecurringTask(client: WorkspaceClient, name: string): Promise<string> {
   const id = await client.createObject({
@@ -66,15 +69,16 @@ async function makeRecurringTask(client: WorkspaceClient, name: string): Promise
     SYSTEM_PROPERTY_UUIDS.taskScheduled,
     { iso: addDaysIso(todayIsoLocal(), -14) },
     0,
-    { repeat: "weekly" },
   );
+  await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.repeat, WEEKLY_RRULE, 0);
   return id;
 }
 
-function scheduledValueOf(client: WorkspaceClient, id: string) {
+/** The node's authored Repeat row (the rule + completion metadata carrier). */
+function repeatRowOf(client: WorkspaceClient, id: string) {
   return client
     .getEffectiveProperties(id)
-    .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled);
+    .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat);
 }
 
 describe("per-occurrence completion", () => {
@@ -113,11 +117,11 @@ describe("per-occurrence completion", () => {
     await setTaskDone(client, statusSchema, id, true, today);
 
     await waitFor(() => {
-      expect(scheduledValueOf(client, id)?.metadata?.completedOccurrences).toEqual([today]);
+      expect(repeatRowOf(client, id)?.metadata?.completedOccurrences).toEqual([today]);
     });
-    // The repeat rule rides through; the node-level status stays untouched
-    // (no status value authored at all).
-    expect(scheduledValueOf(client, id)?.metadata?.repeat).toBe("weekly");
+    // The repeat rule rides through (the value verbatim, no metadata); the
+    // node-level status stays untouched (no status value authored at all).
+    expect(repeatRowOf(client, id)?.value).toBe(WEEKLY_RRULE);
     // No AUTHORED status (the bound-empty virtual row may show — the
     // virtual/realized ruling; the assertion is about the value).
     expect(
@@ -131,7 +135,7 @@ describe("per-occurrence completion", () => {
     expect(partitionOpenTasks(taskRowsOfId(client, id), today).scheduled[0]?.occurrenceDone).toBe(true);
     await setTaskDone(client, statusSchema, id, false, today);
     await waitFor(() => {
-      expect(scheduledValueOf(client, id)?.metadata?.completedOccurrences).toBeUndefined();
+      expect(repeatRowOf(client, id)?.metadata?.completedOccurrences).toBeUndefined();
     });
   });
 
@@ -159,7 +163,8 @@ describe("per-occurrence completion", () => {
           .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value,
       ).toBe(doneId);
     });
-    expect(scheduledValueOf(client, id)?.metadata?.completedOccurrences).toBeUndefined();
+    // A plain task has no Repeat row at all.
+    expect(repeatRowOf(client, id)).toBeUndefined();
   });
 
   it("a recurring task completes one occurrence at a time across days", async () => {
@@ -174,7 +179,7 @@ describe("per-occurrence completion", () => {
     // Complete today's occurrence.
     await setTaskDone(client, statusSchema, id, true, today);
     await waitFor(() => {
-      expect(scheduledValueOf(client, id)?.metadata?.completedOccurrences).toEqual([today]);
+      expect(repeatRowOf(client, id)?.metadata?.completedOccurrences).toEqual([today]);
     });
 
     // A week out: the next occurrence is still open — one row per series,

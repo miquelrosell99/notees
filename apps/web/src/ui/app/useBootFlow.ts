@@ -22,7 +22,7 @@ import {
   listWorkspaces,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
-import { clearCryptoCustody, restoreMasterKeyFromStorage } from "@/core/crypto-custody.js";
+import { clearCryptoCustody, ensureOfflineWorkspaceKey, restoreMasterKeyFromStorage } from "@/core/crypto-custody.js";
 import { rememberedWorkspaceName, rememberWorkspaceList } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, clearStored, readStored, writeStored } from "./storage.js";
 import type { CredentialType } from "./store-connection.js";
@@ -164,6 +164,14 @@ export function useBootFlow(
       }
       writeStored(STORAGE_KEYS.localWorkspaceId, localId);
     }
+    // Keyed at rest (Task 9): the offline workspace is born keyed — creation-
+    // time keying, deliberate like the create bundle, not the forbidden open-
+    // time keying. Custody restores the same key on every later open; a later
+    // online open of this id publishes the wrap under the master on the first
+    // password-session sync (store-connection). A non-secure context (plain-
+    // http LAN) rejects with the honest no-Web-Crypto message — BootForm's
+    // catch lands it on the form's error surface.
+    await ensureOfflineWorkspaceKey(localId);
     await connect(readStored(STORAGE_KEYS.serverUrl), "", localId, {
       isOffline: true,
       credentialType: "session",

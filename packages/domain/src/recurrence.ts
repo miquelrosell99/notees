@@ -1,13 +1,11 @@
 /**
- * Recurrence — the RRULE-lite grammar behind repeating calendar events
- * (COMPUTE-ON-READ — no new op, no wire
- * change).
+ * Recurrence — the RR5 grammar behind repeating calendar events and tasks
+ * (COMPUTE-ON-READ — no new op, no wire change).
  *
- * A recurrence rule lives as METADATA on the event's date value: the value's
- * `metadata.repeat` key carries the canonical grammar string, exactly like
- * the startDate/endDate qualifier precedent (SCHEMA.md "Dates"). The date
- * value's own day IS the series anchor — the anchor is never stored inside
- * the rule (one source of truth: the linked day node).
+ * A recurrence rule lives as the value of a node's dedicated Repeat property:
+ * an RFC-5545-style RRULE string over the supported subset ("RR5"). The
+ * driving date value's own day IS the series anchor — the anchor is never
+ * stored inside the rule (one source of truth: the linked day node).
  *
  * The calendar expands occurrences at READ time (occurrenceIsosOf); every
  * occurrence is VIRTUAL — no node per occurrence (design law: no hidden
@@ -16,59 +14,90 @@
  *
  * Canonical string grammar (the stored form):
  *
- *     <freq>            e.g. "daily", "weekdays"
- *     <freq>/<interval> e.g. "weekly/2" (every two weeks)
+ *     RRULE:FREQ=<freq>[;INTERVAL=<n>][;BYDAY=<days>][;BYMONTHDAY=<days>]
+ *                  [;COUNT=<n> | ;UNTIL=<day>]
  *
- *   <freq>    = "daily" | "weekly" | "weekdays" | "monthly" | "yearly"
- *   <interval> = integer 2..999 (1 is the default and is never written)
+ *   <freq>       = DAILY | WEEKLY | MONTHLY | YEARLY (required, uppercase)
+ *   INTERVAL     = integer 1..999 (default 1; omitted when 1)
+ *   BYDAY        = comma list of MO..SU (weekday(s) within the week)
+ *   BYMONTHDAY   = comma list of 1..31 (day(s) within the month)
+ *   COUNT        = integer ≥ 1 — end after N generated occurrences
+ *   UNTIL        = YYYYMMDD — inclusive last occurrence day
  *
- * Semantics (documented in SCHEMA.md, pinned by the test suite):
- *   - the anchor day is occurrence #0;
- *   - "daily"   = every <interval> days;
- *   - "weekly"  = every <interval> weeks on the anchor's weekday;
- *   - "weekdays"= every Mon–Fri (interval other than 1 is rejected — the
- *                 picker's minimal vocabulary, fail loud on "weekdays/2");
- *   - "monthly" = the anchor's day-of-month every <interval> months; a month
- *                 that lacks that day (Jan 31 → February) SKIPS, RRULE-style;
- *   - "yearly"  = the anchor's month-day every <interval> years (Feb 29 skips
- *                 non-leap years, the same rule);
- *   - expansion is capped: a window yielding more than `cap` occurrences
- *     TRUNCATES at `cap` (default RECURRENCE_DEFAULT_CAP) — reads stay
- *     bounded, callers size the window instead.
+ *   COUNT and UNTIL are mutually exclusive. One canonical key order (FREQ
+ *   first; INTERVAL; BYDAY; BYMONTHDAY; COUNT|UNTIL) — parse rejects any
+ *   other order and normalizes the list values (BYDAY into weekday order,
+ *   BYMONTHDAY ascending); format emits the canonical form, so format→parse
+ *   round-trips byte-identically.
  *
- * Parse is fail-loud (dates.ts idiom): garbage in throws, never a silent
- * non-recurring read.
+ * Semantics (pinned by the test suite):
+ *   - occurrence #1 is the anchor day itself — a day d ≥ anchor occurs iff:
+ *     (daily)   (d − anchor) % interval === 0;
+ *     (weekly)  floor((d − anchor)/7) % interval === 0 AND weekday(d) is in
+ *               BYDAY when set, else the anchor's weekday;
+ *     (monthly) whole-month diff % interval === 0 AND day-of-month(d) is in
+ *               BYMONTHDAY when set, else the anchor's day-of-month;
+ *     (yearly)  whole-year diff % interval === 0 AND same month+day as the
+ *               anchor (a Feb 29 anchor matches only leap years — never
+ *               clamped);
+ *   - a month without the BYMONTHDAY day SKIPS that month (day 31 in
+ *     February → no occurrence, RRULE-style);
+ *   - generated occurrences are then filtered: exdates remove days, COUNT
+ *     drops generated occurrences past the index (exdates do NOT shift COUNT
+ *     indices), UNTIL drops generated days past the bound (inclusive);
+ *   - expansion walks the requested window day by day (each day in
+ *     [max(anchor, fromIso), toIso] is tested), stopping at `cap`
+ *     (default RECURRENCE_DEFAULT_CAP) — reads stay bounded, callers size
+ *     the window.
+ *
+ * Parse is fail loud (dates.ts idiom): garbage in throws RecurrenceParseError,
+ * never a silent non-recurring read. Anything outside the subset (BYSETPOS,
+ * WKST, BYMONTH, …) is rejected outright — no backward compatibility.
  */
 
 import { parseIsoDate, type DateParts } from "./dates.js";
 
-export type RecurrenceFreq = "daily" | "weekly" | "weekdays" | "monthly" | "yearly";
+export type RecurrenceFreq = "daily" | "weekly" | "monthly" | "yearly";
 
-export const RECURRENCE_FREQS: readonly RecurrenceFreq[] = [
-  "daily",
-  "weekly",
-  "weekdays",
-  "monthly",
-  "yearly",
+export type RecurrenceWeekday = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU";
+
+/** Canonical weekday order — the BYDAY sort order. */
+export const RECURRENCE_WEEKDAYS: readonly RecurrenceWeekday[] = [
+  "MO",
+  "TU",
+  "WE",
+  "TH",
+  "FR",
+  "SA",
+  "SU",
 ];
 
-/** Largest accepted <interval> (2..999 when written explicitly). */
+/** Largest accepted INTERVAL. */
 export const RECURRENCE_MAX_INTERVAL = 999;
 
 /** Default occurrence cap for one expansion window (see occurrenceIsosOf). */
 export const RECURRENCE_DEFAULT_CAP = 366;
 
+/** A parsed RR5 rule. `until` is an inclusive ISO day (YYYY-MM-DD). */
 export interface RecurrenceRule {
   freq: RecurrenceFreq;
   /** Every Nth period; 1 = every period. */
   interval: number;
+  /** Weekday(s) within the week (WEEKLY; absent = the anchor's weekday). */
+  byday?: readonly RecurrenceWeekday[];
+  /** Day(s) within the month (MONTHLY; absent = the anchor's day-of-month). */
+  bymonthday?: readonly number[];
+  /** End after this many generated occurrences (exdates do not shift it). */
+  count?: number;
+  /** Inclusive last occurrence day (ISO YYYY-MM-DD). */
+  until?: string;
 }
 
 /**
  * A rule anchored at its series' first day — the expansion input. The anchor
- * is the carrying date value's own day (ISO YYYY-MM-DD), supplied by the
- * reader, never stored in the grammar. The recurrence EXCEPTIONS ride along
- * (the Google-calendar semantics): `exdates` are
+ * is the driving date value's own day (ISO YYYY-MM-DD), supplied by the
+ * reader, never stored in the rule. The recurrence EXCEPTIONS ride along on
+ * the Repeat value's metadata (the Google-calendar semantics): `exdates` are
  * occurrence days removed from the series (a deleted single occurrence, or
  * a day edited into an exception node) and `until` is the inclusive last
  * occurrence day (the bound a "this and following" split writes). Both
@@ -83,59 +112,277 @@ export interface RecurrenceSeries {
   until?: string;
 }
 
-const GRAMMAR =
-  /^(daily|weekly|weekdays|monthly|yearly)(?:\/(\d+))?$/;
+/** Fail-loud marker for every recurrence parse/read failure. */
+export class RecurrenceParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RecurrenceParseError";
+  }
+}
+
+const RRULE_PREFIX = "RRULE:";
+const YMD = /^(\d{4})(\d{2})(\d{2})$/;
+const POSITIVE_INT = /^\d+$/;
+
+const FREQ_BY_RRULE = new Map<string, RecurrenceFreq>([
+  ["DAILY", "daily"],
+  ["WEEKLY", "weekly"],
+  ["MONTHLY", "monthly"],
+  ["YEARLY", "yearly"],
+]);
+
+const RRULE_KEYS = ["FREQ", "INTERVAL", "BYDAY", "BYMONTHDAY", "COUNT", "UNTIL"];
+/** Canonical key order — FREQ first, then INTERVAL, BYDAY, BYMONTHDAY, COUNT|UNTIL.
+ * A Map (no inherited keys) so a segment naming an Object.prototype member is
+ * an unknown key, never a rank. */
+const KEY_ORDER = new Map<string, number>([
+  ["FREQ", 0],
+  ["INTERVAL", 1],
+  ["BYDAY", 2],
+  ["BYMONTHDAY", 3],
+  ["COUNT", 4],
+  ["UNTIL", 4],
+]);
+const WEEKDAY_SET: ReadonlySet<string> = new Set(RECURRENCE_WEEKDAYS);
+
+function weekdayOrder(a: RecurrenceWeekday, b: RecurrenceWeekday): number {
+  return RECURRENCE_WEEKDAYS.indexOf(a) - RECURRENCE_WEEKDAYS.indexOf(b);
+}
+
+/** A positive integer value in 1..max, fail loud. */
+function parseBoundedInt(value: string, key: string, max: number): number {
+  if (!POSITIVE_INT.test(value)) {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: ${key} must be a positive integer, got ${JSON.stringify(value)}`,
+    );
+  }
+  const n = Number(value);
+  if (n < 1 || n > max) {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: ${key} must be 1..${max}, got ${JSON.stringify(value)}`,
+    );
+  }
+  return n;
+}
+
+function parseByday(value: string): RecurrenceWeekday[] {
+  if (value === "") {
+    throw new RecurrenceParseError(`invalid recurrence rule: BYDAY must not be empty`);
+  }
+  const days: RecurrenceWeekday[] = [];
+  for (const token of value.split(",")) {
+    if (!WEEKDAY_SET.has(token)) {
+      throw new RecurrenceParseError(
+        `invalid recurrence rule: unknown BYDAY weekday ${JSON.stringify(token)} ` +
+          `(expected two-letter codes: ${RECURRENCE_WEEKDAYS.join(", ")})`,
+      );
+    }
+    const day = token as RecurrenceWeekday;
+    if (!days.includes(day)) days.push(day);
+  }
+  return days.sort(weekdayOrder);
+}
+
+function parseBymonthday(value: string): number[] {
+  if (value === "") {
+    throw new RecurrenceParseError(`invalid recurrence rule: BYMONTHDAY must not be empty`);
+  }
+  const days: number[] = [];
+  for (const token of value.split(",")) {
+    const day = parseBoundedInt(token, "BYMONTHDAY", 31);
+    if (!days.includes(day)) days.push(day);
+  }
+  return days.sort((a, b) => a - b);
+}
+
+/** UNTIL (YYYYMMDD) → inclusive ISO day, validated against the real calendar. */
+function parseUntil(value: string): string {
+  const match = YMD.exec(value);
+  if (match === null) {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: UNTIL must be a YYYYMMDD day, got ${JSON.stringify(value)}`,
+    );
+  }
+  const iso = `${match[1]}-${match[2]}-${match[3]}`;
+  try {
+    parseIsoDate(iso);
+  } catch {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: UNTIL is not a real calendar day: ${JSON.stringify(value)}`,
+    );
+  }
+  return iso;
+}
 
 /**
- * Parse the canonical grammar string. Throws on anything else — unknown
- * freq, malformed interval, interval above RECURRENCE_MAX_INTERVAL, or an
- * interval on "weekdays" — with the valid vocabulary in the message.
+ * Parse a canonical `RRULE:` string — keys in the canonical order (FREQ
+ * first, then INTERVAL, BYDAY, BYMONTHDAY, COUNT|UNTIL), uppercase, each at
+ * most once. Throws RecurrenceParseError on anything else — legacy
+ * `<freq>[/<n>]` forms, unknown keys, keys out of order, invalid values, and
+ * COUNT+UNTIL together — with the supported vocabulary in the message.
  */
 export function parseRecurrenceRule(text: unknown): RecurrenceRule {
   if (typeof text !== "string") {
-    throw new Error(`invalid recurrence rule: expected a string, got ${JSON.stringify(text)}`);
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: expected an RRULE string, got ${JSON.stringify(text)}`,
+    );
   }
-  const match = GRAMMAR.exec(text.trim());
-  if (match === null) {
-    throw new Error(
+  const trimmed = text.trim();
+  if (!trimmed.startsWith(RRULE_PREFIX)) {
+    throw new RecurrenceParseError(
       `invalid recurrence rule: ${JSON.stringify(text)} ` +
-        `(expected <freq> or <freq>/<interval>, freq one of: ${RECURRENCE_FREQS.join(", ")})`,
+        `(expected a canonical RRULE string, e.g. "RRULE:FREQ=WEEKLY")`,
     );
   }
-  const freq = match[1] as RecurrenceFreq;
-  const interval = match[2] === undefined ? 1 : Number(match[2]);
-  if (interval < 1 || interval > RECURRENCE_MAX_INTERVAL) {
-    throw new Error(
-      `invalid recurrence rule: interval must be 1..${RECURRENCE_MAX_INTERVAL}, got ${JSON.stringify(match[2])}`,
+  const body = trimmed.slice(RRULE_PREFIX.length);
+  if (body === "") {
+    throw new RecurrenceParseError(`invalid recurrence rule: ${JSON.stringify(text)} (FREQ required)`);
+  }
+
+  let freq: RecurrenceFreq | undefined;
+  let interval = 1;
+  let byday: RecurrenceWeekday[] | undefined;
+  let bymonthday: number[] | undefined;
+  let count: number | undefined;
+  let until: string | undefined;
+  let lastOrder = -1;
+
+  for (const segment of body.split(";")) {
+    const eq = segment.indexOf("=");
+    if (eq <= 0) {
+      throw new RecurrenceParseError(
+        `invalid recurrence rule: malformed segment ${JSON.stringify(segment)} in ${JSON.stringify(text)}`,
+      );
+    }
+    const key = segment.slice(0, eq);
+    const value = segment.slice(eq + 1);
+    const order = KEY_ORDER.get(key);
+    if (order === undefined) {
+      throw new RecurrenceParseError(
+        `invalid recurrence rule: unknown key ${JSON.stringify(key)} ` +
+          `(supported: ${RRULE_KEYS.join(", ")})`,
+      );
+    }
+    // Strictly increasing canonical order — this also rejects duplicates
+    // (COUNT and UNTIL share a slot and are mutually exclusive below).
+    if (order <= lastOrder) {
+      throw new RecurrenceParseError(
+        `invalid recurrence rule: keys out of canonical order in ${JSON.stringify(text)} ` +
+          `(expected FREQ first, then ${RRULE_KEYS.slice(1, 4).join(", ")}, then COUNT|UNTIL)`,
+      );
+    }
+    lastOrder = order;
+    switch (key) {
+      case "FREQ": {
+        const parsed = FREQ_BY_RRULE.get(value);
+        if (parsed === undefined) {
+          throw new RecurrenceParseError(
+            `invalid recurrence rule: unknown FREQ ${JSON.stringify(value)} ` +
+              `(expected ${[...FREQ_BY_RRULE.keys()].join(", ")})`,
+          );
+        }
+        freq = parsed;
+        break;
+      }
+      case "INTERVAL":
+        interval = parseBoundedInt(value, "INTERVAL", RECURRENCE_MAX_INTERVAL);
+        break;
+      case "BYDAY":
+        byday = parseByday(value);
+        break;
+      case "BYMONTHDAY":
+        bymonthday = parseBymonthday(value);
+        break;
+      case "COUNT":
+        count = parseBoundedInt(value, "COUNT", Number.MAX_SAFE_INTEGER);
+        break;
+      case "UNTIL":
+        until = parseUntil(value);
+        break;
+      default:
+        // Unreachable while the switch covers every KEY_ORDER entry — kept
+        // as the fail-loud backstop so an unknown key can never slip
+        // through silently.
+        throw new RecurrenceParseError(
+          `invalid recurrence rule: unknown key ${JSON.stringify(key)} ` +
+            `(supported: ${RRULE_KEYS.join(", ")})`,
+        );
+    }
+  }
+
+  if (freq === undefined) {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: ${JSON.stringify(text)} (FREQ required, first)`,
     );
   }
-  if (freq === "weekdays" && interval !== 1) {
-    throw new Error(`invalid recurrence rule: "weekdays" does not take an interval`);
+  if (count !== undefined && until !== undefined) {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: COUNT and UNTIL are mutually exclusive`,
+    );
   }
-  return { freq, interval };
+
+  const rule: RecurrenceRule = { freq, interval };
+  if (byday !== undefined) rule.byday = byday;
+  if (bymonthday !== undefined) rule.bymonthday = bymonthday;
+  if (count !== undefined) rule.count = count;
+  if (until !== undefined) rule.until = until;
+  return rule;
 }
 
-/** The canonical stored form: `<freq>`, or `<freq>/<interval>` when interval ≥ 2. */
+/** Inclusive ISO day → YYYYMMDD (the UNTIL wire form), fail loud. */
+function isoToYmd(iso: string): string {
+  let parts: DateParts;
+  try {
+    parts = parseIsoDate(iso);
+  } catch {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: until must be a YYYY-MM-DD day, got ${JSON.stringify(iso)}`,
+    );
+  }
+  return partsIso(parts).replaceAll("-", "");
+}
+
+/** The canonical stored form: one key order, normalized lists, COUNT|UNTIL. */
 export function formatRecurrenceRule(rule: RecurrenceRule): string {
-  return rule.interval >= 2 ? `${rule.freq}/${rule.interval}` : rule.freq;
+  if (rule.count !== undefined && rule.until !== undefined) {
+    throw new RecurrenceParseError(
+      `invalid recurrence rule: COUNT and UNTIL are mutually exclusive`,
+    );
+  }
+  const parts = [`FREQ=${rule.freq.toUpperCase()}`];
+  if (rule.interval !== 1) parts.push(`INTERVAL=${rule.interval}`);
+  if (rule.byday !== undefined && rule.byday.length > 0) {
+    parts.push(`BYDAY=${[...rule.byday].sort(weekdayOrder).join(",")}`);
+  }
+  if (rule.bymonthday !== undefined && rule.bymonthday.length > 0) {
+    parts.push(`BYMONTHDAY=${[...rule.bymonthday].sort((a, b) => a - b).join(",")}`);
+  }
+  if (rule.count !== undefined) parts.push(`COUNT=${rule.count}`);
+  else if (rule.until !== undefined) parts.push(`UNTIL=${isoToYmd(rule.until)}`);
+  return `${RRULE_PREFIX}${parts.join(";")}`;
 }
 
 /**
- * Read the rule out of a property value's metadata (the `repeat` key —
- * additive, the startDate/endDate precedent). Returns null when the key is
- * absent or null; a PRESENT but malformed value throws (fail loud — a
- * corrupt rule must never read back as "does not repeat").
+ * Read the rule out of a Repeat property VALUE (a plain RRULE string; a
+ * `{nodeId}` carrier must be resolved to text by the caller before reading).
+ * Returns null when the value is absent; a PRESENT but malformed value
+ * throws RecurrenceParseError (fail loud — a corrupt rule must never read
+ * back as "does not repeat").
  */
-export function recurrenceRuleOf(metadata: unknown): RecurrenceRule | null {
-  if (typeof metadata !== "object" || metadata === null) return null;
-  const repeat = (metadata as Record<string, unknown>).repeat;
-  if (repeat === undefined || repeat === null) return null;
-  return parseRecurrenceRule(repeat);
+export function recurrenceRuleOf(value: unknown): RecurrenceRule | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") {
+    throw new RecurrenceParseError(
+      `invalid recurrence value: expected an RRULE string (carrier values must be ` +
+        `resolved by the caller), got ${JSON.stringify(value)}`,
+    );
+  }
+  return parseRecurrenceRule(value);
 }
 
 // --- recurrence exceptions (the Google-calendar semantics) --
 //
-// Two additive metadata keys on the SAME date value that carries `repeat`
+// Two additive metadata keys on the SAME value that carries the Repeat rule
 // (the completedOccurrences precedent — no op, no wire change):
 //
 //   - `exdates`  — occurrence days removed from the series: a single deleted
@@ -181,13 +428,17 @@ export function untilOf(metadata: unknown): string | null {
 }
 
 /**
- * Assemble the full expansion input from a date value's metadata + its own
- * day: the rule (`repeat`), the exceptions (`exdates`), and the bound
- * (`until`). Null when the value does not repeat. Every reader is fail
- * loud, so a corrupt exception key throws here — never reads as "plain".
+ * Assemble the full expansion input: the rule (already read from the Repeat
+ * value by the caller) + the exceptions on the value's metadata + the anchor
+ * (the driving date value's own day). Null when the node carries no rule.
+ * Every exception reader is fail loud, so corrupt metadata throws here —
+ * never reads as "plain".
  */
-export function recurrenceSeriesOf(metadata: unknown, anchorIso: string): RecurrenceSeries | null {
-  const rule = recurrenceRuleOf(metadata);
+export function recurrenceSeriesOf(
+  rule: RecurrenceRule | null,
+  metadata: unknown,
+  anchorIso: string,
+): RecurrenceSeries | null {
   if (rule === null) return null;
   const exdates = exdatesOf(metadata);
   const until = untilOf(metadata);
@@ -213,11 +464,12 @@ export function withExdate(metadata: unknown, iso: string): Record<string, unkno
 
 /**
  * The multi-day span end (`metadata.endDate`) — the inclusive last day of a
- * datetime value's range (the value's OWN day is the start;, the deferred datetime-range ruling now shipped). Additive
- * metadata like `repeat` — no op, no wire change. Absent/null reads as
- * null (single-day value); present-but-malformed throws (fail loud). The
- * end day is NOT re-pointed: the value keeps referencing its start day
- * node, and reads expand the span client-side.
+ * datetime value's range (the value's OWN day is the start; the deferred
+ * datetime-range ruling now shipped). Additive metadata like the Repeat
+ * exceptions — no op, no wire change. Absent/null reads as null (single-day
+ * value); present-but-malformed throws (fail loud). The end day is NOT
+ * re-pointed: the value keeps referencing its start day node, and reads
+ * expand the span client-side.
  */
 export function spanEndOf(metadata: unknown): string | null {
   if (typeof metadata !== "object" || metadata === null) return null;
@@ -265,7 +517,7 @@ export function withUntil(metadata: unknown, iso: string | null): Record<string,
 /**
  * Per-occurrence completion: the dates of
  * individually completed occurrences, `metadata.completedOccurrences` on the
- * recurring date value — additive metadata like `repeat` itself, so no op,
+ * recurring value — additive metadata like the Repeat rule itself, so no op,
  * no wire change; occurrences stay virtual (no nodes). Absent/null reads as
  * the empty list; a PRESENT but malformed value (not an array of local ISO
  * day strings) throws — corrupt metadata never reads as "nothing completed".
@@ -306,10 +558,10 @@ export function completedOccurrencesOf(metadata: unknown): string[] {
 
 /**
  * The metadata for one occurrence-toggle: `iso` joins the list (done) or
- * leaves it (reopen). Every other key (the `repeat` rule, date qualifiers)
- * rides through untouched — the write replaces the slot's metadata, so the
- * helper never drops what it didn't touch. An empty result clears the key
- * (the grammar's absent-is-default convention).
+ * leaves it (reopen). Every other key (the Repeat rule's exceptions, date
+ * qualifiers) rides through untouched — the write replaces the slot's
+ * metadata, so the helper never drops what it didn't touch. An empty result
+ * clears the key (the grammar's absent-is-default convention).
  */
 export function withCompletedOccurrence(
   metadata: unknown,
@@ -328,6 +580,49 @@ export function withCompletedOccurrence(
   return base;
 }
 
+// --- legacy grammar → RR5 (the migration converter) -----------------------------
+
+const LEGACY_GRAMMAR = /^(daily|weekly|weekdays|monthly|yearly)(?:\/(\d+))?$/;
+
+/**
+ * Convert a retired `<freq>[/<n>]` grammar string to a canonical RRULE,
+ * deriving what the bare freqs implied from the anchor day: `weekly` →
+ * BYDAY on the anchor's weekday, `weekdays` → BYDAY=MO,TU,WE,TH,FR,
+ * `monthly` → BYMONTHDAY on the anchor's day-of-month (`daily`/`yearly`
+ * carry no weekday/monthday information). Throws RecurrenceParseError on
+ * unknown grammar — the converter is the migration's only legacy reader.
+ */
+export function legacyRecurrenceToRRule(grammar: string, anchorIso: string): string {
+  if (typeof grammar !== "string") {
+    throw new RecurrenceParseError(
+      `invalid legacy recurrence: expected a string, got ${JSON.stringify(grammar)}`,
+    );
+  }
+  const match = LEGACY_GRAMMAR.exec(grammar.trim());
+  if (match === null) {
+    throw new RecurrenceParseError(
+      `invalid legacy recurrence: ${JSON.stringify(grammar)} ` +
+        `(expected <freq> or <freq>/<interval>, freq one of: daily, weekly, weekdays, monthly, yearly)`,
+    );
+  }
+  const freq = match[1];
+  const interval = match[2] === undefined ? 1 : Number(match[2]);
+  if (interval < 1 || interval > RECURRENCE_MAX_INTERVAL) {
+    throw new RecurrenceParseError(
+      `invalid legacy recurrence: interval must be 1..${RECURRENCE_MAX_INTERVAL}, got ${JSON.stringify(match[2])}`,
+    );
+  }
+  if (freq === "weekdays" && interval !== 1) {
+    throw new RecurrenceParseError(`invalid legacy recurrence: "weekdays" does not take an interval`);
+  }
+  const anchor = parseIsoDate(anchorIso);
+  const rule: RecurrenceRule = { freq: freq === "weekdays" ? "weekly" : (freq as RecurrenceFreq), interval };
+  if (freq === "weekly") rule.byday = [weekdayOfParts(anchor)];
+  if (freq === "weekdays") rule.byday = [...RECURRENCE_WEEKDAYS.slice(0, 5)];
+  if (freq === "monthly") rule.bymonthday = [anchor.day];
+  return formatRecurrenceRule(rule);
+}
+
 // --- expansion ------------------------------------------------------------------
 
 function partsIso(parts: DateParts): string {
@@ -339,12 +634,11 @@ function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-/** The month `anchorMonth` + n months shifted, or null when that month lacks the day. */
-function shiftMonths(anchor: DateParts, n: number): DateParts | null {
+/** The month `anchorMonth` + n months shifted (day preserved). */
+function shiftMonths(anchor: DateParts, n: number): DateParts {
   const zeroBased = anchor.year * 12 + (anchor.month - 1) + n;
   const year = Math.floor(zeroBased / 12);
   const month = (zeroBased % 12) + 1;
-  if (anchor.day > daysInMonth(year, month)) return null; // RRULE-style skip
   return { year, month, day: anchor.day };
 }
 
@@ -355,20 +649,37 @@ function dayDiff(a: DateParts, b: DateParts): number {
   return Math.round(ms / 86_400_000);
 }
 
+/** Whole months from a to b (b - a). */
+function monthDiff(a: DateParts, b: DateParts): number {
+  return (b.year - a.year) * 12 + (b.month - a.month);
+}
+
 function addDays(parts: DateParts, days: number): DateParts {
   const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
 }
 
-/** 0 = Sunday … 6 = Saturday (UTC — pure calendar arithmetic, no timezone). */
-function utcWeekday(parts: DateParts): number {
-  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+const WEEKDAY_BY_UTCDAY: readonly RecurrenceWeekday[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+
+function weekdayOfParts(parts: DateParts): RecurrenceWeekday {
+  // getUTCDay() is 0..6, so the lookup always hits.
+  const index = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
+  return WEEKDAY_BY_UTCDAY[index] as RecurrenceWeekday;
+}
+
+/** The two-letter weekday code of an ISO day (UTC — pure calendar arithmetic). */
+export function weekdayOfIso(iso: string): RecurrenceWeekday {
+  return weekdayOfParts(parseIsoDate(iso));
 }
 
 /**
  * Expand a series into the day isos occurring inside the INCLUSIVE window
- * [fromIso, toIso]. The anchor day is the first occurrence. At most `cap`
- * occurrences are computed and returned — a window wider than the cap
+ * [fromIso, toIso]. Occurrence #1 is the anchor day; every day in
+ * [max(anchor, fromIso), toIso] is tested against the RR5 predicate, then
+ * filtered by exdates (skip, no index shift), COUNT (index counted from the
+ * anchor — occurrences before the window consume indices), and UNTIL
+ * (inclusive; the rule's own UNTIL and the metadata bound both apply).
+ * At most `cap` occurrences are returned — a window wider than the cap
  * TRUNCATES (callers size the window; the default bounds a daily rule at
  * one year). `fromIso > toIso` throws, as does any malformed date.
  */
@@ -388,65 +699,150 @@ export function occurrenceIsosOf(
     throw new Error(`invalid recurrence window: ${fromIso} is after ${toIso}`);
   }
   const out: string[] = [];
-  if (partsIso(anchor) > partsIso(to)) return out;
-  // Exceptions: a bounded series with the anchor past the bound has no
-  // occurrences at all; exdates are skipped but never stop the walk.
-  const until = series.until === undefined ? null : series.until;
-  const exdates =
-    series.exdates === undefined
-      ? null
-      : new Set(series.exdates);
-  if (until !== null && partsIso(anchor) > until) return out;
+  const toPartsIso = partsIso(to);
+  const anchorIso = partsIso(anchor);
 
-  const pushFrom = (candidate: DateParts): boolean => {
-    // Returns false when the caller must stop (past the window, past the
-    // series bound, or cap hit); exdates skip without stopping.
-    const iso = partsIso(candidate);
-    if (iso > partsIso(to) || out.length >= cap) return false;
-    if (until !== null && iso > until) return false;
-    if (iso >= partsIso(from) && !(exdates !== null && exdates.has(iso))) out.push(iso);
-    return true;
+  // The rule's own end and the exception bound both truncate the series —
+  // the earlier one wins. A bounded series whose anchor is past the bound
+  // has no occurrences at all.
+  const boundIso = [series.until, series.rule.until]
+    .filter((u): u is string => u !== undefined)
+    .sort()[0] ?? null;
+  if (boundIso !== null && anchorIso > boundIso) return out;
+
+  const start = anchorIso > partsIso(from) ? anchor : from;
+  if (partsIso(start) > toPartsIso) return out;
+
+  const exdates = series.exdates === undefined ? null : new Set(series.exdates);
+  const rule = series.rule;
+  const byday =
+    rule.byday === undefined || rule.byday.length === 0
+      ? null
+      : [...rule.byday].sort(weekdayOrder);
+  const bymonthday =
+    rule.bymonthday === undefined || rule.bymonthday.length === 0
+      ? null
+      : [...rule.bymonthday].sort((a, b) => a - b);
+  const anchorWeekday = weekdayOfParts(anchor);
+
+  /** The RR5 predicate: does `d` (≥ anchor) generate an occurrence? */
+  const occursOn = (d: DateParts): boolean => {
+    switch (rule.freq) {
+      case "daily":
+        return dayDiff(anchor, d) % rule.interval === 0;
+      case "weekly": {
+        const week = Math.floor(dayDiff(anchor, d) / 7);
+        if (week % rule.interval !== 0) return false;
+        const weekday = weekdayOfParts(d);
+        return byday === null ? weekday === anchorWeekday : byday.includes(weekday);
+      }
+      case "monthly": {
+        if (monthDiff(anchor, d) % rule.interval !== 0) return false;
+        return bymonthday === null ? d.day === anchor.day : bymonthday.includes(d.day);
+      }
+      case "yearly":
+        return (
+          (d.year - anchor.year) % rule.interval === 0 &&
+          d.month === anchor.month &&
+          d.day === anchor.day
+        );
+    }
   };
 
-  switch (series.rule.freq) {
-    case "daily":
-    case "weekly": {
-      const step = series.rule.freq === "daily" ? series.rule.interval : series.rule.interval * 7;
-      let current =
-        partsIso(anchor) >= partsIso(from)
-          ? anchor
-          : addDays(anchor, Math.ceil(dayDiff(anchor, from) / step) * step);
-      while (pushFrom(current)) current = addDays(current, step);
-      return out;
+  // COUNT indices count every generated occurrence from the anchor — the
+  // occurrences the window skips over consume indices too (a skipped
+  // BYMONTHDAY month generates nothing and consumes nothing). Count them in
+  // one analytic pass over [anchor, start), then walk the window.
+  let seen = countGeneratedBefore(rule, byday, bymonthday, anchor, anchorWeekday, start);
+
+  let current = start;
+  for (;;) {
+    const iso = partsIso(current);
+    if (iso > toPartsIso || out.length >= cap) break;
+    if (boundIso !== null && iso > boundIso) break;
+    if (occursOn(current)) {
+      seen += 1;
+      if (rule.count !== undefined && seen > rule.count) break;
+      if (exdates === null || !exdates.has(iso)) out.push(iso);
     }
-    case "weekdays": {
-      let current = partsIso(anchor) > partsIso(from) ? anchor : from;
-      while (out.length < cap) {
-        const weekday = utcWeekday(current);
-        if (weekday >= 1 && weekday <= 5 && !pushFrom(current)) return out;
-        if (partsIso(current) > partsIso(to)) return out;
-        current = addDays(current, 1);
-      }
-      return out;
-    }
-    case "monthly":
-    case "yearly": {
-      const step =
-        series.rule.freq === "monthly" ? series.rule.interval : series.rule.interval * 12;
-      let k =
-        partsIso(anchor) >= partsIso(from)
-          ? 0
-          : Math.max(0, Math.ceil(monthDiff(anchor, from) / step));
-      for (; ; k += 1) {
-        const candidate = shiftMonths(anchor, k * step);
-        if (candidate === null) continue; // month lacks the anchor day — RRULE-style skip
-        if (!pushFrom(candidate)) return out;
-      }
-    }
+    current = addDays(current, 1);
   }
+  return out;
 }
 
-/** Whole months from a to b (b - a). */
-function monthDiff(a: DateParts, b: DateParts): number {
-  return (b.year - a.year) * 12 + (b.month - a.month);
+/** The number of generated occurrences in [anchor, start) — COUNT bookkeeping. */
+function countGeneratedBefore(
+  rule: RecurrenceRule,
+  byday: readonly RecurrenceWeekday[] | null,
+  bymonthday: readonly number[] | null,
+  anchor: DateParts,
+  anchorWeekday: RecurrenceWeekday,
+  start: DateParts,
+): number {
+  const startIso = partsIso(start);
+  const anchorIso = partsIso(anchor);
+  switch (rule.freq) {
+    case "daily": {
+      const diff = dayDiff(anchor, start);
+      return diff > 0 ? Math.ceil(diff / rule.interval) : 0;
+    }
+    case "weekly": {
+      const days = byday ?? [anchorWeekday];
+      const diff = dayDiff(anchor, start);
+      if (diff <= 0) return 0;
+      const lastWeek = Math.floor((diff - 1) / 7);
+      const weekCount = Math.floor(lastWeek / rule.interval) + 1;
+      const anchorPos = RECURRENCE_WEEKDAYS.indexOf(anchorWeekday);
+      // Days of `days` in matching week m (n = m·interval) land inside the
+      // 7-day block that starts at anchor + 7·m·interval — indexed exactly
+      // like occursOn: a BYDAY weekday preceding the anchor's sits AFTER the
+      // anchor in block 0 ((pos − anchorPos + 7) % 7), never before it.
+      // Only weeks with n % interval === 0 generate, so count the first and
+      // last matching weeks day-exact and the full weeks in between at
+      // |days| each.
+      const countInWeek = (m: number): number => {
+        let count = 0;
+        for (const b of days) {
+          const offset =
+            7 * m * rule.interval +
+            ((RECURRENCE_WEEKDAYS.indexOf(b) - anchorPos + 7) % 7);
+          const iso = partsIso(addDays(anchor, offset));
+          if (iso >= anchorIso && iso < startIso) count += 1;
+        }
+        return count;
+      };
+      if (weekCount === 1) return countInWeek(0);
+      return countInWeek(0) + (weekCount - 2) * days.length + countInWeek(weekCount - 1);
+    }
+    case "monthly": {
+      const days = bymonthday ?? [anchor.day];
+      let count = 0;
+      for (let j = 0; ; j += rule.interval) {
+        const monthStart = shiftMonths({ year: anchor.year, month: anchor.month, day: 1 }, j);
+        const dim = daysInMonth(monthStart.year, monthStart.month);
+        const lastIso = partsIso({ year: monthStart.year, month: monthStart.month, day: dim });
+        const floor = j === 0 ? anchor.day : 1; // month 0: days before the anchor are not generated
+        if (lastIso < startIso) {
+          for (const x of days) if (x >= floor && x <= dim) count += 1;
+          continue;
+        }
+        for (const x of days) if (x >= floor && x < start.day && x <= dim) count += 1;
+        break;
+      }
+      return count;
+    }
+    case "yearly": {
+      // A Feb 29 anchor generates nothing in a non-leap year — invalid
+      // years consume no index and never stop the walk.
+      let count = 0;
+      for (let y = anchor.year; ; y += rule.interval) {
+        if (anchor.day <= daysInMonth(y, anchor.month)) {
+          const iso = partsIso({ year: y, month: anchor.month, day: anchor.day });
+          if (iso >= startIso) break;
+          count += 1;
+        }
+      }
+      return count;
+    }
+  }
 }

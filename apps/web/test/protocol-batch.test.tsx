@@ -185,6 +185,15 @@ function featureClient(overrides: {
     setFeatureEnabled: overrides.setFeatureEnabled ?? (() => Promise.resolve()),
     setFeatureSettings: () => Promise.resolve(),
     setArchived: () => Promise.resolve(),
+    // The General tab's Migrations block (F3) probes the client on open.
+    isKeyedWorkspace: () => false,
+    listPendingMigrations: () => [],
+    planMigration: () => {
+      throw new Error("not used by these pins");
+    },
+    runMigration: () => {
+      throw new Error("not used by these pins");
+    },
   } as unknown as AnyClient;
 }
 
@@ -205,7 +214,7 @@ function renderFeaturesTab(client: AnyClient | undefined) {
 }
 
 /**
- * The six family/journal toggle rows (the Sources settings section below
+ * The family/journal/read-later toggle rows (the Sources settings section below
  * them adds its own switches — the family assertions scope to these rows).
  */
 function familyToggleRows(): HTMLElement[] {
@@ -213,12 +222,14 @@ function familyToggleRows(): HTMLElement[] {
 }
 
 describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
-  it("lists the five core families plus the journal toggle, each with a LIVE ToggleSwitch", () => {
+  it("lists the five core families plus the journal and read-later toggles, each with a LIVE ToggleSwitch", () => {
     renderFeaturesTab(featureClient({}));
     const entries = Object.entries(WORKSPACE_FEATURE_MAP);
     expect(entries).toHaveLength(5);
     const rows = familyToggleRows();
-    expect(rows).toHaveLength(6);
+    // 5 families + journal + readItLater (the row renders once the vendored
+    // protocol knows the id — post vendor-bump).
+    expect(rows).toHaveLength(7);
     for (const [, spec] of entries) {
       // Scope to the family's own row — the Sources settings section below
       // carries its own "Sources" heading, so the bare label is ambiguous.
@@ -232,8 +243,11 @@ describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
     // — surfaces-only copy, no class family.
     expect(screen.getByText("Journal")).toBeInTheDocument();
     expect(screen.getByText(/journal view and Today-page management/i)).toBeInTheDocument();
+    // The read-later surface toggle rides below the journal row.
+    expect(screen.getByText("Read later")).toBeInTheDocument();
+    expect(screen.getByText(/read-later captures/i)).toBeInTheDocument();
     const switches = rows.map((row) => within(row).getByRole("switch"));
-    expect(switches).toHaveLength(6);
+    expect(switches).toHaveLength(7);
     for (const toggle of switches) {
       // Lockstep shipped (GTK/Flutter v3.0.0): the toggles write.
       expect(toggle).toBeEnabled();

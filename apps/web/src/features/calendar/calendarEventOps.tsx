@@ -11,10 +11,11 @@
 
 import { useState, type ReactElement } from "react";
 
-import { dayNodeId, parseDateNodeId, recurrenceRuleOf } from "@notees/domain";
+import { dayNodeId, parseDateNodeId } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { drivingDateRowOf } from "./calendarRows.js";
+import { repeatFactsOfNode } from "./repeatProperty.js";
 import {
   addDaysIso,
   daysBetweenIsos,
@@ -88,9 +89,10 @@ export function useEventOps(client: AnyClient): {
   /** The authored datetime value of `nodeId` anchored at `iso`, if any. */
   const dateRowAt = (nodeId: string, iso: string) => drivingDateRowOf(client, nodeId, iso);
 
+  /** The block sits on a real (anchor) date row of a repeating node. */
   const isRecurringAt = (nodeId: string, iso: string): boolean => {
     const row = dateRowAt(nodeId, iso);
-    return row !== undefined && recurrenceRuleOf(row.metadata) !== null;
+    return row !== undefined && repeatFactsOfNode(client, nodeId) !== null;
   };
 
   const writeMoved = (

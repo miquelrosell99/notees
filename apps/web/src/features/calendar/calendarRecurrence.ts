@@ -16,20 +16,22 @@
  *                  When no occurrence precedes the day (it IS the anchor)
  *                  the scope degenerates to "all".
  *
- * All writes are ordinary ops (property.set of the date value's metadata,
+ * All writes are ordinary ops (property.set of the Repeat value's metadata,
  * object.create for the copies) — no wire change; the exception state is
- * additive metadata on the same date value (SCHEMA.md "Recurrence", the
- * completedOccurrences precedent). The dialog that asks the scope is a
+ * additive metadata on the Repeat property value (SCHEMA.md "Recurrence",
+ * the completedOccurrences precedent). The dialog that asks the scope is a
  * later slice; this module is the semantic core the UI routes to.
  */
 
 import { uuidv7 } from "uuidv7";
 
 import {
+  SYSTEM_PROPERTY_UUIDS,
   dayNodeId,
   exdatesOf,
+  formatRecurrenceRule,
   occurrenceIsosOf,
-  recurrenceRuleOf,
+  recurrenceSeriesOf,
   withExdate,
   withUntil,
   type RecurrenceSeries,
@@ -38,7 +40,13 @@ import {
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientWriteOp, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { addDaysIso, scheduledIsoOf } from "./calendarViewUtils.js";
+import { addDaysIso } from "./calendarViewUtils.js";
+import {
+  drivingDateRow,
+  repeatFactsOfNode,
+  setRepeatMetadata,
+  type RepeatFacts,
+} from "./repeatProperty.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -51,35 +59,31 @@ export interface OccurrenceEdit {
 }
 
 interface RecurringDateRow {
-  schemaId: string;
-  idx: number;
-  /** The committed value ({nodeId: the anchor's day node}). */
-  value: unknown;
-  metadata: unknown;
+  /** The driving date row (schema + idx + value) — the anchor move's write. */
+  dateSchemaId: string;
+  dateIdx: number;
+  dateValue: unknown;
+  dateMetadata: unknown;
+  /** The Repeat facts: rule, anchor day, the exception-metadata carrier. */
+  facts: RepeatFacts;
+  /** The full expansion input (rule + anchor + exdates/until). */
   series: RecurrenceSeries;
 }
 
-/** The node's authored recurring date value (the series carrier), if any. */
+/** The node's authored recurrence (the Repeat value + a driving date), if any. */
 function recurringDateRowOf(client: AnyClient, nodeId: string): RecurringDateRow | null {
-  for (const prop of client.getEffectiveProperties(nodeId)) {
-    if (prop.source !== "authored") continue;
-    if (prop.schema?.type !== "datetime") continue;
-    if (recurrenceRuleOf(prop.metadata) === null) continue;
-    const iso = scheduledIsoOf(prop.value);
-    if (iso === null) continue;
-    return {
-      schemaId: prop.propertySchemaId,
-      idx: prop.idx ?? 0,
-      value: prop.value,
-      metadata: prop.metadata,
-      series: {
-        rule: recurrenceRuleOf(prop.metadata)!,
-        anchorIso: iso,
-        ...(exdatesOf(prop.metadata).length > 0 ? { exdates: exdatesOf(prop.metadata) } : {}),
-      },
-    };
-  }
-  return null;
+  const facts = repeatFactsOfNode(client, nodeId);
+  if (facts === null) return null;
+  const driving = drivingDateRow(client, nodeId);
+  if (driving === null) return null; // facts non-null implies a driving row
+  return {
+    dateSchemaId: driving.row.propertySchemaId,
+    dateIdx: driving.row.idx,
+    dateValue: driving.row.value,
+    dateMetadata: driving.row.metadata,
+    facts,
+    series: recurrenceSeriesOf(facts.rule, facts.row.metadata, facts.anchorIso)!,
+  };
 }
 
 /**
@@ -104,8 +108,6 @@ function probeWindowStart(series: RecurrenceSeries, iso: string): string {
       return addDaysIso(iso, -(series.rule.interval + 1));
     case "weekly":
       return addDaysIso(iso, -(series.rule.interval * 7 + 1));
-    case "weekdays":
-      return addDaysIso(iso, -4);
     case "monthly": {
       const total = y! * 12 + (m! - 1) - (series.rule.interval + 1);
       const yy = Math.floor(total / 12);
@@ -127,7 +129,9 @@ function dateValueFor(iso: string): { nodeId: string } {
 /**
  * Copy `source` into a fresh node: content + classes + every authored
  * property value (multi-value slots per idx), EXCEPT the driving date
- * schema (the caller writes the new date). Children stay on the source —
+ * schema (the caller writes the new date) and the Repeat property (the
+ * caller re-mints it — an exception omits it entirely, a continuation
+ * carries the fresh rule). Children stay on the source —
  * an exception is the node's own row (the design ruling). The create +
  * every setProperty ride ONE applyOps batch ("Undo edit occurrence") —
  * the create's id is caller-assigned so the property ops anchor to it;
@@ -140,6 +144,7 @@ async function copyEventNode(
   dateSchemaId: string,
   dateValue: unknown,
   dateMetadata: Record<string, unknown> | undefined,
+  repeat?: { value: string; metadata: Record<string, unknown> | undefined },
 ): Promise<string> {
   const id = uuidv7();
   const ops: ClientWriteOp[] = [
@@ -157,6 +162,7 @@ async function copyEventNode(
   for (const prop of client.getEffectiveProperties(source.id)) {
     if (prop.source !== "authored") continue;
     if (prop.propertySchemaId === dateSchemaId) continue;
+    if (prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat) continue;
     ops.push({
       kind: "setProperty",
       objectId: id,
@@ -164,6 +170,16 @@ async function copyEventNode(
       value: prop.value,
       idx: prop.idx ?? 0,
       ...(prop.metadata !== null ? { metadata: prop.metadata } : {}),
+    });
+  }
+  if (repeat !== undefined) {
+    ops.push({
+      kind: "setProperty",
+      objectId: id,
+      propertySchemaId: SYSTEM_PROPERTY_UUIDS.repeat,
+      value: repeat.value,
+      idx: 0,
+      ...(repeat.metadata !== undefined ? { metadata: repeat.metadata } : {}),
     });
   }
   ops.push({
@@ -194,7 +210,7 @@ export async function deleteOccurrence(
     return;
   }
   if (scope === "one") {
-    await client.setProperty(nodeId, row.schemaId, row.value, row.idx, withExdate(row.metadata, iso));
+    await setRepeatMetadata(client, nodeId, withExdate(row.facts.row.metadata, iso));
     return;
   }
   // "following": truncate at the previous occurrence; no predecessor = all.
@@ -203,7 +219,7 @@ export async function deleteOccurrence(
     await client.deleteObject(nodeId);
     return;
   }
-  await client.setProperty(nodeId, row.schemaId, row.value, row.idx, withUntil(row.metadata, previous));
+  await setRepeatMetadata(client, nodeId, withUntil(row.facts.row.metadata, previous));
 }
 
 /**
@@ -222,11 +238,18 @@ export async function editOccurrence(
   const row = recurringDateRowOf(client, nodeId);
   if (row === null || scope === "all") {
     if (row === null) return null;
-    // The whole series moves: the anchor re-commits at the edited day, the
-    // rule + exception metadata riding along untouched. The target day node
-    // must exist before the value references it (the date-ref contract).
+    // The whole series moves: the driving date re-commits at the edited day,
+    // the Repeat value + exception metadata riding along untouched. The
+    // target day node must exist before the value references it (the
+    // date-ref contract).
     await client.ensureDateChain(edit.toIso);
-    await client.setProperty(nodeId, row.schemaId, dateValueFor(edit.toIso), row.idx, row.metadata as Record<string, unknown> | undefined);
+    await client.setProperty(
+      nodeId,
+      row.dateSchemaId,
+      dateValueFor(edit.toIso),
+      row.dateIdx,
+      (row.dateMetadata ?? undefined) as Record<string, unknown> | undefined,
+    );
     return null;
   }
   if (scope === "one") {
@@ -237,11 +260,11 @@ export async function editOccurrence(
     const exceptionId = await copyEventNode(
       client,
       source,
-      row.schemaId,
+      row.dateSchemaId,
       dateValueFor(edit.toIso),
       undefined,
     );
-    await client.setProperty(nodeId, row.schemaId, row.value, row.idx, withExdate(row.metadata, iso));
+    await setRepeatMetadata(client, nodeId, withExdate(row.facts.row.metadata, iso));
     return exceptionId;
   }
   // "following": truncate, then continue with the same rule from the edit.
@@ -252,28 +275,31 @@ export async function editOccurrence(
   if (previous === null) {
     await client.setProperty(
       nodeId,
-      row.schemaId,
+      row.dateSchemaId,
       dateValueFor(edit.toIso),
-      row.idx,
-      row.metadata as Record<string, unknown> | undefined,
+      row.dateIdx,
+      (row.dateMetadata ?? undefined) as Record<string, unknown> | undefined,
     );
     return null;
   }
   const continuationAnchor = edit.toIso;
-  const futureExdates = exdatesOf(row.metadata).filter((day) => day >= continuationAnchor);
-  const continuationMetadata: Record<string, unknown> = {
-    repeat: row.series.rule.interval >= 2
-      ? `${row.series.rule.freq}/${row.series.rule.interval}`
-      : row.series.rule.freq,
-    ...(futureExdates.length > 0 ? { exdates: futureExdates } : {}),
+  const futureExdates = exdatesOf(row.facts.row.metadata).filter(
+    (day) => day >= continuationAnchor,
+  );
+  // The continuation re-mints the rule canonically (format→parse
+  // round-trips); `until` drops (a fresh series) and future exdates move.
+  const continuationRepeat = {
+    value: formatRecurrenceRule(row.series.rule),
+    metadata: futureExdates.length > 0 ? { exdates: futureExdates } : undefined,
   };
   const continuationId = await copyEventNode(
     client,
     source,
-    row.schemaId,
+    row.dateSchemaId,
     dateValueFor(continuationAnchor),
-    continuationMetadata,
+    undefined,
+    continuationRepeat,
   );
-  await client.setProperty(nodeId, row.schemaId, row.value, row.idx, withUntil(row.metadata, previous));
+  await setRepeatMetadata(client, nodeId, withUntil(row.facts.row.metadata, previous));
   return continuationId;
 }

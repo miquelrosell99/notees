@@ -41,6 +41,9 @@ export type { BackendDownLockProps } from './BackendDownLock.js';
 
 export { InProcessStoreBanner } from './InProcessStoreBanner.js';
 
+export { NotEncryptedBanner } from './NotEncryptedBanner.js';
+export type { NotEncryptedBannerProps } from './NotEncryptedBanner.js';
+
 export { LintHintRow } from './LintHintRow.js';
 export type { LintHintRowProps } from './LintHintRow.js';
 
@@ -78,6 +81,11 @@ export type {
 
 export { BooleanToggle } from './BooleanToggle.js';
 export type { BooleanToggleProps, BooleanToggleSize } from './BooleanToggle.js';
+
+export { RepeatControl } from './RepeatControl.js';
+export type { RepeatControlProps } from './RepeatControl.js';
+export { repeatSummaryOf, validateRepeatDraft } from './repeatSummary.js';
+export type { RepeatIssue, RepeatIssueField } from './repeatSummary.js';
 
 export { ButtonWithPanel } from './ButtonWithPanel.js';
 export type { ButtonWithPanelProps, PanelPosition, PanelAlignment } from './ButtonWithPanel.js';

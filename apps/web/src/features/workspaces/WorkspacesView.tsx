@@ -16,6 +16,8 @@ import {
   type AccountUser,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
+import { keyBundleForCreate } from "@/core/crypto-custody.js";
+import { deleteOfflineWorkspaceKey } from "@/core/master-key-storage.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -152,12 +154,17 @@ export function WorkspacesView({
     setNameError(null);
     setSubmitting(true);
     if (nameModal.mode === "create") {
-      createWorkspace(serverUrl, credential, name)
-        .then(({ id }) => {
+      // Keyless (API-key session): null bundle → the POST fires WITHOUT a
+      // wrappedKey and the server decides — hatch on: the 422's own
+      // directional sentence surfaces through the name error; hatch off:
+      // the legacy 201 (NOTEES_REQUIRE_KEYED=0 stays a server-side hatch).
+      keyBundleForCreate()
+        .then((bundle) => createWorkspace(serverUrl, credential, name, bundle?.wrappedKey))
+        .then((created) => {
           setSubmitting(false);
           setNameModal(null);
           setSwitching(true);
-          onEnter(id, name);
+          onEnter(created.id, name);
         })
         .catch((err: unknown) => {
           setSubmitting(false);
@@ -500,6 +507,10 @@ export function WorkspacesView({
           onConfirm={async () => {
             const target = deleteTarget;
             await deleteWorkspace(serverUrl, credential, target.id);
+            // The custody record must not outlive the workspace (F1): drop
+            // the device-local key record too. Best-effort, never throws —
+            // a workspace the device never keyed has no record to delete.
+            await deleteOfflineWorkspaceKey(target.id);
             setDeleteTarget(null);
             refresh();
             if (target.id === activeWorkspaceId) onClose?.();

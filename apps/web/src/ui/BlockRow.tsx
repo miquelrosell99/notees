@@ -289,9 +289,12 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // data that changes WITHOUT the node identity changing (the materialized
   // backlink count, effective property values, class/mention chip titles).
   // A notification naming one of this row's rerender targets (its own id via
-  // property/edge writes, its classes, its chip targets) forces a render;
+  // property/edge writes, its classes, its chip targets) forces a render —
   // scoped notifications naming none leave the memo's bail intact, and
-  // scope-unknown forces conservatively.
+  // scope-unknown (no affected set) forces conservatively. Structural
+  // batches now CARRY their ancestor-expanded affected set, so a create in
+  // one subtree leaves sibling-subtree rows bailed (their SortableContext
+  // and tree identity are untouched).
   const rerenderTargetsRef = useRef<Set<string>>(new Set());
   rerenderTargetsRef.current = collectRerenderTargets(node);
   const [, forceRowRender] = useState(0);

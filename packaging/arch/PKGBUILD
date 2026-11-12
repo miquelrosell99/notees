@@ -1,0 +1,53 @@
+# Maintainer: Miquel Rosell
+# Canonical Arch Linux packaging for the Notees desktop client (the Tauri
+# shell of the web app — miquelrosell99/notees-web). Lives in the app repo
+# (packaging/arch/) — build from here, not from a copy.
+#
+#   Build:   cd packaging/arch && makepkg -s
+#   Install: sudo pacman -U notees-desktop-<pkgver>-1-x86_64.pkg.tar.zst
+#
+# Binary repackaging of the release AppImage (the CI "desktop" workflow builds
+# it on tags): the package unpacks the AppImage's squashfs root and installs
+# it under /opt, with a /usr/bin wrapper and the freedesktop entries.
+#
+# Release flow: after pushing a v* tag and the CI release exists, bump pkgver
+# and sha256sums here.
+
+pkgname=notees-desktop
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Notees desktop client — the web app wrapped for Linux (Tauri, unsigned)"
+arch=(x86_64)
+url="https://github.com/miquelrosell99/notees-web"
+license=('custom')  # AGPL-3.0 upstream; the desktop shell ships no LICENSE file
+depends=(webkit2gtk-4.1 gtk3 libayatana-appindicator3-gtk3 librsvg openssl glib2 cairo pango hicolor-icon-theme)
+makedepends=(squashfs-tools)  # unsquashfs to extract the AppImage root
+options=(!debug)
+source=("Notees-${pkgver}-x86_64.AppImage::https://github.com/miquelrosell99/notees-web/releases/download/v${pkgver}/Notees_${pkgver}_x86_64.AppImage")
+sha256sums=('SKIP')  # fill at release time: updpkgsums
+
+prepare() {
+  cd "${srcdir}"
+  chmod +x "Notees-${pkgver}-x86_64.AppImage"
+  ./"Notees-${pkgver}-x86_64.AppImage" --appimage-extract >/dev/null
+}
+
+package() {
+  cd "${srcdir}/squashfs-root"
+
+  install -d "${pkgdir}/opt/${pkgname}"
+  cp -a usr/bin notees notees.desktop icons "${pkgdir}/opt/${pkgname}/" 2>/dev/null || cp -a . "${pkgdir}/opt/${pkgname}/"
+
+  install -d "${pkgdir}/usr/bin"
+  ln -s "/opt/${pkgname}/notees" "${pkgdir}/usr/bin/notees-desktop"
+
+  install -Dm644 notees.desktop "${pkgdir}/usr/share/applications/notees-desktop.desktop"
+  sed -i 's|^Exec=.*|Exec=/usr/bin/notees-desktop|' "${pkgdir}/usr/share/applications/notees-desktop.desktop"
+
+  for size in 32 128 256 512; do
+    if [ -f "icons/${size}x${size}/notees.png" ]; then
+      install -Dm644 "icons/${size}x${size}/notees.png" \
+        "${pkgdir}/usr/share/icons/hicolor/${size}x${size}/apps/notees-desktop.png"
+    fi
+  done
+}

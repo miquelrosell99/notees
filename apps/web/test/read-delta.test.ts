@@ -111,6 +111,23 @@ describe("ReadRevisions stamp rules", () => {
     expect(r.stampFor("search", ["q"])).toBe(s1);
   });
 
+  it("per-node icon/color reads are definitions-classed: object ops leave them, class ops move them", () => {
+    const r = new ReadRevisions(fakeWalk());
+    const iconB = r.stampFor("effectiveNodeIcon", [{ icon: null, classIds: ["class-x"] }]);
+    const colorC = r.stampFor("effectiveNodeColor", [{ color: null, classIds: [] }]);
+    // A block create / content edit / delete must NOT re-serve every cached
+    // per-node icon/color read (they are cached per visible row — this was
+    // ~1000 re-serves per create at session scale).
+    r.bumpLocal(env("object.create", [C]), { affectedNodeIds: [C] }, []);
+    r.bumpLocal(env("object.update", [B]), { affectedNodeIds: [B] }, []);
+    r.bumpLocal(env("object.delete", [B]), { affectedNodeIds: [B] }, []);
+    expect(r.stampFor("effectiveNodeIcon", [{ icon: null, classIds: ["class-x"] }])).toBe(iconB);
+    expect(r.stampFor("effectiveNodeColor", [{ color: null, classIds: [] }])).toBe(colorC);
+    // Class-definition ops DO move them (the resolution walks the class chain).
+    r.bumpLocal(env("class.update", ["class-x"]), { affectedNodeIds: ["class-x"] }, []);
+    expect(r.stampFor("effectiveNodeIcon", [{ icon: null, classIds: ["class-x"] }])).not.toBe(iconB);
+  });
+
   it("a move re-stamps BOTH parents — the vacated side via the pre-apply chain", () => {
     const r = new ReadRevisions(fakeWalk());
     const childrenP = r.stampFor("getChildren", [P]);

@@ -1,15 +1,20 @@
 /**
  * NodeResultItem — shared node result row for the node-picker popups.
  *
- * Renders a single selectable node with an optional breadcrumb path above and
- * an icon + name row. Shared by the metadata pickers (and any other component
- * that presents a searchable list of nodes).
+ * Renders a single selectable node with an optional breadcrumb path above
+ * and an icon + name row, plus the optional node-row preview line: when
+ * one of the node's classes binds a property flagged showInNodeRows, the
+ * bound value renders as one compact " · "-joined metadata line under the
+ * name (derived from the client — no prop threading). Shared by the
+ * metadata pickers (and any other component that presents a searchable
+ * list of nodes).
  */
 
 import { ListRow } from "../../components/ui/kit/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
+import { nodeRowPreviewLine, type NodeRowPreviewClient } from "./nodeRowPreview.js";
 import "./NodeResultItem.css";
 
 export interface NodeResultItemProps {
@@ -23,12 +28,14 @@ export interface NodeResultItemProps {
    * `getDisplayName`, when present, powers the chrome flatten: bare mentions
    * and class chips resolve their target's CURRENT name (the wire stores no
    * link text — without it a mention contributes nothing to the flattened
-   * label).
+   * label). The OPTIONAL preview seams (getClassBindings /
+   * getEffectiveProperties / listPropertySchemas) derive the node-row
+   * metadata line: when one of the node's classes binds a property flagged
+   * showInNodeRows, the row renders the bound value as an additional
+   * compact line under the name (a client without those seams renders no
+   * line).
    */
-  client?: {
-    getNode(id: string): ClientNode | undefined;
-    getDisplayName?(id: string): string | null;
-  };
+  client?: NodeRowPreviewClient;
   /** Pre-computed ancestor breadcrumb string, e.g. "Root / Parent" */
   parentPath?: string;
   /** Pre-computed display classes (excluding system page class) */
@@ -57,7 +64,7 @@ export interface NodeResultItemProps {
  */
 function rowTitles(
   node: ClientNode | { name: string },
-  client: { getNode(id: string): ClientNode | undefined; getDisplayName?(id: string): string | null } | undefined,
+  client: NodeRowPreviewClient | undefined,
 ): { lineName: string; fullName: string } {
   if (!("id" in node)) return { lineName: node.name, fullName: node.name };
   const titleNode = client?.getNode(node.id) ?? node;
@@ -103,6 +110,10 @@ export function NodeResultItem({
   // title instead of an 80-char cut — a link must read as the page's whole
   // title (the crumbs above ride the same title idiom).
   const { lineName, fullName } = rowTitles(node, client);
+  // The node-row preview line: derived from the client + node alone (no
+  // prop threading) — null for pseudo-rows, seam-less clients, unflagged
+  // classes, and all-empty flagged values (the line simply doesn't render).
+  const previewLine = "id" in node ? nodeRowPreviewLine(client, node) : null;
   return (
     <button
       type="button"
@@ -146,6 +157,11 @@ export function NodeResultItem({
           </>
         }
       />
+      {previewLine !== null && (
+        <div className="node-result-item__meta" title={previewLine}>
+          {previewLine}
+        </div>
+      )}
     </button>
   );
 }

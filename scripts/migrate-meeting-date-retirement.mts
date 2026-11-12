@@ -59,30 +59,49 @@ import { copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import {
-  envelopeSchema,
-  newEnvelope,
-  payloadSchemaFor,
-  type Envelope,
-} from "../packages/protocol/src/index.ts";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "../packages/domain/src/index.ts";
+import { envelopeSchema, payloadSchemaFor, type Envelope } from "../packages/protocol/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
-import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
 
-/**
- * The withdrawn seed UUID — retired from SYSTEM_PROPERTY_UUIDS (never
- * reuse), so the literal rides here (the migrate scripts' precedent for
- * withdrawn ids).
- */
-export const MEETING_DATE_ID = "00000000-0000-0000-0003-000000000007";
-const EVENT_DATE_ID = SYSTEM_PROPERTY_UUIDS.eventDate;
+import {
+  buildScratchStore as scratchStoreBuild,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+// The migration's planning core is NODE-FREE (scripts/lib/migrations/ — the
+// client-side executor pattern): the pending probe, the planner, the op
+// builder, and the envelope builder all live there, importable verbatim by
+// a keyed client through the vendor pin. This script keeps the CLI shape by
+// delegating; its rehearsal suite pins the delegation byte-identical.
+import {
+  buildRetirementEnvelopes,
+  MEETING_DATE_ID,
+  MIGRATION_IDENTITY,
+  planIsEmpty,
+  planMeetingDateRetirement,
+  validateRetirementEnvelopes,
+  type RetirementConflict,
+  type RetirementPlan,
+} from "./lib/migrations/meeting-date-retirement.ts";
+import { SYSTEM_CLASS_UUIDS } from "../packages/domain/src/index.ts";
+
 const MEETING_CLASS_ID = SYSTEM_CLASS_UUIDS.meeting;
 
-const ACTOR = "01920000-0000-7000-8000-0000000000b2";
-const DEVICE = "migrate-meeting-date-retirement";
-const CLIENT = "migrate-meeting-date-retirement";
+export {
+  buildRetirementEnvelopes,
+  MEETING_DATE_ID,
+  planIsEmpty,
+  planMeetingDateRetirement,
+} from "./lib/migrations/meeting-date-retirement.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "content" plans against the object graph — refused server-side on a keyed workspace (run it through a keyed client).
+ */
+export const CONTENT_CLASS: MigrationContentClass = "content";
+
 const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
 // --- CLI ----------------------------------------------------------------------
@@ -108,255 +127,25 @@ function parseArgs(argv: string[]): CliOptions {
 // --- scratch derived store ----------------------------------------------------
 
 /**
- * Restore the workspace's latest snapshot into a fresh in-memory store and
- * apply every log envelope after it (the sync server's hydration shape).
- * Throws on any tail apply failure — the plan reads the CONVERGED state.
+ * The shared scratch build (scripts/lib/scratch-store.ts — the sealed gate +
+ * the skip accounting) plus this migration's house skip line.
  */
 function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) {
-      try {
-        store.apply(envelope);
-      } catch (error) {
-        store.close();
-        const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`tail apply failed at seq > ${cursor}: ${detail}`);
-      }
-    }
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  return store;
-}
-
-// --- planning -------------------------------------------------------------------
-
-export interface RetirementCopy {
-  nodeId: string;
-  value: unknown;
-  metadata: Record<string, unknown> | null;
-}
-
-export interface RetirementRemoval {
-  nodeId: string;
-  /** The positional slot idx (the deterministic element id is node:schema:idx). */
-  idx: number;
-  /** The property_value row id — report-only (the wire payload omits it: the
-   *  positional id is not a UUID, and single-value slots remove by idx). */
-  elementId: string;
-}
-
-export interface RetirementConflict {
-  nodeId: string;
-  reason: string;
-}
-
-export interface RetirementPlan {
-  /** meetingDate values to copy onto the eventDate slot (idx 0). */
-  copies: RetirementCopy[];
-  /** meetingDate value elements to unset after the copy. */
-  removals: RetirementRemoval[];
-  /** Nodes whose meetingDate value STAYS (reported, never dropped). */
-  conflicts: RetirementConflict[];
-  /** Nodes carrying the node-level declaration (property.unassign). */
-  unassigns: Array<{ nodeId: string }>;
-  /** The (meeting, meetingDate) binding row exists — unset it. */
-  bindingUnset: boolean;
-  /** The schema row exists and is active — soft-delete it. */
-  schemaDelete: boolean;
-}
-
-/**
- * Plan from the converged scratch store. Only LIVE state plans work: a
- * valued node copies when its eventDate slot is EMPTY and it carries exactly
- * one meetingDate element; anything else (eventDate already valued, more
- * than one meetingDate element) is a conflict — the value stays put and the
- * node is reported.
- */
-export function planMeetingDateRetirement(store: Store): RetirementPlan {
-  const db = store.database;
-  const plan: RetirementPlan = {
-    copies: [],
-    removals: [],
-    conflicts: [],
-    unassigns: [],
-    bindingUnset: false,
-    schemaDelete: false,
-  };
-
-  const valued = db
-    .prepare(
-      `SELECT node_id, id, idx, value, metadata FROM property_value
-       WHERE property_schema_id = ? ORDER BY node_id, idx, id`,
-    )
-    .all(MEETING_DATE_ID) as Array<{
-    node_id: string;
-    id: string;
-    idx: number;
-    value: string;
-    metadata: string | null;
-  }>;
-  const byNode = new Map<
-    string,
-    Array<{ id: string; idx: number; value: string; metadata: string | null }>
-  >();
-  for (const row of valued) {
-    const list = byNode.get(row.node_id) ?? [];
-    list.push({ id: row.id, idx: row.idx, value: row.value, metadata: row.metadata });
-    byNode.set(row.node_id, list);
-  }
-
-  const eventDated = db.prepare(
-    "SELECT 1 FROM property_value WHERE node_id = ? AND property_schema_id = ? LIMIT 1",
-  );
-  for (const [nodeId, rows] of byNode) {
-    if (rows.length > 1) {
-      plan.conflicts.push({
-        nodeId,
-        reason: `${rows.length} meetingDate elements — manual review (the slot is single-value)`,
-      });
-      continue;
-    }
-    if (eventDated.get(nodeId, EVENT_DATE_ID) !== undefined) {
-      plan.conflicts.push({
-        nodeId,
-        reason: "eventDate already carries a value — the meetingDate value stays for manual review",
-      });
-      continue;
-    }
-    const row = rows[0]!;
-    plan.copies.push({
-      nodeId,
-      value: JSON.parse(row.value) as unknown,
-      metadata: row.metadata === null ? null : (JSON.parse(row.metadata) as Record<string, unknown>),
-    });
-    plan.removals.push({ nodeId, idx: row.idx, elementId: row.id });
-  }
-
-  const assigned = db
-    .prepare("SELECT node_id FROM node_property WHERE property_schema_id = ?")
-    .all(MEETING_DATE_ID) as Array<{ node_id: string }>;
-  for (const row of assigned) {
-    plan.unassigns.push({ nodeId: row.node_id });
-  }
-
-  plan.bindingUnset =
-    db
-      .prepare("SELECT 1 FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-      .get(MEETING_CLASS_ID, MEETING_DATE_ID) !== undefined;
-
-  const schema = db
-    .prepare("SELECT active FROM property_schema WHERE id = ?")
-    .get(MEETING_DATE_ID) as { active: number } | undefined;
-  plan.schemaDelete = schema !== undefined && schema.active === 1;
-
-  return plan;
-}
-
-export function planIsEmpty(plan: RetirementPlan): boolean {
-  return (
-    plan.copies.length === 0 &&
-    plan.removals.length === 0 &&
-    plan.unassigns.length === 0 &&
-    !plan.bindingUnset &&
-    !plan.schemaDelete
-  );
-}
-
-// --- envelopes ------------------------------------------------------------------
-
-export function buildRetirementEnvelopes(
-  workspaceId: string,
-  plan: RetirementPlan,
-): Envelope[] {
-  const physical = Date.now();
-  const envelopes: Envelope[] = [];
-  let logical = 0;
-  const push = (opType: string, payload: Record<string, unknown>, affected: string[]) =>
-    envelopes.push(
-      newEnvelope({
-        workspaceId,
-        actorId: ACTOR,
-        deviceId: DEVICE,
-        client: CLIENT,
-        hlc: { physical, logical: logical++ },
-        affectedNodeIds: affected,
-        opType,
-        payload,
-      }),
+  return scratchStoreBuild(relay, workspaceId, ({ encrypted, pending }) => {
+    console.log(
+      `  (scratch: ${encrypted} encrypted + ${pending} pending envelope(s) skipped — ` +
+        "a keyed workspace's sealed content is invisible to a server-side plan)",
     );
-
-  for (const copy of plan.copies) {
-    push(
-      "property.set",
-      {
-        objectId: copy.nodeId,
-        propertySchemaId: EVENT_DATE_ID,
-        value: copy.value,
-        idx: 0,
-        ...(copy.metadata !== null ? { metadata: copy.metadata } : {}),
-      },
-      [copy.nodeId],
-    );
-  }
-  for (const removal of plan.removals) {
-    push(
-      "property.unset",
-      { objectId: removal.nodeId, propertySchemaId: MEETING_DATE_ID, idx: removal.idx },
-      [removal.nodeId],
-    );
-  }
-  for (const unassign of plan.unassigns) {
-    push(
-      "property.unassign",
-      { objectId: unassign.nodeId, propertySchemaId: MEETING_DATE_ID },
-      [unassign.nodeId],
-    );
-  }
-  if (plan.bindingUnset) {
-    push(
-      "class.property.unset",
-      { classId: MEETING_CLASS_ID, propertySchemaId: MEETING_DATE_ID },
-      [MEETING_CLASS_ID],
-    );
-  }
-  if (plan.schemaDelete) {
-    push("propertySchema.delete", { propertySchemaId: MEETING_DATE_ID }, []);
-  }
-  return envelopes;
+  });
 }
 
-/**
- * The protocol gate: every envelope must satisfy the envelope schema AND its
- * per-op payload schema BEFORE anything is inserted.
- */
-function validateEnvelopes(envelopes: Envelope[]): void {
-  const failures: string[] = [];
-  for (const envelope of envelopes) {
-    if (!envelopeSchema.safeParse(envelope).success) {
-      failures.push(`${envelope.opType} ${envelope.id}: envelope invalid`);
-      continue;
-    }
-    const schema = payloadSchemaFor(envelope.opType);
-    if (schema === undefined || !schema.safeParse(envelope.payload).success) {
-      failures.push(`${envelope.opType} ${envelope.id}: payload invalid`);
-    }
-  }
-  if (failures.length > 0) {
-    throw new Error(`refusing to insert: ${failures.length} invalid envelope(s):\n  ${failures.join("\n  ")}`);
-  }
-}
+// --- planning + envelopes -------------------------------------------------------
+// planMeetingDateRetirement / planIsEmpty / buildRetirementEnvelopes /
+// validateRetirementEnvelopes live in the node-free core, re-exported above.
+// The op-triple primitive behind the envelope builder is the shape a
+// client-side executor stamps with its session constants through the
+// normal write path.
+
 
 /**
  * The applier gate: replay the plan's envelopes on a THROWAWAY scratch store
@@ -419,7 +208,7 @@ function verify(
 ): void {
   const rows = relay
     .allEnvelopes(workspaceId)
-    .filter((envelope) => envelope.deviceId === DEVICE);
+    .filter((envelope) => envelope.deviceId === MIGRATION_IDENTITY.deviceId);
   if (rows.length !== expectedCount) {
     throw new Error(`read-back mismatch: expected ${expectedCount} new envelopes, found ${rows.length}`);
   }
@@ -482,6 +271,7 @@ function main(): void {
   );
 
   try {
+    refuseIfContentOnKeyed(options.dataDir, options.workspace, CONTENT_CLASS, "migrate-meeting-date-retirement.mts");
     const snapshot = relay.latestSnapshot(options.workspace);
     const latestSeq = relay.latestSeq(options.workspace);
     console.log(
@@ -512,8 +302,8 @@ function main(): void {
       return;
     }
 
-    const envelopes = buildRetirementEnvelopes(options.workspace, plan);
-    validateEnvelopes(envelopes);
+    const envelopes = buildRetirementEnvelopes(options.workspace, plan, Date.now());
+    validateRetirementEnvelopes(envelopes);
     const simulation = simulateRetirementEnvelopes(relay, options.workspace, envelopes);
     for (const rejection of simulation.rejected) {
       console.log(`  KEEP   ${rejection.nodeId}  (${rejection.reason})`);

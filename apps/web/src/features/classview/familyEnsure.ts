@@ -15,8 +15,9 @@
  *   defaultValue ride the spec and are carried into the
  *   propertySchema.create payload only when defined — the authored wire
  *   payload is exactly what a hand-rolled loop would send.
- * - Bindings: existence-only. The `pinned` tier flag rides a NEW binding
- *   row only — an existing row (user-unpinned included) is never re-patched.
+ * - Bindings: existence-only. The `pinned` tier flag and the
+ *   `showInNodeRows` preview flag ride a NEW binding row only — an existing
+ *   row (user-edited included) is never re-patched.
  *
  * Idempotence: a fully-present family is a complete no-op (both phases skip
  * every spec), so the ensures are safe to call on every open.
@@ -76,6 +77,8 @@ export interface FamilyPropertySpec {
   defaultValue?: unknown;
   /** The binding row's pin-tier flag — rides a NEW binding row only. */
   pinned?: boolean;
+  /** The binding row's node-row preview flag — rides a NEW binding row only. */
+  showInNodeRows?: boolean;
 }
 
 export interface EnsureFamilyOptions {
@@ -130,9 +133,9 @@ export async function ensureFamilyPropertySchemas(
 
 /**
  * Phase 2 — author the family's missing class bindings (existence-only:
- * `pinned` rides a NEW binding row only — an existing row, user-unpinned
- * included, is never re-patched; a spec without `pinned` binds with an
- * empty fields object).
+ * `pinned` / `showInNodeRows` ride a NEW binding row only — an existing row,
+ * user-unpinned included, is never re-patched; a spec without either flag
+ * binds with an empty fields object).
  */
 export async function ensureFamilyBindings(
   surface: FamilyEnsureSurface,
@@ -146,6 +149,7 @@ export async function ensureFamilyBindings(
     if (bound.has(spec.id)) continue;
     await surface.setClassProperty(classId, spec.id, {
       ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
+      ...(spec.showInNodeRows !== undefined ? { showInNodeRows: spec.showInNodeRows } : {}),
     });
   }
 }

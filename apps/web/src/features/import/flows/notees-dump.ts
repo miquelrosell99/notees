@@ -32,6 +32,7 @@ import { Store } from "@notees/store";
 import { sqljsBackend } from "@notees/store/sqljs";
 
 import { createWorkspace } from "@/core/auth-api.js";
+import { keyBundleForCreate } from "@/core/crypto-custody.js";
 
 export interface NoteesDumpArchive {
   archive: JsonArchive;
@@ -272,7 +273,16 @@ export async function importNoteesDump(
 ): Promise<NoteesDumpResult> {
   const { archive, assetCount } = parseNoteesDump(options.fileName, options.bytes);
 
-  const { id: workspaceId } = await createWorkspace(options.serverUrl, options.credential, options.name);
+  // Keyless (API-key session): null bundle → the create POSTs WITHOUT a
+  // wrappedKey and the server decides (422 keying_required hatch on / legacy
+  // 201 hatch off) — this flow's rejection carries the answer.
+  const bundle = await keyBundleForCreate();
+  const { id: workspaceId } = await createWorkspace(
+    options.serverUrl,
+    options.credential,
+    options.name,
+    bundle?.wrappedKey,
+  );
 
   const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl });
   const store = new Store(sqljsBackend(SQL));

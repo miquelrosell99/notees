@@ -45,12 +45,17 @@ export async function ensureSeedSchemaRow(client: AnyClient, schemaId: string): 
   const [name, id] = entry;
   const spec = SYSTEM_PROPERTY_SPECS[name as keyof typeof SYSTEM_PROPERTY_SPECS];
   if (spec === undefined) return;
+  // A list-valued bindTo (the multi-class bind — `repeat`) scopes the schema
+  // to every bound class.
+  const bindToNames = spec.bindTo === undefined ? [] : Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
   await client.createPropertySchema({
     id,
     name: SYSTEM_PROPERTY_DISPLAY_NAMES[name as keyof typeof SYSTEM_PROPERTY_DISPLAY_NAMES],
     type: spec.type,
     multi: spec.multi ?? false,
-    ...(spec.global === true ? {} : { scopeClassIds: [SYSTEM_CLASS_UUIDS[spec.bindTo!]] }),
+    ...(spec.global === true || bindToNames.length === 0
+      ? {}
+      : { scopeClassIds: bindToNames.map((className) => SYSTEM_CLASS_UUIDS[className]) }),
     ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
     ...(spec.options !== undefined ? { options: spec.options } : {}),
     ...(spec.targetClassFilter !== undefined

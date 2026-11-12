@@ -192,7 +192,7 @@ export class SyncEngine {
   private restoreEpoch: number;
   private status: SyncStatus = "idle";
   private lastError: Error | null = null;
-  /** HLC of the last snapshot this session uploaded; avoids re-uploading. */
+  /** HLC watermark of the last snapshot this device uploaded; avoids re-uploading. Durable (app_meta) — see maybeUploadSnapshot. */
   private uploadedSnapshotHlc: Hlc | null = null;
   private snapshotQuarantineReported = false;
   /**
@@ -250,6 +250,7 @@ export class SyncEngine {
     this.receivedHlc = persisted?.receivedHlc ?? ZERO_HLC;
     this.restoreEpoch = persisted?.restoreEpoch ?? 0;
     this.firstSkippedSeq = persisted?.firstSkippedSeq ?? null;
+    this.uploadedSnapshotHlc = persisted?.uploadedSnapshotHlc ?? null;
     // The W2 unlock re-open constructs a FRESH engine with crypto in the
     // constructor options — the persisted locked-skip marker must rewind
     // here too (the setCrypto path alone never runs for this flow), else
@@ -358,6 +359,7 @@ export class SyncEngine {
       receivedHlc: this.receivedHlc,
       restoreEpoch: this.restoreEpoch,
       firstSkippedSeq: this.firstSkippedSeq,
+      uploadedSnapshotHlc: this.uploadedSnapshotHlc,
     });
   }
 
@@ -579,8 +581,12 @@ export class SyncEngine {
     this.cursorSeq = 0;
     this.receivedHlc = ZERO_HLC;
     this.restoreEpoch = newEpoch;
-    this.persistState();
+    // The server-side wipe voids any snapshot this device uploaded — the
+    // watermark resets with the rest of the state, durably (a persisted
+    // uploadedSnapshotHlc would otherwise suppress the re-upload the wiped
+    // relay needs).
     this.uploadedSnapshotHlc = null;
+    this.persistState();
 
     // The full replay runs inside the store's bulk window (the wipe-rebuild
     // cost the server-side hydrate also pays): per-op node_stats/search
@@ -729,6 +735,14 @@ export class SyncEngine {
       this.uploadedSnapshotHlc = this.receivedHlc;
       this.snapshotOversizeReported = false;
       this.snapshotQuarantineReported = false;
+      // Durable, not just session state: a short-lived client (a fresh engine
+      // per invocation, CLI-style) restarts with this watermark intact, so a
+      // relay checkpoint that carries a LOWER hlc than this device's watermark
+      // (a lagging compaction, a backup restore) does not trigger a full
+      // re-upload on every invocation. Snapshots are an optimization, never
+      // authority — skipping the re-upload loses nothing the seq catch-up
+      // does not cover.
+      this.persistState();
     } catch (error) {
       // Best-effort: a failed upload must not fail sync. The ONE failure
       // that never heals by retrying — the relay's body cap (413 Request

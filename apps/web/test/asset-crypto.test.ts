@@ -83,6 +83,34 @@ describe("sealAssetIfKeyed", () => {
     expect(sealed.fields).toBeNull();
     expect([...sealed.bytes]).toEqual([...BYTES]);
   });
+
+  it("master-key session + PLAINTEXT workspace (GET 404): passthrough bytes, NO lazy PUT — keying is deliberate", async () => {
+    const master = await generateMasterKey();
+    const kdf = await createKdfRecord(master, PASSWORD);
+    await deriveMasterKey(PASSWORD, kdf);
+
+    let putCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "GET") {
+          return Response.json({ error: { message: "not found" } }, { status: 404 });
+        }
+        if (url.endsWith(`/api/workspaces/${WS}/key`) && method === "PUT") {
+          putCount += 1;
+          return new Response(null, { status: 204 });
+        }
+        throw new Error(`unexpected fetch: ${method} ${url}`);
+      }),
+    );
+
+    const sealed = await sealAssetIfKeyed(SERVER, TOKEN, WS, BYTES, "image/jpeg");
+    expect(sealed.fields).toBeNull();
+    expect([...sealed.bytes]).toEqual([...BYTES]);
+    expect(putCount).toBe(0);
+  });
 });
 
 describe("openAssetIfSealed", () => {

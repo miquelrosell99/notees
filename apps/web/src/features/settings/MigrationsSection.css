@@ -1,0 +1,76 @@
+/**
+ * MigrationsSection — the content-migration runner block's presentation.
+ * Token-only values (the ui-primitives law): spacing rides the spacing
+ * scale, the conflict list caps its height in line-height units so it
+ * tracks the type metrics.
+ */
+
+.migrations-section__hint {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.migrations-section__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.migrations-section__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  padding: var(--spacing-3);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--radius-md);
+}
+
+.migrations-section__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: min(100%, 32ch);
+}
+
+.migrations-section__counts {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.migrations-section__dryrun {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.migrations-section__report {
+  margin: 0;
+  padding-inline-start: var(--spacing-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.migrations-section__report code {
+  font: var(--font-body-small);
+  color: var(--md-sys-color-primary);
+  overflow-wrap: anywhere;
+}
+
+.migrations-section__conflicts {
+  max-height: calc(1lh * 8);
+  overflow-y: auto;
+}
+
+.migrations-section__conflicts-title {
+  margin: 0;
+}
+
+.migrations-section__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

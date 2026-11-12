@@ -278,6 +278,14 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     requiredScope: "objects.read",
     errors: ["validation_failed", "not_found"],
   }],
+  ["get", "/word/*", {
+    summary: "Word add-in statics (manifest + task-pane assets), auth-free by design",
+    description:
+      "Serves the Office.js add-in's files from NOTEES_WORD_ADDIN_DIR (unset → 404). Public: the add-in holds no credentials; only the localhost CLI bridge is authoritative. GET only; path traversal refused.",
+    tags: ["Word add-in"],
+    public: true,
+    success: { description: "the requested static file" },
+  }],
 
   // --- account & auth ---------------------------------------------------------------
   ["get", "/api/server-info", {
@@ -568,14 +576,19 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
   ["post", "/api/workspaces", {
     summary: "Create a workspace (the creator becomes owner; session required)",
+    description:
+      "The body MAY carry a client-chosen `id` (uuid): an offline-created workspace publishes under its EXISTING id (its local store is keyed by it). A taken id answers 409 and nothing is minted; the keying gate reads the explicit id (KEYING_EXEMPT_WORKSPACE_IDS semantics unchanged), and the seeded fixture ids themselves stay mint-only-via-ingest (422).",
     tags: ["Workspaces"],
     requestBody: {
       type: "object",
       additionalProperties: false,
-      properties: { name: { type: "string" } },
+      properties: {
+        id: { type: "string", format: "uuid" },
+        name: { type: "string" },
+      },
     },
     success: { status: 201, description: "the new workspace id" },
-    errors: ["validation_failed"],
+    errors: ["validation_failed", "keying_required", "conflict"],
   }],
   ["patch", "/api/workspaces/:id", {
     summary: "Rename a workspace (owner-only; non-members get 404)",
@@ -631,7 +644,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
 
 
   ["get", "/api/api-keys", {
-    summary: "List the account's API keys (session required; keys are name + scopes + prefix)",
+    summary: "List the account's API keys (session required; keys are name + scopes + prefix + machine flag)",
     tags: ["Account"],
   }],
   ["post", "/api/api-keys", {
@@ -647,6 +660,37 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     summary: "Revoke an API key (session revokes any of the account's keys; a key may revoke only itself)",
     tags: ["Account"],
     errors: ["not_found", "conflict"],
+  }],
+  ["post", "/api/api-keys/:id/custody", {
+    summary: "Install a machine key's opaque custody record (session required; the wrap is client-side AES-GCM of the master key under a key derived from the key's own token)",
+    description:
+      "minting is two-phase — POST /api-keys returns the token once, then this route installs the wrap the client built from it. Idempotent: an installed record is never overwritten. Revocation clears the record with the key.",
+    tags: ["Account"],
+    requestBody: {
+      required: true,
+      properties: {
+        salt: { type: "string", minLength: 1, maxLength: 256 },
+        wrappedMaster: { type: "string", minLength: 1, maxLength: 8192 },
+      },
+    },
+    success: { status: 204, description: "stored (or already installed)" },
+    errors: ["unauthenticated", "validation_failed", "not_found"],
+  }],
+  ["get", "/api/api-keys/self/custody", {
+    summary: "Fetch this key's machine-custody record (the API key itself authenticates; sessions and the operator key are refused)",
+    description:
+      "a client holding a machine key derives the unwrap key from its own token and opens the wrap locally — encrypted workspaces without the password. Human keys answer 404; the wrap is AES-GCM self-authenticating, so the record carries no separate verifier.",
+    tags: ["Account"],
+    success: {
+      status: 200,
+      description: "{ salt, wrappedMaster } — the opaque wrap; AES-GCM self-authenticating",
+      schema: {
+        type: "object",
+        required: ["salt", "wrappedMaster"],
+        properties: { salt: { type: "string" }, wrappedMaster: { type: "string" } },
+      },
+    },
+    errors: ["unauthenticated", "forbidden", "not_found"],
   }],
 
   // --- objects ------------------------------------------------------------------------
@@ -752,7 +796,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
   ["post", "/api/classes/:id/properties", {
-    summary: "Bind a property schema to a class (class.property.set: the active soft-unbind + pinned tier-flag patch — the binding's per-class mechanics; `required`/`defaultValue`/`sequence` retired)",
+    summary: "Bind a property schema to a class (class.property.set: the active soft-unbind + pinned tier-flag + showInNodeRows node-row-preview patch — the binding's per-class mechanics; `required`/`defaultValue`/`sequence` retired)",
     tags: ["Classes", "Properties"],
     requestBody: { type: "object", additionalProperties: true, description: "the class.property.set patch fields + propertySchemaId (protocol-pinned)" },
     requiredScope: "objects.write",
@@ -803,6 +847,42 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     tags: ["Assets"],
     requiredScope: "assets.read",
     errors: ["not_found"],
+  }],
+
+  // --- capture ---------------------------------------------------------------------------
+  ["post", "/api/capture/web-page", {
+    summary: "Capture a web page as a web_page source or into the read-it-later inbox",
+    description:
+      "Stamps object.create (class web_page) + property.set (url, accessDate, resolver fields) envelopes through the one write path; readlater mode additionally stamps collection.member.add into the workspace's auto-created 'Read later' collection. Session Bearer or a capture.write-scoped API key. Idempotent: re-capturing the same URL returns the existing node. 409 e2ee_required for encrypted workspaces (capture through an open client); 403 feature_disabled when the workspace's readItLater toggle is off.",
+    tags: ["Capture"],
+    requestBody: {
+      content: {
+        "application/json": {
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            required: ["url", "title", "mode"],
+            properties: {
+              url: { type: "string", format: "uri", pattern: "^https?://", maxLength: 2048 },
+              title: { type: "string", minLength: 1, maxLength: 500 },
+              mode: { type: "string", enum: ["source", "readlater"] },
+              identifiers: {
+                type: "object",
+                additionalProperties: false,
+                properties: { doi: { type: "string" }, isbn: { type: "string" } },
+              },
+              note: { type: "string", maxLength: 10000 },
+            },
+          },
+        },
+      },
+    },
+    success: {
+      status: 201,
+      description: `{ "objectId": "<node id>", "collectionId?": "<read-later collection id, readlater mode only>" }`,
+    },
+    requiredScope: "capture.write",
+    errors: ["validation_failed", "feature_disabled", "e2ee_required"],
   }],
 
   // --- relay (WIRE.md) -----------------------------------------------------------
@@ -1217,6 +1297,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "objects.delete": "retired with the object API (plan-07)",
         "assets.read": "GET /api/assets/*",
         "assets.write": "POST /api/assets",
+        "capture.write": "POST /api/capture/web-page",
         "search": "GET /api/resolve (name→id + the metadata resolver), POST /api/resolve/pdf (the PDF→DOI flow) — /api/search and /api/query retired (plan-07)",
         "export": "retired (plan-07) — the web client builds the workspace zip locally",
         "admin": "the whole /api/plugins surface — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",

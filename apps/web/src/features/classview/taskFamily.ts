@@ -1,13 +1,13 @@
 /**
- * Task family authoring — the designed fix. The six task property schemas
+ * Task family authoring — the designed fix. The five task property schemas
  * (fixed UUIDs + canonical options in @notees/domain seeds) exist as
  * constants + migration mappings only: nothing authored them, so a
  * fresh workspace's tasks hub silently dropped the Scheduled/Deadline
  * columns and no surface could schedule a task. The register's sanctioned
- * fix: author the six schemas idempotently on first tasks-hub open (and,
+ * fix: author the five schemas idempotently on first tasks-hub open (and,
  * per the Calendar day view, on first calendar open).
  *
- * ensureTaskFamily authors the six property schemas at their reserved ids
+ * ensureTaskFamily authors the five property schemas at their reserved ids
  * (the propertySchema.create upsert is a no-op when the row exists) plus the
  * task-class bindings when missing, and is a complete no-op once present.
  * The task→project membership relation rides the same ensure (the SEVENTH
@@ -77,13 +77,18 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
   Urgent: TASK_PRIORITY_OPTION_UUIDS.urgent,
 };
 
-/** The seven schemas in authoring order (six family + the project
+/** The six schemas in authoring order (five family + the project
  * relation; binding rows carry no order — the task panel renders in pin
  * tiers, alphabetical by property name within each tier; `pinned` is a
  * classification, never a stored order). The pinned set mirrors
  * TASK_FAMILY_SEED (2026-10-27): Status/Scheduled/Deadline pinned,
- * Priority/Closed/Recurrence + project unpinned (no declared pin set carries
- * the new binding). */
+ * Priority/Closed + project unpinned (no declared pin set carries
+ * the new binding); the node-row preview flag mirrors the same seed —
+ * Status/Deadline flagged, Scheduled/Priority/Closed/project not. The
+ * withdrawn taskRecurrence placeholder retires
+ * here — recurrence is the dedicated `repeat` property, arriving via the
+ * domain seed envelopes + the store's ensureTaskFamilyRows, never this
+ * ensure. */
 const TASK_FAMILY: Array<{
   id: string;
   name: string;
@@ -91,6 +96,8 @@ const TASK_FAMILY: Array<{
   options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
   /** The binding row's tier flag (TASK_FAMILY_SEED.pinned). */
   pinned?: boolean;
+  /** The binding row's node-row preview flag (TASK_FAMILY_SEED.showInNodeRows). */
+  showInNodeRows?: boolean;
   /** Multi cardinality (the `project` relation; absent = single-value). */
   multi?: boolean;
   /** Node-typed target filter (already-resolved seed class ids — the shared
@@ -114,6 +121,7 @@ const TASK_FAMILY: Array<{
         color: option.color,
       })),
     pinned: true,
+    showInNodeRows: true,
     defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
   },
   {
@@ -127,6 +135,7 @@ const TASK_FAMILY: Array<{
     name: "Deadline",
     type: "datetime",
     pinned: true,
+    showInNodeRows: true,
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskPriority,
@@ -139,14 +148,6 @@ const TASK_FAMILY: Array<{
     id: SYSTEM_PROPERTY_UUIDS.taskClosedDate,
     name: "Closed",
     type: "datetime",
-  },
-  {
-    // The migration imported recurrence as a plain select (no engine executes it);
-    // authored optionless until the recurrence spec lands.
-    id: SYSTEM_PROPERTY_UUIDS.taskRecurrence,
-    name: "Recurrence",
-    type: "select",
-    options: () => [],
   },
   {
     // The task→project membership relation (the SYSTEM_PROPERTY_SPECS
@@ -178,7 +179,7 @@ export function taskFamilyPresent(
 }
 
 /**
- * Author the seven task property schemas (six family + project) + task-class
+ * Author the six task property schemas (five family + project) + task-class
  * bindings when missing; a no-op when present (idempotent — safe to call on
  * every open). Also runs
  * the status-restyle upgrade on every call (itself a no-op once the

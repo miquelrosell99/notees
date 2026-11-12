@@ -16,7 +16,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { newEnvelope, type Envelope } from "@notees/protocol";
-import { parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { parseDateNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
@@ -696,9 +696,8 @@ describe("CalendarView", () => {
     });
     await client.ensureDateChain(today);
     const schemaId = await dateSchemaOf(client);
-    await client.setProperty(gathering, schemaId, { nodeId: dayNodeOf(today) }, 0, {
-      repeat: "weekly",
-    });
+    await client.setProperty(gathering, schemaId, { nodeId: dayNodeOf(today) }, 0);
+    await client.setProperty(gathering, SYSTEM_PROPERTY_UUIDS.repeat, "RRULE:FREQ=WEEKLY", 0);
 
     window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("month"));
     render(<CalendarView client={client} onOpenPage={vi.fn()} />);
@@ -723,8 +722,9 @@ describe("CalendarView", () => {
       expect(scheduledIsoOfClient(client, exception!.id)).toBe(tomorrow);
       const row = client
         .getEffectiveProperties(gathering)
-        .find((prop) => prop.schema?.type === "datetime");
-      expect(row?.metadata).toMatchObject({ repeat: "weekly", exdates: [today] });
+        .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat);
+      expect(row?.value).toBe("RRULE:FREQ=WEEKLY");
+      expect(row?.metadata).toMatchObject({ exdates: [today] });
     });
   });
 });

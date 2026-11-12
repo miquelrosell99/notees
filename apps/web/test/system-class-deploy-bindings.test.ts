@@ -146,10 +146,12 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
       SYSTEM_PROPERTY_UUIDS.location,
       SYSTEM_PROPERTY_UUIDS.agenda,
     ]);
-    // The event parent was deployed first: its eventDate row exists too.
-    expect(client.getRegistryBindings(EVENT_CLASS_ID).map((b) => b.propertySchemaId)).toEqual([
-      SYSTEM_PROPERTY_UUIDS.eventDate,
-    ]);
+    // The event parent was deployed first: its eventDate + repeat rows
+    // exist too (repeat rides the list-valued bindTo — event is one of the
+    // two bound classes).
+    expect(
+      client.getRegistryBindings(EVENT_CLASS_ID).map((b) => b.propertySchemaId).sort(),
+    ).toEqual([SYSTEM_PROPERTY_UUIDS.eventDate, SYSTEM_PROPERTY_UUIDS.repeat].sort());
 
     // The registry-only effective read now BINDS the authored value.
     const authoredAfter = client
@@ -179,7 +181,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
     await deploySystemClass(client, "event");
     await flushSync();
-    expect(client.getRegistryBindings(EVENT_CLASS_ID)).toHaveLength(1);
+    expect(client.getRegistryBindings(EVENT_CLASS_ID)).toHaveLength(2);
     // The birthday node + edge exist, nothing else (a workspace seeded
     // before the birthday family joined the manifest).
     await client.createClass("Birthday", { id: BIRTHDAY_CLASS_ID });
@@ -331,5 +333,60 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
         .getRegistryBindings(SYSTEM_CLASS_UUIDS.book_section)
         .map((binding) => ({ id: binding.propertySchemaId, active: binding.active })),
     ).toEqual(snapshot);
+  });
+
+  it("deploys the repeat property on event — the list-valued bindTo is a membership match, scoped to the union", async () => {
+    const client = await seedClient();
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    await deploySystemClass(client, "event");
+    await flushSync();
+
+    const repeat = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.repeat);
+    expect(repeat).toMatchObject({
+      name: "Repeat",
+      type: "text",
+      // The seed's UNION scope (the multi-class bind — family-identity
+      // shape), never the deployed class alone.
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.event, SYSTEM_CLASS_UUIDS.task],
+    });
+    // The event-side binding row lands here; the task side rides the store's
+    // ensureTaskFamilyRows.
+    expect(
+      client.getRegistryBindings(EVENT_CLASS_ID).map((b) => b.propertySchemaId),
+    ).toContain(SYSTEM_PROPERTY_UUIDS.repeat);
+  });
+
+  it("converges an already-seeded repeat schema without clobbering the union scope", async () => {
+    const client = await seedClient();
+    // The server-seeded shape: the repeat schema already exists at the
+    // union scope, the event class node exists, the binding row is missing.
+    await client.createClass("Event", { id: EVENT_CLASS_ID });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.repeat,
+      name: "Repeat",
+      type: "text",
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.event, SYSTEM_CLASS_UUIDS.task],
+    });
+    await flushSync();
+    const spy = vi.spyOn(client, "updatePropertySchema");
+
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
+    await deploySystemClass(client, "event");
+    await flushSync();
+
+    // The deploy leaves the union scope alone (it IS the seeded scope —
+    // converging it to [event] would orphan the task side's eligibility)
+    // and authors only the missing event binding row.
+    const repeat = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.repeat);
+    expect(repeat?.scopeClassIds).toEqual([SYSTEM_CLASS_UUIDS.event, SYSTEM_CLASS_UUIDS.task]);
+    expect(
+      client.getRegistryBindings(EVENT_CLASS_ID).map((b) => b.propertySchemaId),
+    ).toContain(SYSTEM_PROPERTY_UUIDS.repeat);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

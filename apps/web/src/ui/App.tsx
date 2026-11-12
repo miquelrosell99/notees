@@ -50,7 +50,11 @@ import {
 } from "@/core/workspace-registry.js";
 import { logout, unlock } from "@/core/auth-api.js";
 import { deriveMasterKey } from "@/core/crypto-custody.js";
-import { clearCryptoCustody } from "@/core/crypto-custody.js";
+import {
+  clearCryptoCustody,
+  currentMasterKey,
+  ensureWorkspaceKey,
+} from "@/core/crypto-custody.js";
 
 import { titleOfNode } from "./dateDisplay.js";
 import { parentlessBlockResolverOf } from "./renderStateLabel.js";
@@ -76,6 +80,8 @@ import {
 } from "../features/sources/sourcesQuery.js";
 import { useCondensedPreference } from "./viewPrefs.js";
 import { UnlockWorkspaceModal } from "../features/modals/UnlockWorkspaceModal.js";
+import { AdoptionOfferModal } from "../features/modals/AdoptionOfferModal.js";
+import { confirmWorkspaceAdoption } from "./app/store-connection.js";
 import {
   AppBody,
   AppModals,
@@ -109,6 +115,7 @@ import {
   useWorkspaceConnection,
 } from "./app/index.js";
 import { ConnectingScreen } from "./app/ConnectingScreen.js";
+import { useTabRelay } from "./app/useTabRelay.js";
 // The global stylesheet family, in cascade order — the contract the
 // 2026-10-28 co-location pass established: app.css was the LAST css import,
 // so every file below imports at this same spot, in this exact order, and
@@ -184,12 +191,15 @@ export function App() {
     storeReason,
     unlockRequest,
     setUnlockRequest,
+    adoptionRequest,
+    setAdoptionRequest,
     connectProgress,
     connectProgressFraction,
     sessionSignedIn,
     setSessionSignedIn,
     workspaceName,
     setWorkspaceName,
+    workspacePlaintext,
     phase,
     setPhase,
     error,
@@ -203,6 +213,12 @@ export function App() {
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
+  /**
+   * The post-keying honest notice: the workspace id the banner's Key action
+   * just keyed (null = none). Session state only — the notice names its
+   * workspace, so a switch can never carry it elsewhere; dismiss clears it.
+   */
+  const [keyedNoticeFor, setKeyedNoticeFor] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     // Default: open on desktop, closed on narrow screens. jsdom lacks
     // matchMedia — default open there.
@@ -496,6 +512,8 @@ export function App() {
     setFocusMode,
   });
 
+  useTabRelay({ clientRef, serverUrl, token, workspacePlaintext, unlockRequest });
+
   /**
    * The RAW open: sync the URL, the selection and Recents to exactly `id` —
    * no alias resolution. The identity-level path: browser deep links and
@@ -697,7 +715,11 @@ export function App() {
   useEffect(() => {
     if (client === null) return;
     return client.subscribe((change) => {
-      if (change.affectedNodeIds === undefined) return;
+      // Structural batches keep their scope conservative here even though
+      // the payload now carries the affected set: the watcher mends citekeys
+      // on content edits of source-lineage nodes, and a structural gesture's
+      // own writes re-notify through the scoped path.
+      if (change.affectedNodeIds === undefined || change.structural === true) return;
       for (const nodeId of change.affectedNodeIds) {
         void syncSourceCitekey(client, nodeId).catch(() => {});
       }
@@ -746,6 +768,7 @@ export function App() {
     clearCryptoCustody();
     setToken("");
     setUser(null);
+    setKeyedNoticeFor(null);
     closeClient();
     pushNav("/login", { view: "login" });
     setPhase({ name: "server" });
@@ -764,6 +787,7 @@ export function App() {
     setToken("");
     setUser(null);
     setSessionSignedIn(false);
+    setKeyedNoticeFor(null);
     closeClient();
     setServerUrl(initialServerUrl());
     setError(null);
@@ -789,6 +813,28 @@ export function App() {
     if (client === null) return;
     const id = await client.createObject({ isEmbedded: false, name: title ?? "Untitled" });
     setSelectedPageId(id);
+  }
+
+  /**
+   * The banner's "Key this workspace" — the ONE deliberate open-time keying
+   * path besides creation (the no-auto-key ruling: opening a plaintext
+   * workspace never keys it as a side effect). `ensureWorkspaceKey` generates
+   * + wraps + PUTs the key, the reconnect re-resolves it so the engine seals
+   * from here on, and the keyed notice carries the honest post-keying copy
+   * across the reconnect. Only reachable with the master key in memory (the
+   * banner disables the action otherwise).
+   */
+  async function handleKeyWorkspace(): Promise<void> {
+    const master = currentMasterKey();
+    const workspaceId = readStored(STORAGE_KEYS.workspaceId);
+    if (master === null || workspaceId === "") return;
+    await ensureWorkspaceKey(serverUrl, token, workspaceId, master);
+    setKeyedNoticeFor(workspaceId);
+    await connect(serverUrl, token, workspaceId, {
+      isOffline: false,
+      credentialType: sessionSignedIn ? "session" : "apikey",
+      label: workspaceName,
+    });
   }
 
   /**
@@ -820,6 +866,48 @@ export function App() {
         const response = await unlock(serverUrl, { email: user.email, password });
         await deriveMasterKey(password, response.kdf);
         setUnlockRequest(null);
+        await connect(request.url, request.credential, request.workspaceId, {
+          isOffline: false,
+          credentialType: request.credentialType,
+          label: request.name,
+        });
+      }}
+    />
+  );
+
+  /**
+   * The F2 adoption offer: an offline-created workspace met a server that has
+   * never seen it (the open paused before any client existed). Publishing
+   * confirms the create-with-id (the custody device key's wrap rides it) and
+   * reconnects — the second open is a normal keyed open. Keeping it local
+   * re-opens with declinedAdoption: plaintext, zero writes.
+   */
+  const adoptionModal = (
+    <AdoptionOfferModal
+      isOpen={adoptionRequest !== null}
+      workspaceName={adoptionRequest?.name ?? "Workspace"}
+      apiKeySession={adoptionRequest?.credentialType === "apikey"}
+      onKeepLocal={() => {
+        const request = adoptionRequest;
+        if (request === null) return;
+        setAdoptionRequest(null);
+        void connect(request.url, request.credential, request.workspaceId, {
+          isOffline: false,
+          credentialType: request.credentialType,
+          label: request.name,
+          declinedAdoption: true,
+        });
+      }}
+      onPublish={async () => {
+        const request = adoptionRequest;
+        if (request === null) return;
+        await confirmWorkspaceAdoption(
+          request.url,
+          request.credential,
+          request.workspaceId,
+          request.name,
+        );
+        setAdoptionRequest(null);
         await connect(request.url, request.credential, request.workspaceId, {
           isOffline: false,
           credentialType: request.credentialType,
@@ -887,6 +975,7 @@ export function App() {
         onClose={enteringFromApp ? () => setManagerOpen(false) : undefined}
       />
         {unlockModal}
+        {adoptionModal}
       </>
     );
   }
@@ -900,6 +989,7 @@ export function App() {
           error={error}
         />
         {unlockModal}
+        {adoptionModal}
       </>
     );
   }
@@ -1058,6 +1148,10 @@ export function App() {
         token={token}
         workspaceName={workspaceName}
         setWorkspaceName={setWorkspaceName}
+        workspacePlaintext={workspacePlaintext}
+        keyedNoticeFor={keyedNoticeFor}
+        onKeyWorkspace={handleKeyWorkspace}
+        onDismissKeyedNotice={() => setKeyedNoticeFor(null)}
       />
     </div>
   );

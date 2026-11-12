@@ -98,8 +98,18 @@ export const EVENT_CLASS_ID = SYSTEM_CLASS_UUIDS.event;
 export const BIRTHDAY_CLASS_ID = SYSTEM_CLASS_UUIDS.birthday;
 
 /** The event root's minimal family: the date binding the calendar rides on. */
-export const EVENT_FAMILY: ReadonlyArray<{ id: string; name: string; type: "datetime" }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.eventDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.eventDate, type: "datetime" },
+export const EVENT_FAMILY: ReadonlyArray<{
+  id: string;
+  name: string;
+  type: "datetime";
+  showInNodeRows?: boolean;
+}> = [
+  {
+    id: SYSTEM_PROPERTY_UUIDS.eventDate,
+    name: SYSTEM_PROPERTY_DISPLAY_NAMES.eventDate,
+    type: "datetime",
+    showInNodeRows: true,
+  },
 ];
 
 /**
@@ -140,8 +150,15 @@ export const MEETING_FAMILY: ReadonlyArray<{
   name: string;
   type: "text";
   pinned?: boolean;
+  showInNodeRows?: boolean;
 }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.location, name: SYSTEM_PROPERTY_DISPLAY_NAMES.location, type: "text", pinned: true },
+  {
+    id: SYSTEM_PROPERTY_UUIDS.location,
+    name: SYSTEM_PROPERTY_DISPLAY_NAMES.location,
+    type: "text",
+    pinned: true,
+    showInNodeRows: true,
+  },
   { id: SYSTEM_PROPERTY_UUIDS.agenda, name: SYSTEM_PROPERTY_DISPLAY_NAMES.agenda, type: "text" },
 ];
 
@@ -253,6 +270,10 @@ export async function ensureBirthdayFamily(surface: MeetingFamilySurface): Promi
     ),
   );
   if (!bound.has(SYSTEM_PROPERTY_UUIDS.eventDate)) {
-    await surface.setClassProperty(BIRTHDAY_CLASS_ID, SYSTEM_PROPERTY_UUIDS.eventDate, {});
+    // The flag mirrors SYSTEM_EXTRA_CLASS_BINDINGS' eventDate→birthday row
+    // (showInNodeRows: the birthday's date previews in node rows too).
+    await surface.setClassProperty(BIRTHDAY_CLASS_ID, SYSTEM_PROPERTY_UUIDS.eventDate, {
+      showInNodeRows: true,
+    });
   }
 }

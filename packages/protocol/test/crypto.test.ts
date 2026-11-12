@@ -22,7 +22,9 @@ import {
   generateWorkspaceKey,
   importMasterKey,
   importWorkspaceKey,
+  machineKeyVerifierOf,
   masterKeyFp,
+  deriveMachineKey,
   recoveryCodeIdOf,
   recoveryKeyVerifierOf,
   SCRYPT_PARAMS,
@@ -245,6 +247,36 @@ describe("recovery-code helpers", () => {
     await expect(unwrapWorkspaceKey(wrongKey, wrapped)).rejects.toThrow();
     // The right key recovers the master bytes.
     const reopened = await unwrapWorkspaceKey(recoveryKey, wrapped);
+    expect([...(await exportWorkspaceKey(reopened))]).toEqual([...masterBytes]);
+  });
+});
+
+describe("machine-key helpers (API-key custody)", () => {
+  it("the derivation is deterministic per (token, salt) and the verifier pins the HMAC formula", () => {
+    const token = "nk_machinekeytoken000000000000000000";
+    const salt = Uint8Array.from({ length: 16 }, (_, i) => i + 1);
+    const key1 = deriveMachineKey(token, salt);
+    const key2 = deriveMachineKey(token, salt);
+    expect(key1.length).toBe(32);
+    expect([...key1]).toEqual([...key2]);
+    expect([...key1]).not.toEqual([...deriveMachineKey("nk_otherkeytoken0000000000000000000", salt)]);
+    expect([...key1]).not.toEqual([...deriveMachineKey(token, Uint8Array.from({ length: 16 }, (_, i) => i + 2))]);
+    expect(machineKeyVerifierOf(key1)).toEqual(machineKeyVerifierOf(key2));
+    expect([...machineKeyVerifierOf(key1)]).not.toEqual([...recoveryKeyVerifierOf(key1)]);
+  });
+
+  it("a machine key wraps and unwraps the master key (wrapWorkspaceKey verbatim)", async () => {
+    const master = await generateMasterKey();
+    const masterBytes = new Uint8Array(await crypto.subtle.exportKey("raw", master));
+    const token = "nk_machinekeytoken000000000000000000";
+    const salt = Uint8Array.from({ length: 16 }, (_, i) => 0x40 + i);
+    const machineKey = await importMasterKey(deriveMachineKey(token, salt));
+    const wrapped = await wrapWorkspaceKey(machineKey, master);
+    // A DIFFERENT token's key must not open the wrap (AES-GCM self-authenticating).
+    const wrongKey = await importMasterKey(deriveMachineKey("nk_wrongkeytoken0000000000000000000", salt));
+    await expect(unwrapWorkspaceKey(wrongKey, wrapped)).rejects.toThrow();
+    // The right token recovers the master bytes — the CLI's no-password path.
+    const reopened = await unwrapWorkspaceKey(machineKey, wrapped);
     expect([...(await exportWorkspaceKey(reopened))]).toEqual([...masterBytes]);
   });
 });

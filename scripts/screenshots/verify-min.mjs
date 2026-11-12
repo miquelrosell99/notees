@@ -42,7 +42,26 @@ const PASSWORD = process.env.NOTEES_ADMIN_PASSWORD
     join(stackDir, "config/notees/.admin_password"),
     join(repoRoot, "config/notees/.admin_password"),
   ], "admin password");
-const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL ?? null;
+// The admin email for the account flow: env first, then the fleet stack's
+// host-local .env (the same source the api key + admin password files come
+// from — read into the process only, never printed).
+const stackEnv = (() => {
+  try {
+    const raw = readFileSync(join(stackDir, ".env"), "utf8");
+    const out = {};
+    for (const line of raw.split("\n")) {
+      const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+      if (m && m[2] !== "") out[m[1]] = m[2].replace(/^["']|["']$/g, "");
+    }
+    return out;
+  } catch {
+    return {};
+  }
+})();
+const envEmail = process.env.NOTEES_ADMIN_EMAIL;
+const ADMIN_EMAIL = (envEmail !== undefined && envEmail !== "" ? envEmail : undefined)
+  ?? stackEnv.NOTEES_ADMIN_EMAIL
+  ?? null;
 const OUT_DIR = process.env.NOTEES_VERIFY_OUT ?? join(stackDir, "scripts/migrated-verify");
 
 const api = async (path) => {
@@ -164,6 +183,24 @@ console.log(`boot+settle: ${bootSecs}s; body text length: ${(await page.evaluate
 const lockedBanner = await page.evaluate(() =>
   document.body.innerText.includes("This workspace is encrypted"));
 if (lockedBanner) {
+  const apiKeyBlocked = await page.evaluate(() =>
+    document.body.innerText.includes("sessions signed in with an API key can't unlock it"));
+  if (apiKeyBlocked) {
+    // E2EE era, API-key session: the app REFUSES to unlock under an API key
+    // (the master key is password-derived, never api-key custody) and names
+    // the remedy on the directional screen — there is no Unlock button to
+    // drive. The encrypted path is the riskiest part of a deploy, so a keyed
+    // stack smoked without any reachable account email fails LOUD here
+    // instead of passing shallow; the email self-resolves from the stack
+    // .env (see above), so the account flow normally runs from the start and
+    // this screen is never reached.
+    throw new Error(
+      "workspace is keyed and this session is an API key — the app refuses to unlock it "
+      + "(the directional screen names the account sign-in remedy) and NOTEES_ADMIN_EMAIL is unset "
+      + "(checked env + the stack .env), so the smoke cannot exercise the encrypted path; "
+      + "set NOTEES_ADMIN_EMAIL to run it",
+    );
+  }
   console.log("locked banner up — driving the unlock flow");
   // The banner re-renders on every sync notify, so the button can stay
   // "unstable" forever — force the click (it is the intended gesture), and

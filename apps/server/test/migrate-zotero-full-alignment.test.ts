@@ -234,7 +234,7 @@ describe("migrate-zotero-full-alignment.mts", () => {
       expect(property.scopeConverge).toBe(false);
     }
 
-    const envelopes = buildEnvelopes(WORKSPACE, plan);
+    const envelopes = buildEnvelopes(WORKSPACE, plan, 1729000000000);
     expect(envelopes).toHaveLength(EXPECTED_ENVELOPES);
     const creates = envelopes.filter((e) => e.opType === "propertySchema.create");
     const bindingOps = envelopes.filter((e) => e.opType === "class.property.set");
@@ -409,7 +409,7 @@ describe("migrate-zotero-full-alignment.mts", () => {
       expect(caseName.classBindings[0]!.className).toBe("document");
       expect(caseName.classBindings[0]!.planSet).toBe(true);
 
-      const envelopes = buildEnvelopes(WORKSPACE, plan);
+      const envelopes = buildEnvelopes(WORKSPACE, plan, 1729000000000);
       // The arms: the pmcid pin patch, the scope-first converge pair — and,
       // this workspace predating the whole batch, the 30 missing schema
       // creates (gated to classes whose closure reaches [source] — only

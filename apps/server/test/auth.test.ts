@@ -13,14 +13,17 @@ import { unzipSync } from "fflate";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  b64uDecode,
   b64uEncode,
   createKdfRecord,
+  deriveMachineKey,
   deriveRecoveryKey,
   generateMasterKey,
   importMasterKey,
   recoveryCodeIdOf,
   recoveryKeyVerifierOf,
   unwrapMasterKeyWithBytes,
+  unwrapWorkspaceKey,
   wrapWorkspaceKey,
 } from "@notees/protocol";
 
@@ -677,6 +680,128 @@ describe("api keys", () => {
       payload: { envelopes: [env] },
     });
     expect(response.statusCode).toBe(200);
+  });
+});
+
+describe("machine-key custody", () => {
+  it("two-phase mint → self-fetch → local unwrap reproduces the master; sessions/operator refused; idempotent install; revoke clears", async () => {
+    server = await makeTestServer();
+    const session = (await setupAdmin()).json().token as string;
+    const authHeaders = { authorization: `Bearer ${session}` };
+
+    // Phase 1: mint — the token shows once; the fresh key is human.
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/api-keys",
+      headers: authHeaders,
+      payload: { name: "ci bot" },
+    });
+    expect(created.statusCode).toBe(201);
+    const { apiKey, token } = created.json() as { apiKey: { id: string; machine: boolean }; token: string };
+    expect(apiKey.machine).toBe(false);
+
+    // A human key has no custody record (404, existence unrevealed either way).
+    const humanFetch = await server.app.inject({
+      method: "GET",
+      url: "/api/api-keys/self/custody",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(humanFetch.statusCode).toBe(404);
+
+    // Phase 2: wrap the master under a key derived from the token, install.
+    const master = await generateMasterKey();
+    const masterBytes = new Uint8Array(await crypto.subtle.exportKey("raw", master));
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const machineKey = await importMasterKey(deriveMachineKey(token, salt));
+    const wrappedMaster = await wrapWorkspaceKey(machineKey, master);
+    const install = await server.app.inject({
+      method: "POST",
+      url: `/api/api-keys/${apiKey.id}/custody`,
+      headers: authHeaders,
+      payload: { salt: b64uEncode(salt), wrappedMaster },
+    });
+    expect(install.statusCode).toBe(204);
+
+    // The listing now marks the key a machine key.
+    const list = await server.app.inject({ method: "GET", url: "/api/api-keys", headers: authHeaders });
+    const row = (list.json().apiKeys as Array<{ id: string; machine: boolean }>).find((k) => k.id === apiKey.id);
+    expect(row?.machine).toBe(true);
+
+    // Self-fetch (the key authenticates itself) and the local unwrap round-trip.
+    const fetch = await server.app.inject({
+      method: "GET",
+      url: "/api/api-keys/self/custody",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(fetch.statusCode).toBe(200);
+    const { salt: fetchedSalt, wrappedMaster: fetchedWrap } = fetch.json() as {
+      salt: string;
+      wrappedMaster: string;
+    };
+    const reopened = await unwrapWorkspaceKey(
+      await importMasterKey(deriveMachineKey(token, b64uDecode(fetchedSalt))),
+      fetchedWrap,
+    );
+    expect([...new Uint8Array(await crypto.subtle.exportKey("raw", reopened as never))]).toEqual([...masterBytes]);
+
+    // Sessions manage keys but never read custody material; the operator
+    // key is refused by design (user custody, same as the workspace-key surface).
+    const sessionFetch = await server.app.inject({
+      method: "GET",
+      url: "/api/api-keys/self/custody",
+      headers: authHeaders,
+    });
+    expect(sessionFetch.statusCode).toBe(403);
+    const operatorFetch = await server.app.inject({
+      method: "GET",
+      url: "/api/api-keys/self/custody",
+      headers: { "x-api-key": server.apiKey },
+    });
+    expect(operatorFetch.statusCode).toBe(403);
+
+    // Install is idempotent and never overwrites; unknown keys 404; garbage 422.
+    const again = await server.app.inject({
+      method: "POST",
+      url: `/api/api-keys/${apiKey.id}/custody`,
+      headers: authHeaders,
+      payload: { salt: "junk", wrappedMaster: "junk" },
+    });
+    expect(again.statusCode).toBe(204);
+    const fetchStill = await server.app.inject({
+      method: "GET",
+      url: "/api/api-keys/self/custody",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(fetchStill.json().wrappedMaster).toBe(fetchedWrap);
+    const unknown = await server.app.inject({
+      method: "POST",
+      url: "/api/api-keys/nope/custody",
+      headers: authHeaders,
+      payload: { salt: "s", wrappedMaster: "w" },
+    });
+    expect(unknown.statusCode).toBe(404);
+    const garbage = await server.app.inject({
+      method: "POST",
+      url: `/api/api-keys/${apiKey.id}/custody`,
+      headers: authHeaders,
+      payload: {},
+    });
+    expect(garbage.statusCode).toBe(422);
+
+    // Revoke clears the custody record with the key: the wrap does not linger,
+    // and the revoked key stops authenticating at all.
+    const revoked = await server.app.inject({
+      method: "DELETE",
+      url: `/api/api-keys/${apiKey.id}`,
+      headers: authHeaders,
+    });
+    expect(revoked.statusCode).toBe(200);
+    const after = await server.app.inject({
+      method: "GET",
+      url: "/api/api-keys/self/custody",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(after.statusCode).toBe(401);
   });
 });
 

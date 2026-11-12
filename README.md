@@ -1,89 +1,41 @@
 # Notees
 
-> **ARCHIVED 2026-11-05 — superseded by the repo split.** This monorepo is the historical home of Notees; its full history is preserved here and the tree remains pushable, but development moved to two public repos:
->
-> - **[`miquelrosell99/notees-sync`](https://github.com/miquelrosell99/notees-sync)** — the core + sync server: wire authority (`packages/protocol` with SCHEMA.md/WIRE.md + the fixture corpus), the TS reference packages (domain/store/sync/query/export), the server, log migrations, and the developers runbooks.
-> - **[`miquelrosell99/notees-web`](https://github.com/miquelrosell99/notees-web)** — the web client + the person-facing docs; consumes the core via a pinned `vendor/notees` submodule (as do the GTK/Flutter/CLI clients).
->
-> The split was a path-preserving filter of this history — every path below still exists unchanged in one of the two repos.
-
 **One object graph. The operation log is the only authority. Every interface — UI, CLI, API, export — is a projection of the same derived state.**
 
-Notees is a local-first personal knowledge environment: a single node table for pages, blocks, and classes; three information layers (attributes, discourse links, plain prose) feeding one edge index; and an append-only op log that syncs between your devices and converges without a server you have to trust.
+This repo is [Notees](https://github.com/miquelrosell99/notees): a self-hosted, local-first personal knowledge environment whose only authority is an immutable, append-only **operation log** (envelope v3). It carries the wire protocol (the normative model: [SCHEMA.md](packages/protocol/SCHEMA.md), [WIRE.md](packages/protocol/WIRE.md)), the TypeScript reference implementation of the model/appliers/sync engine, the self-hostable sync relay (`notees-sync` image), and the web client (`notees-web` image). Every SQLite database — server, browser worker, CLI — is a derived projection of that log.
 
-It is also at **alpha**. The model below is settled; the surface is young. See [Status](#status-alpha) before planning your workflow around it.
+> **Repo history.** Developed as a single monorepo, split 2026-11-05 into `notees-sync` (core + server) + `notees-web` (web client), and **re-merged 2026-11-12** — the split's audience-scope rationale did not hold for this pair (`.agents/decisions/ADR-001-merge-sync-and-web.md`). The child repos survive as archived mirrors.
 
-## The five bets
-
-Five design decisions no competitor makes, which together define what Notees is ([why we made them](docs/philosophy.md)):
-
-| # | Bet | What it means |
-|---|---|---|
-| 1 | **Op log as sole authority** | Event-sourced storage: append-only, idempotent, local-first, total offline, with an E2EE slot in the protocol. SQLite is a rebuildable projection, never the truth. |
-| 2 | **Unified node table — classes are nodes** | Pages, blocks, and classes are rows of one table with one identity scheme. Inheritance (`extends`) is an m2m property on class nodes; the hierarchy closure is derived, not stored. |
-| 3 | **Typed discourse links as marks on prose words** | "X *contradicts* Y" is a mark on the word you wrote — a verb in your sentence, not a field in a form. Verbs group backlinks and color the graph. |
-| 4 | **Two-way link propagation along the tree** | Backlinks roll up to containing pages, and links inherit down the tree: `refset(n) = own_links(n) ∪ refset(parent(n))`. Containment is context; nobody tags anything. |
-| 5 | **Agent-first surface** | Scoped API keys (server-enforced read/write scopes today; in-app key management planned), one grammar for humans and machines, and a full CLI. Agents are peers of the UI, not plugins bolted on later. |
-
-## Status: alpha
-
-The model is implemented; the product around it is a slice. We say exactly which is which in every document — [philosophy](docs/philosophy.md) for the ideas, one page per feature under [docs/features/](docs/features/) for the interaction model, and [docs/feature-status.md](docs/feature-status.md) labeling each feature Today or Designed.
-
-**Works today**
-
-- Object model — pages, blocks, classes over one node table, with `is_class`/`present_as_main` (identity + render-state bits), tree placement, class membership, and content tokens (the full SCHEMA.md grammar)
-- Local-first sync engine — outbox push, seq-cursor catch-up, snapshot shortcut, optimistic local apply
-- Fastify server — relay (batch/catch-up/snapshot/compact/stats + WebSocket), object API, CAS asset storage
-- CLI — object CRUD, trash restore (`object restore`, `list --trashed`), one-gesture covers (`cover set|get|clear`), typed property set/delete, children listing, bulk create (`--batch`) and find-or-create (`upsert`), search, backlinks, class list/assign/bulk ops (remap, empty, delete-members), markdown/bibtex export (incl. `--class` selector), asset add/get, sync status, doctor (incl. the cli/server version-drift warning)
-- Web client — interactive outliner (text core, marks editing, `@`/`#`/`+` capture gestures, collapse, prose mode, drag reorder), Page View + Class View (editable property bindings), system sections with the lazy-loading contract, live embed transclusion, whiteboard canvas, WebSocket realtime with sync status, OPFS persistence in a worker
-- Live query blocks (query tokens render results with a builder + export-on-query), citations (BibTeX/CSL round-trip; sources carry files via `attachments` and notes as child blocks), class-property defaults as a derived read model (first-applied-wins), Markdown export (CLI: `--ids` / `--linked-to` closures)
-
-**Designed, coming**
-
-- Research environment — interactive outliner editor, typed-link capture UX, whiteboards UI, citations/bibliography, annotations on assets, Markdown export, typed-link target resolution
-- Trust & extension — E2EE activation, plugin runtime, multi-user, realtime collaboration
-
-## Quickstart
-
-Prereqs: Node 22+, pnpm 9. From the repo root:
-
-```bash
-pnpm install
-export NOTEES_DATA_DIR=$PWD/data          # relay log, assets, and the key file live here
-pnpm --filter @notees/server dev &        # 1. start the server (port 8377)
-export NOTEES_SERVER=http://localhost:8377
-export NOTEES_API_KEY=$(cat data/api_key.txt)   # generated on first boot, logged once
-# 2./3. the CLI lives in its own repo (notees-cli): pnpm dev -- doctor, then
-# pnpm dev -- object create --name "Hello Notees"
-```
-
-The full walkthrough — server env, a real CLI session, the web app — starts at [docs/getting-started.md](docs/getting-started.md); the feature pages live under [docs/features/](docs/features/), and the object API reference is [docs/api.md](docs/api.md).
-
-## Docs
-
-- [docs/philosophy.md](docs/philosophy.md) — the ideas: op-log truth, the design law, single-sourcing, classes as nodes, UUID identity, and the wounds that became our rules
-- [docs/README.md](docs/README.md) — the documentation front door: getting started, then one page per feature (outliner, links, properties, classes, queries, calendar, graph, …)
-- [docs/cli.md](docs/cli.md) — the CLI tutorial: configure, one real session, scripting use cases
-- [docs/api.md](docs/api.md) — the object API quick reference
-- [docs/feature-status.md](docs/feature-status.md) — every feature labeled Today vs Designed
-- [docs/developers/](docs/developers/) — runbooks for people developing and operating Notees: architecture, development, deployment, live data migrations, releases & client lockstep
-- [CHANGELOG.md](CHANGELOG.md) — the shipped-work record
-- [packages/protocol/SCHEMA.md](packages/protocol/SCHEMA.md) — content grammar, node structure, typed-link tokens, sections contract (normative)
-- [packages/protocol/WIRE.md](packages/protocol/WIRE.md) — relay wire spec: envelopes, endpoints, WebSocket framing
+The companion clients ([notees-cli](https://github.com/miquelrosell99/notees-cli), notees-gtk, notees-flutter) consume this repo's core packages through pinned vendor submodules; the pin is the lockstep boundary (see [docs/developers/](docs/developers/)).
 
 ## Layout
 
-- `packages/protocol` — envelopes, HLC, op registry, content grammar, canonical fixtures
-- `packages/domain` — display-name derivation, seeds, shared domain logic
-- `packages/store` — SQLite derived state (server: better-sqlite3; web: sql.js)
-- `packages/sync` — SyncEngine: outbox, catch-up, snapshot restore
+- `packages/protocol` — envelopes, HLC, op registry, content grammar, canonical fixtures (the convergence gate corpus), `SCHEMA.md`, `WIRE.md`
+- `packages/domain` — display-name derivation, seeds (fixed system-class UUIDs), shared domain logic
+- `packages/store` — derived SQLite schema + appliers (better-sqlite3, sql.js, sqlite-wasm backends)
+- `packages/sync` — SyncEngine: HLC + server seq, snapshots, compaction, WebSocket
 - `packages/query` — QueryAST model + SQLite compiler
-- `packages/export` — export projections (markdown/html/docx/latex/csv/json-archive/bibtex)
-- `apps/server`, `apps/web` — the two surfaces you can run today (the CLI is its own repo: [notees-cli](https://github.com/miquelrosell99/notees-cli))
+- `packages/export` — export projections over the object graph (markdown/html/docx/latex package-side, pdf client-side, csv + json-archive view-shaped)
+- `apps/server` — the sync relay + object API + CAS assets + coordination state (`notees-sync` image)
+- `apps/web` — the web client: outliner editor + worker (sql.js/OPFS store), ui-kit, feature surfaces (`notees-web` image)
+- `docs/` — the person-facing documentation; `docs/developers/` — runbooks for people developing and operating the stack
+- `scripts/` — log migrations, conformance checkers, the migration rehearsal harness, `scripts/screenshots/` the visual-diagnosis probe suite
+- `src-tauri/` — the Tauri v2 desktop shell (a build target for the web client)
+- `brand/` — the brand submodule (design tokens/assets)
+
+## Run it
+
+Self-hosting (Docker) is documented in [docs/developers/deployment.md](docs/developers/deployment.md) — the stack is the `notees-sync` server (:8377) plus the `notees-web` client (:8378), composed with the shipped `compose.example.yaml`. Server-only stacks skip the web service with the compose `web` profile.
+
+For a source checkout: Node 22+, pnpm 9, `pnpm install`, then `pnpm --filter @notees/server dev` (port 8377; the API key is generated on first boot, logged once) and `pnpm --filter @notees/web dev` (vite; `/api/*` proxies to :8377).
 
 ## Development
 
 ```bash
-pnpm test        # all packages
-pnpm typecheck   # all packages
+pnpm install
+pnpm build       # all packages + server + web (workspace-concurrency=1)
+pnpm test        # all suites — the blocking gate
+pnpm typecheck
 ```
+
+The fixture gate, the add-an-op recipe, and the GTK/Flutter/CLI lockstep law: [docs/developers/development.md](docs/developers/development.md). The CSS token-drift gate: `node scripts/check-css-tokens.mjs`. The shipped-work record: [CHANGELOG.md](CHANGELOG.md).

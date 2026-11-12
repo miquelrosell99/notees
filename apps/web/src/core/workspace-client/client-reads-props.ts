@@ -99,6 +99,16 @@ export class WorkspaceClientReadsProps {
   }
 
   /**
+   * Uncached alias of {@link getEffectiveProperties} for write-time decisions
+   * (the connector capture's URL dedupe reads each member's url row through
+   * this). In-process reads are already fresh; the Promise shape matches the
+   * WorkerClient's raw-RPC variant (the getChildrenFresh precedent).
+   */
+  getEffectivePropertiesFresh(id: string): Promise<EffectiveProperty[]> {
+    return Promise.resolve(this.getEffectiveProperties(id));
+  }
+
+  /**
    * The shell variant of the effective read (property-shells.ts): same rows,
    * but HEAVY-typed values are deferred (`value: null` + `valueCount` +
    * `deferred`) — the cheap read behind bulk surfaces that enumerate many
@@ -318,6 +328,17 @@ export class WorkspaceClientReadsProps {
         })(),
       };
     });
+  }
+
+  /**
+   * Uncached alias of {@link listPropertySchemas} for write-time decisions
+   * (the classed-create flush's staged-kind re-derivation — a datetime row
+   * staged from a cold cache as text would be a lawless property write).
+   * In-process reads are already fresh; the Promise shape matches the
+   * WorkerClient's raw-RPC variant.
+   */
+  listPropertySchemasFresh(): Promise<ClientPropertySchema[]> {
+    return Promise.resolve(this.listPropertySchemas());
   }
 
   /**

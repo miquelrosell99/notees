@@ -945,7 +945,7 @@ function AccountSection({ serverUrl, token, user, onSignOut }: AccountSectionPro
       <div className="settings-section">
         <h3 className="settings-section__title">Device Access (API Keys)</h3>
         <Card>
-          <ApiKeysSection serverUrl={serverUrl} token={token} />
+          <ApiKeysSection serverUrl={serverUrl} token={token} email={user.email ?? ""} />
         </Card>
       </div>
 

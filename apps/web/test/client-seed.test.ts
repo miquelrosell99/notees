@@ -13,7 +13,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PAGE_UUIDS } from "@notees/domain";
 import { isEncryptedPayload } from "@notees/protocol";
-import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { MemoryRelay, MemoryTransport, OfflineTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 
@@ -90,6 +90,26 @@ describe("client-side seeding of empty keyed workspaces", () => {
     await client.bootstrapWorkspace(WS);
 
     expect(client.getNode(INBOX)).toBeUndefined();
+  });
+
+  it("an empty keyed OFFLINE workspace IS seeded despite the offline sync refusal (Task 9)", async () => {
+    // Offline workspaces are keyed at creation (device-local custody), so the
+    // client-seed gate now covers them — but the bootstrap's engine.sync()
+    // rejects against the OfflineTransport BEFORE the seed gate. The gate
+    // must still run (the rejection re-throws after seeding; local-first
+    // callers swallow it): an offline workspace has no server shim to seed
+    // it, and its sealed seeds drain on the first password-session sync.
+    const client = await WorkspaceClient.create({
+      transport: new OfflineTransport(),
+      actorId: ACTOR,
+      sqlJs: sqlModule,
+      workspaceKey: KEY,
+    });
+    clients.push(client);
+
+    await expect(client.bootstrapWorkspace(WS)).rejects.toThrow("not connected to a sync server");
+    expect(client.getNode(INBOX)).toBeDefined();
+    expect(client.getNode(SOURCE)).toBeDefined();
   });
 
   it("two keyed devices seeding concurrently converge", async () => {

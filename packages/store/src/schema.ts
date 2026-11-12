@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 36;
+export const SCHEMA_VERSION = 37;
 
 /**
  * The v35 memorization-card review history (SCHEMA.md "Memorization cards"):
@@ -357,11 +357,16 @@ CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
 -- 'pinned' (additive 2026-10-27, store v34): the binary tier flag — a pinned
 -- row's property renders in the FIRST tier of class property lists
 -- (alphabetical within each tier; a stored/configurable order stays retired).
+-- 'show_in_node_rows' (additive 2026-11-08, store v37): the binary node-row
+-- preview flag — a flagged row's property value renders in the node's row
+-- (the outliner line/chrome preview), not only in the properties panel;
+-- absent/false = no preview (the default).
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
     pinned INTEGER NOT NULL DEFAULT 0,
+    show_in_node_rows INTEGER NOT NULL DEFAULT 0,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
@@ -1504,6 +1509,20 @@ export function migrate(
     const classColumnsV36 = db.prepare("PRAGMA table_info(class)").all() as { name: string }[];
     if (!classColumnsV36.some((c) => c.name === "display_template")) {
       db.exec("ALTER TABLE class ADD COLUMN display_template TEXT;");
+    }
+  }
+  // v36 -> v37 (2026-11-08 — the binding row's `showInNodeRows` node-row
+  // preview flag, SCHEMA.md "Class properties"): `class_property` gains
+  // `show_in_node_rows` (0 = no node-row preview, the default). Purely
+  // additive — a guarded ALTER, a no-op for fresh v37 creates; existing rows
+  // converge by default (0), no log rewrite and no epoch bump (the flag
+  // rides future class.property.set envelopes, the v34 `pinned` precedent).
+  {
+    const classPropertyColumnsV37 = db.prepare("PRAGMA table_info(class_property)").all() as {
+      name: string;
+    }[];
+    if (!classPropertyColumnsV37.some((c) => c.name === "show_in_node_rows")) {
+      db.exec("ALTER TABLE class_property ADD COLUMN show_in_node_rows INTEGER NOT NULL DEFAULT 0;");
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

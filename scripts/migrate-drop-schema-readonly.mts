@@ -60,9 +60,20 @@ import {
   payloadSchemaFor,
 } from "../packages/protocol/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
-import { betterSqlite3Backend } from "../packages/store/src/adapters/better-sqlite3.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
+
+import {
+  buildScratchStore as scratchStoreBuild,
+  refuseIfContentOnKeyed,
+  type MigrationContentClass,
+} from "./lib/scratch-store.ts";
+
+/**
+ * This migration's content class (the dev-ops contract, scripts/lib/scratch-store.ts):
+ * "scaffolding" touches the schema/binding rows every replica derives identically.
+ */
+export const CONTENT_CLASS: MigrationContentClass = "scaffolding";
 
 const DEVICE = "migrate-drop-schema-readonly";
 const CLIENT = "migrate-drop-schema-readonly";
@@ -92,25 +103,17 @@ function parseArgs(argv: string[]): CliOptions {
 
 // --- helpers ------------------------------------------------------------------
 
-/** Restore snapshot+tail into a scratch store (the sync-server hydration shape). */
+/**
+ * The shared scratch build (scripts/lib/scratch-store.ts — the sealed gate +
+ * the skip accounting) plus this migration's house skip line.
+ */
 function buildScratchStore(relay: RelayStorage, workspaceId: string): Store {
-  const store = Store.open(betterSqlite3Backend(":memory:"));
-  const snapshot = relay.latestSnapshot(workspaceId);
-  let afterSeq = 0;
-  if (snapshot !== null) {
-    const bytes = relay.readSnapshotData(snapshot.id);
-    if (bytes === null) throw new Error(`snapshot ${snapshot.id} has no bytes on disk`);
-    store.restore(new Uint8Array(bytes));
-    afterSeq = snapshot.up_to_seq;
-  }
-  let cursor = afterSeq;
-  for (;;) {
-    const page = relay.catchUp(workspaceId, cursor, 10_000);
-    for (const envelope of page.envelopes) store.apply(envelope);
-    if (!page.hasMore || page.nextAfterSeq === null) break;
-    cursor = page.nextAfterSeq;
-  }
-  return store;
+  return scratchStoreBuild(relay, workspaceId, ({ encrypted, pending }) => {
+    console.log(
+      `  (scratch: ${encrypted} encrypted + ${pending} pending envelope(s) skipped — ` +
+        "a keyed workspace's sealed content is invisible to a server-side plan)",
+    );
+  });
 }
 
 // --- main ---------------------------------------------------------------------
@@ -123,6 +126,7 @@ function main(): void {
   );
 
   try {
+    refuseIfContentOnKeyed(options.dataDir, options.workspace, CONTENT_CLASS, "migrate-drop-schema-readonly.mts");
     const snapshot = relay.latestSnapshot(options.workspace);
     const snapshotSeq = snapshot?.up_to_seq ?? 0;
     const latestSeq = relay.latestSeq(options.workspace);

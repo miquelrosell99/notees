@@ -41,7 +41,7 @@ import { uuidv7 } from "uuidv7";
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
 import { actorIdForUser, type Principal } from "./identity.js";
-import { hashPassword, verifyPassword } from "./auth.js";
+import { hashPassword, keyingRequiredFor, verifyPassword, KEYING_EXEMPT_WORKSPACE_IDS } from "./auth.js";
 import { parseApiScopes } from "./scopes.js";
 import { WorkspaceImageError } from "./workspace-store.js";
 
@@ -92,6 +92,14 @@ const recoveryRedeemBodySchema = z
   .object({ id: z.string().min(1).max(256), verifier: z.string().min(1).max(256), newKdfRecord: kdfRecordSchema })
   .strict();
 
+/** Machine-key custody install: the opaque wrap the server can never open. */
+const apiKeyCustodySchema = z
+  .object({
+    salt: z.string().min(1).max(256),
+    wrappedMaster: z.string().min(1).max(8192),
+  })
+  .strict();
+
 /** Log-once latch for the legacy (pre-keyFp) records at change-password. */
 let legacyKeyFpWarned = false;
 
@@ -138,8 +146,20 @@ const signupBodySchema = z
   })
   .strict();
 
+// The creation body (POST /workspaces + the clone route): an optional
+// wrappedKey bundle — the E2EE custody string (same bounds as
+// workspaceKeySchema). NOTEES_REQUIRE_KEYED (default on) makes it mandatory:
+// without it the creation answers 422 keying_required. POST /workspaces
+// additionally accepts an optional client-chosen `id` (uuid) — an
+// offline-created workspace publishes under its EXISTING id (its local store
+// is keyed by it); a taken id answers 409 and nothing is minted. The clone
+// route ignores `id` (the clone is always a FRESH workspace).
 const createWorkspaceSchema = z
-  .object({ name: z.string().trim().max(120).optional() })
+  .object({
+    id: z.string().uuid().optional(),
+    name: z.string().trim().max(120).optional(),
+    wrappedKey: z.string().min(1).max(4096).optional(),
+  })
   .strict();
 
 const renameWorkspaceSchema = z
@@ -706,17 +726,50 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     };
   });
 
+  // POST /workspaces — the account's own creation. An optional client-chosen
+  // `id` lets an offline-created workspace publish under its EXISTING id
+  // (its local store is keyed by it): a taken id (workspace row or relay
+  // log) answers 409 conflict and nothing is minted. The keying gate reads
+  // the explicit id, so KEYING_EXEMPT_WORKSPACE_IDS semantics apply
+  // unchanged; the seeded fixture ids themselves stay mint-only-via-ingest
+  // (the store layer refuses them loud — mapped to 422 here, not a 500).
   app.post("/workspaces", async (request, reply) => {
     const { principal } = requireAccount(ctx, request);
     const parsed = createWorkspaceSchema.safeParse(request.body ?? {});
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid workspace request");
     }
+    const chosenId = parsed.data.id ?? null;
+    // The keying gate precedes the mint: nothing is created to clean up.
+    if (keyingRequiredFor(ctx.config, chosenId) && parsed.data.wrappedKey === undefined) {
+      throw new AppError(
+        422,
+        "keying_required",
+        "workspace keying is required — create the workspace with a wrappedKey bundle (sign in with your email and password to create one)",
+      );
+    }
+    if (
+      chosenId !== null &&
+      KEYING_EXEMPT_WORKSPACE_IDS.includes(chosenId)
+    ) {
+      throw new AppError(
+        422,
+        "validation_failed",
+        "this workspace id is a seeded demo fixture — it is minted only via direct log ingest",
+      );
+    }
+    if (chosenId !== null && ctx.auth.listAllWorkspaceIds().includes(chosenId)) {
+      throw new AppError(409, "conflict", "a workspace with this id already exists");
+    }
     const id = ctx.auth.createWorkspace({
+      ...(parsed.data.id !== undefined ? { id: parsed.data.id } : {}),
       name: parsed.data.name ?? null,
       createdBy: principal.userId,
     });
     ctx.auth.addMember(id, principal.userId, "owner");
+    if (parsed.data.wrappedKey !== undefined) {
+      ctx.auth.putWorkspaceKey(id, parsed.data.wrappedKey);
+    }
     reply.code(201);
     return { id, name: parsed.data.name ?? null, role: "owner" };
   });
@@ -781,6 +834,15 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid clone request");
     }
+    // The keying gate precedes the mint (and the snapshot read): the clone
+    // may reuse NOTHING of the source's key — a fresh bundle or the 422.
+    if (keyingRequiredFor(ctx.config, null) && parsed.data.wrappedKey === undefined) {
+      throw new AppError(
+        422,
+        "keying_required",
+        "workspace keying is required — create the workspace with a wrappedKey bundle (sign in with your email and password to create one)",
+      );
+    }
     let bytes: Buffer;
     try {
       bytes = await ctx.workspaces.snapshotImage(sourceId);
@@ -814,6 +876,11 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
         // Cleanup is best-effort.
       }
       rethrowImageError(error);
+    }
+    // The install succeeded — now the custody row (never before: a failed
+    // clone's rollback does not touch workspace_key).
+    if (parsed.data.wrappedKey !== undefined) {
+      ctx.auth.putWorkspaceKey(id, parsed.data.wrappedKey);
     }
     reply.code(201);
     return { id, name, nodeCount };
@@ -929,5 +996,51 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       return { ok: true };
     }
     throw new AppError(401, "unauthenticated", "a valid session token is required");
+  });
+
+  // --- Machine-key custody (API-key custody; the recovery-code shape) ----
+  //
+  // Minting is two-phase because the server generates the token and shows it
+  // once: the client can only wrap the master key AFTER it sees the token.
+  // 1. POST /api-keys → {apiKey, token}
+  // 2. POST /api-keys/:id/custody (session) — installs the opaque wrap
+  // 3. GET  /api-keys/self/custody (the key itself authenticates) — a client
+  //    holding a machine key fetches the wrap and unwraps locally: no
+  //    password, ever. The wrap is AES-GCM self-authenticating, so the
+  //    record carries no separate verifier (unlike recovery codes, whose
+  //    verifier gates the server-side burn).
+
+  app.post("/api-keys/:id/custody", async (request, reply) => {
+    const { principal } = requireAccount(ctx, request);
+    const { id } = request.params as { id: string };
+    const parsed = apiKeyCustodySchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid custody request");
+    }
+    const outcome = ctx.auth.installApiKeyCustody(principal.userId, id, parsed.data.salt, parsed.data.wrappedMaster);
+    if (outcome === null) {
+      throw new AppError(404, "not_found", "no such API key (or already revoked)");
+    }
+    reply.code(204);
+    return reply.send();
+  });
+
+  app.get("/api-keys/self/custody", async (request) => {
+    const resolved = resolvePrincipal(ctx, request);
+    if (resolved === null || resolved.apiKeyToken === undefined) {
+      // User custody: only the API key itself may read its wrap (sessions
+      // manage keys but never need the material; the operator key is refused
+      // by design, same as the workspace-key surface).
+      throw new AppError(
+        resolved === null ? 401 : 403,
+        resolved === null ? "unauthenticated" : "forbidden",
+        resolved === null ? "a valid API key is required" : "key custody is user-side; an API key principal is required",
+      );
+    }
+    const custody = ctx.auth.apiKeyCustodyForToken(resolved.apiKeyToken);
+    if (custody === null) {
+      throw new AppError(404, "not_found", "no machine-key custody for this key");
+    }
+    return { salt: custody.salt, wrappedMaster: custody.wrappedMaster };
   });
 }

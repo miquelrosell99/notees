@@ -67,6 +67,7 @@ import {
   writeDevicePrefScalar,
 } from "./workspace-client/prefs.js";
 import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
+import type { MigrationPlanReport } from "./migrations/registry.js";
 import { isReadUnchanged } from "./workspace-client/read-revisions.js";
 import type {
   WorkerInitMessage,
@@ -75,9 +76,12 @@ import type {
 } from "../worker/worker-core.js";
 
 /**
- * Invalidation class for a cached read key, consulted only for
- * content-only changes with a known affected set (`structural` or unknown
- * scope invalidates everything and never reaches this table):
+ * Invalidation class for a cached read key, consulted only for content-only
+ * changes with a known affected set (`structural === true` — with or without
+ * an affected set — and unknown scope invalidate every key and never reach
+ * this table; a structural payload's affected set scopes ROW re-renders,
+ * not cache keys, because a move's vacated side is not reconstructible
+ * post-apply):
  *
  *  - "change": read embeds titles/link marks from anywhere with no
  *    scope parameter (search) — any content edit may alter it.
@@ -474,8 +478,28 @@ export class WorkerClient {
     return this.cachedRead("getNodeRaw", [id], undefined);
   }
 
+  /**
+   * Uncached raw-node read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time existence guards (the seed
+   * deploy's no-op checks) ride this: a cold or dirty cache key answers the
+   * undefined default synchronously, which would re-stamp rows that exist
+   * in the store but not yet in the cache.
+   */
+  async getNodeRawFresh(id: string): Promise<ClientNode | undefined> {
+    return (await this.call("getNodeRaw", [id])) as ClientNode | undefined;
+  }
+
   getDisplayName(id: string): string | null {
     return this.cachedRead("getDisplayName", [id], null);
+  }
+
+  /**
+   * Uncached display-name read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time find-or-create decisions (the
+   * connector capture's read-later lookup) ride this.
+   */
+  async getDisplayNameFresh(id: string): Promise<string | null> {
+    return (await this.call("getDisplayName", [id])) as string | null;
   }
 
   effectiveClassColor(classId: string): string | null {
@@ -607,6 +631,16 @@ export class WorkerClient {
     return this.cachedRead<string[]>("getClassParents", [classId], []);
   }
 
+  /**
+   * Uncached extends-parents read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time convergence guards (the seed
+   * deploy's extends check) ride this: a cold or dirty cache key answers []
+   * synchronously, which would re-stamp an edge that exists in the store.
+   */
+  async getClassParentsFresh(classId: string): Promise<string[]> {
+    return (await this.call("getClassParents", [classId])) as string[];
+  }
+
   getClassChildren(classId: string): import("@/core/workspace-client/index.js").ClientNode[] {
     return this.cachedRead("getClassChildren", [classId], []);
   }
@@ -617,6 +651,17 @@ export class WorkerClient {
 
   getClassMembers(classId: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("getClassMembers", [classId], []);
+  }
+
+  /**
+   * Uncached class-members read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time find-or-create decisions (the
+   * connector capture's URL dedupe / read-later lookup) ride this: a cold or
+   * dirty cache key answers [] synchronously, which would duplicate a node
+   * that exists in the store but not yet in the cache.
+   */
+  async getClassMembersFresh(classId: string): Promise<ClientNode[]> {
+    return (await this.call("getClassMembers", [classId])) as ClientNode[];
   }
 
   /** The classed-nodes section badge (same membership projection as a COUNT). */
@@ -636,8 +681,28 @@ export class WorkerClient {
     return this.cachedRead<ClassBinding[]>("getRegistryBindings", [classId], []);
   }
 
+  /**
+   * Uncached registry-bindings read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time existence guards (the seed
+   * deploy's binding no-op checks) ride this: a cold or dirty cache key
+   * answers [] synchronously, which would re-stamp binding rows that exist
+   * in the store.
+   */
+  async getRegistryBindingsFresh(classId: string): Promise<ClassBinding[]> {
+    return (await this.call("getRegistryBindings", [classId])) as ClassBinding[];
+  }
+
   getEffectiveProperties(id: string): EffectiveProperty[] {
     return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
+  }
+
+  /**
+   * Uncached effective-properties read — one raw RPC straight to the store
+   * (the getChildrenFresh precedent). Write-time decisions (the connector
+   * capture's per-member url row in the URL dedupe) ride this.
+   */
+  async getEffectivePropertiesFresh(id: string): Promise<EffectiveProperty[]> {
+    return (await this.call("getEffectiveProperties", [id])) as EffectiveProperty[];
   }
 
   getPropertyRowShells(id: string): PropertyRowShell[] {
@@ -666,6 +731,16 @@ export class WorkerClient {
 
   listPropertySchemas(): ClientPropertySchema[] {
     return this.cachedRead<ClientPropertySchema[]>("listPropertySchemas", [], []);
+  }
+
+  /**
+   * Uncached property-schema registry read — one raw RPC straight to the
+   * store (the getChildrenFresh precedent). Write-time decisions (the
+   * classed-create flush's staged-kind re-derivation — a datetime row staged
+   * from a cold cache as text would be a lawless property write) ride this.
+   */
+  async listPropertySchemasFresh(): Promise<ClientPropertySchema[]> {
+    return (await this.call("listPropertySchemas", [])) as ClientPropertySchema[];
   }
 
   getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
@@ -827,6 +902,16 @@ export class WorkerClient {
     return this.cachedRead<boolean>("isFeatureEnabled", [feature], true);
   }
 
+  /**
+   * Uncached feature-toggle read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Write-time guards (the seed deploy's
+   * feature-enable check) ride this: a cold or dirty cache key answers the
+   * default-on synchronously.
+   */
+  async isFeatureEnabledFresh(feature: WorkspaceFeature): Promise<boolean> {
+    return (await this.call("isFeatureEnabled", [feature])) as boolean;
+  }
+
   /** Toggled feature rows only (untoggled features are absent, not listed). */
   listFeatureRows(): Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }> {
     return this.cachedRead<Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }>>("listFeatureRows", [], []);
@@ -957,6 +1042,11 @@ export class WorkerClient {
   /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
     await this.call("setFeatureEnabled", [feature, enabled]);
+  }
+
+  /** Add a node to a collection (collection.member.add, OR-Set add-wins). */
+  async addCollectionMember(collectionId: string, objectId: string): Promise<void> {
+    await this.call("addCollectionMember", [collectionId, objectId]);
   }
 
   /** The class-level parentlessRole render contract. */
@@ -1147,6 +1237,34 @@ export class WorkerClient {
 
   async mergeNodes(sourceId: string, targetId: string): Promise<MergePlanSummary> {
     return (await this.call("mergeNodes", [sourceId, targetId])) as MergePlanSummary;
+  }
+
+  // --- content migrations (the keyed-side runner — F3; uncached RPCs) -------------
+
+  /** True when the workspace is keyed — the engine seals every write (the surface's hint copy). */
+  async isKeyedWorkspace(): Promise<boolean> {
+    return (await this.call("isKeyedWorkspace", [])) as boolean;
+  }
+
+  /** The content-class migrations pending on this workspace (each core's `isPending` probe). */
+  async listPendingMigrations(): Promise<MigrationPlanReport[]> {
+    return (await this.call("listPendingMigrations", [])) as MigrationPlanReport[];
+  }
+
+  /** The dry-run report for one migration — counts + conflict rows, zero writes. */
+  async planMigration(id: string): Promise<MigrationPlanReport> {
+    return (await this.call("planMigration", [id])) as MigrationPlanReport;
+  }
+
+  /**
+   * Run one migration client-side: plan against the local UNSEALED store,
+   * payload-validate, commit as ONE undo batch through the single enqueue
+   * seam — the engine seals + pushes the ops on a keyed workspace like any
+   * write. Uncached: the pending list is derived state that flips with the
+   * run itself.
+   */
+  async runMigration(id: string): Promise<MigrationPlanReport> {
+    return (await this.call("runMigration", [id])) as MigrationPlanReport;
   }
 
   /** Download an asset's bytes (workspace key); the export engine's include-assets read. */

@@ -384,6 +384,15 @@ export class WorkspaceClientReadsRefs {
     return this.ctx.store.isFeatureEnabled(this.ctx.workspaceId, feature);
   }
 
+  /**
+   * Uncached alias of {@link isFeatureEnabled} for write-time decisions (the
+   * seed deploy's feature-enable guard). In-process reads are already fresh;
+   * the Promise shape matches the WorkerClient's raw-RPC variant.
+   */
+  isFeatureEnabledFresh(feature: WorkspaceFeature): Promise<boolean> {
+    return Promise.resolve(this.isFeatureEnabled(feature));
+  }
+
   /** Toggled feature rows only (untoggled features are absent, not listed). */
   listFeatureRows(): Array<{ feature: string; enabled: boolean; settings?: Record<string, unknown> | undefined }> {
     return this.ctx.store.listFeatureRows(this.ctx.workspaceId);

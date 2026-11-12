@@ -19,7 +19,6 @@ import {
   type DatetimePickerValue,
 } from "../date-pickers/DatePickerPopup.js";
 import { collectMarkedDates } from "../date-pickers/DateSlotControl.js";
-import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
 import { PropertySelectCell } from "./PropertySelectCell.js";
 import type { AnyClient } from "./shared.js";
 import { toEditableText } from "./shared.js";
@@ -32,13 +31,12 @@ import { isoOfRef, precisionOf, rangeSlotsOf, slotOf } from "./datetimeValue.js"
  * open) — a range rides ONE pill (`start → end`). Every pill opens the
  * canonical date-picker popup: the suggestions column, the All-day switch
  * (full-day is the default; off reveals the 24h time input), the Range
- * switch (off collapses to the point, start kept, end dropped), the Repeat
- * row (day precision), and Remove (unsets the edited element). Picking
- * ensures the year/month/day chain and links the node at the schema's
- * precision ({ nodeId } — the shape the edge index projects, so the year
- * node backlinks everything dated that year); the value's metadata rides
- * through (a re-pick keeps the recurrence rule; the series follows the
- * event).
+ * switch (off collapses to the point, start kept, end dropped), and Remove
+ * (unsets the edited element). Picking ensures the year/month/day chain and
+ * links the node at the schema's precision ({ nodeId } — the shape the edge
+ * index projects, so the year node backlinks everything dated that year);
+ * the value's metadata rides through (a re-pick keeps whatever the stored
+ * value carries).
  */
 export function DatetimePropertyRow({
   client,
@@ -113,7 +111,7 @@ export function DatetimePropertyRow({
 
   /**
    * The popup's single commit funnel: the full union rides one write, the
-   * slot's metadata (the recurrence rule) preserved across the edit. The
+   * slot's metadata preserved across the edit. The
    * popup owns its closing — terminal commits (grid/suggestion/text) close
    * it through onClose; switch/time commits leave it open.
    */
@@ -129,14 +127,6 @@ export function DatetimePropertyRow({
       void client.unsetProperty(nodeId, propertySchemaId, pickerRow.idx);
     }
     setPickerFor(null);
-  };
-
-  /** The repeat write (the popup's Repeat row): merge/clear `repeat`. */
-  const setRepeat = async (row: EffectiveProperty, rule: string | null): Promise<void> => {
-    const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
-    if (rule === null) delete metadata.repeat;
-    else metadata.repeat = rule;
-    await client.setProperty(nodeId, propertySchemaId, row.value, row.idx, metadata);
   };
 
   const pillText = (row: EffectiveProperty): string => {
@@ -161,12 +151,6 @@ export function DatetimePropertyRow({
       anchorRef={anchorRef}
       firstDayOfWeek={1}
       markedDates={markedDates}
-      repeat={typeof pickerRow?.metadata?.repeat === "string" ? pickerRow.metadata.repeat : null}
-      onRepeatChange={
-        pickerRow !== undefined && pickerRow.source === "authored" && precision === "day"
-          ? (rule) => void setRepeat(pickerRow, rule)
-          : undefined
-      }
     />
   );
 
@@ -274,16 +258,6 @@ export function DatetimePropertyRow({
               ? `Open ${titleOf(client, singleRef, { read: "fallback", empty: "untitled" }) ?? "Untitled"}`
               : undefined
           }
-          trailing={
-            single !== undefined && single.source === "authored" && precision === "day" ? (
-              <RepeatPicker
-                value={typeof single.metadata?.repeat === "string" ? single.metadata.repeat : null}
-                onChange={(rule) => void setRepeat(single, rule)}
-                ariaLabel={`Repeat for ${label}`}
-                iconOnly
-              />
-            ) : undefined
-          }
         >
           {singleRef !== null
             ? parseDateNodeId(singleRef) !== null
@@ -348,16 +322,6 @@ export function DatetimePropertyRow({
                 >
                   <Icon path="mdi-close" size={0.6} />
                 </button>
-              )}
-              {row.source === "authored" && precision === "day" && (
-                <RepeatPicker
-                  value={
-                    typeof row.metadata?.repeat === "string" ? row.metadata.repeat : null
-                  }
-                  onChange={(rule) => void setRepeat(row, rule)}
-                  ariaLabel={`Repeat for ${label}`}
-                  iconOnly
-                />
               )}
             </span>
           ),

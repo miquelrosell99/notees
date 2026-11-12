@@ -159,7 +159,7 @@ describe("migrate-cover-banner-alias planning", () => {
   it("plans nothing once the assertions are retired (idempotence)", () => {
     const store = migrateWorld();
     const { moves } = planMoves(store);
-    const envelopes = buildEnvelopes(WS, moves);
+    const envelopes = buildEnvelopes(WS, moves, 1729000000000);
     validateEnvelopes(envelopes);
     for (const envelope of envelopes) store.apply(envelope);
 
@@ -174,7 +174,7 @@ describe("migrate-cover-banner-alias envelopes", () => {
   it("every envelope validates through the protocol gate and converges the derived state", () => {
     const store = migrateWorld();
     const { moves, skipped } = planMoves(store);
-    const envelopes = buildEnvelopes(WS, moves);
+    const envelopes = buildEnvelopes(WS, moves, 1729000000000);
     validateEnvelopes(envelopes);
 
     // One object.update + one unset per visible row.
@@ -210,7 +210,7 @@ describe("migrate-cover-banner-alias envelopes", () => {
   it("the gate rejects a malformed plan before anything is written", () => {
     const store = migrateWorld();
     const { moves } = planMoves(store);
-    const envelopes = buildEnvelopes(WS, moves);
+    const envelopes = buildEnvelopes(WS, moves, 1729000000000);
     const tampered = envelopes.map((envelope) =>
       envelope.opType === "object.update"
         ? { ...envelope, payload: { ...envelope.payload, coverAssetId: "not-a-uuid" } }

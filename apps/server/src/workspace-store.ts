@@ -224,13 +224,22 @@ export class WorkspaceManager {
     // applying envelopes the restore already carries — the replay skips
     // them by id, so the gate bought nothing the idempotency didn't.
     let afterSeq = 0;
-    if (appliedCount === 0 && snapshot !== null) {
+    if (appliedCount === 0 && snapshot !== null && snapshot.sealed !== 1) {
       const bytes = this.relay.readSnapshotData(snapshot.id);
       if (bytes !== null && bytes.length > 0) {
         handle.store.restore(bytes);
         afterSeq = snapshot.up_to_seq;
       }
     }
+    // A SEALED latest snapshot (a keyed client sealed it at upload) is
+    // never restored here: the blob cannot open into the server's
+    // plaintext projection — restoring it threw SQLITE_NOTADB and
+    // poisoned every ingest for the workspace with a 500 (surfaced by the
+    // CLI's first keyed sync: the sealed snapshot upload lands, the next
+    // batch's hydrate tries to restore it). With the restore skipped the
+    // replay below rebuilds the plaintext prefix from the log — encrypted
+    // envelopes skip the apply there by the same rule as the self-heal
+    // sweep.
     // The E2EE slot ({"$e": …}) rides the log but is not applicable to
     // derived state. StoreError skips count as pending and retry on the
     // next pass (an envelope whose parent has not arrived yet).
@@ -298,18 +307,25 @@ export class WorkspaceManager {
   }
 
   private applyNow(handle: WorkspaceHandle, workspaceId: string, envelopes: Envelope[]): ApplyOutcome {
+    // The poison decision lands BEFORE persistence: an envelope the derived
+    // store rejects (a payload-semantic StoreError — e.g. a wrong-typed
+    // propertySchema defaultValue) must never sit in the stored log. The
+    // persists-then-applies order re-quarantined every such envelope on
+    // every future replay (hydration, sweep, fresh-client catch-up).
+    // applyMany is one transaction: a mid-batch throw rolls the store back
+    // untouched, so a rejected batch leaves no derived state behind either —
+    // only the 422 to the writer, whose client-side quarantine owns the op.
+    const fresh = envelopes.filter(
+      (env) => !this.relay.hasEnvelope(env.id) && !isEncryptedPayload(env.payload),
+    );
+    let summaries: ChangeSummary[] = [];
+    if (fresh.length > 0) {
+      summaries = handle.store.applyMany(fresh);
+    }
     const { savedIds, seqs } = this.relay.ingest(envelopes);
     if (savedIds.length === 0) {
       return { savedIds, seqs, summaries: [] };
     }
-    const saved = new Set(savedIds);
-    const fresh = envelopes.filter(
-      (env) => saved.has(env.id) && !isEncryptedPayload(env.payload),
-    );
-    if (fresh.length === 0) {
-      return { savedIds, seqs, summaries: [] };
-    }
-    const summaries = handle.store.applyMany(fresh);
     handle.lastSeq = Math.max(handle.lastSeq, this.relay.latestSeq(workspaceId));
     return { savedIds, seqs, summaries };
   }

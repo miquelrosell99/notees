@@ -17,9 +17,11 @@
  * never a sibling of the focused block; prose trails it at the flattened
  * list's end). The view mode rides the same per-node device preference
  * the page view uses (`nodeBlocks.<id>`); the switcher itself stays page
- * chrome — the focused view's chrome is the nodeview top bar (the page
- * view's SurfaceTopBar, hairline included) carrying the "…" node menu,
- * composed by the NodeView shell.
+ * chrome — on the main surface the focused view's chrome IS the page
+ * view's panelled composition (the shared MainContentFrame + the nodeview
+ * top bar + both panel columns, composed by the NodeView shell, see
+ * there); the `panelled` prop drops this root's own `.nt-page` cap and
+ * padding inside the frame's middle-cell registers.
  *
  * ReferenceSubtree stays for the genuine subtree renders (linked
  * references, the hover-preview trampoline) — the focused view is the
@@ -37,6 +39,13 @@ export function FocusedBlockView({
   node,
   viewMode,
   readOnly = false,
+  /**
+   * The panelled main-surface register: the NodeView shell wraps this view
+   * in the shared frame's middle cell (.nt-page-content > .nt-nodeview-body
+   * own the scroll + the measure), so this root drops the `.nt-page` cap
+   * and padding exactly like `.nt-page--panelled`.
+   */
+  panelled = false,
   onOpenNode,
   onOpenInSidebar,
 }: {
@@ -47,6 +56,8 @@ export function FocusedBlockView({
   viewMode: ViewMode;
   /** Read-only projection (the hover preview): clicks navigate, never edit. */
   readOnly?: boolean;
+  /** Panelled main-surface composition (see above). */
+  panelled?: boolean;
   onOpenNode?: ((nodeId: string) => void) | undefined;
   /** The peek gesture (Shift+click a bullet): the collection self-hosts its
    *  outliner, so the peek callback arrives only through this prop. */
@@ -56,7 +67,13 @@ export function FocusedBlockView({
   // outline for them until the mode decides.
   const effectiveMode: ViewMode = viewMode === "prose" ? "prose" : "outline";
   return (
-    <div className="nt-page nt-focused-block">
+    <div
+      className={
+        ["nt-page", "nt-focused-block", panelled ? "nt-focused-block--panelled" : ""]
+          .filter(Boolean)
+          .join(" ")
+      }
+    >
       <NodeCollection
         viewMode={effectiveMode}
         client={client}

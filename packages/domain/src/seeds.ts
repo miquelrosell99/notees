@@ -577,6 +577,11 @@ export const SYSTEM_PROPERTY_UUIDS = {
   taskScheduled: "00000000-0000-0000-0003-000000000003",
   taskPriority: "00000000-0000-0000-0003-000000000004",
   taskClosedDate: "00000000-0000-0000-0003-000000000005",
+  // WITHDRAWN 2026-11-06 (`taskRecurrence`) — the optionless placeholder
+  // select never carried an executable grammar; superseded by the dedicated
+  // `repeat` RRULE-text property (…0003-…0013 below). The entry stays — seed
+  // ids are never removed or reused (TASK_FAMILY_SEED still authors the
+  // schema at this id for migrated workspaces).
   taskRecurrence: "00000000-0000-0000-0003-000000000006",
   // Meeting family — the workflow-properties block continues (task
   // family …001–…006; meeting family …007–…009). …007 WITHDRAWN 2026-10-30
@@ -597,9 +602,18 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // The task→project membership relation: object-typed ({nodeId} refs),
   // MULTI, filter ["project"], GLOBAL scope with the class-local BINDING ROW
   // on `task` (the url→source precedent; see the spec comment). The next
-  // genuinely-free slot in the workflow-properties block (…001–…011 used;
-  // no withdrawal markers in this block).
+  // genuinely-free slot in the workflow-properties block at seeding time
+  // (…001–…011 used; taskRecurrence's WITHDRAWN marker came 2026-11-06,
+  // after this slot was taken).
   project: "00000000-0000-0000-0003-000000000012",
+  // The dedicated recurrence property (2026-11-06): single-value text
+  // carrying the RR5 RRULE (packages/domain/src/recurrence.ts), bound to the
+  // event+task calendar/task families (the multi-class bind — union scope,
+  // one binding row per class; `meeting` inherits the scope through the
+  // extends chain). Supersedes the withdrawn `taskRecurrence` placeholder
+  // (…0003-…0006 — never reused); live workspaces converge by the follow-up
+  // migration slice.
+  repeat: "00000000-0000-0000-0003-000000000013",
   // The card family (memorization cards slice): the six SRS schedule schemas,
   // class-bound to `card`, at the …0004- property block (…0003- is the
   // task/meeting/event family). The select-OPTION ids (assetRole …0001–…0007,
@@ -815,11 +829,18 @@ export interface SystemPropertySpec {
     | "image"
     | "asset";
   multi?: boolean;
-  bindTo?: SystemClassName;
+  /**
+   * The bound class — or, for the multi-class bind (2026-11-06, the `repeat`
+   * seed), a class LIST: the schema's scopeClassIds is the UNION of the named
+   * classes and the binding-row loop lands one `class.property.set` per
+   * class. A single-class spec keeps the historical shape (scope [bindTo],
+   * one binding row).
+   */
+  bindTo?: SystemClassName | SystemClassName[];
   /**
    * binding-row emission on `bindTo`. Default true —
    * a bound spec seeds the schema scoped to `bindTo` AND a class_property row
-   * on it. `bind: false` keeps the schema seeding with its `bindTo` scope
+   * per bound class. `bind: false` keeps the schema seeding with its `bindTo` scope
    * (scope is the locality/eligibility authority) but SKIPS the binding row
    * (bindings are visibility): the property is eligible on the class family
    * yet renders bound only where a class-local row exists — the source
@@ -857,6 +878,22 @@ export interface SystemPropertySpec {
    * scripts/migrate-zotero-full-alignment.mts.
    */
   pinned?: boolean;
+  /**
+   * the binding row's binary NODE-ROW PREVIEW flag (additive
+   * 2026-11-08): true = the bound property's value renders in the node's
+   * ROW (the outliner line/chrome preview), not only in the properties
+   * panel. Absent = false (no preview — the default). DECLARED 2026-11-08
+   * (the node-row previews slice): the task family's taskStatus/taskDeadline
+   * (TASK_FAMILY_SEED), the event family's eventDate (meeting/trip inherit
+   * it through the extends chain; meeting's location rides its own row),
+   * birthday's eventDate extra row, and the source base family's
+   * authors/publicationDate (every source type-class inherits through the
+   * extends chain) — everything else seeds without the preview. The flag
+   * rides future class.property.set envelopes for live workspaces (patch
+   * semantics identical to `pinned`); no log rewrite — old rows default to
+   * no preview.
+   */
+  showInNodeRows?: boolean;
   targetClassFilter?: SystemClassName[];
   defaultValue?: string;
   options?: { id: string; label: string }[];
@@ -885,10 +922,10 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // (…0006-…0001). Live values migrate via scripts/migrate-authors-to-text.mts
   // (slice 1 task 8); the UUID …0012 is unchanged and the object filter is
   // superseded (a text schema takes no targetClassFilter).
-  authors: { type: "text", multi: true, bindTo: "source", pinned: true },
+  authors: { type: "text", multi: true, bindTo: "source", pinned: true, showInNodeRows: true },
   isbn: { type: "text", bindTo: "source" },
   doi: { type: "text", bindTo: "source", pinned: true },
-  publicationDate: { type: "datetime", bindTo: "source", pinned: true },
+  publicationDate: { type: "datetime", bindTo: "source", pinned: true, showInNodeRows: true },
   publisher: { type: "text", bindTo: "source" },
   role: {
     type: "select",
@@ -944,11 +981,16 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // extends event; the class-local meetingDate duplicate retired
   // 2026-10-30, live values converge by
   // scripts/migrate-meeting-date-retirement.mts). location is PINNED (the
-  // seed pin sets slice, amended by the retirement); agenda stays unpinned.
-  location: { type: "text", bindTo: "meeting", pinned: true },
+  // seed pin sets slice, amended by the retirement) and carries the
+  // node-row preview flag (2026-11-08 — a meeting's place reads in the
+  // row); agenda stays unpinned and unpreviewed.
+  location: { type: "text", bindTo: "meeting", pinned: true, showInNodeRows: true },
   agenda: { type: "text", bindTo: "meeting" },
   // Event-family reshape: the event family's minimal shape — one date binding.
-  eventDate: { type: "datetime", bindTo: "event" },
+  // The date carries the node-row preview flag (2026-11-08): an event's date
+  // reads in the row; meeting/trip inherit the flag through the extends
+  // chain (no per-subclass rows — the base row never repeats per class).
+  eventDate: { type: "datetime", bindTo: "event", showInNodeRows: true },
   //: the birthday family is
   // PERSON-typed, not a date duplicate — the date rides event's eventDate
   // through the extends chain (effective-properties binding resolution is
@@ -986,6 +1028,20 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
     targetClassFilter: ["project"],
     hideWhenEmpty: true,
   },
+  // The dedicated recurrence property (2026-11-06): single-value text
+  // carrying the RR5 RRULE (packages/domain/src/recurrence.ts — the parsed
+  // grammar, not free text by convention). The FIRST multi-class bind:
+  // `bindTo` names the class LIST [event, task] — the schema seeds scoped to
+  // the UNION (scopeClassIds [event, task]; meeting inherits the eligibility
+  // through the extends chain) and the binding-row loop lands one bare
+  // class.property.set per class. LOCAL scope, not global, per the
+  // 2026-10-20 seed-scope audit: an RRULE is family-identity shape, not a
+  // generically reusable value. Seeds UNPINNED (lands in no declared pin
+  // set). Supersedes the withdrawn taskRecurrence placeholder
+  // (…0003-…0006 — the UUID stays burned); the task-family ensure keeps
+  // authoring the old schema for migrated workspaces until the follow-up
+  // migration slice converges live logs.
+  repeat: { type: "text", bindTo: ["event", "task"] },
   // The card family (memorization cards slice): the six SRS schedule schemas,
   // class-bound to `card` at the …0004- block (see the UUID map comment). All
   // scalar (datetime/number), all seed UNPINNED — the 2026-10-27 pinned roster
@@ -1198,6 +1254,8 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   eventDate: "Event date",
   birthdayPerson: "Birthday person",
   project: "Project",
+  // The dedicated recurrence property (2026-11-06) — the RRULE-text carrier.
+  repeat: "Repeat",
   // The card family — the names mirror CARD_FAMILY_SEED verbatim (the
   // completeness pin below requires one entry per SYSTEM_PROPERTY_UUIDS key).
   cardDue: "Card due",
@@ -1354,11 +1412,17 @@ export const SYSTEM_EXTRA_CLASS_BINDINGS: {
   property: SystemPropertyName;
   bindTo: SystemClassName;
   /** The binding row's tier flag (see SystemPropertySpec.pinned). No extra
-   * row pins anything: the url→web_page + eventDate→birthday rows stay
-   * unpinned (only the source base's url row carries the pin). */
+   * row pins anything: the url→web_page row stays unpinned (only the source
+   * base's url row carries the pin). */
   pinned?: boolean;
+  /** The binding row's node-row preview flag (see
+   * SystemPropertySpec.showInNodeRows). The eventDate→birthday row carries
+   * it (a birthday's date reads in the row, the inherited eventDate
+   * preview flag meeting the class-local row); url→web_page stays without
+   * the preview. */
+  showInNodeRows?: boolean;
 }[] = [
-  { property: "eventDate", bindTo: "birthday" },
+  { property: "eventDate", bindTo: "birthday", showInNodeRows: true },
   { property: "url", bindTo: "web_page" },
 ];
 
@@ -1425,6 +1489,11 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * seed pin sets slice): taskStatus/taskScheduled/taskDeadline seed their
  * binding rows PINNED; taskPriority/taskClosedDate/taskRecurrence stay
  * unpinned. Live workspaces converge by scripts/migrate-seed-pins.mts.
+ * DECLARED 2026-11-08 (the node-row previews slice): taskStatus/taskDeadline
+ * seed their binding rows with the node-row preview flag (the row value
+ * reads in the node's row); the rest preview nothing (the applier ensure
+ * writes the column; live workspaces converge by future
+ * class.property.set envelopes — no log rewrite).
  *
  * the SIX SCHEMAS seed at
  * GLOBAL scope (scopeClassIds absent — Status "can be reused for other
@@ -1440,6 +1509,9 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   display?: "panel" | "bullet" | "inline";
   /** The binding row's tier flag (see SystemPropertySpec.pinned). */
   pinned?: boolean;
+  /** The binding row's node-row preview flag (see
+   * SystemPropertySpec.showInNodeRows). */
+  showInNodeRows?: boolean;
   /** Schema-level default (option id for select types; see SystemPropertySpec.defaultValue). */
   defaultValue?: string;
 }> = [
@@ -1457,10 +1529,11 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
     ],
     display: "bullet",
     pinned: true,
+    showInNodeRows: true,
     defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
   },
   { property: "taskScheduled", name: "Scheduled", type: "datetime", pinned: true },
-  { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true },
+  { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true, showInNodeRows: true },
   {
     property: "taskPriority",
     name: "Priority",

@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 
-import { type DatePrecision, isReadonlyProperty } from "@notees/domain";
+import { type DatePrecision, isReadonlyProperty, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
@@ -15,6 +15,7 @@ import { ScopeRemedyButton } from "./ScopeRemedyButton.js";
 import { propertyGroupsOf } from "./propertyGroups.js";
 import { effectivePropertyIcon } from "./propertyIcon.js";
 import { GroupedPropertyRow } from "./GroupedPropertyRow.js";
+import { RepeatPropertyRow } from "./RepeatPropertyRow.js";
 import { ScalarPropertyValue } from "./ScalarPropertyValue.js";
 import { PropertySettingsModal } from "./PropertySettingsModal.js";
 
@@ -202,6 +203,26 @@ export function PropertiesTable({
             // R4 honest rendering: an authored row on an ineligible schema
             // SURVIVES — dimmed + the ineligible affordance, never hidden.
             const ineligible = row.eligible === false;
+            // The dedicated Repeat arm: a repeat row landing on the
+            // ungrouped scalar path (its schema projection gone) still
+            // renders the Repeat control — the default text row (carrier
+            // blocks / the bare-string editor) never renders for repeat.
+            if (row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat) {
+              return (
+                <RepeatPropertyRow
+                  key={`${row.propertySchemaId}:${row.idx}`}
+                  client={client}
+                  nodeId={nodeId}
+                  propertySchemaId={row.propertySchemaId}
+                  label={label}
+                  rows={[row]}
+                  classBound={row.boundBy !== null}
+                  icon={effectivePropertyIcon(row.schema)}
+                  readOnly={readOnly}
+                  rowClassName={ineligible ? " nt-property-ineligible" : ""}
+                />
+              );
+            }
             return (
               <li
                 key={`${row.propertySchemaId}:${row.idx}`}

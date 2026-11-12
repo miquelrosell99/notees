@@ -158,9 +158,19 @@ describe("chunked upload over the threshold", () => {
 
     const key = await importWorkspaceKey(KEY_BYTES);
     const { decryptBytes } = await import("@notees/protocol");
-    const engineStore = (engine as unknown as { store: Store }).store;
-    const raw = engineStore.snapshot();
-    expect([...(await decryptBytes(key, relay.snapshotBlob()!))]).toEqual([...raw]);
+    // The reassembled relay blob is a SEALED image of the whole store —
+    // content, not raw bytes: app_meta is device-local bookkeeping (the
+    // sync-state row, now including the durable upload watermark) and
+    // legitimately advances after the blob was captured mid-sync.
+    const opened = new Store();
+    await opened.restoreAsync(await decryptBytes(key, relay.snapshotBlob()!));
+    const objectId = `0192a000-0000-7000-8000-0000000000${(T0 + 30).toString(16).slice(-2)}`;
+    const restored = opened.getNode(objectId);
+    expect(restored).toBeDefined();
+    const text = (JSON.parse(restored!.content) as Array<{ text?: string }>)
+      .map((token) => token.text ?? "")
+      .join(" ");
+    expect(text.trim()).toBe(BIG_TEXT.trim());
   });
 });
 

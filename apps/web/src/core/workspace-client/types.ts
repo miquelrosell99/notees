@@ -72,12 +72,24 @@ export const CONFLICT_LOG_CAP = 100;
  * so the main-thread read cache refetches only impacted keys instead of the
  * whole cache. Semantics for subscribers:
  *
- *  - `structural === true` OR both fields absent → the change set is unknown
- *    or listing-scale: invalidate EVERY cached read.
- *  - otherwise → a content-only edit of `affectedNodeIds` (already
- *    ancestor-expanded): invalidate reads scoped to those ids plus
- *    content-global reads (search/reference listings embed titles and link
- *    marks from anywhere).
+ *  - both fields absent → the change set is unknown (bootstrap, status
+ *    flips): treat everything as stale.
+ *  - `structural === true`, no `affectedNodeIds` → a listing-scale change
+ *    whose affected set is unknown or oversized: invalidate EVERY cached
+ *    read and force conservative re-renders.
+ *  - `structural === true` WITH `affectedNodeIds` → a listing-scale change
+ *    (create/move/delete/…) whose touched set IS known (ancestor-expanded):
+ *    cache invalidation stays full (a create can move listings anywhere —
+ *    e.g. a move's vacated side is not reconstructible post-apply), but
+ *    row-level subscribers MAY scope re-renders to rows naming one of these
+ *    ids — data outside them cannot have moved.
+ *  - `structural === false` with a non-empty `affectedNodeIds` → a
+ *    content-only edit of those ids (already ancestor-expanded): invalidate
+ *    reads scoped to those ids plus content-global reads (search/reference
+ *    listings embed titles and link marks from anywhere).
+ *  - `structural === false` with an EMPTY `affectedNodeIds` → "nothing is
+ *    stale" (status flips, no-op cycles): run the notify cycle, dirty no
+ *    cache keys.
  *
  * `revision` is a per-session monotonic counter — informational (diagnostics,
  * tests); coalesced notifications carry the merged max.
@@ -268,6 +280,10 @@ export interface ClassBinding {
   /** The binary tier flag (true = the property renders in the pinned
    *  first tier of class property lists — alphabetical within each tier). */
   pinned: boolean;
+  /** The node-row preview flag (true = the bound value renders in the
+   *  node's picker/search row, an additional compact line — absent on the
+   *  wire/store column reads as false). */
+  showInNodeRows: boolean;
 }
 
 /**
@@ -276,8 +292,8 @@ export interface ClassBinding {
  * getRegistryBindings read. Title-is-content: the schema ROW is the naming
  * authority (renames and user edits ride it); only a missing row falls back
  * to a synthesized label at the call site. The binding carries the genuinely
- * PER-CLASS mechanics ONLY — the active soft-unbind flag and the pinned
- * tier flag (`required` retired outright, `defaultValue` moved to the
+ * PER-CLASS mechanics ONLY — the active soft-unbind flag, the pinned
+ * tier flag, and the node-row preview flag (`required` retired outright, `defaultValue` moved to the
  * schema, `sequence` retired outright — class panels render in pin tiers,
  * alphabetical by property name within each tier).
  */
@@ -313,6 +329,7 @@ export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
         : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
     active: row.binding_active === 0 ? false : true,
     pinned: row.binding_pinned === 1,
+    showInNodeRows: row.show_in_node_rows === 1,
   };
 }
 
@@ -337,11 +354,13 @@ export interface ClientValidationRules {
  * `active` is the soft-unbind flag; `pinned` the binary tier flag (pinned
  * properties render first, alphabetical within each tier — a
  * classification, never a stored order: `sequence` retired, class panels
- * sort in pin tiers).
+ * sort in pin tiers); `showInNodeRows` the node-row preview flag (a
+ * flagged binding's value renders in the node's picker/search row).
  */
 export interface SetClassPropertyInput {
   active?: boolean;
   pinned?: boolean;
+  showInNodeRows?: boolean;
 }
 
 /** A select/multi_select option (color + icon, both optional). */

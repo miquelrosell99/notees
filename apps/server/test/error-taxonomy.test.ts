@@ -33,7 +33,7 @@ interface Emission {
 /** Scan src/ for the two emission idioms: new AppError(N, "code") / errorBody(N, "code"). */
 function scanEmissions(): Emission[] {
   const emissions: Emission[] = [];
-  const pattern = /(?:new AppError\(|errorBody\()\s*(\d{3})\s*,\s*"([a-z_]+)"/g;
+  const pattern = /(?:new AppError\(|errorBody\()\s*(\d{3})\s*,\s*"([a-z0-9_]+)"/g;
   for (const file of readdirSync(SRC_DIR)) {
     if (!file.endsWith(".ts")) continue;
     const source = readFileSync(join(SRC_DIR, file), "utf8");

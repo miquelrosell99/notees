@@ -31,9 +31,12 @@ import { Icon } from "../../ui/Icon.js";
 import { Tabs } from "../../components/ui/kit/Tabs.js";
 import { ToggleSwitch } from "../../components/ui/kit/ToggleSwitch.js";
 import { cssColorFor } from "../../components/ui/kit/colorPresets.js";
+import { ReadItLaterFeatureRow } from "./ReadItLaterFeatureRow.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
 import { SourcesSettingsSection } from "../settings/SourcesSettingsSection.js";
+import { MigrationsSection } from "../settings/MigrationsSection.js";
+import { WorkflowRulesSection } from "../settings/WorkflowRulesSection.js";
 import { WorkflowsSettingsSection } from "../workflows/WorkflowsSettingsSection.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";
 
@@ -47,7 +50,7 @@ import "../settings/settingsModal.css";
  * objects keep their data — the family's surfaces hide"); a family with zero
  * instances (or an enable) writes immediately.
  */
-const FEATURE_TOGGLE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
+export const FEATURE_TOGGLE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
 
 type DateFormat =
   | "YYYY/MM/DD"
@@ -110,7 +113,7 @@ export interface WorkspaceSettingsModalProps {
   /** Called after a successful rename so the shell can update its label. */
   onRenamed?: ((name: string) => void) | undefined;
   /** The tab the modal opens on (the account popup's admin entry lands on plugins). */
-  initialTab?: "general" | "features" | "workflows" | "plugins" | "shortcuts" | undefined;
+  initialTab?: "general" | "features" | "workflows" | "automation" | "plugins" | "shortcuts" | undefined;
   /**
    * The active workspace's client — powers the Features tab's live family
    * toggles. Only sections whose workspaceId matches the client's are
@@ -135,7 +138,7 @@ export function WorkspaceSettingsModal({
   client,
   onAddSource = undefined,
 }: WorkspaceSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"general" | "features" | "workflows" | "plugins" | "shortcuts">(initialTab);
+  const [activeTab, setActiveTab] = useState<"general" | "features" | "workflows" | "automation" | "plugins" | "shortcuts">(initialTab);
   const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
   const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);
@@ -214,6 +217,7 @@ export function WorkspaceSettingsModal({
     { id: "general" as const, label: "General" },
     { id: "features" as const, label: "Features" },
     { id: "workflows" as const, label: "Workflows" },
+    { id: "automation" as const, label: "Automation" },
     { id: "plugins" as const, label: "Plugins" },
     { id: "shortcuts" as const, label: "Shortcuts" },
   ];
@@ -328,6 +332,13 @@ export function WorkspaceSettingsModal({
                       </div>
                     );
                   })()}
+                  {/* The read-later toggle is a SURFACES gate like journal:
+                      it gates the connector's read-later captures while the
+                      web_page/collection classes stay always-on. The row
+                      itself is vendor-tolerant: until the vendored
+                      WORKSPACE_FEATURES knows `readItLater` it renders
+                      nothing. */}
+                  <ReadItLaterFeatureRow client={client!} />
                   {/* The write issues a workspace.feature.set through the
                       normal client op path (lockstep SHIPPED: GTK/Flutter
                       v3.0.0). F3's disable confirmation gates the OFF write
@@ -384,6 +395,13 @@ export function WorkspaceSettingsModal({
                   Open this workspace to see its workflows.
                 </p>
               )}
+            </div>
+          )}
+
+          {activeTab === "automation" && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Automation Rules</h3>
+              <WorkflowRulesSection serverUrl={serverUrl} credential={credential} />
             </div>
           )}
 
@@ -549,6 +567,8 @@ export function WorkspaceSettingsModal({
                 />
                 <span className="settings-unavailable">Not available in this build.</span>
               </div>
+
+              {clientMatches && <MigrationsSection client={client!} />}
             </div>
           )}
         </div>

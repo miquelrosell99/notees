@@ -105,11 +105,18 @@ export function buildSystemSeedEnvelopes(stamp: SeedStamp): Envelope[] {
     // the spec is marked `global` (the seed-scope audit: genuinely reusable
     // properties — the task family, the global url seed (bound to `source`
     // since) — are global; family-identity fields like citekey stay local).
+    // A LIST-valued bindTo (the multi-class bind, 2026-11-06 — `repeat`) is
+    // normalized here: the schema's scope is the UNION of the named classes
+    // and the binding-row loop below lands one row per class. Single-class
+    // specs normalize to a one-element list — byte-identical envelopes to
+    // the historical single-bind shape.
     // The binding row below lands either way — bindings are per-class config.
+    const classes =
+      spec.bindTo === undefined ? [] : Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
     const scopeClassIds =
-      spec.bindTo === undefined || spec.global === true
+      classes.length === 0 || spec.global === true
         ? null
-        : [SYSTEM_CLASS_UUIDS[spec.bindTo]];
+        : classes.map((c) => SYSTEM_CLASS_UUIDS[c]);
     envelopes.push(
       stamp(
         "propertySchema.create",
@@ -139,24 +146,31 @@ export function buildSystemSeedEnvelopes(stamp: SeedStamp): Envelope[] {
     // type-specific fields render bound only via their own class's
     // SYSTEM_SOURCE_CLASS_BINDINGS rows; the source base keeps its rows.
     // The binding is a configuration ROW (class.property.*) carrying the
-    // genuinely per-class mechanics ONLY — the active soft-unbind flag and
+    // genuinely per-class mechanics ONLY — the active soft-unbind flag,
     // the pinned tier flag (a classification, never a stored order;
     // sequence retired 2026-10-21: effective-properties derives boundBy
-    // from rows; panels sort in pin tiers; the default rides the schema).
-    // The spec's pinned flag rides verbatim — the seed pin sets slice
-    // (2026-10-27) declared the pinned roster in the domain manifests.
-    const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
-    envelopes.push(
-      stamp(
-        "class.property.set",
-        {
-          classId,
-          propertySchemaId,
-          ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
-        },
-        [classId],
-      ),
-    );
+    // from rows; panels sort in pin tiers; the default rides the schema),
+    // and the showInNodeRows node-row preview flag (absent = false).
+    // The spec's flags ride verbatim — the seed pin sets slice
+    // (2026-10-27) declared the pinned roster, the node-row previews slice
+    // (2026-11-08) the preview roster, in the domain manifests.
+    // One row per normalized bound class (the multi-class bind lands a row
+    // on every class in the union).
+    for (const cls of classes) {
+      const classId = SYSTEM_CLASS_UUIDS[cls];
+      envelopes.push(
+        stamp(
+          "class.property.set",
+          {
+            classId,
+            propertySchemaId,
+            ...(spec.pinned !== undefined ? { pinned: spec.pinned } : {}),
+            ...(spec.showInNodeRows !== undefined ? { showInNodeRows: spec.showInNodeRows } : {}),
+          },
+          [classId],
+        ),
+      );
+    }
   }
   // The manifest's extra binding rows (SYSTEM_EXTRA_CLASS_BINDINGS): an
   // extends-child re-binding an inherited schema so class-local binding reads
@@ -173,6 +187,7 @@ export function buildSystemSeedEnvelopes(stamp: SeedStamp): Envelope[] {
           classId,
           propertySchemaId: SYSTEM_PROPERTY_UUIDS[extra.property],
           ...(extra.pinned !== undefined ? { pinned: extra.pinned } : {}),
+          ...(extra.showInNodeRows !== undefined ? { showInNodeRows: extra.showInNodeRows } : {}),
         },
         [classId],
       ),
@@ -190,6 +205,7 @@ export function buildSystemSeedEnvelopes(stamp: SeedStamp): Envelope[] {
     for (const ref of properties) {
       const property = sourceBindingPropertyOf(ref);
       const pinned = typeof ref === "string" ? undefined : ref.pinned;
+      const showInNodeRows = typeof ref === "string" ? undefined : ref.showInNodeRows;
       envelopes.push(
         stamp(
           "class.property.set",
@@ -197,6 +213,7 @@ export function buildSystemSeedEnvelopes(stamp: SeedStamp): Envelope[] {
             classId,
             propertySchemaId: SYSTEM_PROPERTY_UUIDS[property],
             ...(pinned !== undefined ? { pinned } : {}),
+            ...(showInNodeRows !== undefined ? { showInNodeRows } : {}),
           },
           [classId],
         ),

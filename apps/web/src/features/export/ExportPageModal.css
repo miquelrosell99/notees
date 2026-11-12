@@ -161,8 +161,9 @@
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* Static note in place of the preview for non-markdown formats (task W —
-   the preview is the engine's markdown projection only). */
+/* Static note in place of the preview for the Word card — a .docx is a
+   binary OOXML package; every text-serializable card previews its own
+   plaintext in the textarea above instead. */
 .export-modal__preview-note {
   margin: 0;
   padding: var(--spacing-3);

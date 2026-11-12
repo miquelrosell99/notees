@@ -32,6 +32,7 @@ import { FileDropZone } from "../../components/ui/kit/FileDropZone.js";
 import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { Progress } from "../../components/ui/kit/Progress.js";
 import { listWorkspaces, createWorkspace } from "@/core/auth-api.js";
+import { keyBundleForCreate } from "@/core/crypto-custody.js";
 import type { AnyClient } from "../collection/types.js";
 import { importMarkdownFile, type MarkdownFileReport } from "./flows/markdown-file.js";
 import {
@@ -315,7 +316,11 @@ export function ImportOptionsModal({
       // v1: the workspace is created first, then the .md panel picks files.
       // The pick rides the same hidden-input idiom; cancel still lands the
       // user in the fresh (empty) workspace — the v1 panel equivalent.
-      const { id: workspaceId } = await createWorkspace(serverUrl, credential, nameTrimmed);
+      // Keyless (API-key session): null bundle → the create POSTs WITHOUT a
+      // wrappedKey and the server decides (422 keying_required hatch on /
+      // legacy 201 hatch off) — the error channel below surfaces either.
+      const bundle = await keyBundleForCreate();
+      const { id: workspaceId } = await createWorkspace(serverUrl, credential, nameTrimmed, bundle?.wrappedKey);
       setProgressLabel("Importing file");
       const files = await pickMdFiles(mdPickerRef.current);
       if (files !== null) {

@@ -287,29 +287,40 @@ export class ClientContext {
    *    wiring, manual sync wrappers): subscribers must treat everything as
    *    stale.
    *  - `{ affectedNodeIds, structural }` — one applied batch (local write,
-   *    push/pull/remote summary): content-only edits stay scoped; a
-   *    listing-affecting batch (or an oversized affected set) collapses to
-   *    `structural: true`.
+   *    push/pull/remote summary). Content-only edits stay scoped; a
+   *    listing-affecting batch collapses to `structural: true`.
    *
-   * Content scopes are ancestor-expanded here (a page-tree read of P
-   * contains node X iff P is an ancestor of X), bounded by CHANGE_AFFECT_CAP.
+   * Scopes are ancestor-expanded here (a page-tree read of P contains node X
+   * iff P is an ancestor of X), bounded by CHANGE_AFFECT_CAP. A structural
+   * batch KEEPS its expanded affected set when it fits the cap: cache
+   * invalidation stays full regardless (a move's vacated side is not
+   * reconstructible post-apply, so scoped key dirtying would serve stale
+   * listings), but row-level subscribers scope their re-renders to rows
+   * naming one of these ids — the expensive half of a structural gesture is
+   * forcing every mounted row to re-render. An empty expanded set (an
+   * evaluate-at-apply op such as trash.empty touching an unknowable set, or
+   * a caller that knows nothing) keeps the scope-less `structural: true`
+   * shape: no ids to scope by.
    */
   notify(change?: { affectedNodeIds?: string[]; structural?: boolean }): void {
     if (this.closed) return;
-    if (change === undefined) this.revisions.bumpAll();
+    if (change === undefined) {
+      this.revisions.bumpAll();
+    }
     this.listReadCache.clear();
     this.revision += 1;
     let payload: ChangeNotification = { revision: this.revision };
-    if (change !== undefined && change.structural === true) {
-      payload = { revision: this.revision, structural: true };
-    } else if (change !== undefined) {
+    if (change !== undefined) {
+      const structural = change.structural === true;
+      const known = change.affectedNodeIds !== undefined;
       const affected = this.expandAffectedAncestors(change.affectedNodeIds ?? []);
-      if (affected.length > CHANGE_AFFECT_CAP) {
-        payload = { revision: this.revision, structural: true };
+      if (!known || affected.length === 0 || affected.length > CHANGE_AFFECT_CAP) {
+        // Scope unknown, empty, or oversized: the scope-less shape. Cache
+        // invalidation and row-level renders stay conservative.
+        if (structural || !known) payload = { revision: this.revision, structural: true };
+        else payload = { revision: this.revision, affectedNodeIds: [], structural: false };
       } else {
-        // Explicit empty scope ("nothing is stale") — a bare {revision}
-        // payload means scope-unknown and would invalidate everything.
-        payload = { revision: this.revision, affectedNodeIds: affected, structural: false };
+        payload = { revision: this.revision, affectedNodeIds: affected, structural };
       }
     }
     for (const listener of this.listeners) listener(payload);

@@ -300,7 +300,14 @@ export function BootForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void handleWorkOffline()}
+                onClick={() => {
+                  // A keying failure (no Web Crypto outside a secure
+                  // context) rejects — surface it on the form instead of
+                  // leaving a dead button + an unhandled rejection.
+                  void handleWorkOffline().catch((cause: unknown) => {
+                    setError(cause instanceof Error ? cause.message : String(cause));
+                  });
+                }}
               >
                 Work offline
               </Button>

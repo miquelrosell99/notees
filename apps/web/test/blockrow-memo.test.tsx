@@ -187,4 +187,58 @@ describe("BlockRow bail-out (memoized rows)", () => {
       .reduce((sum, [, n]) => sum + n, 0);
     expect(rowRenders).toBeLessThanOrEqual(ROW_COUNT + 1);
   });
+
+  it("a create in one subtree leaves sibling-subtree rows completely bailed", async () => {
+    // The render-scoping slice: a structural create now carries its
+    // ancestor-expanded affected set, so rows outside that chain keep their
+    // memo bail AND their per-subtree SortableContext identity — they must
+    // not render at all (the flat-list dnd floor does not apply: the changed
+    // childIds array lives in the OTHER subtree's context).
+    const client = await seedClient();
+    const pageId = await client.createObject({
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "Host" }],
+    });
+    const mkBlock = (parentId: string, text: string) =>
+      client.createObject({
+        isEmbedded: true,
+        parentId,
+        contentAst: [{ type: "text", text }],
+      });
+    const parentA = await mkBlock(pageId, "parent A");
+    const parentB = await mkBlock(pageId, "parent B");
+    const aRows: string[] = [];
+    const bRows: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      aRows.push(await mkBlock(parentA, `a${i}`));
+      bRows.push(await mkBlock(parentB, `b${i}`));
+    }
+    await settle(client);
+    const probe = await mountPageWithRows(client, pageId);
+
+    let newId = "";
+    await act(async () => {
+      newId = await client.createObject({
+        isEmbedded: true,
+        // The array is filled three lines above — index 1 always exists.
+        parentId: aRows[1]!,
+        contentAst: [{ type: "text", text: "nested new row" }],
+      });
+    });
+    await settle(client);
+
+    const counts = probe.counts();
+    // The sibling subtree — including its parent row — names none of the
+    // affected ids, keeps tree and context identity: zero renders.
+    expectRowsBailed(counts, bRows);
+    expect(counts.get(parentB) ?? 0).toBe(0);
+    // The affected chain (ancestors of the new row) renders; the new row
+    // mounts.
+    expect(counts.get(newId)).toBeGreaterThanOrEqual(1);
+    expect(counts.get(parentA) ?? 0).toBeGreaterThanOrEqual(1);
+    // The touched subtree's siblings ride the dnd re-registration floor.
+    for (const id of aRows) {
+      expect(counts.get(id) ?? 0).toBeLessThanOrEqual(1);
+    }
+  });
 });

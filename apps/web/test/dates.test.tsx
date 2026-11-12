@@ -24,10 +24,9 @@
  *    stay), a Suggestions column (relative dates, the current date checked),
  *    an All-day switch (on by default; off reveals the 24h time input),
  *    a Range switch (off collapses a range to the point, start kept and end
- *    dropped), a Repeat row (day precision), and Remove; the schema
- *    precision is the commit ceiling (a year-precision picker opens at the
- *    year grid and hides the time chrome; the data layer links the year
- *    node);
+ *    dropped), and Remove; the schema precision is the commit ceiling (a
+ *    year-precision picker opens at the year grid and hides the time
+ *    chrome; the data layer links the year node);
  *  - dateQualified link qualifiers persist metadata.startDate/endDate and
  *    round-trip through the effective read model;
  *  - the Class View bindings editor edits precision (datetime schemas) and
@@ -580,33 +579,6 @@ describe("datetime (SCHEMA.md)", () => {
     expect(within(dialog).getByRole("button", { name: "2026" })).not.toBeNull();
     expect(within(dialog).queryByRole("switch", { name: "All-day" })).toBeNull();
     expect(within(dialog).queryByLabelText("Time")).toBeNull();
-  });
-
-  it("the popup's Repeat row authors the recurrence rule (metadata.repeat)", async () => {
-    const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
-    const classId = await client.createClass("Event");
-    await client.setClassProperty(classId, schemaId, {});
-    const pageId = await client.createObject({ isEmbedded: false, name: "Review" });
-    await client.assignClass(pageId, classId);
-    await client.setDatetimeProperty(pageId, schemaId, { iso: "2026-10-11" });
-    render(<PageView client={client} pageId={pageId} />);
-    expandProperties();
-
-    fireEvent.click(screen.getByRole("button", { name: "Set When" }));
-    const dialog = screen.getByRole("dialog", { name: "Date picker" });
-    // The Repeat row rides the popup beside the switches.
-    fireEvent.click(within(dialog).getByText("Does not repeat"));
-    fireEvent.click(await screen.findByText("Weekly"));
-    await flushWrites();
-
-    expect(valueOf(client, pageId, schemaId)).toEqual({
-      nodeId: chainNodeIds("2026-10-11").day,
-    });
-    expect(
-      client.getEffectiveProperties(pageId).find((row) => row.propertySchemaId === schemaId)
-        ?.metadata?.repeat,
-    ).toBe("weekly");
   });
 
   it("the popup's Remove unsets a single-value row (the cell empties)", async () => {

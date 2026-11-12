@@ -20,9 +20,21 @@
  *    the workspace (restores + applies), and the spawned script must report
  *    250/250 applied + VERIFY-MIGRATION-PASS — pre-fix the capped endpoint
  *    would have answered the tail 150 as unapplied and the run FAILed.
+ *
+ * The sealed boundary (2026-11-06, the mandatory-keying dev-ops contract):
+ * the report line carries `sealed-invisible: S` — the count of encrypted
+ * payloads in the device's filtered set — and it is a REPORT, never a fail
+ * criterion (PASS stays "all applied + pending === 0"). A real server can
+ * never hasApplied a sealed envelope (workspace-store skips the apply by
+ * design), so the S>0 pin runs the script against a STUBBED convergence
+ * endpoint: the staged tmp relay is real (the device filter + the sealed
+ * counting under test), the stub answers every queried id applied so the
+ * sealed envelope can only surface through the report line. The server's
+ * own sealed-skip semantics are pinned in scratch-store-lib.test.ts.
  */
 
 import { execFile } from "node:child_process";
+import { createServer, type Server } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -204,7 +216,102 @@ describe("verify-migration.mts end-to-end (the migrate-* harness shape)", () => 
     ]);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("250/250 envelopes applied");
+    expect(result.stdout).toContain("sealed-invisible: 0");
     expect(result.stdout).toContain("VERIFY-MIGRATION-PASS");
     expect(result.stdout).not.toContain("unapplied:");
+  });
+});
+
+/**
+ * One sealed envelope carrying the MIGRATION's deviceId — the shape the
+ * report exists for: a keyed workspace's sealed tail riding the verified
+ * device set (mirrors scratch-store-lib.test.ts's sealedEnvelope staging).
+ */
+function sealedDeviceEnvelope(): Envelope {
+  return newEnvelope({
+    workspaceId: WORKSPACE,
+    actorId: ACTOR,
+    deviceId: DEVICE,
+    client: "verify-migration-test",
+    hlc: { physical: Date.now() + 1, logical: 0 },
+    affectedNodeIds: ["01930000-0000-7000-8000-099999999999"],
+    opType: "object.update",
+    payload: { $e: { iv: "aXY", ct: "Y3Q" } },
+  });
+}
+
+describe("the sealed boundary in the report line (stubbed convergence endpoint)", () => {
+  let dataDir: string;
+  let stub: Server;
+  let port: number;
+
+  beforeEach(async () => {
+    dataDir = mkdtempSync(join(tmpdir(), "notees-verify-migration-sealed-test-"));
+    // The stub answers every queried id as applied with an empty pending —
+    // the pin isolates the report line; the relay read, the --device filter,
+    // and the sealed counting are the real code under test.
+    stub = createServer((request, response) => {
+      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      const ids = (url.searchParams.get("envelopeIds") ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id !== "");
+      response.setHeader("content-type", "application/json");
+      response.end(
+        JSON.stringify({
+          hydrated: true,
+          lastSeq: 4,
+          latestSeq: 4,
+          pending: 0,
+          appliedCount: 4,
+          envelopes: Object.fromEntries(ids.map((id) => [id, true])),
+        }),
+      );
+    });
+    await new Promise<void>((resolve) => stub.listen(0, "127.0.0.1", resolve));
+    const address = stub.address();
+    if (typeof address !== "object" || address === null) throw new Error("no stub address");
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await new Promise<void>((resolve) => stub.close(() => resolve()));
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  async function stageAndRun(envelopes: Envelope[]): Promise<CliResult> {
+    const relay = new RelayStorage(join(dataDir, "relay.db"), join(dataDir, "snapshots"));
+    try {
+      relay.ingest(envelopes);
+    } finally {
+      relay.close();
+    }
+    return runScript([
+      "--data-dir",
+      dataDir,
+      "--workspace",
+      WORKSPACE,
+      "--device",
+      DEVICE,
+      "--server",
+      `http://127.0.0.1:${port}`,
+      "--api-key",
+      TEST_API_KEY,
+    ]);
+  }
+
+  it("a device set with a sealed payload reports sealed-invisible: 1 and still PASSes — the sealed count is a report, never a fail", async () => {
+    const result = await stageAndRun([...fixtureBatch(3), sealedDeviceEnvelope()]);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("4/4 envelopes applied");
+    expect(result.stdout).toContain("sealed-invisible: 1");
+    expect(result.stdout).toContain("VERIFY-MIGRATION-PASS");
+  });
+
+  it("a plaintext device set reports sealed-invisible: 0", async () => {
+    const result = await stageAndRun(fixtureBatch(3));
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("sealed-invisible: 0");
+    expect(result.stdout).toContain("VERIFY-MIGRATION-PASS");
   });
 });

@@ -65,7 +65,9 @@ as a `SCHEMA_VERSION` bump + a guarded ALTER in `packages/store/src/schema.ts`
 converge by the default and the new wire key rides future envelopes (the
 strict-payload additive row of the table above — the §2 lockstep gate still
 applies to pre-batch clients). Store v34's `class_property.pinned` (2026-10-27,
-default 0) is the shape — the v5 `active` precedent.
+default 0) is the shape — the v5 `active` precedent; store v37's
+`class_property.show_in_node_rows` (2026-11-08, default 0 — the node-row
+preview flag) rides the exact same shape.
 
 ## 1. The two migration kinds
 
@@ -85,6 +87,46 @@ The immutable log gains envelopes; every replica applies them in order.
   envelope BEFORE inserting, `--apply` through `RelayStorage.ingest`, then
   verify by read-back + a fresh scratch replay. Idempotent: a second run
   plans nothing.
+
+**The shared scratch build + the keyed-workspace guard (2026-11-06, the
+mandatory-keying slice).** Every migration script rides ONE copy of the
+scratch builder — `scripts/lib/scratch-store.ts`'s `buildScratchStore` (the
+sealed-snapshot gate: a `sealed=1` latest snapshot never restores, encrypted
+payloads skip the apply, StoreError skips count as pending and are reported
+through the caller's `onSkip` house line — a keyed workspace's sealed content
+is invisible to a server-side plan BY DESIGN). Each script also declares its
+`CONTENT_CLASS` (`"content"` — plans against the object graph — or
+`"scaffolding"` — the schema/binding rows every replica derives identically)
+and calls `refuseIfContentOnKeyed(dataDir, workspaceId, CONTENT_CLASS,
+name)` in its per-workspace loop BEFORE planning: a `"content"`-class run
+refuses server-side against a keyed workspace (the sealed prefix would be
+missing from the plan) with the run-it-through-a-keyed-client remedy, while
+`"scaffolding"` runs and unkeyed workspaces pass silent.
+
+**The node-free planning core (2026-11-06, the client-side executor
+pattern).** A `"content"`-class migration's remedy is a keyed client running
+the migration itself, so the planning logic must load in a browser: each
+content-class migration's pure core lives at
+`scripts/lib/migrations/<name>.ts` — NODE-DEP-FREE by contract (imports only
+`packages/protocol/src` + `packages/domain/src` + a type-only `Store`), exporting
+`isPending(store)`, the planner, a wire-neutral op-triple builder (the shape a
+client stamps with its session constants through the normal write path — the
+sync engine seals and pushes it on a keyed workspace, no new crypto, no wire
+change), and the CLI envelope builder. The script keeps its CLI shape by
+delegating; its rehearsal suite is the pin (the core's output byte-identical
+to the pre-extraction script's). Extracted so far (2026-11-06): meeting-date
+retirement (the proving pattern the web client's migrations runner consumes
+through the vendor pin), authors-to-text, pmid-property, zotero-full-
+alignment, url-source-binding, cover-banner-alias, attachments-asset-type.
+NOT extractable to this pattern — by architecture, not by neglect: the §B
+in-place rewrites (migrate-url-type-to-text, migrate-retire-external-link,
+migrate-mention-custom-label, migrate-unified-datetime, migrate-color-tokens)
+edit the STORED LOG's envelopes directly and explicitly forbid compensation
+envelopes, so no client write path can ever run them (they are also pre-
+keying-era history a keyed workspace never carries); migrate-cover-to-asset
+converges through the server's object REST API, not envelope planning; and
+migrate-date-pages-main is a non-import-safe top-level script with no
+rehearsal suite (extraction would be a redesign, which the ruling forbids).
 
 ### B. In-place rewrite (retired keys / moved fields)
 

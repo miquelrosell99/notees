@@ -306,16 +306,51 @@ export function listWorkspaces(serverUrl: string, token: string): Promise<{ work
 }
 
 
-export function createWorkspace(serverUrl: string, token: string, name?: string): Promise<{ id: string }> {
+/**
+ * Create a workspace. `id` is the F2 adoption path only: an offline-created
+ * workspace publishes under its EXISTING id (the local store is keyed by it);
+ * absent, the server mints a fresh one. The keying gate reads the explicit id
+ * server-side; a taken id answers 409 and nothing is created.
+ */
+export function createWorkspace(
+  serverUrl: string,
+  token: string,
+  name?: string,
+  wrappedKey?: string,
+  id?: string,
+): Promise<{ id: string }> {
   return request<{ id: string }>(
     serverUrl,
     "/workspaces",
-    { method: "POST", body: JSON.stringify(name ? { name } : {}) },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        ...(id !== undefined ? { id } : {}),
+        ...(name ? { name } : {}),
+        ...(wrappedKey !== undefined ? { wrappedKey } : {}),
+      }),
+    },
     token,
   );
 }
 
 // --- API keys (user settings → machine credentials) -------------------------------
+
+/**
+ * The scope vocabulary the server's enforcement understands (`scopes.ts`),
+ * with human labels for the settings UI. ALL selected = full access (the
+ * key is created without a scope list); unchecking withholds a permission.
+ */
+export const API_SCOPES: Array<{ id: string; label: string }> = [
+  { id: "objects.read", label: "Read objects" },
+  { id: "objects.write", label: "Write objects" },
+  { id: "objects.delete", label: "Delete objects" },
+  { id: "assets.read", label: "Read assets" },
+  { id: "assets.write", label: "Upload assets" },
+  { id: "search", label: "Search" },
+  { id: "export", label: "Export" },
+  { id: "admin", label: "Admin" },
+];
 
 export interface ApiKeyEntry {
   id: string;
@@ -325,6 +360,10 @@ export interface ApiKeyEntry {
   createdAt: number;
   lastUsedAt: number | null;
   revokedAt: number | null;
+  /** The scope set, or null = unrestricted (full access). */
+  scopes: string[] | null;
+  /** Machine key: carries custody — possession opens encrypted workspaces without the password. */
+  machine: boolean;
 }
 
 export function listApiKeys(serverUrl: string, token: string): Promise<{ apiKeys: ApiKeyEntry[] }> {
@@ -335,13 +374,40 @@ export function createApiKey(
   serverUrl: string,
   token: string,
   name: string,
+  options: { scopes?: string[] | undefined } = {},
 ): Promise<{ apiKey: ApiKeyEntry; token: string }> {
   return request<{ apiKey: ApiKeyEntry; token: string }>(
     serverUrl,
     "/api-keys",
-    { method: "POST", body: JSON.stringify({ name }) },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        // All-on keeps the unrestricted default (omit the key); a partial
+        // selection sends the allow-list.
+        ...(options.scopes !== undefined && options.scopes.length > 0 ? { scopes: options.scopes } : {}),
+      }),
+    },
     token,
   );
+}
+
+/** Install a machine key's opaque custody record (two-phase mint, phase 2; 204, no body). */
+export async function installApiKeyCustody(
+  serverUrl: string,
+  token: string,
+  keyId: string,
+  record: { salt: string; wrappedMaster: string },
+): Promise<void> {
+  const response = await fetch(
+    `${serverUrl.replace(/\/$/, "")}/api/api-keys/${encodeURIComponent(keyId)}/custody`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(record),
+    },
+  );
+  await ensureOk(response);
 }
 
 export function revokeApiKey(serverUrl: string, token: string, id: string): Promise<{ ok: boolean }> {

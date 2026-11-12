@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { isReadonlyProperty } from "@notees/domain";
+import { isReadonlyProperty, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
@@ -15,6 +15,7 @@ import { propertiesCountOf, propertyGroupsOf } from "./propertyGroups.js";
 import { effectivePropertyIcon } from "./propertyIcon.js";
 import { AliasesRow } from "./AliasesRow.js";
 import { GroupedPropertyRow } from "./GroupedPropertyRow.js";
+import { RepeatPropertyRow } from "./RepeatPropertyRow.js";
 import { ScalarPropertyValue } from "./ScalarPropertyValue.js";
 import { AddPropertyRow } from "./AddPropertyRow.js";
 import { PropertySettingsModal } from "./PropertySettingsModal.js";
@@ -190,6 +191,33 @@ export function PropertiesSidebar({
           );
         }
         const row = entry.row;
+        // The dedicated Repeat arm (the PropertiesTable precedent): a repeat
+        // row on the ungrouped scalar path renders the Repeat control — the
+        // default text cell never renders for repeat.
+        if (row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat) {
+          return (
+            <div className="nt-props-sidebar__prop" key={`${row.propertySchemaId}:${row.idx}`}>
+              {nameRow(
+                row.propertySchemaId,
+                labelOf(row),
+                row.boundBy !== null ? "C" : null,
+                effectivePropertyIcon(row.schema),
+              )}
+              <div className="nt-props-sidebar__value">
+                <RepeatPropertyRow
+                  client={client}
+                  nodeId={nodeId}
+                  propertySchemaId={row.propertySchemaId}
+                  label={labelOf(row)}
+                  rows={[row]}
+                  classBound={row.boundBy !== null}
+                  icon={effectivePropertyIcon(row.schema)}
+                  bare
+                />
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="nt-props-sidebar__prop" key={`${row.propertySchemaId}:${row.idx}`}>
             {nameRow(

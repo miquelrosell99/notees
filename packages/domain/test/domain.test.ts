@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSystemSeedEnvelopes,
   DEFAULT_CLASS_ICON,
   DEFAULT_PAGE_ICON,
   defaultIconFor,
@@ -33,7 +34,7 @@ import {
   validateDisplayTemplate,
   type SystemPropertyName,
 } from "../src/index.js";
-import type { ContentAst } from "@notees/protocol";
+import type { ContentAst, Envelope } from "@notees/protocol";
 
 describe("system seeds (ported)", () => {
   it("has unique class UUIDs and icons for every class", () => {
@@ -72,8 +73,13 @@ describe("system seeds (ported)", () => {
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
       // PG10 (2026-10-04): bindTo-less specs seed the schema at global scope
       // with no class binding (the alias property — "page" is not a class).
+      // The multi-class bind (2026-11-06, `repeat`): bindTo may name a class
+      // LIST — the schema's scope is the union, one binding row per class.
       if (spec.bindTo !== undefined) {
-        expect(SYSTEM_CLASS_UUIDS).toHaveProperty(spec.bindTo);
+        const boundClasses = Array.isArray(spec.bindTo) ? spec.bindTo : [spec.bindTo];
+        for (const boundClass of boundClasses) {
+          expect(SYSTEM_CLASS_UUIDS).toHaveProperty(boundClass);
+        }
       }
       expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(name);
       if (spec.options) {
@@ -181,6 +187,85 @@ describe("system seeds (ported)", () => {
         expect(typeof ref === "string" || ref.pinned !== true).toBe(true);
       }
     }
+  });
+
+  it("seed node-row preview sets (declared 2026-11-08): the exact showInNodeRows roster, positively and negatively", async () => {
+    const { TASK_FAMILY_SEED } = await import("../src/index.js");
+    // The DECLARED node-row preview sets — a flagged binding's value renders
+    // in the node's row. The declaration must not silently drift: this test
+    // is the gate, and the effective read derives the family-wide preview
+    // extends-aware (the base rows never repeat per class).
+    const previewSpecs = new Set<SystemPropertyName>([
+      // The source base family (the SPECS-loop binding rows on `source`) —
+      // every source type-class inherits the flag through the extends chain.
+      "authors",
+      "publicationDate",
+      // The meeting family's location; the event family's eventDate
+      // (meeting/trip inherit through extends — no per-subclass rows).
+      "location",
+      "eventDate",
+    ]);
+    const previewTaskFamily = new Set<SystemPropertyName>([
+      "taskStatus",
+      "taskDeadline",
+    ]);
+    // SPECS: exactly the declared set carries showInNodeRows — every other
+    // spec stays without the preview.
+    const declared = new Set([...previewSpecs, ...previewTaskFamily]);
+    for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
+      if (spec === undefined || spec.bindTo === undefined || spec.bind === false) continue;
+      expect(
+        spec.showInNodeRows === true,
+        `spec ${name} preview drift (declared: ${declared.has(name as SystemPropertyName)})`,
+      ).toBe(declared.has(name as SystemPropertyName));
+    }
+    // TASK_FAMILY_SEED: the two task heads preview, the rest stay panel-only.
+    for (const entry of TASK_FAMILY_SEED) {
+      expect(
+        entry.showInNodeRows === true,
+        `task-family ${entry.property} preview drift`,
+      ).toBe(previewTaskFamily.has(entry.property));
+    }
+    // The extra rows: eventDate→birthday carries the flag (a birthday's
+    // date reads in the row); url→web_page stays without it.
+    expect(SYSTEM_EXTRA_CLASS_BINDINGS).toContainEqual({
+      property: "eventDate",
+      bindTo: "birthday",
+      showInNodeRows: true,
+    });
+    expect(SYSTEM_EXTRA_CLASS_BINDINGS).toContainEqual({ property: "url", bindTo: "web_page" });
+    // The type-class source bindings never carry the flag (bare names
+    // today — a ref shape exists; the declaration keeps every row plain).
+    for (const refs of Object.values(SYSTEM_SOURCE_CLASS_BINDINGS)) {
+      for (const ref of refs) {
+        expect(typeof ref === "string" || ref.showInNodeRows !== true).toBe(true);
+      }
+    }
+    // The seed envelopes emit the flag ONLY on the declared rows.
+    const envelopes = buildSystemSeedEnvelopes(
+      (opType, payload, affectedNodeIds) =>
+        ({ opType, payload, affectedNodeIds: affectedNodeIds ?? [] }) as unknown as Envelope,
+    );
+    const flagged = envelopes.filter(
+      (envelope) =>
+        envelope.opType === "class.property.set" &&
+        (envelope.payload as { showInNodeRows?: boolean }).showInNodeRows === true,
+    );
+    const flaggedKeys = flagged
+      .map(
+        (envelope) =>
+          `${(envelope.payload as { classId: string }).classId}:${(envelope.payload as { propertySchemaId: string }).propertySchemaId}`,
+      )
+      .sort();
+    expect(flaggedKeys).toEqual(
+      [
+        `${SYSTEM_CLASS_UUIDS.source}:${SYSTEM_PROPERTY_UUIDS.authors}`,
+        `${SYSTEM_CLASS_UUIDS.source}:${SYSTEM_PROPERTY_UUIDS.publicationDate}`,
+        `${SYSTEM_CLASS_UUIDS.meeting}:${SYSTEM_PROPERTY_UUIDS.location}`,
+        `${SYSTEM_CLASS_UUIDS.event}:${SYSTEM_PROPERTY_UUIDS.eventDate}`,
+        `${SYSTEM_CLASS_UUIDS.birthday}:${SYSTEM_PROPERTY_UUIDS.eventDate}`,
+      ].sort(),
+    );
   });
 
   it("never reuses withdrawn ids (locator …0018; linkedAuthors …0025; meetingDate …0003-…0007; cover class …0042; the `class` meta class …0001)", () => {
@@ -367,12 +452,15 @@ describe("system seeds (ported)", () => {
     expect(SYSTEM_PROPERTY_UUIDS.authors).toBe("00000000-0000-0000-0000-000000000012");
     // The seed pin sets slice (2026-10-27) pins the source base family:
     // authors (and citekey/doi/publicationDate/url, asserted in the pin-set
-    // declaration test) ride `pinned: true`.
+    // declaration test) ride `pinned: true`. The node-row previews slice
+    // (2026-11-08) flags authors for the row (publicationDate too — the
+    // preview roster is gated by the declaration test).
     expect(SYSTEM_PROPERTY_SPECS.authors).toEqual({
       type: "text",
       multi: true,
       bindTo: "source",
       pinned: true,
+      showInNodeRows: true,
     });
     expect(SYSTEM_PROPERTY_UUIDS.linkedAuthors).toBe("00000000-0000-0000-0006-000000000001");
     expect(SYSTEM_PROPERTY_SPECS.linkedAuthors).toEqual({
@@ -710,10 +798,13 @@ describe("system seeds (ported)", () => {
     // day-node anchor; full-day (no `time`) stays the default.
     // Seed pin sets slice (2026-10-27, amended by the meetingDate retirement):
     // location pins, agenda stays unpinned (the full declared roster is
-    // gated by the pin-set test).
-    expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting", pinned: true });
+    // gated by the pin-set test). Node-row previews slice (2026-11-08):
+    // location + eventDate carry the row preview (meeting/trip inherit the
+    // date's flag through extends — the preview roster is gated by the
+    // declaration test).
+    expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting", pinned: true, showInNodeRows: true });
     expect(SYSTEM_PROPERTY_SPECS.agenda).toEqual({ type: "text", bindTo: "meeting" });
-    expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "datetime", bindTo: "event" });
+    expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "datetime", bindTo: "event", showInNodeRows: true });
   });
 
   it("birthday family seeds (birthday extends event, for persons)", () => {
@@ -735,11 +826,13 @@ describe("system seeds (ported)", () => {
     expect(SYSTEM_PROPERTY_UUIDS).not.toHaveProperty("birthdayDate");
     expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("birthdayDate");
     // The chip-eligibility row: eventDate re-bound on birthday (mirrors the
-    // seed; there must be exactly one such extra binding).
+    // seed; there must be exactly one such extra binding). The row carries
+    // the node-row preview flag (2026-11-08 — a birthday's date reads in
+    // the row).
     const extra = SYSTEM_EXTRA_CLASS_BINDINGS.filter(
       (binding) => binding.property === "eventDate" && binding.bindTo === "birthday",
     );
-    expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday" }]);
+    expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday", showInNodeRows: true }]);
   });
 
   it("project property seed (2026-10-28): the task→project membership relation — global scope, task binding, multi object filter, hideWhenEmpty, unpinned", () => {
@@ -771,6 +864,64 @@ describe("system seeds (ported)", () => {
     // The withdrawn markers never reappear.
     expect(ids).not.toContain("00000000-0000-0000-0000-000000000018");
     expect(ids).not.toContain("00000000-0000-0000-0000-000000000025");
+  });
+
+  it("repeat property seed (2026-11-06): the dedicated recurrence property — text RRULE schema, union scope over event+task, one binding row per class", () => {
+    // The next genuinely-free slot in the workflow-properties block after
+    // project (…012): …013. The superseded taskRecurrence placeholder
+    // (…0003-…0006) stays in the UUID map WITHDRAWN — seed ids are never
+    // removed or reused (the WITHDRAWN comment itself is review-checked).
+    expect(SYSTEM_PROPERTY_UUIDS.repeat).toBe("00000000-0000-0000-0003-000000000013");
+    expect(SYSTEM_PROPERTY_UUIDS.taskRecurrence).toBe("00000000-0000-0000-0003-000000000006");
+    // The spec: single-value text carrying the RR5 RRULE (the bindTo union —
+    // scope is the event+task class list, not one class).
+    expect(SYSTEM_PROPERTY_SPECS.repeat).toEqual({ type: "text", bindTo: ["event", "task"] });
+    expect(SYSTEM_PROPERTY_DISPLAY_NAMES.repeat).toBe("Repeat");
+    // The withdrawn placeholder never had a SPECS entry and stays without one
+    // (it is authored through TASK_FAMILY_SEED's applier ensure instead).
+    expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("taskRecurrence");
+    // Uniqueness against the whole seed block.
+    const ids = Object.values(SYSTEM_PROPERTY_UUIDS);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    // The seed envelopes: one propertySchema.create scoped EXACTLY to
+    // [event, task] + one class.property.set binding row per bound class.
+    const envelopes = buildSystemSeedEnvelopes(
+      (opType, payload, affectedNodeIds) =>
+        ({ opType, payload, affectedNodeIds: affectedNodeIds ?? [] }) as unknown as Envelope,
+    );
+    const create = envelopes.find(
+      (envelope) =>
+        envelope.opType === "propertySchema.create" &&
+        (envelope.payload as { propertySchemaId: string }).propertySchemaId ===
+          SYSTEM_PROPERTY_UUIDS.repeat,
+    );
+    expect(create).toBeDefined();
+    expect(create!.payload).toEqual({
+      propertySchemaId: SYSTEM_PROPERTY_UUIDS.repeat,
+      name: "Repeat",
+      type: "text",
+      multi: false,
+      scopeClassIds: [SYSTEM_CLASS_UUIDS.event, SYSTEM_CLASS_UUIDS.task],
+    });
+    const bindings = envelopes.filter(
+      (envelope) =>
+        envelope.opType === "class.property.set" &&
+        (envelope.payload as { propertySchemaId: string }).propertySchemaId ===
+          SYSTEM_PROPERTY_UUIDS.repeat,
+    );
+    // One row per bound class, in spec order, bare payloads (no pin — repeat
+    // lands in no declared pin set).
+    expect(bindings.map((binding) => (binding.payload as { classId: string }).classId)).toEqual([
+      SYSTEM_CLASS_UUIDS.event,
+      SYSTEM_CLASS_UUIDS.task,
+    ]);
+    for (const binding of bindings) {
+      expect(binding.payload).toEqual({
+        classId: (binding.payload as { classId: string }).classId,
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS.repeat,
+      });
+    }
   });
 
   it("parentlessRole block seed pins the flagged roster verbatim", () => {

@@ -51,6 +51,15 @@ export class WorkspaceClientReads {
     return row ? this.ctx.mapNodeCached(row) : undefined;
   }
 
+  /**
+   * Uncached alias of {@link getNodeRaw} for write-time existence guards
+   * (the seed deploy's no-op checks). In-process reads are already fresh;
+   * the Promise shape matches the WorkerClient's raw-RPC variant.
+   */
+  getNodeRawFresh(id: string): Promise<ClientNode | undefined> {
+    return Promise.resolve(this.getNodeRaw(id));
+  }
+
   /** Display name for mentions/chips (SCHEMA.md name derivation); null when
    *  unknown. Mention labels resolve LIVE: a bare mention contributes its TARGET's current
    *  display name, so a block whose content is only a link reads as the
@@ -62,6 +71,16 @@ export class WorkspaceClientReads {
    *  renders at the title seam (`titleOf`'s template axis), never here. */
   getDisplayName(id: string): string | null {
     return this.displayNameOf(id, new Set());
+  }
+
+  /**
+   * Uncached alias of {@link getDisplayName} for write-time decisions (the
+   * connector capture's read-later find-or-create title compare).
+   * In-process reads are already fresh; the Promise shape matches the
+   * WorkerClient's raw-RPC variant (the getNodeRawFresh precedent).
+   */
+  getDisplayNameFresh(id: string): Promise<string | null> {
+    return Promise.resolve(this.getDisplayName(id));
   }
 
   private displayNameOf(id: string, path: Set<string>): string | null {
@@ -389,6 +408,15 @@ export class WorkspaceClientReads {
     return this.ctx.store.classParentIds(classId);
   }
 
+  /**
+   * Uncached alias of {@link getClassParents} for write-time decisions (the
+   * seed deploy's extends convergence guard). In-process reads are already
+   * fresh; the Promise shape matches the WorkerClient's raw-RPC variant.
+   */
+  getClassParentsFresh(classId: string): Promise<string[]> {
+    return Promise.resolve(this.getClassParents(classId));
+  }
+
   /** Classes directly extending this one (one extends edge), as nodes — the
    * "Extended by" rows: transitive extenders appear only under their own
    * direct parent. */
@@ -410,6 +438,16 @@ export class WorkspaceClientReads {
   /** Nodes with present OR-set membership in the class, display order. */
   getClassMembers(classId: string): ClientNode[] {
     return this.ctx.store.classMembers(classId).map((row) => this.ctx.mapNodeCached(row));
+  }
+
+  /**
+   * Uncached alias of {@link getClassMembers} for write-time find-or-create
+   * decisions (the connector capture's URL dedupe / read-later lookup).
+   * In-process reads are already fresh; the Promise shape matches the
+   * WorkerClient's raw-RPC variant.
+   */
+  getClassMembersFresh(classId: string): Promise<ClientNode[]> {
+    return Promise.resolve(this.getClassMembers(classId));
   }
 
   /** The classed-nodes section badge — the same membership projection as a COUNT. */
@@ -444,6 +482,7 @@ export class WorkspaceClientReads {
       .prepare(
         `SELECT cp.property_schema_id,
                 cp.active AS binding_active, cp.pinned AS binding_pinned,
+                cp.show_in_node_rows,
                 ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
@@ -508,6 +547,7 @@ export class WorkspaceClientReads {
         dateQualified: null,
         active: true,
         pinned: spec.pinned ?? false,
+        showInNodeRows: spec.showInNodeRows ?? false,
       });
     }
     return bindings.sort(byTierThenName);
@@ -536,6 +576,7 @@ export class WorkspaceClientReads {
       .prepare(
         `SELECT cp.property_schema_id,
                 cp.active AS binding_active, cp.pinned AS binding_pinned,
+                cp.show_in_node_rows,
                 ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
@@ -545,5 +586,16 @@ export class WorkspaceClientReads {
       )
       .all(classId) as Array<Record<string, unknown>>;
     return rows.map((row) => mapClassBindingRow(row));
+  }
+
+  /**
+   * Uncached alias of {@link getRegistryBindings} for write-time existence
+   * guards (the seed deploy's binding no-op checks — the module documents why
+   * the registry-only read is the guard, never the seed-spec fallback).
+   * In-process reads are already fresh; the Promise shape matches the
+   * WorkerClient's raw-RPC variant.
+   */
+  getRegistryBindingsFresh(classId: string): Promise<ClassBinding[]> {
+    return Promise.resolve(this.getRegistryBindings(classId));
   }
 }

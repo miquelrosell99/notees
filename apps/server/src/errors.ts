@@ -15,6 +15,7 @@ export type ErrorCode =
   | "forbidden"
   | "scope_denied"
   | "validation_failed"
+  | "keying_required"
   | "not_found"
   | "rate_limited"
   | "conflict"
@@ -26,6 +27,8 @@ export type ErrorCode =
   | "resolver_disabled"
   | "resolver_unavailable"
   | "no_identifier_found"
+  | "feature_disabled"
+  | "e2ee_required"
   | "internal";
 
 export class AppError extends Error {
@@ -71,6 +74,10 @@ export const ERROR_TAXONOMY: Readonly<
     aliases: [400, 416],
     description: "body/query/payload failed schema validation (fail loud, never half-applied)",
   },
+  // the creation gate (NOTEES_REQUIRE_KEYED, default on): POST /workspaces
+  // and the clone route refuse to mint a workspace without a wrappedKey
+  // bundle — the 422 names the missing bundle and precedes the mint.
+  keying_required: { status: 422, description: "workspace creation requires a wrappedKey bundle (NOTEES_REQUIRE_KEYED)" },
   not_found: { status: 404, description: "the addressed object/class/asset/workspace/snapshot does not exist" },
   rate_limited: { status: 429, description: "a fixed-window limiter refused the call (global IP, relay batch, login)" },
   conflict: { status: 409, description: "write rejected: id already exists, stale base revision, or conflicting state" },
@@ -91,6 +98,14 @@ export const ERROR_TAXONOMY: Readonly<
   // POST /api/resolve/pdf: the PDF bytes carried no extractable DOI — there
   // is nothing to resolve (the scan is documented on the route).
   no_identifier_found: { status: 422, description: "the PDF carried no extractable identifier (DOI)" },
+  // POST /api/capture/web-page: the workspace's readItLater feature row is
+  // disabled (F2: an absent row means enabled, so only an explicit
+  // disabled row answers this).
+  feature_disabled: { status: 403, description: "the workspace's readItLater feature is disabled" },
+  // POST /api/capture/web-page: the workspace carries a workspace_key row —
+  // the server holds no plaintext channel into encrypted stores; the
+  // client captures through the tab relay instead.
+  e2ee_required: { status: 409, description: "workspace is end-to-end encrypted — capture through an open client" },
   internal: { status: 500, description: "unclassified server failure (the only code not thrown by route code)" },
 };
 

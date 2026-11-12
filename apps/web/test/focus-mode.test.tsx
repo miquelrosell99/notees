@@ -204,8 +204,13 @@ describe("focus mode page chrome (#12)", () => {
     expect(rule![0]).toContain("padding-inline: var(--spacing-6)");
     // The cell wrapper is the scroll box at full cell width — the
     // scrollbar sits beside the right side pane, not mid-gap (the
-    // 2026-10-26 seam).
-    const scrollRule = /\.nt-page--panelled \.nt-page-content \{[^}]*overflow-y: auto[^}]*\}/.exec(css);
+    // 2026-10-26 seam). The register is shared: the focused block view's
+    // panelled shell rides the same rule (the frame's middle cell owns the
+    // scroll there too).
+    const scrollRule =
+      /\.nt-page--panelled \.nt-page-content,\s*\.nt-node-view--panelled \.nt-page-content \{[^}]*overflow-y: auto[^}]*\}/.exec(
+        css,
+      );
     expect(scrollRule).not.toBeNull();
     expect(scrollRule![0]).not.toContain("max-width");
     // No focus-only cap override remains — the general rule IS the

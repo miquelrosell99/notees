@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Notees",
+  "version": "0.1.0",
+  "identifier": "com.notees.app",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @notees/web dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "pnpm --filter @notees/web... build",
+    "frontendDist": "../apps/web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Notees",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "Self-hosted, local-first personal information environment",
+    "longDescription": "Notees desktop shell — hosts the Notees web client against your own sync server.",
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ]
+  }
+}

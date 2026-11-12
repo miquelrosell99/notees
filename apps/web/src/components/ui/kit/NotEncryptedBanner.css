@@ -1,0 +1,76 @@
+/* NotEncryptedBanner — the deliberate-keying warning bar (and its keyed state) */
+
+.not-encrypted-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-4);
+  background-color: var(--md-sys-color-warning-container);
+  color: var(--md-sys-color-on-warning-container);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-warning);
+  font-size: var(--font-size-button);
+  font-weight: 500;
+  position: sticky;
+  top: 0;
+  z-index: var(--z-toast);
+}
+
+/* The post-keying state is a fact, not a warning — the success palette. */
+.not-encrypted-banner--keyed {
+  background-color: var(--md-sys-color-success-container);
+  color: var(--md-sys-color-on-success-container);
+  border-bottom-color: var(--md-sys-color-success);
+}
+
+.not-encrypted-banner__icon {
+  font-size: var(--font-size-md);
+  opacity: var(--opacity-80);
+}
+
+.not-encrypted-banner__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.not-encrypted-banner__hint {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.not-encrypted-banner__error {
+  color: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.not-encrypted-banner__key,
+.not-encrypted-banner__dismiss {
+  padding: var(--spacing-1) var(--spacing-2);
+  background: transparent;
+  color: inherit;
+  border: var(--border-width-default) solid currentcolor;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.not-encrypted-banner__key:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-60);
+}
+
+.not-encrypted-banner__key:not(:disabled):active,
+.not-encrypted-banner__dismiss:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+.not-encrypted-banner__key:not(:disabled):hover,
+.not-encrypted-banner__dismiss:hover {
+  background-color: var(--md-sys-color-hover-overlay);
+}

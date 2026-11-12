@@ -202,6 +202,120 @@ describe("EventCreateModal", () => {
     });
   });
 
+  it("authors the repeat RRULE when the Repeat toggle is on — every 2 weeks on Mon", async () => {
+    const { client, schemaId } = await seedClient();
+    const onCreated = vi.fn();
+    renderModal(client, { onCreated });
+    const dialog = await screen.findByRole("dialog", { name: "New event" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Standup" } });
+
+    // The deliberate recurrence surface: Repeat on → weekly, every 2 weeks,
+    // on Mon (the anchor's Saturday preselects; swap it for Mon).
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+    fireEvent.change(within(dialog).getByRole("spinbutton", { name: "Repeat interval" }), {
+      target: { value: "2" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Repeat unit" }));
+    // The unit menu portals outside the dialog (kit Dropdown popper).
+    fireEvent.click(screen.getByRole("option", { name: "weeks" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Sat" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Mon" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const id = onCreated.mock.calls[0]![0] as string;
+    // The event carries BOTH the driving date and the series rule.
+    expect(authoredValue(client, id, schemaId)).toEqual({ nodeId: dayNodeOf(START) });
+    expect(authoredValue(client, id, SYSTEM_PROPERTY_UUIDS.repeat)).toBe(
+      "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO",
+    );
+  });
+
+  it("authors no repeat value when the toggle is switched back off", async () => {
+    const { client, schemaId } = await seedClient();
+    const onCreated = vi.fn();
+    renderModal(client, { onCreated });
+    const dialog = await screen.findByRole("dialog", { name: "New event" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "One-off" } });
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const id = onCreated.mock.calls[0]![0] as string;
+    expect(authoredValue(client, id, schemaId)).toEqual({ nodeId: dayNodeOf(START) });
+    expect(authoredValue(client, id, SYSTEM_PROPERTY_UUIDS.repeat)).toBeUndefined();
+  });
+
+  it("a failed repeat write leaves NO node at all — create + both property writes ride one atomic batch; retrying mints no duplicate", async () => {
+    const { client } = await seedClient();
+    const onCreated = vi.fn();
+    renderModal(client, { onCreated });
+    const dialog = await screen.findByRole("dialog", { name: "New event" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Standup" } });
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+
+    // The repeat write fails INSIDE the create gesture: the whole batch —
+    // create + date + repeat — rejects, so no partial node exists to
+    // misreport or duplicate on retry.
+    const applyOpsSpy = vi
+      .spyOn(client, "applyOps")
+      .mockRejectedValueOnce(new Error("repeat write failed"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("repeat write failed");
+    expect(onCreated).not.toHaveBeenCalled();
+    // The caller-assigned create op's id is absent — no partial-create
+    // window where the event exists without its repeat. (The referenced
+    // day's year/month/day chain ensured ahead of the batch does land —
+    // the date-ref contract stays outside the batch, the copyEventNode
+    // idiom — it is shared scaffolding, not the event.)
+    const batched = applyOpsSpy.mock.calls[0]![0];
+    const createOp = batched.find((op) => op.kind === "create");
+    expect(createOp?.kind).toBe("create");
+    if (createOp?.kind === "create") {
+      expect(client.getNode(createOp.input.id!)).toBeUndefined();
+    }
+
+    // Retry with the write path healthy: exactly one event node lands.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const eventNodes = client
+      .listPages()
+      .filter((node) => node.classIds.includes(SYSTEM_CLASS_UUIDS.event));
+    expect(eventNodes).toHaveLength(1);
+  });
+
+  it("the Repeat anchor rides the live-edited Start day, not the dblclicked prefill", async () => {
+    const { client, schemaId } = await seedClient();
+    const onCreated = vi.fn();
+    renderModal(client, { onCreated });
+    const dialog = await screen.findByRole("dialog", { name: "New event" });
+    fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Moved" } });
+    // The user moves the start off the dblclicked day: 2026-10-12 is a Monday
+    // (the prefill 2026-10-10 is a Saturday).
+    fireEvent.change(within(dialog).getByLabelText("Start day"), {
+      target: { value: "2026-10-12" },
+    });
+
+    fireEvent.click(within(dialog).getByRole("switch", { name: "Repeat" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Repeat unit" }));
+    fireEvent.click(screen.getByRole("option", { name: "weeks" }));
+    // The weekly default BYDAY preselects the LIVE start day's weekday…
+    expect(within(dialog).getByRole("button", { name: "Mon" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+    const id = onCreated.mock.calls[0]![0] as string;
+    // …and the authored rule + the driving date agree on the moved day.
+    expect(authoredValue(client, id, schemaId)).toEqual({ nodeId: dayNodeOf("2026-10-12") });
+    expect(authoredValue(client, id, SYSTEM_PROPERTY_UUIDS.repeat)).toBe(
+      "RRULE:FREQ=WEEKLY;BYDAY=MO",
+    );
+  });
+
   it("fails loud inline on a malformed time — nothing is written", async () => {
     const { client } = await seedClient();
     const before = client.listPages().length;

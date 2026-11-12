@@ -25,6 +25,8 @@ import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { uuidv7 } from "uuidv7";
 
+import type { ServerConfig } from "./config.js";
+
 const scrypt = promisify(scryptCb) as unknown as (
   password: string,
   salt: Buffer,
@@ -55,6 +57,29 @@ const KDF_P = 1;
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
+/**
+ * The mandatory-keying fixture exemption: the seeded demo workspaces the
+ * smoke and test harnesses use. The server never holds keys, so it cannot
+ * key them at seed time — harnesses mint them via direct log ingest (the
+ * relay's first-ingest mint passes the allowlist explicitly, see
+ * routes-relay.ts). Every other workspace id answers to the keying
+ * requirement.
+ */
+export const KEYING_EXEMPT_WORKSPACE_IDS: readonly string[] = [
+  "11111111-2222-4333-8444-555555555555",
+  "4b7d1a00-2222-4000-8000-0000000000099",
+];
+
+/**
+ * The keying gate predicate (NOTEES_REQUIRE_KEYED): true when the config
+ * hatch is on AND the workspace id is not one of the seeded demo fixtures.
+ * `workspaceId === null` is the creation case — the id does not exist yet,
+ * so nothing can exempt it.
+ */
+export function keyingRequiredFor(config: Pick<ServerConfig, "requireKeyed">, workspaceId: string | null): boolean {
+  return config.requireKeyed && (workspaceId === null || !KEYING_EXEMPT_WORKSPACE_IDS.includes(workspaceId));
+}
 
 export interface UserRow {
   id: string;
@@ -208,6 +233,11 @@ CREATE INDEX IF NOT EXISTS idx_member_user ON workspace_member (user_id);
 -- creation (like session tokens, nt_-prefixed, only hashed at rest).
 -- The scopes column: optional JSON array of scope names; NULL
 -- means unrestricted (the default; pre-scopes rows migrate as NULL).
+-- The custody columns: the opaque machine-key wrap of the account master
+-- key (salt + AES-GCM wrap produced client-side; both NULL for human keys —
+-- the presence of custody_wrap IS the machine-key flag). The server can
+-- never open the wrap; a client holding the key derives the unwrap key
+-- from the token locally.
 CREATE TABLE IF NOT EXISTS api_key (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
@@ -217,7 +247,9 @@ CREATE TABLE IF NOT EXISTS api_key (
     created_at INTEGER NOT NULL,
     last_used_at INTEGER,
     revoked_at INTEGER,
-    scopes TEXT
+    scopes TEXT,
+    custody_salt TEXT,
+    custody_wrap TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
 
@@ -404,6 +436,12 @@ export interface ApiKeyRow {
    * sessions are always unrestricted).
    */
   scopes: string[] | null;
+  /**
+   * Machine key: custody_wrap is present — the key carries an opaque
+   * client-side wrap of the account master key, so a client holding the
+   * token can open encrypted workspaces without the password.
+   */
+  machine: boolean;
 }
 
 interface ApiKeyRaw {
@@ -415,6 +453,8 @@ interface ApiKeyRaw {
   last_used_at: number | null;
   revoked_at: number | null;
   scopes: string | null;
+  custody_salt: string | null;
+  custody_wrap: string | null;
 }
 
 function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
@@ -427,6 +467,7 @@ function toApiKeyRow(raw: ApiKeyRaw): ApiKeyRow {
     lastUsedAt: raw.last_used_at,
     revokedAt: raw.revoked_at,
     scopes: raw.scopes === null ? null : (JSON.parse(raw.scopes) as string[]),
+    machine: raw.custody_wrap !== null,
   };
 }
 
@@ -480,6 +521,20 @@ export class AuthStorage {
     );
     if (!keyColumns.has("scopes")) {
       this.db.exec("ALTER TABLE api_key ADD COLUMN scopes TEXT");
+    }
+    for (const [name, ddl] of [
+      ["custody_salt", "ALTER TABLE api_key ADD COLUMN custody_salt TEXT"],
+      ["custody_wrap", "ALTER TABLE api_key ADD COLUMN custody_wrap TEXT"],
+    ] as const) {
+      if (!keyColumns.has(name)) {
+        this.db.exec(ddl);
+      }
+    }
+    const workspaceColumns = new Set(
+      (this.db.pragma("table_info(workspace)") as { name: string }[]).map((c) => c.name),
+    );
+    if (!workspaceColumns.has("read_later_collection_id")) {
+      this.db.exec("ALTER TABLE workspace ADD COLUMN read_later_collection_id TEXT");
     }
     const prefColumns = new Set(
       (this.db.pragma("table_info(user_prefs)") as { name: string }[]).map((c) => c.name),
@@ -646,8 +701,29 @@ export class AuthStorage {
 
   // --- workspaces & membership ------------------------------------------------------
 
-  createWorkspace(input: { id?: string; name?: string | null; createdBy?: string | null }): string {
+  /**
+   * Mint a workspace row. When `input.id` is explicit AND names a seeded
+   * demo fixture (KEYING_EXEMPT_WORKSPACE_IDS), the caller must pass the
+   * allowlist as `opts.fixtureAllowlist` — only the direct log-ingest path
+   * (relay first-ingest mint) may claim those ids; any other creation path
+   * would mint a workspace the keying requirement can never touch. Without
+   * an explicit id the allowlist plays no role (a fresh uuidv7 is never
+   * exempt).
+   */
+  createWorkspace(
+    input: { id?: string; name?: string | null; createdBy?: string | null },
+    opts?: { fixtureAllowlist?: readonly string[] },
+  ): string {
     const id = input.id ?? uuidv7();
+    if (
+      input.id !== undefined &&
+      KEYING_EXEMPT_WORKSPACE_IDS.includes(input.id) &&
+      opts?.fixtureAllowlist !== KEYING_EXEMPT_WORKSPACE_IDS
+    ) {
+      throw new Error(
+        `workspace id ${input.id} is a seeded demo fixture — it is minted only via direct log ingest`,
+      );
+    }
     this.db
       .prepare(
         "INSERT INTO workspace (id, name, created_by, created_at) VALUES (?, ?, ?, ?)",
@@ -661,6 +737,24 @@ export class AuthStorage {
     this.db
       .prepare("UPDATE workspace SET name = ? WHERE id = ?")
       .run(name, workspaceId);
+  }
+
+  /** The remembered "Read later" collection node id (server-local bookkeeping). */
+  getReadLaterCollectionId(workspaceId: string): string | undefined {
+    const row = this.db
+      .prepare("SELECT read_later_collection_id FROM workspace WHERE id = ?")
+      .get(workspaceId) as { read_later_collection_id: string | null } | undefined;
+    return row?.read_later_collection_id ?? undefined;
+  }
+
+  /** Upsert the remembered "Read later" collection id. */
+  setReadLaterCollectionId(workspaceId: string, collectionId: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO workspace (id, read_later_collection_id, created_at) VALUES (?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET read_later_collection_id = excluded.read_later_collection_id`,
+      )
+      .run(workspaceId, collectionId, Date.now());
   }
 
   addMember(workspaceId: string, userId: string, role = "owner"): void {
@@ -778,9 +872,60 @@ export class AuthStorage {
     return rows.map(toApiKeyRow);
   }
 
+  /**
+   * Install the opaque machine-key custody record ({salt, wrappedMaster} —
+   * both b64u, produced client-side) for an existing key. Idempotent: an
+   * installed record is never overwritten (the installer saw the token
+   * once; a re-install race would brick the wrap). Returns null when the
+   * key is unknown or revoked.
+   */
+  installApiKeyCustody(
+    userId: string,
+    keyId: string,
+    salt: string,
+    wrappedMaster: string,
+  ): "installed" | "already" | null {
+    const key = this.db
+      .prepare("SELECT custody_wrap, revoked_at FROM api_key WHERE id = ? AND user_id = ?")
+      .get(keyId, userId) as { custody_wrap: string | null; revoked_at: number | null } | undefined;
+    if (key === undefined || key.revoked_at !== null) return null;
+    if (key.custody_wrap !== null) return "already";
+    this.db
+      .prepare("UPDATE api_key SET custody_salt = ?, custody_wrap = ? WHERE id = ?")
+      .run(salt, wrappedMaster, keyId);
+    return "installed";
+  }
+
+  /**
+   * The opaque custody record for the key authenticating with `token`
+   * itself (the GET /api-keys/self/custody surface). Revoked keys and
+   * human keys answer null — key existence stays unrevealed.
+   */
+  apiKeyCustodyForToken(token: string): { keyId: string; salt: string; wrappedMaster: string } | null {
+    const row = this.db
+      .prepare("SELECT id, custody_salt, custody_wrap, revoked_at FROM api_key WHERE key_hash = ?")
+      .get(tokenDigest(token)) as
+      | { id: string; custody_salt: string | null; custody_wrap: string | null; revoked_at: number | null }
+      | undefined;
+    if (
+      row === undefined ||
+      row.revoked_at !== null ||
+      row.custody_salt === null ||
+      row.custody_wrap === null
+    ) {
+      return null;
+    }
+    return { keyId: row.id, salt: row.custody_salt, wrappedMaster: row.custody_wrap };
+  }
+
   revokeApiKey(userId: string, keyId: string): boolean {
+    // Custody clears with the revocation: a revoked key's wrap must not
+    // linger (possession of the token would otherwise still unlock content).
     const result = this.db
-      .prepare("UPDATE api_key SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL")
+      .prepare(
+        "UPDATE api_key SET revoked_at = ?, custody_salt = NULL, custody_wrap = NULL " +
+          "WHERE id = ? AND user_id = ? AND revoked_at IS NULL",
+      )
       .run(Date.now(), keyId, userId);
     return result.changes > 0;
   }

@@ -60,19 +60,33 @@
   flex-direction: column;
   padding: var(--spacing-1) 0;
   min-height: 0;
-  /* The nav itself never scrolls — only a section flagged --scroll absorbs
-     the free height and scrolls its list (Recents). */
-  overflow: hidden;
+  /* The escape valve: sections own their scrolling (below), but when the
+     viewport is too short to honor every section's floor + the pinned
+     sections, the nav column itself scrolls — no section may be starved
+     silently. */
+  overflow-y: auto;
 }
 
 /* The scrollable section (Recents): fills the nav's leftover height, the
-   pinned header sits above, the list is the sole scroller. */
+   pinned header sits above, the list is the sole scroller. The min-height
+   floor (eight rows — six list rows + the header block's two) guarantees
+   Recents can never shrink below a usable size; that starvation is what
+   this layout fixes, and the nav column's own scroll absorbs the overflow
+   on short viewports. */
 .nt-side-section--scroll {
   flex: 1;
-  min-height: 0;
+  min-height: calc(var(--height-sm) * 8 + var(--spacing-1));
   display: flex;
   flex-direction: column;
   margin-bottom: 0;
+}
+
+/* The capped section (Favorites): shows at most five rows and scrolls its
+   list beyond that — an uncapped favorites list pinned every row forever
+   and squeezed Recents out of the column. */
+.nt-side-section--capped > .nt-side-list {
+  max-height: calc(var(--height-sm) * 5 + var(--spacing-1));
+  overflow-y: auto;
 }
 
 .nt-side-section--scroll > .nt-side-list {
@@ -86,12 +100,31 @@
 }
 
 .nt-side-header {
+  /* flex row: chevron + icon + title ride left, the count badge rides the
+     right edge (margin-left: auto). Identical to the old inline flow when
+     no badge renders. */
+  display: flex;
+  align-items: center;
   margin: var(--spacing-2) var(--spacing-2) var(--spacing-1);
   font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-section);
   text-transform: uppercase;
   color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Count badge — the design-system register: 9px-radius pill, 10px muted
+   text, surface-variant fill (never accent-filled). The total vs the
+   visible rows is the "more below" signal for a capped (Favorites) or
+   scrolled (Recents) list. */
+.nt-side-header-count {
+  margin-left: auto;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--tab-count-radius);
+  background: var(--md-sys-color-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  line-height: 1.6;
 }
 
 .nt-side-list {

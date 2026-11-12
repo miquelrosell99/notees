@@ -12,9 +12,10 @@ declare global {
     NOTEES_CONFIG?: {
       serverUrl?: string;
       /**
-       * E2EE kill switch: workspace keying runs ONLY when exactly "on".
-       * Default (absent/any other value) = off = keyless plaintext behavior,
-       * until the sibling clients converge on the encrypted-fixture lockstep.
+       * INERT — the E2EE kill switch retired: workspace keying is
+       * unconditional and nothing reads this flag anymore. The field stays
+       * typed so the container entrypoint's /config.js keeps writing it
+       * without a shape change (compat).
        */
       e2ee?: string;
     };

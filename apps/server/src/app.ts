@@ -28,6 +28,7 @@ import { registerAssetRoutes } from "./assets.js";
 import { registerAdminRoutes } from "./routes-admin.js";
 import { registerIdempotencyHooks } from "./idempotency.js";
 import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
+import { registerCaptureRoutes } from "./routes-capture.js";
 import { registerFeatureRoutes } from "./routes-features.js";
 import { registerMetaRoutes } from "./routes-meta.js";
 import { registerObjectRoutes } from "./routes-objects.js";
@@ -37,6 +38,7 @@ import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
 import { registerSectionViewRoutes } from "./routes-section-views.js";
 import { registerPublicShareRoute, registerShareRoutes } from "./routes-shares.js";
 import { registerWorkflowRoutes } from "./routes-workflows.js";
+import { registerWordAddinRoutes } from "./word-addin.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
 import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
@@ -209,6 +211,7 @@ export async function buildServer(
       // mutation still requires the caller's credentials and scope.
       registerIdempotencyHooks(api, ctx);
       registerObjectRoutes(api, ctx);
+      registerCaptureRoutes(api, ctx);
       registerFeatureRoutes(api, ctx);
       registerAssetRoutes(api, ctx);
     },
@@ -239,6 +242,11 @@ export async function buildServer(
     },
     { prefix: "/api" },
   );
+  // Word add-in statics (NOTEES_WORD_ADDIN_DIR): root-level GET /word/*,
+  // unauthenticated BY DESIGN (the manifest must be fetchable by Word's
+  // sideloading flows; see word-addin.ts). Registered unconditionally so the
+  // OpenAPI coverage stays stable — an unset directory answers 404.
+  registerWordAddinRoutes(app, config);
   registerPublicShareRoute(app, ctx);
 
   // Operator-key maintenance surface: migration appends through the one

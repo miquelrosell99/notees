@@ -7,9 +7,18 @@ embedded SQLite relay log and per-workspace derived databases. Companion docs:
 
 **Security posture.** The server carries accounts and sessions (the web app signs in;
 the initial setup creates the admin account), an operator API key for headless access,
-and per-user coordination state — but transport and storage are still plaintext: no
-E2EE. The server operator can read all workspace contents. Everything below was verified
-against `apps/server/src/config.ts`, `relay-storage.ts`, `assets.ts`, and
+and per-user coordination state. Workspace content is end-to-end encrypted, and
+**workspace keying is required**: `NOTEES_REQUIRE_KEYED` (default on) makes
+`POST /workspaces` and the clone route answer 422 `keying_required` without a
+`wrappedKey` bundle — `=0` restores the legacy unkeyed creation path for dev/test
+fleets, and the seeded demo fixtures carry an explicit exemption
+(`KEYING_EXEMPT_WORKSPACE_IDS`, `auth.ts`). Clients seal envelopes and snapshots
+under the workspace key before upload (the `{"$e": …}` envelope slot), and the server
+stores only the opaque wrapped key: server-side content reads of keyed workspaces
+answer 404, so the operator can never read keyed content. History written before
+keying stays plaintext — the operation log is immutable, and keying applies from a
+workspace's creation, never retroactively. Everything below was verified against
+`apps/server/src/config.ts`, `auth.ts`, `relay-storage.ts`, `assets.ts`, and
 `workspace-store.ts`.
 
 ## 1. Requirements
@@ -73,6 +82,7 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_MAX_DOCUMENT_BYTES` | `104857600` (100 MB) | Upload cap, documents (pdf/epub) |
 | `NOTEES_CORS_ORIGIN` | — (no CORS headers) | Comma-separated browser origins allowed to call the API cross-origin (web client served from another origin/port). `*` allows any origin — LAN-trusted deployments only. Absent → no CORS headers: same-origin and CLI clients unaffected, browsers denied |
 | `NOTEES_SIGNUP_ENABLED` | off | Open registration: `POST /api/auth/signup` creates non-admin accounts and the login screen shows "Create one". Accepts `1`/`true`/`yes`/`on`. Off → the route answers 404 and the client hides the link |
+| `NOTEES_REQUIRE_KEYED` | on | Workspace keying is mandatory: `POST /workspaces` and the clone route require a `wrappedKey` bundle — a creation without one answers 422 `keying_required` before anything is minted. `0`/`false` restores the legacy unkeyed creation for dev/test fleets; the seeded demo fixtures are exempt (`KEYING_EXEMPT_WORKSPACE_IDS`, `auth.ts`). Bundles are minted client-side in the browser's Web Crypto — a secure context: plain-http clients cannot mint one (§10) |
 
 CLI environment (for clients, `notees-cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
@@ -208,23 +218,26 @@ there is no `notees export`.
 - **No secrets in the log.** Envelopes carry actor/device/client provenance, not the key.
   `api_key.txt` is written `0600`; keep `NOTEES_DATA_DIR` permissions tight for the same
   reason.
-- **Designed, not present:** E2EE (the `{"$e": …}` envelope slot is defined and passes
-  through the relay unvalidated, but no client encrypts), JWT sessions and
-  multi-user authorization, scoped keys. For now, "whoever holds the key" is the
-  entire threat-model boundary.
+- **E2EE shipped (2026-11), keying mandatory.** Workspace keying is required at
+  creation (`NOTEES_REQUIRE_KEYED`, default on; §3): clients seal envelopes and
+  snapshots under the workspace key before upload, the server stores only the opaque
+  wrapped key, and server-side content reads of keyed workspaces answer 404 — the
+  operator can never read keyed content. History written before keying stays
+  plaintext (the log is immutable). Still designed, not present: JWT sessions and
+  multi-user authorization.
 
 ## 9. Docker + Compose (shipped 2026-09-26; plain-Docker deploy since 2026-10-04)
 
-Two images build from this monorepo (context = the repo root):
+Two images build the stack — since the 2026-11-05 repo split, each from its
+own repo (context = that repo's root):
 
-- **`apps/server/Dockerfile`** — multi-stage: `deps` (frozen workspace install;
+- **`apps/server/Dockerfile`** (this repo, `notees-sync`) — multi-stage: `deps` (frozen workspace install;
   toolchain for the better-sqlite3 musl build), `build` (`pnpm --filter
   @notees/server... build` → tsup bundle, workspace TS inlined), `deploy`
   (`pnpm --filter @notees/server deploy --prod /out` pruned copy), `runtime`
   (`node:22-alpine`, `USER node`, `VOLUME /data`, `EXPOSE 8377`, wget
   `/healthz` healthcheck).
-- **`apps/web/Dockerfile`** — `deps` + `build` (`pnpm --filter @notees/web...
-  build` → vite dist: static assets + worker chunk + sql.js wasm), then
+- **`apps/web/Dockerfile`** — `deps` + `build` (`pnpm --filter @notees/web... build` → vite dist: static assets + worker chunk + sql.js wasm; the core packages resolve from this repo's workspace — the build context must carry `packages/`, which `COPY . .` does; initialize the `brand` submodule before building), then
   `nginx:1.27-alpine`. The stock `/docker-entrypoint.d` mechanism runs
   `50-notees-config.sh`, which writes `/config.js`
   (`window.NOTEES_CONFIG = { serverUrl: … }`) from `NOTEES_SERVER_URL`
@@ -283,7 +296,9 @@ there (validated with a Komodo deploy — `VERIFY-PASS`). Build/up from the
 repo root:
 
 ```sh
+# from the notees-sync checkout (this repo):
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \
+# from the notees-web checkout (vendor submodule initialized):
 && docker build -f apps/web/Dockerfile -t ghcr.io/miquelrosell99/notees-web:latest . \
 && docker compose up -d
 ```
@@ -298,9 +313,10 @@ builds). After a data migration that rewrites the log,
 `docker compose restart notees-sync` rehydrates the server's derived store
 from snapshot+tail (`RelayStorage.ingest` alone does not apply to the
 running store — see `migrations.md`). Smoke:
-`node scripts/screenshots/verify-min.mjs` from `scripts/screenshots/` with
-`NOTEES_ADMIN_PASSWORD` (`.admin_password` inside the stack's `config/` on a
-split host; `config/notees/.admin_password` on a repo-root deployment).
+`node scripts/screenshots/verify-min.mjs` from the `notees-web` checkout (the
+script ships there — `scripts/screenshots/`), run against the live stack,
+with `NOTEES_ADMIN_EMAIL`/`NOTEES_ADMIN_PASSWORD` (`NOTEES_ADMIN_PASSWORD`, or
+`.admin_password` inside the stack's `config/` on a split host; `config/notees/.admin_password` on a repo-root deployment).
 
 Headless UI probes (playwright; the screenshot tooling in
 `scripts/screenshots/`): sign in through the bootstrap's **API-key tab** with
@@ -340,9 +356,16 @@ volume needs the mount owned by uid 1000 (`node`).
 ## 10. HTTPS — the optional Caddy edge (tailnet or bring-your-own)
 
 The core stack has **no HTTPS dependency**: plain http on the remappable app
-ports works for everything except browser-persistent storage (OPFS requires a
-secure context — browsers without https run the app on the in-process store
-with the loud warning banner; fully functional otherwise). When a deployment
+ports works for everything except two secure-context browser requirements —
+browser-persistent storage (OPFS requires a secure context — browsers without
+https run the app on the in-process store with the loud warning banner; fully
+functional otherwise) and **workspace keying** (Web Crypto's `subtle` surface
+is secure-context-gated: an http-served client can read, edit, and sync
+existing workspaces but cannot key a workspace or create one — keyed
+workspaces are opened by re-signing in with email + password over https or
+localhost). The sync server itself is unaffected — keying is a client-side
+custody matter; only the creation gate's 422 assumes a client that could mint
+a bundle. When a deployment
 wants https, the compose **edge profile** turns it on in one step — a Caddy
 container with the tailscale plugin:
 

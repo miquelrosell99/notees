@@ -1,6 +1,12 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
+
+// Crypto-bound flows (the API-keys mint, the workspace unlock) run
+// production-strength scrypt before the asserted UI renders; on a contended
+// CI runner the default 1000ms findBy/waitFor timeout is marginal — the
+// nightly flake class. One global budget for the whole suite.
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom lacks ResizeObserver; Tabs.List (workspace settings, the node
 // picker's scope tabs, calendar surfaces) uses it for the active indicator.

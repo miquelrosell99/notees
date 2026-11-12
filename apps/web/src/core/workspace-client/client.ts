@@ -59,6 +59,8 @@ import { WorkspaceClientServer } from "./client-server.js";
 import { WorkspaceClientUndo, buildUndoCaptureSource } from "./client-undo.js";
 import { WorkspaceClientWrites } from "./client-writes.js";
 import { WorkspaceClientDates } from "./client-dates.js";
+import { WorkspaceClientMigrations } from "./client-migrations.js";
+import type { MigrationPlanReport } from "../migrations/registry.js";
 import {
   applyWorkflowStep,
   stepConverged,
@@ -76,6 +78,7 @@ export class WorkspaceClient {
   private readonly undoDomain: WorkspaceClientUndo;
   private readonly writes: WorkspaceClientWrites;
   private readonly dates: WorkspaceClientDates;
+  private readonly migrations: WorkspaceClientMigrations;
 
   readonly store: Store;
 
@@ -90,6 +93,7 @@ export class WorkspaceClient {
     this.undoDomain = new WorkspaceClientUndo(this.ctx);
     this.writes = new WorkspaceClientWrites(this.ctx, this.reads, this.readsProps);
     this.dates = new WorkspaceClientDates(this.reads, this.readsProps, this.writes);
+    this.migrations = new WorkspaceClientMigrations(this.ctx);
   }
 
   /** Open a Store over the sql.js backend and wrap it in a client. */
@@ -140,17 +144,22 @@ export class WorkspaceClient {
    * Offline-first factory: no server, no account. Edits apply locally and
    * are recorded in the durable local op log; when the user later connects
    * this workspace to a server (login), the backlog pushes through the
-   * normal outbox path.
+   * normal outbox path. Offline workspaces are keyed at rest (Task 9): the
+   * device-local key seals the engine's wire/snapshot boundary like the
+   * online path, so the backlog drains sealed on the first sync.
    */
   static async createOffline(options: {
     workspaceId: string;
     sqlJs?: SqlJsStatic;
     sqlJsConfig?: Parameters<typeof initSqlJs>[0];
+    /** Raw 32-byte workspace key (E2EE); absent → plaintext passthrough. */
+    workspaceKey?: Uint8Array;
   }): Promise<WorkspaceClient> {
     return WorkspaceClient.create({
       transport: new OfflineTransport(),
       ...(options.sqlJs !== undefined ? { sqlJs: options.sqlJs } : {}),
       ...(options.sqlJsConfig !== undefined ? { sqlJsConfig: options.sqlJsConfig } : {}),
+      ...(options.workspaceKey !== undefined ? { workspaceKey: options.workspaceKey } : {}),
     });
   }
 
@@ -233,8 +242,16 @@ export class WorkspaceClient {
     return this.reads.getNodeRaw(id);
   }
 
+  getNodeRawFresh(id: string) {
+    return this.reads.getNodeRawFresh(id);
+  }
+
   getDisplayName(id: string) {
     return this.reads.getDisplayName(id);
+  }
+
+  getDisplayNameFresh(id: string) {
+    return this.reads.getDisplayNameFresh(id);
   }
 
   getPage(id: string) {
@@ -287,6 +304,10 @@ export class WorkspaceClient {
     return this.reads.getClassParents(classId);
   }
 
+  getClassParentsFresh(classId: string) {
+    return this.reads.getClassParentsFresh(classId);
+  }
+
   getDirectClassChildren(classId: string) {
     return this.reads.getDirectClassChildren(classId);
   }
@@ -297,6 +318,10 @@ export class WorkspaceClient {
 
   getClassMembers(classId: string) {
     return this.reads.getClassMembers(classId);
+  }
+
+  getClassMembersFresh(classId: string) {
+    return this.reads.getClassMembersFresh(classId);
   }
 
   getClassMemberCount(classId: string) {
@@ -311,10 +336,18 @@ export class WorkspaceClient {
     return this.reads.getRegistryBindings(classId);
   }
 
+  getRegistryBindingsFresh(classId: string) {
+    return this.reads.getRegistryBindingsFresh(classId);
+  }
+
   // --- property + asset + tree + search/query reads -------------------------------
 
   getEffectiveProperties(id: string) {
     return this.readsProps.getEffectiveProperties(id);
+  }
+
+  getEffectivePropertiesFresh(id: string) {
+    return this.readsProps.getEffectivePropertiesFresh(id);
   }
 
   getPropertyRowShells(id: string) {
@@ -343,6 +376,10 @@ export class WorkspaceClient {
 
   listPropertySchemas() {
     return this.readsProps.listPropertySchemas();
+  }
+
+  listPropertySchemasFresh() {
+    return this.readsProps.listPropertySchemasFresh();
   }
 
   getBlockTree(pageId: string, depth?: number | null) {
@@ -474,6 +511,10 @@ export class WorkspaceClient {
     return this.readsRefs.isFeatureEnabled(feature);
   }
 
+  isFeatureEnabledFresh(feature: WorkspaceFeature) {
+    return this.readsRefs.isFeatureEnabledFresh(feature);
+  }
+
   listFeatureRows() {
     return this.readsRefs.listFeatureRows();
   }
@@ -484,6 +525,10 @@ export class WorkspaceClient {
 
   setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean) {
     return this.readsRefs.setFeatureEnabled(feature, enabled);
+  }
+
+  addCollectionMember(collectionId: string, objectId: string) {
+    this.writes.addCollectionMember(collectionId, objectId);
   }
 
   setFeatureSettings(feature: WorkspaceFeature, settings: Record<string, unknown>) {
@@ -650,6 +695,37 @@ export class WorkspaceClient {
 
   planMergeSummary(sourceId: string, targetId: string) {
     return this.writes.planMergeSummary(sourceId, targetId);
+  }
+
+  // --- content migrations (the keyed-side runner — F3) ----------------------------
+
+  /**
+   * True when this client holds a workspace key — the workspace is keyed,
+   * so the sync engine seals every write (the migrations surface's hint
+   * copy reads this).
+   */
+  isKeyedWorkspace(): boolean {
+    return this.ctx.workspaceKey !== null;
+  }
+
+  /** The content-class migrations pending on THIS workspace (each core's `isPending` probe). */
+  listPendingMigrations(): MigrationPlanReport[] {
+    return this.migrations.listPendingMigrations();
+  }
+
+  /** The dry-run report for one migration — counts + conflict rows, zero writes. */
+  planMigration(id: string): MigrationPlanReport {
+    return this.migrations.planMigration(id);
+  }
+
+  /**
+   * Run one migration client-side: plan against the local UNSEALED store,
+   * payload-validate, commit as ONE undo batch through the single enqueue
+   * seam — the sync engine seals + pushes the ops on a keyed workspace
+   * like any write (no new crypto, no wire change).
+   */
+  runMigration(id: string): MigrationPlanReport {
+    return this.migrations.runMigration(id);
   }
 
   assignClass(id: string, classId: string) {

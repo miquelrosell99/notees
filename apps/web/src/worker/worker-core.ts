@@ -497,6 +497,9 @@ export class WorkerCore {
    * Union of coalesced payloads: unknown scope (neither field) dominates
    * (a subscriber cannot scope what it cannot see); structural ORs; the
    * affected sets union; revision takes the max (revisions are monotonic).
+   * When neither side carried an affected set, the merged structural payload
+   * OMITS the key — an empty array would read as "known scope, nothing
+   * affected" and rows would skip their conservative force-render.
    */
   private static mergeChangeNotifications(
     pending: ChangeNotification | null,
@@ -506,12 +509,16 @@ export class WorkerCore {
     const pendingUnknown = pending.affectedNodeIds === undefined && pending.structural !== true;
     const nextUnknown = next.affectedNodeIds === undefined && next.structural !== true;
     if (pendingUnknown || nextUnknown) return { revision: Math.max(pending.revision, next.revision) };
+    const structural = pending.structural === true || next.structural === true;
+    if (pending.affectedNodeIds === undefined && next.affectedNodeIds === undefined) {
+      return { revision: Math.max(pending.revision, next.revision), structural };
+    }
     const affected = new Set(pending.affectedNodeIds ?? []);
     for (const id of next.affectedNodeIds ?? []) affected.add(id);
     return {
       revision: Math.max(pending.revision, next.revision),
       affectedNodeIds: [...affected],
-      structural: pending.structural === true || next.structural === true,
+      structural,
     };
   }
 
@@ -1068,6 +1075,11 @@ export class WorkerCore {
           args[0] as Parameters<WorkspaceClient["setFeatureEnabled"]>[0],
           args[1] as boolean,
         );
+      case "addCollectionMember":
+        return this.client.addCollectionMember(
+          args[0] as string,
+          args[1] as string,
+        );
       case "setFeatureSettings":
         return this.client.setFeatureSettings(
           args[0] as Parameters<WorkspaceClient["setFeatureSettings"]>[0],
@@ -1079,6 +1091,14 @@ export class WorkerCore {
         return this.client.planMergeSummary(args[0] as string, args[1] as string);
       case "mergeNodes":
         return this.client.mergeNodes(args[0] as string, args[1] as string);
+      case "isKeyedWorkspace":
+        return this.client.isKeyedWorkspace();
+      case "listPendingMigrations":
+        return this.client.listPendingMigrations();
+      case "planMigration":
+        return this.client.planMigration(args[0] as string);
+      case "runMigration":
+        return this.client.runMigration(args[0] as string);
       case "syncOnce":
         return this.syncOnce();
       case "push":

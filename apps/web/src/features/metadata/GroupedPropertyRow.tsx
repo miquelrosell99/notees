@@ -1,7 +1,8 @@
-import type { DatePrecision } from "@notees/domain";
+import { SYSTEM_PROPERTY_UUIDS, type DatePrecision } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
+import { RepeatPropertyRow } from "./RepeatPropertyRow.js";
 import { TextPropertyRow } from "./TextPropertyRow.js";
 import { ObjectPropertyRow } from "./ObjectPropertyRow.js";
 import { AssetPropertyRow } from "./AssetPropertyRow.js";
@@ -62,6 +63,26 @@ export function GroupedPropertyRow({
   const rowClassName = groupRows.some((row) => row.eligible === false)
     ? " nt-property-ineligible"
     : "";
+  // The dedicated Repeat arm precedes the TYPE dispatch: repeat is a text
+  // schema (it would group into TextPropertyRow's carrier-block list), but
+  // its row is the deliberate RepeatControl surface — the generic text row
+  // must never render for it.
+  if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.repeat) {
+    return (
+      <RepeatPropertyRow
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        rows={groupRows}
+        classBound={classBound}
+        icon={icon}
+        bare={bare}
+        readOnly={readOnly}
+        rowClassName={rowClassName}
+      />
+    );
+  }
   if (type === "datetime") {
     return (
       <DatetimePropertyRow
