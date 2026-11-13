@@ -101,9 +101,12 @@
 }
 
 /* The stage is the keyboard surface (+/- zoom, arrows pan, F/R). Pointer
-   focus stays clean (an always-on inset outline read as a
-   border around the whole content card) but keyboard focus gets the accent
-   ring — an outline:none with no replacement fails the a11y rule. */
+   focus stays clean: some browsers (Safari especially) match :focus-visible
+   on programmatic focus after a click, which painted the accent ring around
+   the whole graph card on every canvas click. GraphView stamps
+   data-pointer-focus on pointer-driven focus and clears it on the first
+   keydown — pointer focus gets no ring, keyboard focus keeps it (the
+   a11y rule: outline:none with no replacement fails). */
 .nt-graph__stage:focus {
   outline: none;
 }
@@ -111,6 +114,10 @@
 .nt-graph__stage:focus-visible {
   outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--border-width-thick) * -1);
+}
+
+.nt-graph__stage[data-pointer-focus]:focus-visible {
+  outline: none;
 }
 
 .nt-graph__toolbar-spacer {

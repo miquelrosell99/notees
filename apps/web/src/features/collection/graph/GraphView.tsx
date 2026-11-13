@@ -2152,7 +2152,17 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         onKeyDown={onStageKeyDown}
         onPointerDown={(event) => {
           // The canvas itself owns drag/pan; chrome clicks keep their focus.
-          if (event.target === canvasRef.current) event.currentTarget.focus();
+          if (event.target === canvasRef.current) {
+            event.currentTarget.focus();
+            // Pointer-driven focus must not wear the keyboard accent ring
+            // (some browsers match :focus-visible on a programmatic focus
+            // after a click) — cleared on the first keydown below.
+            event.currentTarget.dataset.pointerFocus = "true";
+          }
+        }}
+        onKeyDownCapture={(event) => {
+          // Keyboard use restores the ring (the attribute suppresses it).
+          delete event.currentTarget.dataset.pointerFocus;
         }}
       >
         {modeBar}

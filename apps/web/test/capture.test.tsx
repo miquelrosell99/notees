@@ -155,9 +155,6 @@ describe("capture: @ mention", () => {
     expect(within(picker()!).getByText("Target")).toBeInTheDocument();
     expect(within(picker()!).queryByText("Home")).toBeNull();
 
-    // The create row now tops prefix matches ("Tar" ≠ "Target"), so one
-    // ArrowDown reaches the Target result.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast).toHaveLength(2);
@@ -211,11 +208,8 @@ describe("capture: @ mention", () => {
     fireEvent.click(within(panel).getByRole("tab", { name: "Blocks" }));
     expect(within(panel).queryByText("Target")).toBeNull();
 
-    // Picking from the Blocks tab inserts the mention of the block. The
-    // create row tops the list (no exact "needle" title), so step down to
-    // the block row first.
+    // Picking from the Blocks tab inserts the mention of the block.
     typeInPicker("needle");
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     const needle = client.getChildren(pageId).find((n) => deriveDisplayName(n) === "Hidden needle");
@@ -238,8 +232,6 @@ describe("capture: @ mention", () => {
     typeInPicker("Genre");
     expect(within(picker()!).getByText("Genretab")).not.toBeNull();
 
-    // The create row tops prefix matches; the class row is one step down.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: classId });
@@ -325,8 +317,6 @@ describe("capture: @ mention", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "@");
     typeInPicker("Tar");
-    // The create row tops prefix matches; step down to the Target row.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
 
     const edges = client.getBacklinks(targetId);
@@ -346,17 +336,12 @@ describe("capture: @ mention", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "@");
     typeInPicker("Alp");
-    // New order: [Create "Alp", Alpha] — the create row tops prefix matches,
-    // so selection starts on it (index 0); ArrowDown moves to Alpha, ArrowUp
-    // back to the create row.
+    // One result row (Alpha) + the create row: ArrowDown highlights create…
     expect(pickerRows()).toHaveLength(2);
-    expect(pickerRows()[0]?.className).toContain("node-result-item--highlighted");
     fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     expect(pickerRows()[1]?.className).toContain("node-result-item--highlighted");
     fireEvent.keyDown(searchBox(), { key: "ArrowUp" });
     expect(pickerRows()[0]?.className).toContain("node-result-item--highlighted");
-    // Back down to Alpha so Enter picks the existing page.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -446,15 +431,12 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     // Scope to the picker: the tagged block's own metadata section also
     // renders a "Project" pill below the block.
     expect(within(picker()!).getByText("Project")).toBeInTheDocument();
-    // The create row tops prefix matches; step down to the existing page.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
 
     // Still editing: assign + strip kept the session; re-assign is a no-op.
     typeWithCaret(editor, "#");
     typeInPicker("Pro");
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
 
@@ -481,8 +463,6 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     // list, so Enter on the unfiltered list would assign a system class.
     typeInPicker("Pro");
     expect(within(picker()!).getByText("Project")).toBeInTheDocument();
-    // The create row tops prefix matches; step down to the existing class.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
 
@@ -551,9 +531,6 @@ describe("selection link chords (Ctrl/Cmd+L)", () => {
     ).not.toBeNull();
 
     typeInPicker("Wor");
-    // Once "Wor" is typed the create row tops the list (no exact "Wor"
-    // title); step down to the World row.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -725,8 +702,6 @@ describe("capture tokens survive editing", () => {
     // Mention A — committed to the store synchronously, but the prop lags.
     typeWithCaret(editor, "see @");
     typeInPicker("Alp");
-    // The create row tops prefix matches; step down to the Alpha row.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     expect(client.getNode(blockId)?.contentAst[1]).toMatchObject({
       type: "mention",
@@ -737,7 +712,6 @@ describe("capture tokens survive editing", () => {
     // awaits, so the deferred notification cannot fire between commits.)
     typeWithCaret(editor, "see Alpha and @");
     typeInPicker("Bet");
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -766,8 +740,6 @@ describe("capture tokens survive editing", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "see @");
     typeInPicker("Tar");
-    // The create row tops prefix matches; step down to the Target row.
-    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     expect(client.getNode(blockId)?.contentAst[1]).toMatchObject({
       type: "mention",

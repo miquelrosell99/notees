@@ -40,10 +40,10 @@ export interface GraphRenderer {
 
   /** Hover neighborhood: pure color — the hovered
    *  node fills `accent`, its neighbors keep their color, incident edges
-   *  paint the accent, everything outside darkens 20%. At the constellation
-   *  LOD (zoom < 0.25) edges are hidden wholesale and a hover surfaces only
-   *  the hovered node's incident edges (or the single hovered edge), never
-   *  the full topology. */
+   *  paint the accent, everything outside darkens 20%. Hover evidence (the
+   *  hovered edge, the hovered node's incident edges) bypasses the
+   *  zoom-family mask — lines render at every zoom, and the hover answer
+   *  ignores which tier a family sits in. */
   setHoverNeighborhood(nodeId: string | null, accent?: readonly [number, number, number]): void;
   /** Legacy single-node hover (edge hover evidence + rings). */
   setHoveredNode(id: string): void;

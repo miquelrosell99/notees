@@ -136,8 +136,11 @@ describe("LOD mask + gating helpers", () => {
     expect(linkTypeVisible(3, (1 << 5) | (1 << 2))).toBe(false);
   });
 
-  it("constellation LOD (0) skips edges unless a hover is active", () => {
-    expect(shouldDrawEdgesAtLod(0, false)).toBe(false);
+  it("edges draw at every LOD level — the constellation zoom included (Obsidian parity)", () => {
+    // Owner ruling: link lines render at every zoom; the zoom-family mask
+    // still tiers WHICH families, and a hover bypasses the mask for its
+    // evidence — but no zoom level hides the lines wholesale.
+    expect(shouldDrawEdgesAtLod(0, false)).toBe(true);
     expect(shouldDrawEdgesAtLod(0, true)).toBe(true);
     expect(shouldDrawEdgesAtLod(1, false)).toBe(true);
     expect(shouldDrawEdgesAtLod(2, false)).toBe(true);
@@ -347,7 +350,7 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     vi.restoreAllMocks();
   });
 
-  it("constellation LOD: a hover draws only the hovered node's incident edges — never the whole graph", async () => {
+  it("edges draw at constellation zoom; a node hover tints rather than restricts", async () => {
     stubWebgl2();
     const canvas = document.createElement("canvas");
     canvas.width = 800;
@@ -357,7 +360,8 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     await flush();
     await flush();
 
-    // a→b, a→c, c→d (parent type — each carries one arrowhead).
+    // a→b, a→c, c→d (parent type — in the zoom mask at every level, so the
+    // ambient edge count is governed by the draw gate, not the mask).
     renderer.setNodeVisuals(["a", "b", "c", "d"], new Map());
     renderer.updatePositions(new Float32Array([0, 0, 100, 0, 0, 100, 100, 100]), ["a", "b", "c", "d"]);
     renderer.setEdges([
@@ -365,27 +369,24 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
       { source: "a", target: "c", linkType: 0 },
       { source: "c", target: "d", linkType: 0 },
     ]);
-    // Constellation zoom (lod 0): no edges without hover. The mask mirrors
-    // GraphView's per-frame setEdgeMask(edgeMaskForZoom(zoom)).
+    // Constellation zoom (lod 0): parent edges draw AMBIENTLY now — the
+    // owner ruling is Obsidian parity (lines at every zoom). The mask
+    // mirrors GraphView's per-frame setEdgeMask(edgeMaskForZoom(zoom)).
     renderer.setCamera(50, 50, 0.1);
     renderer.setEdgeMask(edgeMaskForZoom(0.1));
     renderer.render();
-    expect(renderer.stats.edgeInstCount).toBe(0);
-    expect(renderer.stats.arrowInstCount).toBe(0);
+    expect(renderer.stats.edgeInstCount).toBe(3);
+    expect(renderer.stats.arrowInstCount).toBe(3);
 
-    // Hover a: only a's two incident edges surface (plus their arrowheads).
+    // Hovering a node keeps every edge (the incident ones paint the accent;
+    // nothing is hidden) — hover tints, it does not restrict.
     renderer.setHoverNeighborhood("a", ACCENT);
     renderer.render();
-    expect(renderer.stats.edgeInstCount).toBe(2);
-    expect(renderer.stats.arrowInstCount).toBe(2);
+    expect(renderer.stats.edgeInstCount).toBe(3);
+    expect(renderer.stats.arrowInstCount).toBe(3);
 
-    // Hover c: the a–c edge follows the hover, c–d replaces a–b.
-    renderer.setHoverNeighborhood("c", ACCENT);
-    renderer.render();
-    expect(renderer.stats.edgeInstCount).toBe(2);
-    expect(renderer.stats.arrowInstCount).toBe(2);
-
-    // Overview zoom (lod 1): the full topology draws, hover or not.
+    // Overview zoom (lod 1): identical — the draw gate is zoom-independent.
+    renderer.setHoverNeighborhood(null);
     renderer.setCamera(50, 50, 0.5);
     renderer.setEdgeMask(edgeMaskForZoom(0.5));
     renderer.render();
