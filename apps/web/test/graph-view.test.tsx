@@ -27,6 +27,7 @@ import {
   DEFAULT_GRAPH_SETTINGS,
   applyGraphSettings,
   edgeMaskForZoom,
+  familyMaskForPrefs,
   sparsifySemantic,
 } from "../src/features/collection/graph/filter.js";
 import { LINK_TYPE_IDS } from "../src/features/collection/graph/filter.js";
@@ -145,14 +146,30 @@ describe("graph display shaping", () => {
     expect(noSemantic.edges.every((e) => e.kind !== "semantic")).toBe(true);
   });
 
-  it("edge LOD masks follow the original zoom thresholds", () => {
-    expect(edgeMaskForZoom(0.2) & (1 << LINK_TYPE_IDS.mention)).toBe(0);
-    expect(edgeMaskForZoom(0.4) & (1 << LINK_TYPE_IDS.mention)).not.toBe(0);
-    expect(edgeMaskForZoom(0.4) & (1 << LINK_TYPE_IDS.property)).toBe(0);
-    expect(edgeMaskForZoom(0.8) & (1 << LINK_TYPE_IDS.property)).not.toBe(0);
-    expect(edgeMaskForZoom(0.8) & (1 << LINK_TYPE_IDS.semantic)).toBe(0);
-    expect(edgeMaskForZoom(1.2) & (1 << LINK_TYPE_IDS.semantic)).not.toBe(0);
-    expect(edgeMaskForZoom(0.1) & (1 << LINK_TYPE_IDS.parent)).not.toBe(0);
+  it("every family renders at every zoom — the chips own ambient visibility", () => {
+    // Owner ruling: edges are visible at far-zoom levels; edgeMaskForZoom
+    // keeps its mask shape (one home for future density tuning) but admits
+    // every family at every zoom. The Visibility chips are the ambient
+    // authority via familyMaskForPrefs — and a node hover reveals its
+    // incident edges through either mask (renderer-tested in graph-pixi).
+    for (const zoom of [0.001, 0.1, 0.5, 2]) {
+      const mask = edgeMaskForZoom(zoom);
+      for (const id of Object.values(LINK_TYPE_IDS)) {
+        expect(mask & (1 << id)).not.toBe(0);
+      }
+    }
+    // The chips as a mask: only the enabled families' bits set.
+    const allOn = familyMaskForPrefs({
+      mention: true, property: true, tag: true, parent: true,
+      class: true, semantic: true, temporal: true,
+    });
+    expect(allOn).toBe(0x7f);
+    const noSemantic = familyMaskForPrefs({
+      mention: true, property: true, tag: true, parent: true,
+      class: true, semantic: false, temporal: true,
+    });
+    expect(noSemantic & (1 << LINK_TYPE_IDS.semantic)).toBe(0);
+    expect(noSemantic & (1 << LINK_TYPE_IDS.mention)).not.toBe(0);
   });
 });
 
@@ -638,6 +655,7 @@ describe("GraphView component", () => {
         setHoverNeighborhood(): void {}
         setDraggedNode(): void {}
         setEdgeMask(): void {}
+        setFamilyMask(): void {}
         setCamera(x: number, y: number, zoom: number): void {
           this.cameras.push({ x, y, zoom });
         }
@@ -723,6 +741,7 @@ describe("GraphView component", () => {
         setHoverNeighborhood(): void {}
         setDraggedNode(): void {}
         setEdgeMask(): void {}
+        setFamilyMask(): void {}
         setCamera(): void {}
         updatePositions(): void {}
         overridePosition(): void {}

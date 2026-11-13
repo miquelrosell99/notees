@@ -90,6 +90,7 @@ import {
   LINK_TYPE_IDS,
   applyGraphSettings,
   edgeMaskForZoom,
+  familyMaskForPrefs,
   graphCounts,
   rollupGraphScope,
   type GraphSettings,
@@ -181,6 +182,12 @@ const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
   { key: "semantic", label: "Semantic" },
   { key: "temporal", label: "Temporal" },
 ];
+
+/** Every link family on — the renderer's edge set is family-complete; the
+ *  chips gate them via the renderer's family mask, never the topology. */
+const ALL_FAMILIES_ON: Record<GraphEdgeKind, boolean> = Object.fromEntries(
+  FAMILY_LABELS.map(({ key }) => [key, true]),
+) as Record<GraphEdgeKind, boolean>;
 
 const PREFS_KEY = (surface: string): string => `graphPrefs.${surface}`;
 /** Time-lapse playback: min → max over ~20s, then rest. */
@@ -291,6 +298,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   });
   /** The Edges-toggle mirror — the GL lifecycle re-applies it on rebuild. */
   const timeLapseEdgesRef = useRef(true);
+  /** The Visibility chips as a renderer family mask — loop-read mirror. */
+  const familyMaskRef = useRef(0x7f);
   /**
    * The label pass's display-name map: rebuilt
    * ONLY when the renderer's node-order identity changes or the 60-frame
@@ -467,6 +476,22 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     [topology, settings, scope],
   );
 
+  /**
+   * The renderer's edge set spans EVERY family: the Visibility chips gate
+   * families in the renderer (the family mask), not in the topology, so
+   * hovering a node can reveal its switched-off edges — the owner's
+   * "hovering should always show its edges, even when currently set to not
+   * visible". Physics still rides the family-filtered `display` (a hidden
+   * family keeps exerting its springs — visibility never re-layouts).
+   */
+  const displayAllFamilies = useMemo(
+    () =>
+      topology === null
+        ? null
+        : applyGraphSettings(topology, { ...settings, families: ALL_FAMILIES_ON }, scope),
+    [topology, settings, scope],
+  );
+
   const counts = display === null ? null : graphCounts(display);
 
   // Keep the loop mirrors current without re-running the GL lifecycle.
@@ -477,6 +502,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   useEffect(() => {
     layoutModeRef.current = prefs.layoutMode;
   }, [prefs.layoutMode]);
+  useEffect(() => {
+    // The chips gate the renderer's FAMILY mask (ambient authority — a node
+    // hover reveals its incident edges through it, an edge hover never).
+    familyMaskRef.current = familyMaskForPrefs(prefs.families);
+  }, [prefs.families]);
   useEffect(() => {
     loopStateRef.current.selected = selectedIds;
     rendererRef.current?.setSelectedNodes(selectedIds);
@@ -817,7 +847,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       type: edge.kind,
       weight: edge.weight,
     }));
-    const renderEdges: RendererEdge[] = display.edges.map((edge) => {
+    const renderEdges: RendererEdge[] = (displayAllFamilies ?? display).edges.map((edge) => {
       const createdAt = edgeCreatedSec(edge);
       return {
         source: edge.source,
@@ -947,6 +977,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       const cam = cameraRef.current;
       renderer.setCamera(cam.x, cam.y, cam.zoom);
       renderer.setEdgeMask(edgeMaskForZoom(cam.zoom));
+      renderer.setFamilyMask(familyMaskRef.current);
       renderer.render();
       // First real pixels are on the canvas — the stage overlay steps aside.
       // The frame presence matters: the overlay must survive the seconds the
@@ -1079,7 +1110,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       }
       return endpoints === -Infinity ? undefined : endpoints;
     };
-    const renderEdges: RendererEdge[] = display.edges.map((edge) => {
+    const renderEdges: RendererEdge[] = (displayAllFamilies ?? display).edges.map((edge) => {
       const createdAt = edgeCreatedSec(edge);
       return {
         source: edge.source,
@@ -1125,7 +1156,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       });
       edgeCountRef.current = engineEdges.length;
     }
-  }, [display, nodeSetSig]);
+  }, [display, displayAllFamilies, nodeSetSig]);
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const toggleSelected = (id: string): void =>

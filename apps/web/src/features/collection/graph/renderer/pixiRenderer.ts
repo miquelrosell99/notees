@@ -395,6 +395,16 @@ export class GraphPixiRenderer implements GraphRenderer {
   private hoverColorRgb: readonly [number, number, number] = [1, 1, 1];
   private hoveredEdgeIndex = -1;
   private hoverEdgeAlpha = 1.0;
+  /**
+   * The per-family Visibility chips as a bitmask — the AMBIENT authority.
+   * Hard gate: an edge whose family is switched off never renders, and an
+   * EDGE hover never brings it back (the owner ruling: only hovering a NODE
+   * reveals its incident edges through the masks). Defaults to every family
+   * on (seven link kinds).
+   */
+  private familyMask = 0x7f;
+  /** The zoom-family mask (ambient LOD tiers; currently every-zoom). A node
+   *  hover reveals its incident edges through THIS one too. */
   private edgeMask = 0xffffffff;
   /** Stored for contract parity; inert like the GL path (sameComm is always 1). */
   private communityDim = 1.0;
@@ -716,6 +726,12 @@ export class GraphPixiRenderer implements GraphRenderer {
     this.edgesDirty = true;
   }
 
+  setFamilyMask(mask: number): void {
+    if (mask === this.familyMask) return;
+    this.familyMask = mask;
+    this.edgesDirty = true;
+  }
+
   setCommunityDim(dim: number): void {
     this.communityDim = dim;
   }
@@ -801,8 +817,17 @@ export class GraphPixiRenderer implements GraphRenderer {
     const threshold2 = maxDist * maxDist;
     let bestIdx = -1;
     let bestD2 = threshold2;
+    // A hidden edge is not hoverable: no tooltip, no reveal. The family
+    // mask is absolute; the zoom mask admits only the hovered node's
+    // incident edges (the one hover that reveals).
+    const focusEdgeSet = new Set<number>();
+    if (this.hoverNeighborhoodId !== null) {
+      const incident = this.incidentEdges.get(this.hoverNeighborhoodId);
+      if (incident) for (const ei of incident) focusEdgeSet.add(ei);
+    }
     for (let i = 0; i < this.edges.length; i++) {
       const e = this.edges[i]!;
+      if (!this.edgeRenderable(i, e.linkType ?? 0, focusEdgeSet)) continue;
       const si = this.nodeIndex.get(e.source);
       const ti = this.nodeIndex.get(e.target);
       if (si === undefined || ti === undefined) continue;
@@ -888,21 +913,16 @@ export class GraphPixiRenderer implements GraphRenderer {
   }
 
   /**
-   * The mask bypass for hover evidence: the zoom-family mask is an
-   * ambient-LOD device (which families render on their own at this zoom),
-   * and hover answers about a link regardless of its tier — the hovered
-   * edge and the hovered node's incident edges draw at any zoom. Returns
-   * null when nothing is hovered (nothing to bypass with).
+   * May this edge render right now, in its own right? The family mask is a
+   * hard gate (a switched-off family never renders, hover or not); the zoom
+   * mask is ambient LOD, which a NODE hover reveals through (its incident
+   * edges) — an edge hover reveals nothing. `focusEdgeSet` is the caller's
+   * existing incident-to-hovered-node set.
    */
-  private maskBypassSet(): Set<number> | null {
-    if (this.hoverNeighborhoodId === null && this.hoveredEdgeIndex < 0) return null;
-    const set = new Set<number>();
-    if (this.hoverNeighborhoodId !== null) {
-      const incident = this.incidentEdges.get(this.hoverNeighborhoodId);
-      if (incident) for (const ei of incident) set.add(ei);
-    }
-    if (this.hoveredEdgeIndex >= 0) set.add(this.hoveredEdgeIndex);
-    return set;
+  private edgeRenderable(ei: number, linkType: number, focusEdgeSet: ReadonlySet<number>): boolean {
+    if (!linkTypeVisible(linkType, this.familyMask)) return false;
+    if (linkTypeVisible(linkType, this.edgeMask)) return true;
+    return focusEdgeSet.has(ei);
   }
 
   /**
@@ -1231,21 +1251,15 @@ export class GraphPixiRenderer implements GraphRenderer {
     const minWorldWidth = 1.0 / zoom;
     const groups = new Map<string, EdgeStyleGroup>();
     let drawn = 0;
-    // Hover evidence bypasses the zoom-family mask: at constellation zoom
-    // the mask hides every family but parent/class, yet a hovered edge — or
-    // a hovered node's incident edges — is exactly the moment the owner
-    // asked about those links. The LOD restriction applies to ambient
-    // drawing, not to the hover answer.
-    const allow = this.maskBypassSet();
 
     for (let k = 0; k < edgeIndices.length; k++) {
       const ei = edgeIndices[k]!;
       if (skip?.has(ei)) continue;
       const e = this.edges[ei]!;
       const linkType = e.linkType ?? 0;
-      const isHoveredEdge = ei === this.hoveredEdgeIndex;
-      if (!linkTypeVisible(linkType, this.edgeMask) && !isHoveredEdge && !(allow !== null && allow.has(ei))) continue;
+      if (!this.edgeRenderable(ei, linkType, focusEdgeSet)) continue;
       if (!timeLapseVisible(e.createdAt ?? NO_TIME, this.timeLapse, this.timeCutoff)) continue;
+      const isHoveredEdge = ei === this.hoveredEdgeIndex;
       const si = this.nodeIndex.get(e.source);
       const ti = this.nodeIndex.get(e.target);
       if (si === undefined || ti === undefined) continue;
@@ -1385,17 +1399,13 @@ export class GraphPixiRenderer implements GraphRenderer {
     }
 
     let drawn = 0;
-    // Same mask discipline as the strokes: the zoom-family mask applies to
-    // ambient drawing, hover evidence bypasses it (and the pre-fix path drew
-    // arrowheads for mask-hidden families — floating heads with no line).
-    const allow = this.maskBypassSet();
+    // Same mask discipline as the strokes: the family mask is a hard gate
+    // (never an edge-hover bypass); the zoom mask is bypassed only for the
+    // hovered node's incident edges. (The pre-fix path also drew arrowheads
+    // for mask-hidden families — floating heads with no line.)
     for (const { edge, i1, i2 } of items) {
       const e = this.edges[edge]!;
-      if (
-        !linkTypeVisible(e.linkType ?? 0, this.edgeMask) &&
-        edge !== this.hoveredEdgeIndex &&
-        !(allow !== null && allow.has(edge))
-      ) continue;
+      if (!this.edgeRenderable(edge, e.linkType ?? 0, focusEdgeSet)) continue;
       if (!timeLapseVisible(e.createdAt ?? NO_TIME, this.timeLapse, this.timeCutoff)) continue;
       const x1 = pos[i1 * 2]!;
       const y1 = pos[i1 * 2 + 1]!;

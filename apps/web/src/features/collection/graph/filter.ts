@@ -237,14 +237,31 @@ export const LINK_TYPE_IDS: Record<GraphEdgeKind, number> = {
 };
 
 /**
- * The zoom-dependent edge LOD mask (the original convention): parent/class always,
- * mention from 0.30, property + tag from 0.60 (tags ride the references tier
- * under the "tags are links" ruling), semantic + temporal from 1.00.
+ * The zoom-dependent edge LOD mask — which link families render AMBIENTLY at
+ * this zoom. Owner ruling (2026-11-13): every family renders at every zoom
+ * ("make edges visible at more far away zoom levels") — the per-family
+ * Visibility chips are the sole ambient authority (see familyMaskForPrefs),
+ * and a node hover reveals its incident edges regardless of either mask.
+ * The helper stays (and stays mask-shaped) so future density tuning has one
+ * home.
  */
-export function edgeMaskForZoom(zoom: number): number {
-  let mask = (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class);
-  if (zoom >= 0.3) mask |= 1 << LINK_TYPE_IDS.mention;
-  if (zoom >= 0.6) mask |= (1 << LINK_TYPE_IDS.property) | (1 << LINK_TYPE_IDS.tag);
-  if (zoom >= 1.0) mask |= (1 << LINK_TYPE_IDS.semantic) | (1 << LINK_TYPE_IDS.temporal);
+export function edgeMaskForZoom(_zoom: number): number {
+  let mask = 0;
+  for (const id of Object.values(LINK_TYPE_IDS)) mask |= 1 << id;
+  return mask;
+}
+
+/**
+ * The per-family Visibility chips as a bitmask — the AMBIENT authority over
+ * which link families render. Unlike the zoom mask this one is never
+ * bypassed by an edge hover; only a node hover reveals its incident edges
+ * through it (the owner's "hovering on a node should always show its edges,
+ * even when currently set to not visible").
+ */
+export function familyMaskForPrefs(families: Record<GraphEdgeKind, boolean>): number {
+  let mask = 0;
+  for (const [kind, id] of Object.entries(LINK_TYPE_IDS)) {
+    if (families[kind as GraphEdgeKind] === true) mask |= 1 << id;
+  }
   return mask;
 }

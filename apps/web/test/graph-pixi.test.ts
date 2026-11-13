@@ -448,7 +448,7 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     vi.restoreAllMocks();
   });
 
-  it("constellation LOD: a hovered edge draws alone — regardless of its family's zoom tier", async () => {
+  it("the visibility contract: node hover reveals, edge hover does not, chips are absolute", async () => {
     stubWebgl2();
     const canvas = document.createElement("canvas");
     canvas.width = 800;
@@ -460,46 +460,49 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
 
     renderer.setNodeVisuals(["a", "b", "c"], new Map());
     renderer.updatePositions(new Float32Array([0, 0, 100, 0, 0, 100]), ["a", "b", "c"]);
-    // linkType 2 = mention: the zoom mask hides the whole family below
-    // zoom 0.3 — the hovered edge must still draw (the hover evidence
-    // bypasses the LOD mask).
+    // linkType 2 = mention edges a→b, b→c.
     renderer.setEdges([
       { source: "a", target: "b", linkType: 2 },
       { source: "b", target: "c", linkType: 2 },
     ]);
-    renderer.setCamera(50, 50, 0.1); // lod 0, mention family masked
-    renderer.setEdgeMask(edgeMaskForZoom(0.1));
+    renderer.setCamera(50, 50, 0.1);
+
+    // (1) The family chips are absolute: with mention switched off the edges
+    // never render — no hover of any kind brings a switched-off family back.
+    renderer.setFamilyMask(0x7f & ~(1 << 2));
+    renderer.setEdgeMask(0x7f); // zoom mask all-on
     renderer.render();
     expect(renderer.stats.edgeInstCount).toBe(0);
-
-    renderer.setHoveredEdge(1); // b→c
+    renderer.setHoverNeighborhood("b", ACCENT); // even a node hover
     renderer.render();
-    expect(renderer.stats.edgeInstCount).toBe(1);
-    expect(renderer.stats.arrowInstCount).toBe(1);
+    expect(renderer.stats.edgeInstCount).toBe(0);
+    renderer.setHoverNeighborhood(null);
 
-    // Overview zoom (lod 1, 0.25–1.0): mention is IN the mask now — both
-    // edges and both arrowheads draw; a hover does not dim the hovered one.
-    renderer.setHoveredEdge(-1);
-    renderer.setCamera(50, 50, 0.5);
-    renderer.setEdgeMask(edgeMaskForZoom(0.5));
+    // (2) The zoom mask is ambient LOD with a NODE-hover override: hidden
+    // tiers stay hidden until a node hover reveals its own edges.
+    renderer.setFamilyMask(0x7f);
+    renderer.setEdgeMask(0x7f & ~(1 << 2)); // zoom mask hides mention
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(0);
+    renderer.setHoverNeighborhood("b", ACCENT);
     renderer.render();
     expect(renderer.stats.edgeInstCount).toBe(2);
     expect(renderer.stats.arrowInstCount).toBe(2);
+    renderer.setHoverNeighborhood(null);
 
-    // A family outside the mask at this zoom (property = 3, masked below
-    // 0.6) still surfaces while hovered.
-    renderer.setEdges([
-      { source: "a", target: "b", linkType: 0 },
-      { source: "b", target: "c", linkType: 3 },
-    ]);
-    renderer.setHoveredEdge(1);
+    // (4) Hovering WHERE a hidden edge lies reveals nothing — and the edge
+    // is not even pickable (no tooltip for an invisible link).
     renderer.render();
-    expect(renderer.stats.edgeInstCount).toBe(2);
-    expect(renderer.stats.arrowInstCount).toBe(1); // property carries no head
-
+    expect(renderer.stats.edgeInstCount).toBe(0);
+    renderer.setHoveredEdge(1); // b→c is at the pointer
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(0);
+    expect(renderer.pickEdge(50, 50, 200)).toBe(-1);
+    // With its family visible again, the same spot picks the edge.
     renderer.setHoveredEdge(-1);
+    renderer.setEdgeMask(0x7f);
     renderer.render();
-    expect(renderer.stats.edgeInstCount).toBe(1); // only the parent edge stays
+    expect(renderer.pickEdge(50, 50, 200)).toBe(1);
     vi.restoreAllMocks();
   });
 });

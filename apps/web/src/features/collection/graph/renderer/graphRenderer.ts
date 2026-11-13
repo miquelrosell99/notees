@@ -56,6 +56,10 @@ export interface GraphRenderer {
   setCamera(x: number, y: number, zoom: number): void;
   /** Bitmask of visible link types (LOD family masking). */
   setEdgeMask(mask: number): void;
+  /** The Visibility chips as a bitmask — the AMBIENT family authority. A
+   *  switched-off family never renders and an edge hover never brings it
+   *  back; only a node hover reveals its incident edges through it. */
+  setFamilyMask(mask: number): void;
   setCommunityDim(dim: number): void;
 
   render(): void;
