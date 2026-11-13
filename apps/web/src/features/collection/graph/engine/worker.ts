@@ -22,10 +22,12 @@
  *   { type: 'frame', positions, nodeIds, nodeCount, energy, ticks, settled }
  *   { type: 'sharedBuffer', positions: SharedArrayBuffer, meta: SharedArrayBuffer, nodeIds }
  *
- * The worker self-ticks until the engine reports settled (every node quiet
- * and still), then goes idle. Interaction (drag, topology, config) reheats
- * the engine — locally around the pointer for drags — and restarts the
- * clock. Nothing moves far from where the owner left it.
+ * The worker self-ticks from the very first frame — the graph opens on the
+ * seeded layout and settles IN FRONT of the user (the freeze waits for a
+ * true quasi-equilibrium, which needs the wall-clock time a hidden warm-up
+ * would steal). Once the engine reports settled (every node quiet, still,
+ * and at force balance) the clock goes idle; interaction (drag, topology,
+ * config) reheats it — locally around the pointer for drags.
  */
 
 import { GraphEngine, buildGraphEngineConfig } from './index.js';
@@ -35,14 +37,13 @@ import type { GraphEnginePhysicsConfig, GraphEngineNode, GraphEngineEdge } from 
 
 const TICK_MS = 16;
 
-// Fast-forward depth before first paint: tick until the engine reports
-// settled (every node quiet, still, and at force balance), capped so a huge
-// graph degrades to "nearly settled, finishes visibly" instead of blocking
-// the worker. The calm seed placement means the budget is spent relaxing
-// springs, not dissipating an explosion — a plain dt, no multiplier (the
-// old 3× dt outran the drag model and arrived mid-flight, so the graph
-// visibly re-arranged for seconds after the first paint).
-const WARMUP_MAX_TICKS = 900;
+// No pre-paint fast-forward: the owner-facing register is that the graph
+// OPENS on the seeded layout and settles in front of the user — the freeze
+// waits for a true quasi-equilibrium, and equilibrium needs wall-clock time
+// the user should get to see (a hidden warm-up presents a frozen graph that
+// never had time to finish). The seed is calm by construction (radius-aware
+// placement), so the opening animation is a gentle relaxation, not an
+// explosion. The clock below ticks at ~60 fps until the settle gate fires.
 
 const META_SEQ = 0;
 const META_COUNT = 1;
@@ -194,11 +195,6 @@ function reheatAround(nodeUuid: string): void {
   ensureTicking();
 }
 
-function fastForwardToSettled(): void {
-  if (!engine) return;
-  for (let i = 0; i < WARMUP_MAX_TICKS && !engine.settled; i++) engine.step();
-}
-
 function physicsKey(cfg: GraphEnginePhysicsConfig): string {
   return JSON.stringify([
     cfg.preset,
@@ -217,9 +213,6 @@ function initEngine(nodes: GraphEngineNode[], edges: GraphEngineEdge[], cfg: Gra
   nodeIds = nodes.map(n => n.nodeUuid);
   ensureSABs(nodes.length);
   ensureFallbackBuffers(nodes.length);
-
-  // Fast-forward warm-up instead of synchronous burst
-  fastForwardToSettled();
 
   if (SAB_ENABLED) postSharedBufferRefs();
   self.postMessage({ type: 'ready' as const });

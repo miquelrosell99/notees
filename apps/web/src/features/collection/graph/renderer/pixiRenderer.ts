@@ -341,6 +341,14 @@ export class GraphPixiRenderer implements GraphRenderer {
   private arrowOverlay: Graphics = new Graphics();
   private overlayEdgeCount = 0;
   private overlayArrowCount = 0;
+  /**
+   * The dragged node's local override. Streamed engine frames carry the
+   * worker's copy of the dragged position, which trails the pointer by a
+   * message round trip — without this restore, a frame landing after a
+   * pointermove visibly snaps the node (and its ring) back toward the
+   * worker's stale value. The override wins until the drag ends.
+   */
+  private dragOverridePos: { x: number; y: number } | null = null;
   private nodeLayer: Container = new Container();
   private nodeTexture: Texture | null = null;
   private spriteByIndex: Sprite[] = [];
@@ -546,6 +554,22 @@ export class GraphPixiRenderer implements GraphRenderer {
     this.edgesDirty = true; // indices changed
   }
 
+  /**
+   * Re-apply the dragged node's override onto the freshly adopted positions
+   * (called after every `this.positions = ...` assignment) so streamed
+   * frames never clobber it. Also marks the node changed so the sprite
+   * re-syncs from the override rather than the frame's stale copy.
+   */
+  private applyDragOverride(): void {
+    if (this.dragOverridePos === null || this.dragRingNodeId === null) return;
+    const idx = this.nodeIndex.get(this.dragRingNodeId);
+    if (idx === undefined || this.positions.length < (idx + 1) * 2) return;
+    this.positions[idx * 2] = this.dragOverridePos.x;
+    this.positions[idx * 2 + 1] = this.dragOverridePos.y;
+    this.changedNodeIndices.add(idx);
+    this.positionsChanged = true;
+  }
+
   updatePositions(positions: Float32Array, nodeIds: string[]): void {
     if (nodeIds.length !== this.nodeIdOrder.length) {
       this.nodeIndex.clear();
@@ -560,6 +584,7 @@ export class GraphPixiRenderer implements GraphRenderer {
       this.positions = positions;
       this.frameBaseline = positions.slice();
       this.positionsChanged = false;
+      this.applyDragOverride();
       return;
     }
     const n = this.nodeIdOrder.length;
@@ -569,6 +594,7 @@ export class GraphPixiRenderer implements GraphRenderer {
       this.edgesDirty = true;
       this.positions = positions;
       this.frameBaseline = positions.slice();
+      this.applyDragOverride();
       return;
     }
     // Diff against the last accepted frame. A settled engine tick re-sends
@@ -583,6 +609,7 @@ export class GraphPixiRenderer implements GraphRenderer {
       }
     }
     this.positions = positions;
+    this.applyDragOverride();
     if (changed) {
       this.positionsChanged = true;
       this.frameBaseline = positions.slice();
@@ -592,6 +619,7 @@ export class GraphPixiRenderer implements GraphRenderer {
   overridePosition(nodeUuid: string, x: number, y: number): void {
     const idx = this.nodeIndex.get(nodeUuid);
     if (idx === undefined) return;
+    this.dragOverridePos = { x, y };
     if (this.positions.length >= (idx + 1) * 2) {
       this.positions[idx * 2] = x;
       this.positions[idx * 2 + 1] = y;
@@ -653,6 +681,7 @@ export class GraphPixiRenderer implements GraphRenderer {
     if (nodeId === this.dragRingNodeId) return;
     this.dragRingNodeId = nodeId;
     if (nodeId === null) {
+      this.dragOverridePos = null;
       // The ring returns to ringGraphics — one full sync redraws it at the
       // final position (and drops it from the drag overlay).
       this.dragRing.clear();

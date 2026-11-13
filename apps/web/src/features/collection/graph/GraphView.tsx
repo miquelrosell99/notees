@@ -32,7 +32,9 @@
  * extends the v1 one:
  * drag empty space pans, the wheel zooms cursor-anchored (the minimap wheel
  * too), dragging a node rearranges it (instant local override + worker pin),
- * clicking a node toggles it in the multi-selection, double-click opens,
+ * clicking a node toggles it in the multi-selection (a click — a drag that
+ * moved never touches the selection: dragging and selecting are separate
+ * gestures), double-click opens,
  * empty click clears — plus the keyboard surface (+/- zoom, arrows pan,
  * F focus, R recenter). Node hover highlights the neighborhood in the app's
  * accent color (Obsidian-style: the hovered node, its incident edges, and
@@ -261,7 +263,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const cameraRef = useRef({ x: 0, y: 0, zoom: 0.5 });
   const frameRef = useRef<EngineFrame | null>(null);
   const dirtyRef = useRef(false);
-  const draggingRef = useRef<{ nodeId: string } | null>(null);
+  const draggingRef = useRef<{ nodeId: string; startX: number; startY: number } | null>(null);
   const panRef = useRef<{ startX: number; startY: number; camX: number; camY: number } | null>(null);
   const prefsSurface = local !== undefined ? "local" : "full";
   /** World radius per node — the label pass reads it live (refs, not closures). */
@@ -1196,7 +1198,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     const nodeId = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (nodeId !== null) {
-      draggingRef.current = { nodeId };
+      // Selection and dragging are separate gestures: the selection toggles
+      // only when the pointer comes back up without having moved (a click);
+      // a real drag just repositions the node.
+      draggingRef.current = { nodeId, startX: event.clientX, startY: event.clientY };
       renderer.setDraggedNode(nodeId);
       engine?.dragStart(nodeId);
       engine?.dragMove(nodeId, world.x, world.y);
@@ -1272,13 +1277,19 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     const renderer = rendererRef.current;
     if (draggingRef.current !== null) {
       const dragged = draggingRef.current.nodeId;
+      const moved =
+        Math.abs(event.clientX - draggingRef.current.startX) +
+        Math.abs(event.clientY - draggingRef.current.startY);
       engine?.dragEnd(dragged);
       renderer?.setDraggedNode(null);
       draggingRef.current = null;
-      const world = worldAt(event);
-      const still = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);
-      // An un-dragged click toggles the node in the selection (the v1 register).
-      if (still === dragged) toggleSelected(dragged);
+      // An un-dragged click (the pointer never really moved) toggles the node
+      // in the selection; a drag ends as a reposition, selection untouched.
+      if (moved < 4) {
+        const world = worldAt(event);
+        const still = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);
+        if (still === dragged) toggleSelected(dragged);
+      }
       return;
     }
     if (panRef.current !== null) {

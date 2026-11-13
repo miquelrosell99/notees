@@ -424,6 +424,15 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     expect(internals.ringGraphics.fills).toHaveLength(0);
     expect(internals.dragRing.fills).toHaveLength(1);
 
+    // A streamed engine frame arrives carrying the worker's stale copy of
+    // the dragged node (back at the origin) — the override must win, or the
+    // node and its ring visibly snap back toward the worker every round trip.
+    renderer.updatePositions(new Float32Array([0, 0, 500, 0]), ["a", "b"]);
+    renderer.render();
+    expect(renderer.nodePositions[0]).toBe(300);
+    expect(renderer.nodePositions[1]).toBe(40);
+    expect(internals.dragRing.fills).toHaveLength(1);
+
     // The pointer moves again — the ring re-strokes at the NEW position
     // (the node sprite and the ring cannot diverge).
     renderer.overridePosition("a", -120, 80);
