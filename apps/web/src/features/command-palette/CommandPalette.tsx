@@ -77,6 +77,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, chainNodeIds, rendersWithDocumentChrome } from "@notees/domain";
+import { foldSearchText } from "@notees/store";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, PageSummary, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -878,8 +879,10 @@ export function CommandPalette({
   // title/date matches skipped. A stable sort on the mode-dependent group
   // rank then orders the sections (score order inside a group survives):
   // search answers Classes → Properties → Pages → Content, then Date Pages
-  // and Commands; the empty-query home keeps Recently created → Recently
-  // linked → Random → Commands.
+  // and Commands — with one exception: the typed create row leaves the
+  // Commands tail and rides right after the exact title matches (top of
+  // the list when there are none); the empty-query home keeps Recently
+  // created → Recently linked → Random → Commands.
   const filtered = useMemo(() => {
     const seenIds = new Set<string>();
     const out: PaletteItem[] = [];
@@ -912,7 +915,24 @@ export function CommandPalette({
         default: return 5;
       }
     };
-    return out.sort((a, b) => groupRank(a.group) - groupRank(b.group));
+    const sorted = out.sort((a, b) => groupRank(a.group) - groupRank(b.group));
+    // The typed create row rides right after the exact title matches —
+    // above every approximate candidate — so creating a page for something
+    // that doesn't exist never means scrolling past fuzzy hits. With no
+    // exact match it tops the list.
+    const createAt = sorted.findIndex((item) => item.key === "action:create-titled");
+    if (createAt === -1) return sorted;
+    const q = foldSearchText(text.toLowerCase());
+    let insertAt = 0;
+    for (let i = 0; i < sorted.length; i += 1) {
+      if (i !== createAt && foldSearchText(sorted[i]!.label.toLowerCase()) === q) {
+        insertAt = i + 1;
+      }
+    }
+    if (insertAt > createAt) insertAt -= 1;
+    const [createItem] = sorted.splice(createAt, 1);
+    sorted.splice(insertAt, 0, createItem!);
+    return sorted;
   }, [syncItems, contentItems, text, randomRows, home]);
 
   /** One flat list drives the keyboard: filter options in `/` mode, results otherwise. */

@@ -183,6 +183,9 @@ describe("capture: @ over a selection", () => {
     const editor = clickIntoBlock(container);
     selectProseRange(editor, 4, 7);
     fireEvent.keyDown(editor, { key: "@" });
+    // The create row now tops prefix matches ("Tar" ≠ "Target"), so one
+    // ArrowDown reaches the Target row.
+    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter" });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -208,6 +211,8 @@ describe("capture: @ over a selection", () => {
     const editor = clickIntoBlock(container);
     selectProseRange(editor, 4, 7);
     fireEvent.keyDown(editor, { key: "@" });
+    // Step past the hoisted create row to the Target result.
+    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -232,6 +237,8 @@ describe("capture: @ over a selection", () => {
     const editor = clickIntoBlock(container);
     selectProseRange(editor, 4, 7);
     fireEvent.keyDown(editor, { key: "@" });
+    // Step past the hoisted create row to the Target result.
+    fireEvent.keyDown(searchBox(), { key: "ArrowDown" });
     fireEvent.keyDown(searchBox(), { key: "Enter", metaKey: true });
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
@@ -422,8 +429,11 @@ describe("node-link context menu", () => {
     const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search-field .search-field__input");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
-    const row = document.body.querySelector<HTMLElement>(".node-result-item");
-    if (row === null) throw new Error("no picker rows in the modal");
+    // The create row now tops prefix matches ("Else" ≠ "Elsewhere") — pick
+    // the "Elsewhere" row, not the first row.
+    const rows = Array.from(document.body.querySelectorAll<HTMLElement>(".node-result-item"));
+    const row = rows.find((el) => el.textContent?.includes("Elsewhere"));
+    if (row === undefined) throw new Error("no Elsewhere row in the modal picker");
     fireEvent.click(row);
 
     // Set the custom label and save.
@@ -578,9 +588,12 @@ describe("node-link context menu (read mode)", () => {
     const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search-field .search-field__input");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
-    // "Else" is a partial-exact match for "Elsewhere", so the result row
-    // rides above the create row — the first row is the destination pick.
-    fireEvent.click(document.body.querySelector<HTMLElement>(".node-result-item")!);
+    // The create row now tops prefix matches ("Else" ≠ "Elsewhere") — pick
+    // the "Elsewhere" row, not the first row.
+    const rows = Array.from(document.body.querySelectorAll<HTMLElement>(".node-result-item"));
+    const row = rows.find((el) => el.textContent?.includes("Elsewhere"));
+    if (row === undefined) throw new Error("no Elsewhere row in the modal picker");
+    fireEvent.click(row);
     const save = within(modal).getByRole("button", { name: "Save" });
     fireEvent.click(save);
 

@@ -261,6 +261,32 @@ describe("CommandPalette sections", () => {
     expect(screen.queryByText('Create year "2026"')).toBeNull();
   });
 
+  it("typed creation: with no exact title match the create row tops the list, above every hit", async () => {
+    const { client } = await seedPaletteWorld();
+    renderPalette(client);
+    typeInPalette("tulip");
+    await screen.findByText('Create page "tulip"');
+    const rows = [...document.querySelectorAll(".nt-palette-item")];
+    expect(rows[0]?.textContent).toContain('Create page "tulip"');
+  });
+
+  it("typed creation: the create row rides right after an exact title match, above the approximate hits", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.createObject({ isEmbedded: false, name: "Tulip" });
+    renderPalette(client);
+    typeInPalette("tulip");
+    await screen.findByText('Create page "tulip"');
+    const rows = [...document.querySelectorAll(".nt-palette-item")];
+    const exactIdx = rows.findIndex((el) => el.textContent === "Tulip");
+    const createIdx = rows.findIndex((el) =>
+      (el.textContent ?? "").includes('Create page "tulip"'),
+    );
+    const approxIdx = rows.findIndex((el) => (el.textContent ?? "").includes("Tulip Catalog"));
+    expect(exactIdx).toBeGreaterThanOrEqual(0);
+    expect(createIdx).toBe(exactIdx + 1);
+    expect(approxIdx).toBeGreaterThan(createIdx);
+  });
+
   it("a shell re-render with fresh callback identities does not wipe the typed query", async () => {
     const { client } = await seedPaletteWorld();
     // App hands the palette fresh inline arrows every render; during a
