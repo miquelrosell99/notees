@@ -124,6 +124,10 @@ await page.addInitScript(([url, key, value, ws]) => {
   localStorage.setItem("notees.serverUrl", url);
   localStorage.setItem(key, value);
   localStorage.setItem("notees.workspaceId", ws);
+  // Pin the date format the search assertions expect: month date names render
+  // per the user's dateFormat setting (month = the layout minus the day
+  // token), so an unseeded profile would default to YYYY-MM-DD ("2018-09").
+  localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
 }, [API, credentialKey, credentialValue, WS]);
 
 await page.goto(WEB, { waitUntil: "commit", timeout: 120_000 });
