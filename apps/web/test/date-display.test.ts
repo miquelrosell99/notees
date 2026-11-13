@@ -28,8 +28,13 @@ describe("formatDateName", () => {
     expect(formatDateName("20290627", "MM-DD-YYYY")).toBe("06-27-2029");
   });
 
-  it("keeps canonical shapes for month and year labels", () => {
-    expect(formatDateName("20290600", "DD/MM/YYYY")).toBe("2029/06");
+  it("derives the month shape from the setting's token layout (year stays YYYY)", () => {
+    expect(formatDateName("20290600", "YYYY/MM/DD")).toBe("2029/06");
+    expect(formatDateName("20290600", "YYYY-MM-DD")).toBe("2029-06");
+    expect(formatDateName("20290600", "DD/MM/YYYY")).toBe("06/2029");
+    expect(formatDateName("20290600", "DD-MM-YYYY")).toBe("06-2029");
+    expect(formatDateName("20290600", "MM/DD/YYYY")).toBe("06/2029");
+    expect(formatDateName("20290600", "MM-DD-YYYY")).toBe("06-2029");
     expect(formatDateName("20290000", "DD/MM/YYYY")).toBe("2029");
   });
 
@@ -58,6 +63,24 @@ describe("titleOfNode — the capped default", () => {
       contentAst: [{ type: "text", text: "20290627" } as const],
     };
     expect(titleOfNode(node)).toBe("27-06-2029");
+  });
+
+  it("formats month/year date pages per the setting too (month drops the day token)", () => {
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("DD/MM/YYYY"));
+    const month = {
+      id: "00000000-0000-0000-00aa-202906000000",
+      isClass: false as const, isEmbedded: false as const,
+      name: null,
+      contentAst: [{ type: "text", text: "20290600" } as const],
+    };
+    expect(titleOfNode(month)).toBe("06/2029");
+    const year = {
+      id: "00000000-0000-0000-00bb-202900000000",
+      isClass: false as const, isEmbedded: false as const,
+      name: null,
+      contentAst: [{ type: "text", text: "20290000" } as const],
+    };
+    expect(titleOfNode(year)).toBe("2029");
   });
 
   it("defers to the derived name for everything else", () => {

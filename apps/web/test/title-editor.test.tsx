@@ -388,6 +388,13 @@ describe("date pages", () => {
     expect(year.container.querySelector("h1")!.textContent).toBe("2018");
     year.unmount();
 
+    // The header honors the same dateFormat setting as day pages: with a
+    // day-first layout the month drops the day token (09/2018).
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("DD/MM/YYYY"));
+    const monthDayFirst = render(<PageView client={client} pageId={monthId} />);
+    expect(monthDayFirst.container.querySelector("h1")!.textContent).toBe("09/2018");
+    monthDayFirst.unmount();
+
     // The static header never renames the date page.
     await flushWrites();
     expect(updateSpy).not.toHaveBeenCalled();

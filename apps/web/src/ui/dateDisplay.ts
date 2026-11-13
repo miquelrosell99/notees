@@ -71,9 +71,9 @@ export function formatIsoDate(
 
 /**
  * Format a stored date-node name for display, honoring the user's format.
- * Day names apply the setting's token layout; month/year names have no
- * setting layout (the options are day-oriented) and keep the canonical
- * `YYYY/MM` / `YYYY` shapes. Null when the name is not a compact date label.
+ * Day names apply the setting's token layout; month names apply the same
+ * layout minus the day token (`formatMonthName`); year names stay the bare
+ * year in every layout. Null when the name is not a compact date label.
  */
 export function formatDateName(
   name: string,
@@ -85,8 +85,26 @@ export function formatDateName(
   const month = digits.slice(4, 6);
   const day = digits.slice(6, 8);
   if (month === "00") return year;
-  if (day === "00") return `${year}/${month}`;
+  if (day === "00") return formatMonthName(year, month, format);
   return format.replace(/YYYY/g, year).replace(/MM/g, month).replace(/DD/g, day);
+}
+
+/**
+ * The month label derived from the user's day format: the setting's token
+ * layout minus the day token (`YYYY/MM/DD` → `YYYY/MM`, `DD/MM/YYYY` →
+ * `MM/YYYY`), so month pages read as the day pages' year-month in the same
+ * order and separator style. The year shape is format-independent.
+ */
+export function formatMonthName(
+  year: string,
+  month: string,
+  format: DateFormat = readDateFormat(),
+): string {
+  const layout = format
+    .replace(/DD/g, "")
+    .replace(/^[-/]+|[-/]+$/g, "")
+    .replace(/([-/])[-/]+/g, "$1");
+  return layout.replace(/YYYY/g, year).replace(/MM/g, month);
 }
 
 /**
@@ -318,7 +336,7 @@ function nodeDisplayName(
     const month = pad2(fromId.month);
     const day = pad2(fromId.day);
     if (fromId.precision === "year") return year;
-    if (fromId.precision === "month") return `${year}/${month}`;
+    if (fromId.precision === "month") return formatMonthName(year, month);
     return (
       formatDateName(`${year}${month}${day}`) ?? deriveDisplayName(node, resolveClassName, resolveMentionName)
     );
@@ -343,7 +361,7 @@ function fullTitleForSettings(
     const month = pad2(fromId.month);
     const day = pad2(fromId.day);
     if (fromId.precision === "year") return year;
-    if (fromId.precision === "month") return `${year}/${month}`;
+    if (fromId.precision === "month") return formatMonthName(year, month);
     return formatDateName(`${year}${month}${day}`) ?? fullTitleOf(node, resolveClassName, resolveMentionName);
   }
   return fullTitleOf(node, resolveClassName, resolveMentionName);
@@ -367,8 +385,8 @@ export function rawDateKeywordOf(node: { id: string }): string {
 
 /**
  * One anchored endpoint's label: the date-node formatting pipeline
- * (settings-aware for day refs via the user's dateFormat; the canonical
- * `YYYY` / `YYYY/MM` shapes for year/month refs), with ` HH:MM` appended when
+ * (settings-aware via the user's dateFormat — month refs drop the day token,
+ * year refs stay the bare year), with ` HH:MM` appended when
  * a valid wall-clock time rides the slot. A non-date ref passes through.
  */
 export function datetimeSlotText(slot: { nodeId: string; time?: unknown }): string {
@@ -422,6 +440,6 @@ function dateLabelFromId(id: string): string {
   const month = pad2(parsed.month);
   const day = pad2(parsed.day);
   if (parsed.precision === "year") return year;
-  if (parsed.precision === "month") return `${year}/${month}`;
+  if (parsed.precision === "month") return formatMonthName(year, month);
   return formatDateName(`${year}${month}${day}`) ?? `${year}-${month}-${day}`;
 }
