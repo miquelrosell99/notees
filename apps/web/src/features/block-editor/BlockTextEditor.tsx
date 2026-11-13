@@ -914,9 +914,15 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", ro
       const remainder = /^date(\s+|$)/i.test(trimmed) ? trimmed.replace(/^date(\s+|$)/i, "").trim() : trimmed;
       const parsed = remainder === "" ? null : parseDate(remainder);
       if (parsed === null) {
+        // The anchor MUST be captured before the splice: applySplice rebuilds
+        // the editable DOM, and a caret-rect read on the freshly rebuilt
+        // range can come back zeroed — the {0,0} fallback parks the popup at
+        // the viewport origin. The @/#/+ captures read at trigger time for
+        // the same reason.
+        const anchor = caretLineAnchor();
         applySplice(start, end, [], start);
         datePickCommittedRef.current = false;
-        setDatePick({ insertAt: start, anchor: caretLineAnchor() });
+        setDatePick({ insertAt: start, anchor });
         return;
       }
       const iso =

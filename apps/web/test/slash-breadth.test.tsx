@@ -45,10 +45,19 @@ beforeAll(async () => {
 
 const clients: WorkspaceClient[] = [];
 
+// jsdom does not implement Range.getBoundingClientRect at all — tests that
+// stub it restore the absent-method state here.
+const ORIGINAL_RANGE_RECT = Range.prototype.getBoundingClientRect;
+
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
   vi.restoreAllMocks();
   window.localStorage.clear();
+  if (ORIGINAL_RANGE_RECT === undefined) {
+    delete (Range.prototype as Partial<Record<"getBoundingClientRect", unknown>>).getBoundingClientRect;
+  } else {
+    Range.prototype.getBoundingClientRect = ORIGINAL_RANGE_RECT;
+  }
 });
 
 async function seedClient(): Promise<WorkspaceClient> {
@@ -184,6 +193,49 @@ describe("slash /date", () => {
     });
     // The calendar closed after the pick.
     expect(screen.queryByRole("dialog", { name: "Date picker" })).toBeNull();
+  });
+
+  it("anchors the calendar at the live caret — read before the trigger text is spliced out", async () => {
+    const { container } = await setupPageWithBlock();
+    const editor = clickIntoBlock(container);
+
+    // jsdom caret rects are all zero, which hides the regression: make the
+    // caret rect a function of the editor's CURRENT text length. A read after
+    // the splice (the bug) sees the emptied editor (len 0 → top 116); the
+    // contract read sees "/date" still live (len 5 → top 121). In a real
+    // browser the post-splice read returns a zeroed rect instead, and the
+    // popup lands at the viewport origin.
+    Range.prototype.getBoundingClientRect = function (this: Range) {
+      const host =
+        this.startContainer instanceof Element
+          ? this.startContainer
+          : this.startContainer.parentElement;
+      const len = host?.closest(".nt-block-text")?.textContent?.length ?? 0;
+      return {
+        x: 200 + len,
+        y: 100 + len,
+        width: 0,
+        height: 16,
+        top: 100 + len,
+        right: 200 + len,
+        bottom: 116 + len,
+        left: 200 + len,
+        toJSON: () => ({}),
+      } as DOMRect;
+    };
+
+    typeSlashCommand(editor, "date");
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    const pickerDialog = await screen.findByRole("dialog", { name: "Date picker" });
+    expect(pickerDialog).not.toBeNull();
+    // The zero-size fixed anchor span carries the captured viewport anchor
+    // verbatim — it must be the pre-splice "/date" caret, not the emptied one.
+    const anchor = container.querySelector<HTMLElement>('span[style*="pointer-events: none"]');
+    expect(anchor).not.toBeNull();
+    expect(anchor!.style.position).toBe("fixed");
+    expect(Number.parseFloat(anchor!.style.top)).toBe(116 + 5);
+    expect(Number.parseFloat(anchor!.style.left)).toBe(200 + 5);
   });
 
   it("an unparseable remainder opens the calendar popup too; Escape hands focus back to the block", async () => {
