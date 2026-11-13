@@ -495,6 +495,9 @@ describe("selection action bar group ops", () => {
       (b) => b.textContent?.trim() === "Delete",
     );
     if (confirm === undefined) throw new Error("no confirm button");
+    // A real browser fires mousedown before click: the document-level
+    // outside-press clear must not empty the set the confirm acts on.
+    fireEvent.mouseDown(confirm);
     fireEvent.click(confirm);
     await act(async () => {});
 

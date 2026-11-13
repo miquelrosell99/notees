@@ -44,15 +44,17 @@ const PICKER_LABEL: Record<PickerKind, string> = {
 export function SelectionBar({ client }: { client: AnyClient }) {
   const outliner = useOutliner();
   const [picker, setPicker] = useState<PickerKind | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
 
   const ids = [...outliner.selection];
   const count = ids.length;
-  // The confirmation must outlive the selection: the bar chrome hides the
-  // moment the set empties, but the latched modal keeps rendering until it
-  // decides (same latch pattern as the node context menu's delete).
-  if (count === 0 && !confirmingDelete) return null;
+  // The confirmation latches the selected ids and outlives the selection:
+  // the modal is portaled outside the tree, so the outside-press clear
+  // empties the live selection on the way to the confirm click — the latched
+  // ids are what the batch acts on (same latch pattern as the node context
+  // menu's delete).
+  if (count === 0 && pendingDeleteIds === null) return null;
 
   /**
    * The whole gesture as ONE batch: one op set per selected block composes
@@ -129,7 +131,7 @@ export function SelectionBar({ client }: { client: AnyClient }) {
           <button
             type="button"
             className="nt-selection-bar__btn nt-selection-bar__btn--danger"
-            onClick={() => setConfirmingDelete(true)}
+            onClick={() => setPendingDeleteIds(ids)}
           >
             Delete
           </button>
@@ -160,16 +162,16 @@ export function SelectionBar({ client }: { client: AnyClient }) {
           onAdd={(node) => handlePick(node.id)}
         />
       )}
-      {confirmingDelete && (
+      {pendingDeleteIds !== null && (
         <ConfirmationModal
           isOpen
           variant="danger"
-          title={`Delete ${count} block${count > 1 ? "s" : ""}?`}
-          message={`The selected block${count > 1 ? "s" : ""} (and their children) move to the trash.`}
+          title={`Delete ${pendingDeleteIds.length} block${pendingDeleteIds.length > 1 ? "s" : ""}?`}
+          message={`The selected block${pendingDeleteIds.length > 1 ? "s" : ""} (and their children) move to the trash.`}
           confirmLabel="Delete"
           onConfirm={() =>
             applyToAll(
-              ids.map((id) => ({ kind: "delete", id }) as ClientWriteOp),
+              pendingDeleteIds.map((id) => ({ kind: "delete", id }) as ClientWriteOp),
               "delete",
             )
               .catch((error: unknown) => {
@@ -177,10 +179,10 @@ export function SelectionBar({ client }: { client: AnyClient }) {
               })
               .finally(() => {
                 outliner.clearSelection();
-                setConfirmingDelete(false);
+                setPendingDeleteIds(null);
               })
           }
-          onCancel={() => setConfirmingDelete(false)}
+          onCancel={() => setPendingDeleteIds(null)}
         />
       )}
     </>
