@@ -40,6 +40,10 @@ export interface GraphEngineConfig {
   alphaDecay: number;
   /** Below this alpha a node contributes no force and is eligible to freeze. */
   alphaMin: number;
+  /** Alpha below which the hot phase counts as over (the settle gate's cool term). */
+  alphaCool: number;
+  /** Residual unscaled force under which the graph counts as balanced. */
+  settleResidualEps: number;
   /** Mean kinetic energy under which the graph counts as still. */
   settleEnergyEps: number;
   /** Consecutive still ticks required before the engine declares settled. */

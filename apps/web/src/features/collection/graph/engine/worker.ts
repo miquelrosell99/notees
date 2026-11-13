@@ -36,13 +36,13 @@ import type { GraphEnginePhysicsConfig, GraphEngineNode, GraphEngineEdge } from 
 const TICK_MS = 16;
 
 // Fast-forward depth before first paint: tick until the engine reports
-// settled (every node quiet and still), capped so a huge graph degrades to
-// "nearly settled, finishes visibly" instead of blocking the worker. The
-// calm seed placement means the budget is spent relaxing springs, not
-// dissipating an explosion — a plain dt, no multiplier (the old 3× dt
-// outran the drag model and arrived mid-flight, so the graph visibly
-// re-arranged for seconds after the first paint).
-const WARMUP_MAX_TICKS = 600;
+// settled (every node quiet, still, and at force balance), capped so a huge
+// graph degrades to "nearly settled, finishes visibly" instead of blocking
+// the worker. The calm seed placement means the budget is spent relaxing
+// springs, not dissipating an explosion — a plain dt, no multiplier (the
+// old 3× dt outran the drag model and arrived mid-flight, so the graph
+// visibly re-arranged for seconds after the first paint).
+const WARMUP_MAX_TICKS = 900;
 
 const META_SEQ = 0;
 const META_COUNT = 1;

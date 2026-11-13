@@ -337,7 +337,36 @@ describe("GraphView component", () => {
       expect(await screen.findByRole("button", { name: "Physics preset" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Simulation" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Central gravity" })).toBeTruthy();
+      // The stored prefs bag predates the gravity-default flip (no marker),
+      // so its old-default true retires to off — the switch rests unchecked.
+      expect(screen.getByRole("switch", { name: "Central gravity" }).getAttribute("aria-checked")).toBe("false");
       expect(screen.getByRole("switch", { name: "Mass accumulation" })).toBeTruthy();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  it("the gravity-default flip migrates old prefs bags once; a genuine re-enable survives", async () => {
+    window.localStorage.clear();
+    // Old-shape bag: written when centralGravityOn defaulted to true, no
+    // migration marker. The owner never chose gravity — it was the default.
+    // Orphans off keeps the node out of the canvas (jsdom has no GPU).
+    window.localStorage.setItem(
+      "notees.settings.graphPrefs.full",
+      JSON.stringify({ centralGravityOn: true, showOrphans: false }),
+    );
+    try {
+      const client = await seedClient();
+      await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Solo" }] });
+      render(<GraphView client={client} />);
+      await screen.findByText("All nodes hidden by filters");
+      fireEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+      const gravity = await screen.findByRole("switch", { name: "Central gravity" });
+      expect(gravity.getAttribute("aria-checked")).toBe("false");
+      // The migrated bag is re-persisted with the marker — a later explicit
+      // enable (owner choice) must survive the next load.
+      fireEvent.click(gravity);
+      expect(gravity.getAttribute("aria-checked")).toBe("true");
     } finally {
       window.localStorage.clear();
     }

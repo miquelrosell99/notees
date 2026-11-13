@@ -18,7 +18,9 @@ import {
 } from "../src/features/collection/graph/engine/index.js";
 
 function physics(overrides: Partial<Parameters<typeof buildGraphEngineConfig>[0]> = {}) {
-  return buildGraphEngineConfig({ preset: "balanced", centralGravity: 30, linkCountAttraction: false, clustering: true, ...overrides });
+  // centralGravity 0 — the app default since the gravity opt-in flip; tests
+  // exercising gravity pass it explicitly.
+  return buildGraphEngineConfig({ preset: "balanced", centralGravity: 0, linkCountAttraction: false, clustering: true, ...overrides });
 }
 
 function chain(count: number): { nodes: GraphEngineNode[]; edges: GraphEngineEdge[] } {
@@ -268,10 +270,10 @@ describe("graph engine", () => {
     expect(dist).toBeGreaterThan(2 * r);
   });
 
-  it("cluster separation survives the default central gravity", () => {
+  it("cluster separation survives an enabled central gravity", () => {
     const { nodes, edges } = twoClusters();
     const half = nodes.length / 2;
-    const engine = new GraphEngine(nodes, edges, physics());
+    const engine = new GraphEngine(nodes, edges, physics({ centralGravity: 30 }));
     for (let t = 0; t < 8000 && !engine.settled; t++) engine.step();
     expect(engine.settled).toBe(true);
     const centroid = (from: number, to: number): { x: number; y: number } => {
@@ -400,6 +402,47 @@ describe("graph engine", () => {
       }
       expect(sum / engine.numEdges).toBeLessThan(1.4);
       expect(worst).toBeLessThan(2.2);
+    });
+
+    it("a settled graph is at quasi-equilibrium — a drag reheat barely moves it", () => {
+      // The freeze-on-schedule regression: the old gate (alpha + stillness,
+      // no force-balance term) froze a 4-node star with ~0.6 of unscaled
+      // spring tension still pulling, and the drag reheat that followed
+      // jumped every node ~62 units. Settled must mean balanced: the same
+      // reheat moves the star only a couple of units.
+      const nodes: GraphEngineNode[] = [
+        { nodeUuid: "h" },
+        { nodeUuid: "l1" },
+        { nodeUuid: "l2" },
+        { nodeUuid: "l3" },
+      ];
+      const edges: GraphEngineEdge[] = [
+        { source: "h", target: "l1", type: "reference" },
+        { source: "h", target: "l2", type: "reference" },
+        { source: "h", target: "l3", type: "reference" },
+      ];
+      const engine = new GraphEngine(nodes, edges, physics());
+      for (let t = 0; t < 4000 && !engine.settled; t++) engine.step();
+      expect(engine.settled).toBe(true);
+      // The residual unscaled force is the honest equilibrium measure.
+      expect(engine.residual).toBeLessThan(0.1);
+
+      // Drag simulation: the same local reheat a dragStart issues, then a
+      // hundred ticks of settling around it.
+      const hub = engine.getNodePosition("h")!;
+      engine.reheatLocal(hub.x, hub.y, engine.config.influenceRadius, engine.config.reheatAlpha);
+      const before = nodes.map((n) => engine.getNodePosition(n.nodeUuid)!);
+      for (let t = 0; t < 100; t++) engine.step();
+      let worst = 0;
+      let sum = 0;
+      for (let i = 0; i < nodes.length; i++) {
+        const after = engine.getNodePosition(nodes[i]!.nodeUuid)!;
+        const d = Math.hypot(after.x - before[i]!.x, after.y - before[i]!.y);
+        sum += d;
+        worst = Math.max(worst, d);
+      }
+      expect(sum / nodes.length).toBeLessThan(5);
+      expect(worst).toBeLessThan(15);
     });
   });
 });

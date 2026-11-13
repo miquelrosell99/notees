@@ -8,6 +8,16 @@ export interface IntegratorState {
   prevDt: number;
   prevEnergy: number;
   oscillationCounter: number;
+  /**
+   * Max unscaled per-node force magnitude (acceleration) seen on the last
+   * tick. Forces are stored alpha-scaled (each plugin multiplies by the
+   * node's activity), so dividing the stored acceleration back out yields
+   * the true residual force — the settle gate's equilibrium term: a graph
+   * may look still because alpha starved the forces to zero while the
+   * configuration sits far from balance; this number cannot be fooled that
+   * way (it is invariant in alpha).
+   */
+  maxResidual: number;
 }
 
 export function createIntegratorState(cfg: GraphEngineConfig): IntegratorState {
@@ -15,6 +25,7 @@ export function createIntegratorState(cfg: GraphEngineConfig): IntegratorState {
     prevDt: cfg.dt,
     prevEnergy: Infinity,
     oscillationCounter: 0,
+    maxResidual: Infinity,
   };
 }
 
@@ -33,6 +44,7 @@ export function integrate(
   ay: Float32Array,
   oldAx: Float32Array,
   oldAy: Float32Array,
+  alphas: Float32Array,
   mass: Float32Array,
 ): number {
   const dt = state.prevDt;
@@ -42,13 +54,22 @@ export function integrate(
   const drag = cfg.drag;
   const useMass = cfg.useMass === true;
   let totalEnergy = 0;
+  let maxResidual = 0;
 
   for (let k = 0; k < activeCount; k++) {
     const i = activeIdx[k]!;
     // Mass accumulation: heavy parents (descendant weight) accelerate slower.
     const invMass = useMass ? 1 / Math.max(mass[i]!, 1) : 1;
+    const alpha = alphas[i]!;
     const oax = oldAx[i]! * invMass, oay = oldAy[i]! * invMass;
     const nax = ax[i]! * invMass, nay = ay[i]! * invMass;
+    // The unscaled residual: the stored acceleration is alpha-multiplied, so
+    // dividing it back out measures the force balance independently of the
+    // cooling schedule.
+    if (alpha > 1e-6) {
+      const r = Math.sqrt(nax * nax + nay * nay) / alpha;
+      if (r > maxResidual) maxResidual = r;
+    }
     let vx = velX[i]! + 0.5 * (oax + nax) * dt;
     let vy = velY[i]! + 0.5 * (oay + nay) * dt;
     const v2 = vx * vx + vy * vy;
@@ -86,6 +107,7 @@ export function integrate(
     if (state.prevDt < cfg.dt) state.prevDt = Math.min(cfg.dt, state.prevDt * 1.5);
   }
   state.prevEnergy = energy;
+  state.maxResidual = maxResidual;
 
   return energy;
 }

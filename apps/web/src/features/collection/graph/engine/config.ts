@@ -69,12 +69,15 @@ export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEng
     componentCenterStrength: (user.centralGravity / 100) * 0.02,
     componentSpacing: preset.componentSpacing ?? 800,
     // Energy-gated convergence: per-node alpha decays exponentially and the
-    // graph freezes when every node is quiet and still (see engine.ts). The
-    // 0.02 decay cools 4× faster than
-    // 0.005 — alpha reaches alphaMin in ~265 ticks instead of ~1050, so the
-    // layout unfolds but the wobble ends in seconds, not minutes.
-    alphaDecay: 0.02,
+    // graph freezes when every node is quiet, still, AND at force balance
+    // (see settleResidualEps + engine.ts _updateSettled). The 0.008 decay
+    // leaves force authority on the table ~2.5× longer than 0.02 did, so
+    // the configuration actually reaches quasi-equilibrium inside the
+    // budget instead of freezing mid-approach.
+    alphaDecay: 0.008,
     alphaMin: 0.005,
+    alphaCool: 0.2,
+    settleResidualEps: 0.1,
     // Mean per-tick displacement² under which the graph counts as still
     // (≈0.01 px/tick RMS — sub-pixel, and dt-aware via the integrator).
     settleEnergyEps: 1e-4,

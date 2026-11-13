@@ -8,6 +8,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { edgeMaskForZoom } from "../src/features/collection/graph/filter.js";
+
 vi.mock("pixi.js", () => {
   class MockPoint {
     x = 0;
@@ -351,8 +353,10 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
       { source: "a", target: "c", linkType: 0 },
       { source: "c", target: "d", linkType: 0 },
     ]);
-    // Constellation zoom (lod 0): no edges without hover.
+    // Constellation zoom (lod 0): no edges without hover. The mask mirrors
+    // GraphView's per-frame setEdgeMask(edgeMaskForZoom(zoom)).
     renderer.setCamera(50, 50, 0.1);
+    renderer.setEdgeMask(edgeMaskForZoom(0.1));
     renderer.render();
     expect(renderer.stats.edgeInstCount).toBe(0);
     expect(renderer.stats.arrowInstCount).toBe(0);
@@ -371,13 +375,14 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
 
     // Overview zoom (lod 1): the full topology draws, hover or not.
     renderer.setCamera(50, 50, 0.5);
+    renderer.setEdgeMask(edgeMaskForZoom(0.5));
     renderer.render();
     expect(renderer.stats.edgeInstCount).toBe(3);
     expect(renderer.stats.arrowInstCount).toBe(3);
     vi.restoreAllMocks();
   });
 
-  it("constellation LOD: a hovered edge draws alone", async () => {
+  it("constellation LOD: a hovered edge draws alone — regardless of its family's zoom tier", async () => {
     stubWebgl2();
     const canvas = document.createElement("canvas");
     canvas.width = 800;
@@ -389,19 +394,46 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
 
     renderer.setNodeVisuals(["a", "b", "c"], new Map());
     renderer.updatePositions(new Float32Array([0, 0, 100, 0, 0, 100]), ["a", "b", "c"]);
+    // linkType 2 = mention: the zoom mask hides the whole family below
+    // zoom 0.3 — the hovered edge must still draw (the hover evidence
+    // bypasses the LOD mask).
     renderer.setEdges([
-      { source: "a", target: "b", linkType: 0 },
-      { source: "b", target: "c", linkType: 0 },
+      { source: "a", target: "b", linkType: 2 },
+      { source: "b", target: "c", linkType: 2 },
     ]);
-    renderer.setCamera(50, 50, 0.1); // lod 0
+    renderer.setCamera(50, 50, 0.1); // lod 0, mention family masked
+    renderer.setEdgeMask(edgeMaskForZoom(0.1));
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(0);
+
     renderer.setHoveredEdge(1); // b→c
     renderer.render();
     expect(renderer.stats.edgeInstCount).toBe(1);
     expect(renderer.stats.arrowInstCount).toBe(1);
 
+    // Overview zoom (lod 1, 0.25–1.0): mention is IN the mask now — both
+    // edges and both arrowheads draw; a hover does not dim the hovered one.
+    renderer.setHoveredEdge(-1);
+    renderer.setCamera(50, 50, 0.5);
+    renderer.setEdgeMask(edgeMaskForZoom(0.5));
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(2);
+    expect(renderer.stats.arrowInstCount).toBe(2);
+
+    // A family outside the mask at this zoom (property = 3, masked below
+    // 0.6) still surfaces while hovered.
+    renderer.setEdges([
+      { source: "a", target: "b", linkType: 0 },
+      { source: "b", target: "c", linkType: 3 },
+    ]);
+    renderer.setHoveredEdge(1);
+    renderer.render();
+    expect(renderer.stats.edgeInstCount).toBe(2);
+    expect(renderer.stats.arrowInstCount).toBe(1); // property carries no head
+
     renderer.setHoveredEdge(-1);
     renderer.render();
-    expect(renderer.stats.edgeInstCount).toBe(0);
+    expect(renderer.stats.edgeInstCount).toBe(1); // only the parent edge stays
     vi.restoreAllMocks();
   });
 });

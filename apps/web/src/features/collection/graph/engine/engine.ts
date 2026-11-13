@@ -849,6 +849,7 @@ export class GraphEngine {
       this.velX, this.velY,
       this.axBuf, this.ayBuf,
       this.oldAx, this.oldAy,
+      this.alphaArr,
       this.massArr,
     );
     this.ticks++;
@@ -863,11 +864,19 @@ export class GraphEngine {
   }
 
   /**
-   * Settling gate: every active node quiet (alpha below alphaMin) AND the
-   * graph still (mean kinetic energy below the epsilon) for settleTicks
-   * consecutive ticks. On declare, velocities and the previous-tick
-   * accelerations are zeroed so a local reheat leaves distant nodes exactly
-   * in place — stillness is force-driven, the freeze just makes it exact.
+   * Settling gate: past the hot unfold (alpha below the cool threshold),
+   * graph still (mean kinetic energy below the epsilon), AND — the term
+   * that keeps a settle honest — the residual unscaled force below
+   * settleResidualEps. Without the residual term the gate freezes on
+   * schedule: alpha starves the forces to zero, velocities read "still"
+   * while the configuration sits far from balance, and the stored imbalance
+   * wakes with a vengeance the moment a drag reheats the neighborhood
+   * (measured: a "settled" 4-node star jumped ~62 units on a drag reheat;
+   * with the gate it moves ~1). The cool threshold sits well above alphaMin
+   * on purpose: a graph that reaches force balance early should freeze
+   * early, not wait out the whole cooling schedule. A starvation fallback
+   * settles a graph that could not balance inside the cooling budget
+   * (forces ≈ 0 leave nothing to wake).
    */
   private _updateSettled(): void {
     if (this.settled) return;
@@ -878,7 +887,11 @@ export class GraphEngine {
       const a = alphas[this.activeNodeIndices[k]!]!;
       if (a > maxAlpha) maxAlpha = a;
     }
-    if (maxAlpha < cfg.alphaMin && this.energy < cfg.settleEnergyEps) {
+    const cool = maxAlpha < cfg.alphaCool;
+    const quiet = this.energy < cfg.settleEnergyEps;
+    const balanced = this.integratorState.maxResidual < cfg.settleResidualEps;
+    const starved = maxAlpha < cfg.alphaMin * 0.05;
+    if ((cool && quiet && balanced) || (starved && quiet)) {
       if (++this.settleStreak >= cfg.settleTicks) {
         this.velX.fill(0, 0, this.n); this.velY.fill(0, 0, this.n);
         this.oldAx.fill(0, 0, this.n); this.oldAy.fill(0, 0, this.n);
@@ -922,6 +935,12 @@ export class GraphEngine {
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
+
+  /** The max unscaled residual force from the last tick (the settle gate's
+   *  equilibrium measure; 0 at a true freeze). */
+  get residual(): number {
+    return this.integratorState.maxResidual;
+  }
 
   getState(): GraphEngineState {
     return {

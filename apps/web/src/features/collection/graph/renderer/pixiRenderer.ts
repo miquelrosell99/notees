@@ -1173,13 +1173,20 @@ export class GraphPixiRenderer implements GraphRenderer {
     const minWorldWidth = 1.0 / zoom;
     const groups = new Map<string, EdgeStyleGroup>();
     let drawn = 0;
+    // Hover evidence bypasses the zoom-family mask: at constellation zoom the
+    // mask hides every family but parent/class, yet a hovered edge (or a
+    // hovered node's incident edges) is exactly the moment the owner asked
+    // about that link — the LOD restriction applies to ambient drawing, not
+    // to the hover answer.
+    const allow = this.lod0HoverAllowSet();
 
     for (let k = 0; k < edgeIndices.length; k++) {
       const ei = edgeIndices[k]!;
       if (skip?.has(ei)) continue;
       const e = this.edges[ei]!;
       const linkType = e.linkType ?? 0;
-      if (!linkTypeVisible(linkType, this.edgeMask)) continue;
+      const isHoveredEdge = ei === this.hoveredEdgeIndex;
+      if (!linkTypeVisible(linkType, this.edgeMask) && !isHoveredEdge && !(allow !== null && allow.has(ei))) continue;
       if (!timeLapseVisible(e.createdAt ?? NO_TIME, this.timeLapse, this.timeCutoff)) continue;
       const si = this.nodeIndex.get(e.source);
       const ti = this.nodeIndex.get(e.target);
@@ -1199,7 +1206,9 @@ export class GraphPixiRenderer implements GraphRenderer {
       const dimMult = edgeHighlighted ? 1.0 : DIM_ALPHA;
       // Taper collapses to the average width (1.4×/0.6× average = 1.0×).
       const width = Math.max(e.width ?? this.opts.edgeWidth, minWorldWidth);
-      const alpha = srcColor[3] * dimMult * this.hoverEdgeAlpha;
+      // The hovered edge keeps full alpha; the 0.35 factor is the rest of the
+      // layer's subdued register while an edge hover is up.
+      const alpha = srcColor[3] * dimMult * (isHoveredEdge ? 1.0 : this.hoverEdgeAlpha);
 
       const dashed = e.dashed === true;
       const len = Math.hypot(x2 - x1, y2 - y1);
@@ -1318,8 +1327,17 @@ export class GraphPixiRenderer implements GraphRenderer {
     }
 
     let drawn = 0;
+    // Same mask discipline as the strokes: the zoom-family mask applies to
+    // ambient drawing, hover evidence bypasses it (and the pre-fix path drew
+    // arrowheads for mask-hidden families — floating heads with no line).
+    const allow = this.lod0HoverAllowSet();
     for (const { edge, i1, i2 } of items) {
       const e = this.edges[edge]!;
+      if (
+        !linkTypeVisible(e.linkType ?? 0, this.edgeMask) &&
+        edge !== this.hoveredEdgeIndex &&
+        !(allow !== null && allow.has(edge))
+      ) continue;
       if (!timeLapseVisible(e.createdAt ?? NO_TIME, this.timeLapse, this.timeCutoff)) continue;
       const x1 = pos[i1 * 2]!;
       const y1 = pos[i1 * 2 + 1]!;

@@ -139,6 +139,14 @@ interface GraphPrefs {
   linkCountAttraction: boolean;
   /** Center gravity pulls components toward the middle (v1 toggle). */
   centralGravityOn: boolean;
+  /**
+   * Written on every prefs save since the gravity default flipped to off
+   * (2026-11-13). A stored bag WITHOUT the marker predates the flip, so its
+   * `centralGravityOn: true` records the old default, not an owner choice —
+   * loadPrefs retires it once. Flipping the toggle on writes the marker with
+   * it, so a genuine choice survives.
+   */
+  gravityDefaultMigrated: boolean;
   /** Mass accumulation: heavy parents resist movement (v1 toggle). */
   massAccumulation: boolean;
   /** Uniform-mode node radius (the v1 slider, 3–20). */
@@ -180,7 +188,13 @@ function defaultPrefs(): GraphPrefs {
   return {
     ...DEFAULT_GRAPH_SETTINGS,
     linkCountAttraction: false,
-    centralGravityOn: true,
+    // Gravity defaults OFF: an unbounded central spring pulls every free
+    // component toward the origin forever, so the graph either piles at the
+    // center or (with the force-balance settle gate) never quite settles.
+    // The deterministic seed already places the map; gravity is an opt-in
+    // gatherer for strays.
+    centralGravityOn: false,
+    gravityDefaultMigrated: true,
     massAccumulation: true,
     baseNodeRadius: 8,
     nodeSize: "uniform",
@@ -207,13 +221,21 @@ function loadPrefs(surface: string): GraphPrefs {
   const stored = readDeviceSetting<Partial<GraphPrefs> | null>(PREFS_KEY(surface), null);
   const base = defaultPrefs();
   if (stored === null) return base;
-  return {
+  const prefs: GraphPrefs = {
     ...base,
     ...stored,
     families: { ...base.families, ...(stored.families ?? {}) },
     colorGroups: Array.isArray(stored.colorGroups) ? stored.colorGroups : [],
     classColors: Array.isArray(stored.classColors) ? stored.classColors : [],
   };
+  // One-time gravity-default flip: bags saved before the marker existed
+  // carry centralGravityOn: true because it WAS the default — retire that
+  // once. A post-flip save always carries the marker.
+  if (stored.gravityDefaultMigrated !== true && prefs.centralGravityOn === true) {
+    prefs.centralGravityOn = false;
+  }
+  prefs.gravityDefaultMigrated = true;
+  return prefs;
 }
 
 function hexToRgba(hex: string, alpha = 1): [number, number, number, number] | undefined {
@@ -1577,7 +1599,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           <BooleanToggle
             size="sm"
             label="Central gravity"
-            description="Pull components toward the middle"
+            description="Gather strays toward the middle (off by default — it fights the layout's own spacing)"
             labelPosition="left"
             checked={prefs.centralGravityOn}
             onChange={(checked) => patch({ centralGravityOn: checked })}

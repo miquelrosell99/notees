@@ -27,8 +27,11 @@ export class CenterGravityForce implements ForcePlugin {
     // thousand units (0.006 · 30k ≈ 180 vs spring forces of ~5), and the
     // whole map collapses ballistically into the center. The cap keeps
     // gravity the gentle gatherer it is meant to be: strong enough to reel
-    // in strays over a long settle, never the dominant term of the balance.
-    const maxAccel = 3;
+    // in strays, never the dominant term of the balance. Calibrated so an
+    // orphan band's gravity equilibrium sits near its seeded spacing
+    // (repulsion ≈ 1 at ~20 units apart) — the band reaches balance inside
+    // the cooling budget instead of contracting for thousands of ticks.
+    const maxAccel = 1;
 
     const posX = e.posX, posY = e.posY;
     const ax = e.axBuf, ay = e.ayBuf;
