@@ -356,6 +356,43 @@ describe("date pages", () => {
     expect(updateSpy).not.toHaveBeenCalled();
   });
 
+  it("renders month/year pages with the formatted static title — never the raw compact label", async () => {
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
+    const client = await seedClient();
+    // Real chain pages: the deterministic date ids are the identity (month
+    // `…00aa-YYYYMM000000`, year `…00bb-YYYY00000000`).
+    const monthId = await client.createObject({
+      id: "00000000-0000-0000-00aa-201809000000",
+      isEmbedded: false,
+      classIds: [SYSTEM_CLASS_UUIDS.month],
+      contentAst: [{ type: "text", text: "20180900" }],
+    });
+    const yearId = await client.createObject({
+      id: "00000000-0000-0000-00bb-201800000000",
+      isEmbedded: false,
+      classIds: [SYSTEM_CLASS_UUIDS.year],
+      contentAst: [{ type: "text", text: "20180000" }],
+    });
+    const updateSpy = vi.spyOn(client, "updateObject");
+
+    const month = render(<PageView client={client} pageId={monthId} />);
+    expect(month.container.querySelector(".nt-block--title")).toBeNull();
+    const monthHeading = month.container.querySelector("h1")!;
+    expect(monthHeading.textContent).toBe("2018/09");
+    expect(monthHeading.textContent).not.toContain("20180900");
+    expect(monthHeading.getAttribute("contenteditable")).toBeNull();
+    month.unmount();
+
+    const year = render(<PageView client={client} pageId={yearId} />);
+    expect(year.container.querySelector(".nt-block--title")).toBeNull();
+    expect(year.container.querySelector("h1")!.textContent).toBe("2018");
+    year.unmount();
+
+    // The static header never renames the date page.
+    await flushWrites();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
   it("an ordinary page whose title merely parses as a compact date stays an editable title row", async () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY-MM-DD"));
     const client = await seedClient();

@@ -192,7 +192,9 @@ export function NodeTopbar({
 /**
  * PageHeaderChrome — the .page-header-section: the header proper
  * beside the cover card aside. Day pages render the DayPageHeader as the
- * whole title row (driven by the variant's `dayIso`); every other page
+ * whole title row (driven by the variant's `dayIso`); month/year date pages
+ * render the static formatted period title (the stored compact label is
+ * canonical, never display); every other page
  * renders the shared title BlockRow (the shared row machinery over the page
  * node itself — an embedded render gets a plain heading title plus an
  * explicit "Open page" button instead), and the tags row. Right-click on the icon or the title reports
@@ -222,6 +224,7 @@ export function PageHeaderChrome({
   focusMode,
   preview = false,
   dayIso,
+  periodPrecision,
   headerIcon,
   bannerPossible,
   bannerAssetId,
@@ -244,6 +247,8 @@ export function PageHeaderChrome({
   preview?: boolean;
   /** Day precision of the page's id, null for every non-date page. */
   dayIso: string | null;
+  /** Month/year precision of a date-period page's id, null otherwise. */
+  periodPrecision: "month" | "year" | null;
   /** The DEFINED icon (own or a class-contributed one) — null hides the
    * icon element entirely (no generic-default fallback, no placeholder). */
   headerIcon: string | null;
@@ -473,6 +478,12 @@ export function PageHeaderChrome({
                   }}
                 />
               </span>
+            ) : periodPrecision !== null ? (
+              /* Month/year date pages: the stored compact label (20180900) is
+                 canonical for sorting and date lookups, never display — the
+                 header is the static formatted title (the day pages' date
+                 header contract), not an editable title row. */
+              <h1 className="nt-page-title">{titleOfNode(page, { template: "off" })}</h1>
             ) : (
               /* The title is a bullet-less BlockRow over the page node itself
                  (no children — the body tree stays the separate collection

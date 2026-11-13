@@ -111,6 +111,8 @@ export interface PageVariant {
   dayIso?: string | undefined;
   /** date-period: the Created-section bounds (month/year pages). */
   createdPeriod?: { after: string; before: string } | undefined;
+  /** date-period: which period the page covers — drives the static period header. */
+  periodPrecision?: "month" | "year" | undefined;
   /** class: the corner's extends-pills relation configuration. */
   cornerPills?: CornerPillsConfig | undefined;
   /** Sections between the body and the date/system sections (class: classed nodes). */
@@ -273,6 +275,7 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
   if (parsed !== null) {
     return {
       variant: "date-period",
+      periodPrecision: parsed.precision === "year" ? "year" : "month",
       createdPeriod: createdPeriodBounds({
         year: parsed.year,
         month: parsed.month,

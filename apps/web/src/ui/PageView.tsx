@@ -410,6 +410,8 @@ export function PageView({
    * them (a trampoline card carries no aggregations).
    */
   const dayIso = variant.dayIso ?? null;
+  /** Month/year period precision (null on day pages and non-date nodes). */
+  const periodPrecision = variant.periodPrecision ?? null;
   /** Month/year Created bounds (null on day pages and non-date nodes). */
   const createdPeriod = variant.createdPeriod ?? null;
 
@@ -765,6 +767,7 @@ export function PageView({
       focusMode={focusMode}
       preview={preview}
       dayIso={dayIso}
+      periodPrecision={periodPrecision}
       headerIcon={headerIcon}
       bannerPossible={bannerPossible}
       bannerAssetId={bannerAssetId}
