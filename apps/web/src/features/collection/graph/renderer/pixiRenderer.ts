@@ -52,6 +52,7 @@
 
 import { Application, Container, Culler, Graphics, Sprite, type Texture } from "pixi.js";
 
+import { clampZoom } from "../cameraMath.js";
 import { MIN_NODE_SCREEN_RADIUS_PX } from "./graphConstants.js";
 import type { GraphRenderer } from "./graphRenderer.js";
 import { lodLevelForZoom } from "./graphRenderer.js";
@@ -712,7 +713,7 @@ export class GraphPixiRenderer implements GraphRenderer {
     if (worldW > 0 && worldH > 0) {
       zoom = Math.min(availW / worldW, availH / worldH);
     }
-    zoom = Math.max(0.02, Math.min(zoom, 40));
+    zoom = clampZoom(zoom);
 
     this.camera = { x: cx, y: cy, zoom };
     return { ...this.camera };

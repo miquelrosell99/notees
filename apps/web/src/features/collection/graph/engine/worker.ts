@@ -254,7 +254,7 @@ self.onmessage = (e: MessageEvent) => {
     }
     case 'setTopology': {
       if (!engine) break;
-      engine.setTopology(msg.nodes, msg.edges);
+      engine.setTopology(msg.nodes, msg.edges, { reheat: msg.reheat !== false });
       nodeIds = msg.nodes.map((n: GraphEngineNode) => n.nodeUuid);
       ensureSABs(nodeIds.length);
       ensureFallbackBuffers(nodeIds.length);

@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { edgeMaskForZoom } from "../src/features/collection/graph/filter.js";
+import { GRAPH_ZOOM_MIN } from "../src/features/collection/graph/cameraMath.js";
 
 vi.mock("pixi.js", () => {
   class MockPoint {
@@ -227,6 +228,17 @@ describe("camera math + picking without a GPU", () => {
     // world 100+2×16 padded into 680×480 → zoom ≈ 4.8, inside the clamp.
     expect(cam.zoom).toBeGreaterThan(0.02);
     expect(cam.zoom).toBeLessThanOrEqual(40);
+  });
+
+  it("fitToCanvas frames a huge map below the old 0.02 floor (the zoom-out fix)", () => {
+    const r = mathRenderer();
+    r.setNodeVisuals(["a", "b"], new Map());
+    // A ~1M-unit-wide map (the orphan-heavy workspace at full spread): the
+    // fit zoom lands ~7e-4 — the clamp floor must let it, or the opening
+    // view can never frame the whole graph.
+    r.updatePositions(new Float32Array([0, 0, 1_000_000, 0]), ["a", "b"]);
+    const cam = r.fitToCanvas(60);
+    expect(cam.zoom).toBeCloseTo(GRAPH_ZOOM_MIN, 6);
   });
 
   it("pickNode / pickEdge scan the latest positions", () => {

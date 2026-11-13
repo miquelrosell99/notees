@@ -562,7 +562,7 @@ export class GraphEngine {
 
   // ─── Topology ───────────────────────────────────────────────────────────────
 
-  setTopology(nodes: GraphEngineNode[], edges: GraphEngineEdge[]): void {
+  setTopology(nodes: GraphEngineNode[], edges: GraphEngineEdge[], opts?: { reheat?: boolean }): void {
     const N = nodes.length;
     this.ensureCap(N);
     this.n = N;
@@ -644,8 +644,11 @@ export class GraphEngine {
     // Re-initialize forces with new topology
     for (const f of this.forces) f.initialize(this);
 
-    // A topology change re-animates the whole graph from full activity.
-    this.reheat();
+    // A topology change re-animates the whole graph from full activity —
+    // unless the caller asks for quiet (display filtering that only REMOVES
+    // edges: the surviving layout is preserved and already at rest, so no
+    // reheat is wanted or needed).
+    if (opts?.reheat !== false) this.reheat();
   }
 
   private _rebuildEdgeArrays(): void {

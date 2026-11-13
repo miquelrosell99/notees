@@ -15,8 +15,11 @@ export interface GraphCamera {
   zoom: number;
 }
 
-/** The v1 clamp range — one home so every surface agrees. */
-export const GRAPH_ZOOM_MIN = 0.02;
+/** The v1 clamp range — one home so every surface agrees. The floor is low
+ * enough that a wide orphan-heavy map (a hundred thousand world units
+ * across) still zooms out to fit: at 0.002 a 1400px canvas shows 700k
+ * units. */
+export const GRAPH_ZOOM_MIN = 0.002;
 export const GRAPH_ZOOM_MAX = 40;
 /** The v1 wheel/button zoom factor. */
 export const GRAPH_ZOOM_FACTOR = 1.12;

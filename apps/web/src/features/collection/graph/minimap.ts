@@ -74,9 +74,11 @@ export const GraphMinimap = {
     // Viewport rectangle — the main canvas shows viewWidthPx / zoom world
     // units across; both the dots and the rect ride the same linear map.
     // A faint accent wash inside makes the viewed region read at a glance
-    // (the minimap was an unreadable black blob).
-    const viewW = viewWidthPx / Math.max(0.05, camera.zoom);
-    const viewH = viewHeightPx / Math.max(0.05, camera.zoom);
+    // (the minimap was an unreadable black blob). The zoom divides directly:
+    // flooring it (the old 0.05 clamp) drew a rect several times smaller
+    // than the true viewport whenever the camera zoomed out past the floor.
+    const viewW = viewWidthPx / camera.zoom;
+    const viewH = viewHeightPx / camera.zoom;
     const rectX = toMiniX(camera.x - viewW / 2);
     const rectY = toMiniY(camera.y - viewH / 2);
     const rectW = viewW * scale;

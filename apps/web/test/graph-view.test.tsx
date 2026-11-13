@@ -44,7 +44,10 @@ const ACTOR = "0192a000-0000-7000-8000-000000000002";
 /** The renderer stubs' instances for the camera-fit spec (hoisted so the
  *  vi.doMock factory can close over them). */
 const glStub = vi.hoisted(() => ({
-  instances: [] as Array<{ cameras: Array<{ x: number; y: number; zoom: number }> }>,
+  instances: [] as Array<{
+    cameras: Array<{ x: number; y: number; zoom: number }>;
+    edgesCalls: number;
+  }>,
 }));
 
 const clients: WorkspaceClient[] = [];
@@ -616,6 +619,7 @@ describe("GraphView component", () => {
     vi.doMock("../src/features/collection/graph/renderer/pixiRenderer.js", () => ({
       GraphPixiRenderer: class StubRenderer {
         cameras: Array<{ x: number; y: number; zoom: number }> = [];
+        edgesCalls = 0;
         constructor() {
           glStub.instances.push(this);
         }
@@ -624,7 +628,9 @@ describe("GraphView component", () => {
         resize(): void {}
         setNodeVisuals(): void {}
         setNodeTimes(): void {}
-        setEdges(): void {}
+        setEdges(): void {
+          this.edgesCalls++;
+        }
         setTimeLapse(): void {}
         setSelectedNodes(): void {}
         setHoveredNode(): void {}
@@ -673,6 +679,104 @@ describe("GraphView component", () => {
       glStub.instances.length = 0;
       // Per-file test isolation contains the doMock registry; resetModules
       // keeps the module registry clean for anything imported afterwards.
+      vi.resetModules();
+    }
+  });
+
+  it("a link-family toggle updates the live stack — no renderer/engine rebuild, no blank", async () => {
+    window.localStorage.clear();
+    const client = await seedClient();
+    const pageA = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Alpha" }] });
+    const pageB = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Beta" }] });
+    await client.createObject({
+      parentId: pageA,
+      contentAst: [{ type: "mention", targetNodeId: pageB }],
+    });
+    // An orphan (no links) — hiding orphans later drops it from the node set.
+    await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Lonely" }] });
+    vi.resetModules();
+    // The same stub as the camera test — instance count is the assertion
+    // signal: a rebuild constructs a NEW renderer, the incremental path
+    // reuses the live one.
+    vi.doMock("../src/features/collection/graph/renderer/pixiRenderer.js", () => ({
+      GraphPixiRenderer: class StubRenderer {
+        cameras: Array<{ x: number; y: number; zoom: number }> = [];
+        edgesCalls = 0;
+        constructor() {
+          glStub.instances.push(this);
+        }
+        init(): void {}
+        destroy(): void {
+          (this as unknown as { destroyed: boolean }).destroyed = true;
+        }
+        resize(): void {}
+        setNodeVisuals(): void {}
+        setNodeTimes(): void {}
+        setEdges(): void {
+          this.edgesCalls++;
+        }
+        setTimeLapse(): void {}
+        setSelectedNodes(): void {}
+        setHoveredNode(): void {}
+        setHoveredEdge(): void {}
+        setHoverNeighborhood(): void {}
+        setEdgeMask(): void {}
+        setCamera(): void {}
+        updatePositions(): void {}
+        overridePosition(): void {}
+        render(): void {}
+        fitToCanvas(): { x: number; y: number; zoom: number } {
+          return { x: 0, y: 0, zoom: 0.42 };
+        }
+        worldToScreen(wx: number, wy: number): { x: number; y: number } {
+          return { x: wx, y: wy };
+        }
+        screenToWorld(px: number, py: number): { x: number; y: number } {
+          return { x: px, y: py };
+        }
+        pickNode(): string | null {
+          return null;
+        }
+        pickEdge(): number {
+          return -1;
+        }
+        get nodePositions(): Float32Array {
+          return new Float32Array(0);
+        }
+        get nodeOrder(): string[] {
+          return [];
+        }
+      },
+    }));
+    try {
+      const { GraphView: GraphViewWithStub } = await import("../src/features/collection/graph/GraphView.js");
+      render(<GraphViewWithStub client={client} />);
+      // The stack builds once the topology lands.
+      await vi.waitFor(() => expect(glStub.instances).toHaveLength(1));
+      expect(screen.getByText(/3 nodes · .* edges/)).toBeTruthy();
+
+      // Toggle a link family off — an edge-only display change. The live
+      // renderer must survive (the incremental path pushes the new edges),
+      // the counts update, and no loading overlay may appear.
+      fireEvent.click(screen.getByRole("button", { name: "Visibility" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Mentions" }));
+      await vi.waitFor(() => expect(screen.getByText(/3 nodes · 0 edges/)).toBeTruthy());
+      expect(glStub.instances).toHaveLength(1);
+      const live = glStub.instances[0]! as unknown as { edgesCalls: number };
+      expect(live.edgesCalls).toBeGreaterThan(0);
+      expect(screen.queryByText("Warming up the layout…")).toBeNull();
+
+      // A node-set change (hiding orphans while the linked pages stay linked)
+      // still owns the full rebuild. Mentions goes back on first so the two
+      // linked pages are not orphans themselves — otherwise the display
+      // empties out and the honest empty state replaces the canvas instead.
+      fireEvent.click(screen.getByRole("button", { name: "Mentions" }));
+      await vi.waitFor(() => expect(screen.getByText(/3 nodes · 1 edges/)).toBeTruthy());
+      expect(glStub.instances).toHaveLength(1);
+      fireEvent.click(screen.getByRole("switch", { name: "Orphans" }));
+      await vi.waitFor(() => expect(glStub.instances).toHaveLength(2));
+    } finally {
+      glStub.instances.length = 0;
       vi.resetModules();
     }
   });

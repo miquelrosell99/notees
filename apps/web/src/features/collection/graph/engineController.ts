@@ -115,9 +115,9 @@ export class EngineController {
     }
   }
 
-  setTopology(nodes: GraphEngineNode[], edges: GraphEngineEdge[]): void {
-    if (this.mainThread !== null) this.mainThread.setTopology(nodes, edges);
-    else this.send({ type: "setTopology", nodes, edges });
+  setTopology(nodes: GraphEngineNode[], edges: GraphEngineEdge[], opts?: { reheat?: boolean }): void {
+    if (this.mainThread !== null) this.mainThread.setTopology(nodes, edges, opts);
+    else this.send({ type: "setTopology", nodes, edges, ...(opts?.reheat !== undefined ? { reheat: opts.reheat } : {}) });
   }
 
   setConfig(physics: GraphEnginePhysicsConfig): void {

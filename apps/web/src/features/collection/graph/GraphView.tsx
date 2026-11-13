@@ -697,8 +697,29 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   // after mount (the color-group queries), and the visuals effect above
   // already re-applies colors live — a lifecycle rebuild mid-load wiped the
   // canvas ("blank until all nodes get loaded").
+  /**
+   * The GL-stack ownership signature: workspace + layout mode + the node-id
+   * set. Edge-only display changes (link-family toggles, the semantic
+   * sliders) leave it unchanged — the lifecycle effect stays put and the
+   * incremental effect below pushes the new edges into the LIVE engine and
+   * renderer. No teardown, no fresh worker, no warm-up, no blank.
+   */
+  const nodeSetSig = useMemo(
+    () =>
+      display === null
+        ? null
+        : `${client.getWorkspaceId()}|${prefs.layoutMode}|${display.nodes.map((n) => n.id).join(",")}`,
+    [display, client, prefs.layoutMode],
+  );
+  /** The signature the live renderer+engine stack was built for. */
+  const glStackSigRef = useRef<string | null>(null);
+  /** Set by the lifecycle rebuild; the incremental effect skips that pass. */
+  const glJustRebuiltRef = useRef(false);
+  /** Edge count behind the live engine — drives the quiet/reheat choice. */
+  const edgeCountRef = useRef(0);
+
   useEffect(() => {
-    if (display === null) return;
+    if (display === null || nodeSetSig === null) return;
     const canvas = canvasRef.current;
     const labelCanvas = labelCanvasRef.current;
     const container = containerRef.current;
@@ -872,6 +893,13 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       cameraRef.current = fit;
     }
 
+    // Mark the stack's ownership: the next effect pass with the SAME
+    // signature (edge-only display change) rides the incremental updater;
+    // a different signature tears this down via the cleanup as before.
+    glStackSigRef.current = nodeSetSig;
+    glJustRebuiltRef.current = true;
+    edgeCountRef.current = engineEdges.length;
+
     const resizeObserver = new ResizeObserver(() => {
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.floor(container.clientWidth * dpr));
@@ -1010,9 +1038,92 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       engineRef.current = null;
       renderer.destroy();
       rendererRef.current = null;
+      glStackSigRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [display, client]);
+  }, [nodeSetSig, client]);
+
+  // ── Display-only updates (the incremental path — no rebuild) ────────────────
+  // Edge-shaping changes — link-family toggles, the semantic-detail sliders —
+  // leave the node set and the layout mode untouched, so the lifecycle effect
+  // above does not re-run (its dep is the node-set signature) and this effect
+  // pushes the new edges into the LIVE engine and renderer instead. The old
+  // behavior rebuilt everything for a family toggle: renderer teardown +
+  // fresh WebGL context, ~10k sprites and ~8k stroked edges re-created on the
+  // main thread, and a brand-new worker re-running Louvain + the warm-up —
+  // a blank stage and a frozen UI for seconds, all to hide some lines. The
+  // engine preserves surviving node positions; a reheat only rides along
+  // when edges were ADDED (removed edges only relax tension — the resting
+  // layout stays honest without re-animating).
+  useEffect(() => {
+    if (display === null || nodeSetSig === null || rendererRef.current === null) return;
+    if (glJustRebuiltRef.current) {
+      // The lifecycle effect just (re)built the stack for this display —
+      // it already applied everything; nothing incremental to do.
+      glJustRebuiltRef.current = false;
+      return;
+    }
+    if (glStackSigRef.current !== nodeSetSig) return; // node-set change: the lifecycle effect owns it
+
+    const theme = graphTheme();
+    const edgeCreatedSec = (edge: GraphEdge): number | undefined => {
+      const endpoints = Math.max(
+        nodeTimesSecRef.current.get(edge.source) ?? -Infinity,
+        nodeTimesSecRef.current.get(edge.target) ?? -Infinity,
+      );
+      if (edge.createdAt !== null) {
+        const own = Date.parse(edge.createdAt) / 1000;
+        if (Number.isFinite(own)) return Math.max(own, endpoints);
+      }
+      return endpoints === -Infinity ? undefined : endpoints;
+    };
+    const renderEdges: RendererEdge[] = display.edges.map((edge) => {
+      const createdAt = edgeCreatedSec(edge);
+      return {
+        source: edge.source,
+        target: edge.target,
+        linkType: LINK_TYPE_IDS[edge.kind],
+        // exactOptionalPropertyTypes: omit the key entirely when un-stamped.
+        ...(createdAt !== undefined ? { createdAt } : {}),
+        ...(edge.kind === "semantic" || edge.kind === "temporal"
+          ? { width: 0.7 + Math.min(2.1, edge.weight * 0.3) }
+          : {}),
+        color:
+          edge.kind === "semantic" || edge.kind === "temporal"
+            ? ([...theme.semanticEdge, 0.55] as [number, number, number, number])
+            : ([...theme.edgeDefault, 0.5] as [number, number, number, number]),
+      };
+    });
+    edgesStampsOnRef.current = renderEdges;
+    edgesStampsOffRef.current = renderEdges.map(({ createdAt: _stamp, ...rest }) => rest);
+    rendererRef.current.setEdges(
+      timeLapseEdgesRef.current ? edgesStampsOnRef.current : edgesStampsOffRef.current,
+    );
+    if (timeLapseRef.current.enabled) {
+      rendererRef.current.setTimeLapse(true, timeLapseRef.current.cutoffSec);
+    }
+
+    const engine = engineRef.current;
+    if (engine !== null) {
+      const engineNodes = display.nodes.map((node) => ({
+        nodeUuid: node.id,
+        // connectionCount is optional and unread by the engine; mass and the
+        // pinned flag are the live inputs (force mode pins nothing here).
+        mass: node.mass,
+        pinned: false,
+      }));
+      const engineEdges = display.edges.map((edge) => ({
+        source: edge.source,
+        target: edge.target,
+        type: edge.kind,
+        weight: edge.weight,
+      }));
+      engine.setTopology(engineNodes, engineEdges, {
+        reheat: engineEdges.length >= edgeCountRef.current,
+      });
+      edgeCountRef.current = engineEdges.length;
+    }
+  }, [display, nodeSetSig]);
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const toggleSelected = (id: string): void =>
