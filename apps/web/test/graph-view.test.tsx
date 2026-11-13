@@ -146,6 +146,11 @@ describe("graph display shaping", () => {
     expect(noSemantic.edges.every((e) => e.kind !== "semantic")).toBe(true);
   });
 
+  it("semantic links default off — the ambient web is opt-in", () => {
+    expect(DEFAULT_GRAPH_SETTINGS.families.semantic).toBe(false);
+    expect(DEFAULT_GRAPH_SETTINGS.families.temporal).toBe(true);
+  });
+
   it("every family renders at every zoom — the chips own ambient visibility", () => {
     // Owner ruling: edges are visible at far-zoom levels; edgeMaskForZoom
     // keeps its mask shape (one home for future density tuning) but admits
@@ -368,9 +373,10 @@ describe("GraphView component", () => {
 
   it("the gravity-default flip migrates old prefs bags once; a genuine re-enable survives", async () => {
     window.localStorage.clear();
-    // Old-shape bag: written when centralGravityOn defaulted to true, no
-    // migration marker. The owner never chose gravity — it was the default.
-    // Orphans off keeps the node out of the canvas (jsdom has no GPU).
+    // Old-shape bag: written when centralGravityOn defaulted to true and
+    // semantic to on, no migration markers. The owner never chose either —
+    // they were the defaults. Orphans off keeps the node out of the canvas
+    // (jsdom has no GPU).
     window.localStorage.setItem(
       "notees.settings.graphPrefs.full",
       JSON.stringify({ centralGravityOn: true, showOrphans: false }),
@@ -387,6 +393,15 @@ describe("GraphView component", () => {
       // enable (owner choice) must survive the next load.
       fireEvent.click(gravity);
       expect(gravity.getAttribute("aria-checked")).toBe("true");
+
+      // The semantic-default flip rides the same one-time pattern: the chip
+      // rests off on a pre-marker bag (the old default), and an explicit
+      // enable is a genuine choice that persists.
+      fireEvent.click(screen.getByRole("button", { name: "Visibility" }));
+      const semantic = await screen.findByRole("button", { name: "Semantic" });
+      expect(semantic.getAttribute("aria-pressed")).toBe("false");
+      fireEvent.click(semantic);
+      expect(semantic.getAttribute("aria-pressed")).toBe("true");
     } finally {
       window.localStorage.clear();
     }

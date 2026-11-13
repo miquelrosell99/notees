@@ -97,7 +97,9 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
     tag: true,
     parent: true,
     class: true,
-    semantic: true,
+    // Semantic (co-occurrence) links default OFF — the ambient web is noise
+    // for most workspaces; the chip reveals them deliberately.
+    semantic: false,
     temporal: true,
   },
   semanticTopK: 6,

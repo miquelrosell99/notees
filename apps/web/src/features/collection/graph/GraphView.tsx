@@ -150,6 +150,12 @@ interface GraphPrefs {
    * it, so a genuine choice survives.
    */
   gravityDefaultMigrated: boolean;
+  /**
+   * Same one-time pattern for the semantic-links default flip (2026-11-13):
+   * a stored bag without the marker carries `families.semantic: true` from
+   * the old default, not an owner choice.
+   */
+  semanticDefaultMigrated: boolean;
   /** Mass accumulation: heavy parents resist movement (v1 toggle). */
   massAccumulation: boolean;
   /** Uniform-mode node radius (the v1 slider, 3–20). */
@@ -204,6 +210,7 @@ function defaultPrefs(): GraphPrefs {
     // gatherer for strays.
     centralGravityOn: false,
     gravityDefaultMigrated: true,
+    semanticDefaultMigrated: true,
     massAccumulation: true,
     baseNodeRadius: 8,
     nodeSize: "uniform",
@@ -244,6 +251,12 @@ function loadPrefs(surface: string): GraphPrefs {
     prefs.centralGravityOn = false;
   }
   prefs.gravityDefaultMigrated = true;
+  // Same pattern for the semantic-default flip: a pre-marker bag carries
+  // families.semantic: true from the old default, not an owner choice.
+  if (stored.semanticDefaultMigrated !== true && prefs.families.semantic === true) {
+    prefs.families = { ...prefs.families, semantic: false };
+  }
+  prefs.semanticDefaultMigrated = true;
   return prefs;
 }
 
