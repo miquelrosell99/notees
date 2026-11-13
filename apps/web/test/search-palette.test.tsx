@@ -261,30 +261,41 @@ describe("CommandPalette sections", () => {
     expect(screen.queryByText('Create year "2026"')).toBeNull();
   });
 
-  it("typed creation: with no exact title match the create row tops the list, above every hit", async () => {
+  it("typed creation: with no title match the create row tops the list, above the approximate hits", async () => {
     const { client } = await seedPaletteWorld();
     renderPalette(client);
-    typeInPalette("tulip");
-    await screen.findByText('Create page "tulip"');
+    // "catlog" matches "Tulip Catalog" only fuzzily (a subsequence) — no
+    // title starts with it, so the create row hoists above the hit.
+    typeInPalette("catlog");
+    await screen.findByText('Create page "catlog"');
     const rows = [...document.querySelectorAll(".nt-palette-item")];
-    expect(rows[0]?.textContent).toContain('Create page "tulip"');
+    expect(rows[0]?.textContent).toContain('Create page "catlog"');
+    expect(rows[1]?.textContent).toContain("Tulip Catalog");
   });
 
-  it("typed creation: the create row rides right after an exact title match, above the approximate hits", async () => {
+  it("typed creation: the create row rides right after the title matches, above the approximate hits", async () => {
     const { client } = await seedPaletteWorld();
     await client.createObject({ isEmbedded: false, name: "Tulip" });
     renderPalette(client);
     typeInPalette("tulip");
     await screen.findByText('Create page "tulip"');
+    // Content is debounced — wait for the block row before reading order.
+    await screen.findByText("tulip bulbs go in the border");
     const rows = [...document.querySelectorAll(".nt-palette-item")];
     const exactIdx = rows.findIndex((el) => el.textContent === "Tulip");
+    const prefixIdx = rows.findIndex((el) => el.textContent === "Tulip Catalog");
     const createIdx = rows.findIndex((el) =>
       (el.textContent ?? "").includes('Create page "tulip"'),
     );
-    const approxIdx = rows.findIndex((el) => (el.textContent ?? "").includes("Tulip Catalog"));
+    // The Content block row ("tulip bulbs go in the border") is labeled by
+    // block text, not a title — it never anchors the create row.
+    const contentIdx = rows.findIndex((el) =>
+      (el.textContent ?? "").includes("tulip bulbs go in the border"),
+    );
     expect(exactIdx).toBeGreaterThanOrEqual(0);
-    expect(createIdx).toBe(exactIdx + 1);
-    expect(approxIdx).toBeGreaterThan(createIdx);
+    expect(prefixIdx).toBe(exactIdx + 1);
+    expect(createIdx).toBe(prefixIdx + 1);
+    expect(contentIdx).toBeGreaterThan(createIdx);
   });
 
   it("a shell re-render with fresh callback identities does not wipe the typed query", async () => {

@@ -23,3 +23,21 @@ export function foldedTextOf(raw: string): string {
 export function foldedIncludes(foldedQuery: string, text: string): boolean {
   return foldedTextOf(text).includes(foldedQuery);
 }
+
+/**
+ * True when `text` starts with the folded query or carries it at a word
+ * boundary ("gmi" matches "GMI Dental"; "dental" matches "GMI Dental") —
+ * the "partial exact" tier: the typed text IS the beginning of something
+ * that exists, so a create row anchors below it rather than hoisting
+ * above it.
+ */
+export function foldedStartsWithOrBoundary(foldedQuery: string, text: string): boolean {
+  if (foldedQuery === "") return false;
+  const folded = foldedTextOf(text);
+  if (folded.startsWith(foldedQuery)) return true;
+  const boundary = new RegExp(
+    `(^|[^\\p{L}\\p{N}])${foldedQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+    "u",
+  );
+  return boundary.test(folded);
+}

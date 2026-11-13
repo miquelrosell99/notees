@@ -77,7 +77,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, chainNodeIds, rendersWithDocumentChrome } from "@notees/domain";
-import { foldSearchText } from "@notees/store";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, PageSummary, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
@@ -104,6 +103,7 @@ import {
 } from "../search-filters/filterModel.js";
 import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
 import { recentUseSections } from "../search-filters/recentUse.js";
+import { foldedQueryOf, foldedStartsWithOrBoundary } from "../search-filters/foldSearch.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { FilterChips } from "../../components/ui/kit/FilterChips.js";
 import { FilterMenu } from "../../components/ui/kit/FilterMenu.js";
@@ -880,9 +880,9 @@ export function CommandPalette({
   // rank then orders the sections (score order inside a group survives):
   // search answers Classes → Properties → Pages → Content, then Date Pages
   // and Commands — with one exception: the typed create row leaves the
-  // Commands tail and rides right after the exact title matches (top of
-  // the list when there are none); the empty-query home keeps Recently
-  // created → Recently linked → Random → Commands.
+  // Commands tail and rides right after the partial-exact title matches
+  // (top of the list when there are none); the empty-query home keeps
+  // Recently created → Recently linked → Random → Commands.
   const filtered = useMemo(() => {
     const seenIds = new Set<string>();
     const out: PaletteItem[] = [];
@@ -916,16 +916,24 @@ export function CommandPalette({
       }
     };
     const sorted = out.sort((a, b) => groupRank(a.group) - groupRank(b.group));
-    // The typed create row rides right after the exact title matches —
-    // above every approximate candidate — so creating a page for something
-    // that doesn't exist never means scrolling past fuzzy hits. With no
-    // exact match it tops the list.
+    // The typed create row rides right after the partial-exact title
+    // matches — titles that start with the query or carry it at a word
+    // boundary ("Tar" → "Target") — above every approximate candidate, so
+    // creating a page for something that doesn't exist never means
+    // scrolling past fuzzy hits. With no title match it tops the list.
+    // Content rows are labeled by block text, not a title: they never
+    // anchor the create row.
     const createAt = sorted.findIndex((item) => item.key === "action:create-titled");
     if (createAt === -1) return sorted;
-    const q = foldSearchText(text.toLowerCase());
+    const q = foldedQueryOf(text);
     let insertAt = 0;
     for (let i = 0; i < sorted.length; i += 1) {
-      if (i !== createAt && foldSearchText(sorted[i]!.label.toLowerCase()) === q) {
+      const item = sorted[i]!;
+      if (
+        i !== createAt &&
+        item.group !== "Content" &&
+        foldedStartsWithOrBoundary(q, item.label)
+      ) {
         insertAt = i + 1;
       }
     }

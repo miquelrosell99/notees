@@ -116,7 +116,7 @@ import {
   listFilterOptions,
 } from "../search-filters/filterModel.js";
 import { recentUseSections } from "../search-filters/recentUse.js";
-import { foldedIncludes, foldedQueryOf } from "../search-filters/foldSearch.js";
+import { foldedIncludes, foldedQueryOf, foldedStartsWithOrBoundary } from "../search-filters/foldSearch.js";
 import type { FilterOption, SearchFilter } from "../search-filters/filterModel.js";
 import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { useDelayedVisible } from "../../components/ui/kit/useDelayedVisible.js";
@@ -1203,33 +1203,42 @@ export function NodeSelector({
   const showMoreOption = filteredResults.length > visibleResults.length;
 
   /**
-   * Exact title matches: results whose folded title EQUALS the folded query
-   * ("gmi" matches only a page literally titled "gmi" — "GMI Dental" is a
-   * partial, approximate hit). The ranked search sorts them first, so they
-   * form the leading run of the results; the create row slots in right
-   * after that run — the user never scrolls past approximate candidates
-   * to create.
+   * The partial-exact anchor tier: results whose folded title STARTS with
+   * the folded query or carries it at a word boundary ("gmi" matches "GMI
+   * Dental"; "dental" matches "GMI Dental") — the typed text IS the
+   * beginning of something that exists. Only nameable rows anchor: pages
+   * and classes (in every mode), blocks in blocks mode — a block hit
+   * surfaced by its body text in the page modes is a content match, i.e.
+   * approximate. The create row slots in right after the last anchor,
+   * above every merely approximate candidate; with no anchor it hoists to
+   * the top of the list.
    */
-  const exactTitleMatchCount = useMemo(() => {
+  const createInsertAt = useMemo(() => {
     const q = foldSearchText(effectiveQuery.toLowerCase());
-    if (q === "") return 0;
-    let count = 0;
-    for (const node of visibleResults) {
-      if (foldSearchText((titleOfNode(node) ?? "").toLowerCase()) !== q) break;
-      count += 1;
-    }
-    return count;
-  }, [visibleResults, effectiveQuery]);
+    // The block-scoped candidate set: blocks mode proper, or the Blocks
+    // scope tab of a tabbed picker.
+    const blocksScoped = searchMode === "blocks" || (scopeTabs && scope === "blocks");
+    let insertAt = 0;
+    visibleResults.forEach((node, index) => {
+      const anchorable = blocksScoped
+        ? rendersAsInlineBlockOf(client, node)
+        : !rendersAsInlineBlockOf(client, node);
+      if (anchorable && foldedStartsWithOrBoundary(q, titleOfNode(node) ?? "")) {
+        insertAt = index + 1;
+      }
+    });
+    return insertAt;
+  }, [client, visibleResults, effectiveQuery, searchMode, scopeTabs, scope]);
 
   /**
-   * The create row's slot with a non-empty query: right after the exact
-   * title matches — at the top when there are none — above every
+   * The create row's slot with a non-empty query: right after the
+   * partial-exact matches — at the top when there are none — above every
    * approximate candidate. An empty query's listing, recents or members,
    * keeps the create row below.
    */
   const createPositioned = showCreateOption && effectiveQuery !== "";
-  const createFirst = createPositioned && exactTitleMatchCount === 0;
-  const createMidList = createPositioned && exactTitleMatchCount > 0;
+  const createFirst = createPositioned && createInsertAt === 0;
+  const createMidList = createPositioned && createInsertAt > 0;
   /**
    * The recents listing is live: an empty effective query with no filter
    * prefix and no class scope in a non-classes picker (the same condition
@@ -1344,17 +1353,17 @@ export function NodeSelector({
   const leadingOffset = (emptyQueryOptionActive ? 1 : 0) + (dateSuggestion ? 1 : 0);
   const archivedCount = archivedMatches.length;
   // Row order: [emptyQueryOption] [dateSuggestion] ([create — hoisted])
-  // results (the create row spliced in after the exact matches when there
-  // are any), then the archived-class Enable rows, the create row (only on
-  // an empty-query listing), the paste-URL source row, the browse-all-types
-  // row, the show-more pager.
+  // results (the create row spliced in after the partial-exact matches
+  // when there are any), then the archived-class Enable rows, the create
+  // row (only on an empty-query listing), the paste-URL source row, the
+  // browse-all-types row, the show-more pager.
   const resultStart = leadingOffset + (createFirst ? 1 : 0);
   // Index just past the last result row, the spliced create row included.
   const resultsEnd = resultStart + visibleResults.length + (createMidList ? 1 : 0);
   const createIndex = createFirst
     ? leadingOffset
     : createMidList
-      ? resultStart + exactTitleMatchCount
+      ? resultStart + createInsertAt
       : resultsEnd + archivedCount;
   const sourceLinkIndex =
     showCreateOption && !createPositioned ? createIndex + 1 : resultsEnd + archivedCount;
@@ -1392,13 +1401,13 @@ export function NodeSelector({
       handleCreateNew();
       return;
     }
-    // The mid-list create row owns the slot right after the exact matches.
-    if (createMidList && offset === exactTitleMatchCount) {
+    // The mid-list create row owns the slot right after the partial-exact matches.
+    if (createMidList && offset === createInsertAt) {
       handleCreateNew();
       return;
     }
     const shifted =
-      offset - (createFirst ? 1 : 0) - (createMidList && offset > exactTitleMatchCount ? 1 : 0);
+      offset - (createFirst ? 1 : 0) - (createMidList && offset > createInsertAt ? 1 : 0);
     // `shifted` addresses the results/archived span; the tail rows (the
     // empty-query create row, the paste-URL source row, browse-all, the
     // show-more pager) follow it. Only the empty-query listing carries the
@@ -1523,10 +1532,10 @@ export function NodeSelector({
       {createFirst && renderCreateRow(createIconSize)}
       {visibleResults.map((node, index) => {
         const globalIndex =
-          resultStart + index + (createMidList && index >= exactTitleMatchCount ? 1 : 0);
+          resultStart + index + (createMidList && index >= createInsertAt ? 1 : 0);
         return (
           <Fragment key={node.id}>
-            {createMidList && index === exactTitleMatchCount && renderCreateRow(createIconSize)}
+            {createMidList && index === createInsertAt && renderCreateRow(createIconSize)}
             {index === recentsLinkedCaptionIndex && (
               <div className="node-selector__recent-caption" aria-hidden="true">
                 Recently linked
@@ -1550,7 +1559,7 @@ export function NodeSelector({
           </Fragment>
         );
       })}
-      {createMidList && exactTitleMatchCount >= visibleResults.length && renderCreateRow(createIconSize)}
+      {createMidList && createInsertAt >= visibleResults.length && renderCreateRow(createIconSize)}
       {archivedMatches.map((node, index) => {
         const globalIndex = resultsEnd + index;
         const name = titleOfNode(node) ?? node.id;
