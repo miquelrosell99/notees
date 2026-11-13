@@ -130,10 +130,10 @@ describe("minimap math", () => {
 });
 
 describe("camera math", () => {
-  it("the clamp range is 0.02–40", () => {
-    expect(GRAPH_ZOOM_MIN).toBe(0.02);
+  it("the clamp range is 0.002–40 (the floor frames even a 100k-unit map)", () => {
+    expect(GRAPH_ZOOM_MIN).toBe(0.002);
     expect(GRAPH_ZOOM_MAX).toBe(40);
-    expect(clampZoom(0.001)).toBe(0.02);
+    expect(clampZoom(0.0001)).toBe(0.002);
     expect(clampZoom(100)).toBe(40);
     expect(clampZoom(1)).toBe(1);
   });

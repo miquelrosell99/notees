@@ -47,6 +47,9 @@ export interface GraphRenderer {
   setHoverNeighborhood(nodeId: string | null, accent?: readonly [number, number, number]): void;
   /** Legacy single-node hover (edge hover evidence + rings). */
   setHoveredNode(id: string): void;
+  /** Drag session: the dragged node's ring rides the live positions until
+   *  released (null) — without this the static ring pass lags the sprite. */
+  setDraggedNode(nodeId: string | null): void;
   setHoveredEdge(index: number): void;
   setSelectedNodes(ids: string[]): void;
 

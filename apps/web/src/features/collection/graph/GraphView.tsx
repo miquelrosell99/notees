@@ -1197,6 +1197,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     event.currentTarget.setPointerCapture(event.pointerId);
     if (nodeId !== null) {
       draggingRef.current = { nodeId };
+      renderer.setDraggedNode(nodeId);
       engine?.dragStart(nodeId);
       engine?.dragMove(nodeId, world.x, world.y);
     } else {
@@ -1268,9 +1269,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
 
   const onPointerUp = (event: React.PointerEvent<HTMLCanvasElement>): void => {
     const engine = engineRef.current;
+    const renderer = rendererRef.current;
     if (draggingRef.current !== null) {
       const dragged = draggingRef.current.nodeId;
       engine?.dragEnd(dragged);
+      renderer?.setDraggedNode(null);
       draggingRef.current = null;
       const world = worldAt(event);
       const still = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);

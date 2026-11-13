@@ -82,8 +82,14 @@ export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEng
     // (≈0.01 px/tick RMS — sub-pixel, and dt-aware via the integrator).
     settleEnergyEps: 1e-4,
     settleTicks: 30,
-    influenceRadius: 400,
-    reheatAlpha: 0.5,
+    // Drag reheat: the neighborhood that wakes around a dragged node.
+    // Measured on a settled 1,800-node structured graph (a 300-unit drag):
+    // 400/0.5 shoved every node within 500 units ~61 units on average
+    // (max 234) — the whole local cloud visibly re-arranged. 220/0.3 keeps
+    // the elastic follow-the-leader feel for the dragged node's own links
+    // (~15 units near mean) while the rest of the map stays put.
+    influenceRadius: 220,
+    reheatAlpha: 0.3,
     drag: 0.9,
     maxVelocity: 10,
     dt: 0.5,

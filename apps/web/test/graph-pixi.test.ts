@@ -394,6 +394,50 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     vi.restoreAllMocks();
   });
 
+  it("the dragged node's selection ring follows the live position", async () => {
+    stubWebgl2();
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer();
+    renderer.init(canvas);
+    await flush();
+    await flush();
+
+    renderer.setNodeVisuals(["a", "b"], new Map([["a", { radius: 8 }]]));
+    renderer.updatePositions(new Float32Array([0, 0, 500, 0]), ["a", "b"]);
+    renderer.setSelectedNodes(["a"]);
+    renderer.setCamera(0, 0, 1);
+    renderer.render();
+    // At rest the ring lives in the static ring pass.
+    const internals = renderer as unknown as {
+      ringGraphics: { fills: unknown[] };
+      dragRing: { fills: unknown[] };
+    };
+    expect(internals.ringGraphics.fills).toHaveLength(1);
+    expect(internals.dragRing.fills).toHaveLength(0);
+
+    // Drag starts: the static pass drops the node, the drag overlay owns it.
+    renderer.setDraggedNode("a");
+    renderer.overridePosition("a", 300, 40);
+    renderer.render();
+    expect(internals.ringGraphics.fills).toHaveLength(0);
+    expect(internals.dragRing.fills).toHaveLength(1);
+
+    // The pointer moves again — the ring re-strokes at the NEW position
+    // (the node sprite and the ring cannot diverge).
+    renderer.overridePosition("a", -120, 80);
+    renderer.render();
+    expect(internals.dragRing.fills).toHaveLength(1);
+
+    // Release: the ring returns to the static pass at the final position.
+    renderer.setDraggedNode(null);
+    renderer.render();
+    expect(internals.dragRing.fills).toHaveLength(0);
+    expect(internals.ringGraphics.fills).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+
   it("constellation LOD: a hovered edge draws alone — regardless of its family's zoom tier", async () => {
     stubWebgl2();
     const canvas = document.createElement("canvas");

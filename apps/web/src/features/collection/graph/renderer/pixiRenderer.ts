@@ -310,6 +310,18 @@ export class GraphPixiRenderer implements GraphRenderer {
   private app: Application | null = null;
   private world: Container = new Container();
   private ringGraphics: Graphics = new Graphics();
+  /**
+   * The dragged node's selection ring rides here, re-stroked every frame
+   * from the live positions while a drag is active. The static rings live
+   * in ringGraphics (redrawn only on the full node sync) — a dragged node
+   * moves through overridePosition + the incremental sprite sync, so its
+   * ring there stayed at the pre-drag spot and the node visibly unaligned
+   * from its circle mid-drag.
+   */
+  private dragRing: Graphics = new Graphics();
+  private dragRingNodeId: string | null = null;
+  /** Whether dragRing currently holds a stroke (clear-once bookkeeping). */
+  private dragRingDrawn = false;
   private edgeBuckets: Graphics[] = [];
   private arrowBuckets: Graphics[] = [];
   private edgeBucketCounts: number[] = [];
@@ -441,6 +453,8 @@ export class GraphPixiRenderer implements GraphRenderer {
     const world = this.world;
     world.addChild(this.ringGraphics);
     this.ringGraphics.cullable = true;
+    world.addChild(this.dragRing);
+    this.dragRing.cullable = true;
     for (let i = 0; i < EDGE_BUCKETS; i++) {
       const eg = new Graphics();
       const ag = new Graphics();
@@ -633,6 +647,20 @@ export class GraphPixiRenderer implements GraphRenderer {
     this.hoveredEdgeIndex = index;
     this.hoverEdgeAlpha = index >= 0 ? 0.35 : 1.0;
     this.edgesDirty = true;
+  }
+
+  setDraggedNode(nodeId: string | null): void {
+    if (nodeId === this.dragRingNodeId) return;
+    this.dragRingNodeId = nodeId;
+    if (nodeId === null) {
+      // The ring returns to ringGraphics — one full sync redraws it at the
+      // final position (and drops it from the drag overlay).
+      this.dragRing.clear();
+      this.dragRingDrawn = false;
+      this.nodesDirty = true;
+    } else {
+      this.nodesDirty = true; // ringGraphics must skip this node from now on
+    }
   }
 
   setSelectedNodes(ids: string[]): void {
@@ -910,11 +938,14 @@ export class GraphPixiRenderer implements GraphRenderer {
     }
 
     // Selection rings (under the nodes, the GL ring pass's disc-and-rim look).
+    // The dragged node's ring is excluded — it rides the dragRing overlay,
+    // re-stroked from the live positions every frame while the drag lasts.
     const rings = this.ringGraphics;
     rings.clear();
     let ringCount = 0;
     for (const id of this.selectedNodeIds) {
       if (ringCount >= MAX_RINGS) break;
+      if (id === this.dragRingNodeId) continue;
       const idx = this.nodeIndex.get(id);
       if (idx === undefined) continue;
       const vis = this.nodeVisuals.get(id);
@@ -1422,6 +1453,29 @@ export class GraphPixiRenderer implements GraphRenderer {
     }
     this.positionsChanged = false;
     this.lastZoom = zoom;
+
+    // The dragged node's ring follows the live positions (overridePosition
+    // and streamed frames both write this.positions, so the sprite and the
+    // ring can never diverge). One disc re-stroke per frame — bounded.
+    if (this.dragRingNodeId !== null) {
+      const dragIdx = this.nodeIndex.get(this.dragRingNodeId);
+      if (dragIdx !== undefined && this.positions.length >= (dragIdx + 1) * 2) {
+        const vis = this.nodeVisuals.get(this.dragRingNodeId);
+        const baseRadius = vis?.radius ?? this.opts.defaultRadius;
+        const effBaseRadius = Math.max(baseRadius, this.opts.minNodeRadiusPx / (2.0 * zoom));
+        const nodeCol: ArrayLike<number> = vis?.color ?? getCssNodeDefaultColorPixi();
+        this.dragRing.clear();
+        this.dragRing
+          .circle(this.positions[dragIdx * 2]!, this.positions[dragIdx * 2 + 1]!, effBaseRadius * 1.85)
+          .fill({ color: rgbaToTint([nodeCol[0]!, nodeCol[1]!, nodeCol[2]!]), alpha: 0.8 });
+        this.dragRingDrawn = true;
+      }
+    } else if (this.dragRingDrawn) {
+      // No drag active but a ring lingered (e.g. the node left the topology
+      // mid-drag) — clear it.
+      this.dragRing.clear();
+      this.dragRingDrawn = false;
+    }
 
     // Cull off-screen sprites/geometry before the render walk — at 50k
     // nodes only a sliver of the graph is on screen at lod 1+.

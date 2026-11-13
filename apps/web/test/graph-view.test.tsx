@@ -636,6 +636,7 @@ describe("GraphView component", () => {
         setHoveredNode(): void {}
         setHoveredEdge(): void {}
         setHoverNeighborhood(): void {}
+        setDraggedNode(): void {}
         setEdgeMask(): void {}
         setCamera(x: number, y: number, zoom: number): void {
           this.cameras.push({ x, y, zoom });
@@ -720,6 +721,7 @@ describe("GraphView component", () => {
         setHoveredNode(): void {}
         setHoveredEdge(): void {}
         setHoverNeighborhood(): void {}
+        setDraggedNode(): void {}
         setEdgeMask(): void {}
         setCamera(): void {}
         updatePositions(): void {}
