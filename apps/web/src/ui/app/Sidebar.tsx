@@ -38,6 +38,7 @@ import { Icon } from "../Icon.js";
 import { FavoritesRecents, sidebarSection } from "../../features/sidebar/FavoritesRecents.js";
 import type { AnyClient } from "../../features/sidebar/FavoritesRecents.js";
 import { Button } from "../../components/ui/kit/Button.js";
+import { Progress } from "../../components/ui/kit/Progress.js";
 import { Separator } from "../../components/ui/kit/Separator.js";
 import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
@@ -159,6 +160,18 @@ export function Sidebar({
       : syncState === "idle"
         ? "up to date"
         : (syncState ?? "");
+  // Client snapshot upload in flight: a full-image compact+seal+upload can
+  // block the worker for seconds on a large sealed workspace — the bar is
+  // what turns "the app froze" into "it is uploading 161 MiB, 60% done".
+  const snapshotUpload = syncStatus?.snapshotUpload ?? null;
+  const formatMiB = (bytes: number): string =>
+    bytes >= 1048576 ? `${(bytes / 1048576).toFixed(0)} MiB` : `${Math.round(bytes / 1024)} KiB`;
+  const snapshotUploadLabel =
+    snapshotUpload === null
+      ? ""
+      : snapshotUpload.phase === "sealing"
+        ? `Preparing snapshot (${formatMiB(snapshotUpload.totalBytes)})…`
+        : `Uploading snapshot (${formatMiB(snapshotUpload.sentBytes)} / ${formatMiB(snapshotUpload.totalBytes)})`;
   // Workspace-settings sidebar visibility toggles (device-local).
   const [showJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox] = useDeviceSetting("sidebarShowInbox", true);
@@ -223,6 +236,15 @@ export function Sidebar({
           onToggleCollapse={toggleSection}
         />
       </nav>
+      {snapshotUpload !== null && (
+        <div className="nt-sidebar-upload" role="status">
+          <Progress
+            value={snapshotUpload.sentBytes}
+            max={snapshotUpload.totalBytes}
+            label={snapshotUploadLabel}
+          />
+        </div>
+      )}
       <div className="nt-sidebar-bottom">
         <button
           type="button"

@@ -150,6 +150,26 @@ export interface SyncEngineCallbacks {
   onEnqueued?: (envelope: Envelope) => void;
   /** A chunk of local envelopes was acknowledged by the server (durable-log hook). */
   onAcknowledged?: (ids: string[]) => void;
+  /**
+   * Client snapshot-upload progress (the footer bar / sync-details modal):
+   * emitted on phase transitions and byte counts while a client-produced
+   * snapshot uploads, null when it finishes or fails. The upload runs on the
+   * embedding thread's behalf and can block the worker for seconds on a
+   * large sealed workspace — surfacing it is what turns "the app froze" into
+   * "it is uploading 161 MiB, 60% done".
+   */
+  onSnapshotUpload?: (progress: SnapshotUploadProgress | null) => void;
+}
+
+/**
+ * One snapshot-upload progress sample. `sealing` = compact + encrypt running
+ * (the bytes are being produced, not yet sent — sentBytes stays 0); `uploading`
+ * = bytes on the wire (sentBytes advanced per uploaded part/chunk).
+ */
+export interface SnapshotUploadProgress {
+  phase: "sealing" | "uploading";
+  sentBytes: number;
+  totalBytes: number;
 }
 
 // --- E2EE boundary (spec §2) --------------------------------------------------------

@@ -13,7 +13,7 @@ import {
   type DatePrecision,
 } from "@notees/domain";
 import type { ContentAst, ListStyle, WorkspaceFeature } from "@notees/protocol";
-import type { SyncConflict, SyncStatus, Transport } from "@notees/sync";
+import type { SnapshotUploadProgress, SyncConflict, SyncStatus, Transport } from "@notees/sync";
 
 /** Sensible default depth cap for getBlockTree (cycle protection). */
 export const DEFAULT_TREE_DEPTH = 64;
@@ -41,6 +41,12 @@ export interface SyncStatusSnapshot {
   parked: number;
   realtime: boolean;
   cursorSeq: number;
+  /**
+   * In-flight client snapshot upload (compact/seal/upload of a fresh
+   * server-side rebuild source) — drives the footer's progress bar and the
+   * sync-details row; null when no upload is running.
+   */
+  snapshotUpload: SnapshotUploadProgress | null;
 }
 
 /**
@@ -62,6 +68,7 @@ export const IDLE_SNAPSHOT: SyncStatusSnapshot = {
   parked: 0,
   realtime: false,
   cursorSeq: 0,
+  snapshotUpload: null,
 };
 
 /** Conflict-history retention for the sync details modal. */

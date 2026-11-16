@@ -104,6 +104,11 @@ export class WorkspaceClientSync {
           this.ctx.store.markLocalEnvelopesPushed(ids);
           this.ctx.store.prunePushedLocalEnvelopes();
         },
+        // Snapshot-upload progress: the footer bar + sync-details row read it
+        // from status() between these firings.
+        onSnapshotUpload: (progress) => {
+          this.ctx.snapshotUploadProgress = progress;
+        },
       },
     });
     // The workflow-rules evaluator (issue #13): the client-side port of the
@@ -326,6 +331,7 @@ export class WorkspaceClientSync {
       parked: this.ctx.engine.getParkedCount(),
       realtime: this.isRealtimeActive(),
       cursorSeq: this.ctx.engine.getCursorSeq(),
+      snapshotUpload: this.ctx.snapshotUploadProgress,
     };
   }
 

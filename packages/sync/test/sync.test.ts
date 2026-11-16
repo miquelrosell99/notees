@@ -704,6 +704,44 @@ describe("snapshot upload — the min-interval throttle", () => {
   });
 });
 
+describe("snapshot upload — progress reporting", () => {
+  it("reports uploading(bytes) → null across an upload and stays silent while throttled", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 1_000_000;
+    const store = new Store();
+    const transport = new MemoryTransport(relay);
+    const events: Array<import("../src/index.js").SnapshotUploadProgress | null> = [];
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      snapshotUploadMinIntervalMs: 60_000,
+      callbacks: { onSnapshotUpload: (p) => events.push(p) },
+    });
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    // Plaintext single-PUT branch: one uploading sample (the whole body at
+    // once — byte progress is multipart-only) then the clearing null. The
+    // sealing phase is the E2EE branch's compact+encrypt; plaintext has no
+    // seal to report.
+    expect(events.length).toBe(2);
+    expect(events[0]).toEqual({ phase: "uploading", sentBytes: 0, totalBytes: expect.any(Number) });
+    expect((events[0] as { totalBytes: number }).totalBytes).toBeGreaterThan(0);
+    expect(events[1]).toBeNull();
+
+    // Inside the min-interval window the next cycle rides out: no upload,
+    // no progress events.
+    const countAfterFirst = events.length;
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9100, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "throttled cycle" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(events.length).toBe(countAfterFirst);
+  });
+});
+
 describe("snapshot upload — the streaming source", () => {
   function streamHarness() {
     const relay = new MemoryRelay();

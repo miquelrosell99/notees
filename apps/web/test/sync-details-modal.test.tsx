@@ -24,6 +24,7 @@ const SNAPSHOT: SyncStatusSnapshot = {
   parked: 0,
   realtime: true,
   cursorSeq: 42,
+  snapshotUpload: null,
 };
 
 function makeClient(overrides: {
@@ -50,6 +51,30 @@ describe("SyncDetailsModal", () => {
     expect(screen.getByText("3 pending · 1 failed")).toBeTruthy();
     expect(screen.getByText("42")).toBeTruthy();
     expect(screen.getByText("No conflicts")).toBeTruthy();
+  });
+
+  it("shows the snapshot-upload row with a byte-counted progress bar while uploading", () => {
+    render(
+      <SyncDetailsModal
+        client={makeClient()}
+        snapshot={{
+          ...SNAPSHOT,
+          snapshotUpload: { phase: "uploading", sentBytes: 60 * 1048576, totalBytes: 160 * 1048576 },
+        }}
+        isOpen
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText("Snapshot upload")).toBeTruthy();
+    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(screen.getByText("60 MiB / 160 MiB")).toBeTruthy();
+  });
+
+  it("renders no snapshot-upload row at idle", () => {
+    render(
+      <SyncDetailsModal client={makeClient()} snapshot={SNAPSHOT} isOpen onClose={() => {}} />,
+    );
+    expect(screen.queryByText("Snapshot upload")).toBeNull();
   });
 
   it("lists conflicts with the classified label and the node display name", async () => {

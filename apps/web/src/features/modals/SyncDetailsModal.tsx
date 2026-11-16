@@ -18,11 +18,15 @@ import { Badge } from "../../components/ui/kit/Badge.js";
 import { Button } from "../../components/ui/kit/Button.js";
 import { EmptyState } from "../../components/ui/kit/EmptyState.js";
 import { Modal } from "../../components/ui/kit/Modal.js";
+import { Progress } from "../../components/ui/kit/Progress.js";
 import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { titleOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 
 import "./SyncDetailsModal.css";
+
+const formatMiB = (bytes: number): string =>
+  bytes >= 1048576 ? `${(bytes / 1048576).toFixed(0)} MiB` : `${Math.round(bytes / 1024)} KiB`;
 
 const CONFLICT_LABELS: Record<string, string> = {
   move_move: "Concurrent moves",
@@ -113,6 +117,22 @@ export function SyncDetailsModal({
                 {snapshot.quarantined > 0 ? `${snapshot.quarantined} quarantined` : null}
                 {snapshot.quarantined > 0 && snapshot.parked > 0 ? " · " : null}
                 {snapshot.parked > 0 ? `${snapshot.parked} parked` : null}
+              </dd>
+            </div>
+          )}
+          {snapshot.snapshotUpload !== null && (
+            <div className="sync-details-row">
+              <dt>Snapshot upload</dt>
+              <dd>
+                <Progress
+                  value={snapshot.snapshotUpload.sentBytes}
+                  max={snapshot.snapshotUpload.totalBytes}
+                  label={
+                    snapshot.snapshotUpload.phase === "sealing"
+                      ? `Preparing (${formatMiB(snapshot.snapshotUpload.totalBytes)})`
+                      : `${formatMiB(snapshot.snapshotUpload.sentBytes)} / ${formatMiB(snapshot.snapshotUpload.totalBytes)}`
+                  }
+                />
               </dd>
             </div>
           )}

@@ -156,6 +156,7 @@ const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {
   parked: 0,
   realtime: false,
   cursorSeq: 0,
+  snapshotUpload: null,
 };
 
 /** Poll cadence for the sync status snapshot while mounted. */
@@ -167,6 +168,8 @@ const STATUS_POLL_MS = 2_000;
  * render-time store read under it) every 2s poll even when nothing moved.
  */
 export function syncStatusEqual(a: SyncStatusSnapshot, b: SyncStatusSnapshot): boolean {
+  const au = a.snapshotUpload;
+  const bu = b.snapshotUpload;
   return (
     a.status === b.status &&
     a.error === b.error &&
@@ -175,7 +178,8 @@ export function syncStatusEqual(a: SyncStatusSnapshot, b: SyncStatusSnapshot): b
     a.quarantined === b.quarantined &&
     a.parked === b.parked &&
     a.realtime === b.realtime &&
-    a.cursorSeq === b.cursorSeq
+    a.cursorSeq === b.cursorSeq &&
+    (au === null || bu === null ? au === bu : au.phase === bu.phase && au.sentBytes === bu.sentBytes && au.totalBytes === bu.totalBytes)
   );
 }
 

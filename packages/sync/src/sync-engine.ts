@@ -35,6 +35,7 @@ import type {
   EnvelopeCrypto,
   OutboxStatusCounts,
   SnapshotMeta,
+  SnapshotUploadProgress,
   SyncEngineCallbacks,
   SyncPushProgress,
   SyncStatus,
@@ -237,6 +238,17 @@ export class SyncEngine {
    * uploadedSnapshotHlc: the wiped relay needs the re-upload promptly).
    */
   private lastSnapshotUploadAt: number | null = null;
+  /**
+   * The in-flight client snapshot-upload progress, if any — mirrored to
+   * callbacks.onSnapshotUpload and readable by the embedding client's
+   * status() between callback firings.
+   */
+  private snapshotUploadProgress: SnapshotUploadProgress | null = null;
+
+  private reportSnapshotUpload(progress: SnapshotUploadProgress | null): void {
+    this.snapshotUploadProgress = progress;
+    this.callbacks.onSnapshotUpload?.(progress);
+  }
   private snapshotQuarantineReported = false;
   /**
    * The oversize-upload report latch: the relay answers an over-cap
@@ -724,8 +736,10 @@ export class SyncEngine {
           this.store.compact();
           bytes = this.store.snapshot();
         }
+        this.reportSnapshotUpload({ phase: "sealing", sentBytes: 0, totalBytes: bytes.byteLength });
         const sealed = await this.crypto.encryptSnapshot(bytes);
         if (sealed.byteLength >= this.snapshotUploadLimit) {
+          this.reportSnapshotUpload(null);
           if (!this.snapshotOversizeReported) {
             this.snapshotOversizeReported = true;
             const message =
@@ -737,6 +751,7 @@ export class SyncEngine {
           }
           return;
         }
+        this.reportSnapshotUpload({ phase: "uploading", sentBytes: 0, totalBytes: sealed.byteLength });
         const partUpload = this.transport.uploadSnapshotPart?.bind(this.transport);
         const commitParts = this.transport.commitSnapshot?.bind(this.transport);
         if (sealed.byteLength > this.snapshotChunkThreshold && partUpload && commitParts) {
@@ -749,6 +764,11 @@ export class SyncEngine {
               uploadId,
               index,
             );
+            this.reportSnapshotUpload({
+              phase: "uploading",
+              sentBytes: Math.min((index + 1) * this.snapshotPartSize, sealed.byteLength),
+              totalBytes: sealed.byteLength,
+            });
           }
           await commitParts(uploadId, partCount, this.receivedHlc, true);
         } else {
@@ -776,6 +796,7 @@ export class SyncEngine {
         return;
       }
       if (streamed !== null) {
+        this.reportSnapshotUpload({ phase: "uploading", sentBytes: 0, totalBytes: projectedSize });
         await this.transport.uploadSnapshotStream!(this.receivedHlc, streamed.stream);
       } else {
         const bytes = this.store.snapshot();
@@ -796,6 +817,7 @@ export class SyncEngine {
           }
           return;
         }
+        this.reportSnapshotUpload({ phase: "uploading", sentBytes: 0, totalBytes: bytes.byteLength });
         await upload(bytes, this.receivedHlc);
       }
       }
@@ -803,6 +825,7 @@ export class SyncEngine {
       this.lastSnapshotUploadAt = this.now();
       this.snapshotOversizeReported = false;
       this.snapshotQuarantineReported = false;
+      this.reportSnapshotUpload(null);
       // Durable, not just session state: a short-lived client (a fresh engine
       // per invocation, CLI-style) restarts with this watermark intact, so a
       // relay checkpoint that carries a LOWER hlc than this device's watermark
@@ -812,13 +835,15 @@ export class SyncEngine {
       // does not cover.
       this.persistState();
     } catch (error) {
-      // Best-effort: a failed upload must not fail sync. The ONE failure
-      // that never heals by retrying — the relay's body cap (413 Request
+      // Best-effort: a failed upload must not fail sync — and must not leave
+      // a stale progress bar behind either. The ONE failure that never heals
+      // by retrying — the relay's body cap (413 Request
       // entity too large; the route-raised 512 MiB ceiling, but a projection
       // can outgrow any cap) — is surfaced once per
       // session, loudly, instead of silently retried forever: the user
       // learns the client upload is disabled while the server-side
       // snapshot keeps covering restore.
+      this.reportSnapshotUpload(null);
       if (!this.snapshotOversizeReported && isBodyTooLarge(error)) {
         this.snapshotOversizeReported = true;
         const message =

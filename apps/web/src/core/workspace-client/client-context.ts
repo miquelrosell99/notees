@@ -43,6 +43,7 @@ import {
   type SyncStatusSnapshot,
   type WorkspaceClientOptions,
 } from "./types.js";
+import type { SnapshotUploadProgress } from "@notees/sync";
 
 /**
  * Builds the journal's pre-apply read seam over a context — implemented by
@@ -126,6 +127,12 @@ export class ClientContext {
   readonly revisions: ReadRevisions;
   /** Semantic conflict history for the sync details modal. */
   readonly conflictLog: ConflictHistoryEntry[] = [];
+  /**
+   * In-flight client snapshot-upload progress (engine onSnapshotUpload);
+   * mirrored here so status() reads it between callback firings. Drives the
+   * footer progress bar + the sync-details row.
+   */
+  snapshotUploadProgress: SnapshotUploadProgress | null = null;
 
   constructor(store: Store, options: WorkspaceClientOptions, createCaptureSource: UndoCaptureSourceFactory) {
     this.store = store;

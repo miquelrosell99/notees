@@ -20,6 +20,7 @@ const BASE: SyncStatusSnapshot = {
   parked: 0,
   realtime: false,
   cursorSeq: 0,
+  snapshotUpload: null,
 };
 
 describe("syncStatusEqual", () => {
@@ -37,6 +38,7 @@ describe("syncStatusEqual", () => {
       ["parked", 1],
       ["realtime", true],
       ["cursorSeq", 42],
+      ["snapshotUpload", { phase: "uploading", sentBytes: 1, totalBytes: 2 }],
     ];
     for (const [field, value] of cases) {
       expect(syncStatusEqual(BASE, { ...BASE, [field]: value })).toBe(false);

@@ -313,6 +313,13 @@
   position: relative;
 }
 
+/* Client snapshot-upload strip (above the profile row): a slim labelled
+   determinate bar — the only honest shape for a byte-counted upload. Rides
+   the sidebar's own horizontal padding. */
+.nt-sidebar-upload {
+  padding: var(--spacing-1) 0;
+}
+
 /* Profile trigger: avatar + name/email identity row (the identity line is back after one avatar-only day — the ambient
    "which account" read stays at rest; the popup carries the same header).
    The sync-state badge rides the AVATAR's bottom-right corner (positioned
