@@ -40,6 +40,9 @@
   "pnpm": {
     "overrides": {
       "better-sqlite3": "^12.11.1"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   }
 }

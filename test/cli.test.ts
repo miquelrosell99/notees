@@ -97,6 +97,7 @@ async function bootServer(): Promise<Harness> {
       maxDocumentBytes: 100 * 1024 * 1024,
       loginPerMinute: 10,
       signupEnabled: false,
+      requireKeyed: false,
       resolverTimeoutMs: 10_000,
       corsOrigins: [],
     },
@@ -3201,8 +3202,14 @@ describe("class render-as", () => {
     // The class routes do not project the field — the effect assertion reads
     // the derived store directly (store schema v32, class.parentless_role);
     // the CLI's local store is the same projection, synced from the relay.
+    // Read-only: a read-write open of a WAL database checkpoints and removes
+    // the WAL at close, and a second such external open leaves the store in a
+    // state the next CLI open fails on (disk I/O error) under the v37 store —
+    // a read-only peek never checkpoints and cannot poison the live store.
     const roleOf = (): string | null => {
-      const db = new Database(join(dirname(h.stateFile), "stores", `${defaultWorkspaceId()}.db`));
+      const db = new Database(join(dirname(h.stateFile), "stores", `${defaultWorkspaceId()}.db`), {
+        readonly: true,
+      });
 
       const row = db.prepare("SELECT parentless_role AS role FROM class WHERE id = ?").get(machine.class.id) as
         | { role: string | null }

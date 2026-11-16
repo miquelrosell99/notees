@@ -57,6 +57,7 @@ export async function bootServer(): Promise<Harness> {
     maxDocumentBytes: 100 * 1024 * 1024,
     loginPerMinute: 10,
     signupEnabled: false,
+    requireKeyed: false,
     resolverTimeoutMs: 10_000,
     corsOrigins: [],
   });
