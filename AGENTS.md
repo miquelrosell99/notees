@@ -13,7 +13,9 @@ TypeScript, vitest) that consumes the main monorepo's TypeScript packages
 (`@notees/protocol`, `@notees/domain`, `@notees/store`, `@notees/sync`,
 `@notees/query`, `@notees/export`; `@notees/server` for the test suite) from
 a **pinned git submodule at `vendor/notees`** — never edit anything under
-`vendor/` (it is a snapshot of the main repo with its own lifecycle).
+`vendor/` (each entry is a snapshot with its own lifecycle: `vendor/notees`
+tracks the main repo, `vendor/word` is a built snapshot of the notees-word
+add-in refreshed only by `scripts/sync-word-dist.mjs`).
 
 ## Skills (mandatory)
 
@@ -69,6 +71,9 @@ operations.)
   release.yml verifies its checksum and smoke-builds it on Arch)
 - `vendor/notees/` — git submodule → the main repo (pinned commit);
   `pnpm-workspace.yaml` consumes its packages as workspace projects
+- `vendor/word/` — built snapshot of the notees-word add-in (localhost
+  flavor); refreshed only by `scripts/sync-word-dist.mjs`, served by
+  `notees word serve`
 - `.github/workflows/ci.yml` — install (`--frozen-lockfile`,
   `submodules: recursive`) + build + test on push/PR;
   `.github/workflows/release.yml` — on `v*` tags: gate + build, check the
@@ -95,6 +100,8 @@ operations.)
   reference + GTK + Flutter over byte-identical, sha256-pinned fixtures) has
   converged. Never edit `vendor/` — fix it in the main repo, then bump the
   pin. Never edit fixture bytes anywhere.
+  The `vendor/word` snapshot is outside this law — it refreshes from the
+  notees-word repo via its sync script, not from the main repo's gate.
 - **The CLI's only authoritative state is the relay log** — the per-workspace
   derived store (`<state-dir>/stores/<workspace-id>.db`) is a disposable
   projection (delete it any time; the next command re-syncs). The state file

@@ -15,6 +15,7 @@ notees-cli/
 ├── scripts/install.sh   # release-bundle installer (curl | bash)
 ├── packaging/arch/      # PKGBUILD for pacman (Arch; built from the release assets)
 ├── vendor/notees/       # git submodule → miquelrosell99/notees (pinned commit)
+├── vendor/word/         # vendored Word add-in dist (built snapshot; see "Syncing")
 └── pnpm-workspace.yaml  # consumes @notees/* from the submodule checkout
 ```
 
@@ -108,12 +109,25 @@ Display names: the human tables of `object children` / `object list` render a ro
 - **Loopback only.** The bind is `127.0.0.1`; there is no `--host` flag. The post-listen address check refuses to serve if the platform ever resolved anything else.
 - **Pairing.** The first connect needs a bearer token: a fresh one is printed at startup (or pin it with `NOTEES_SERVE_TOKEN`, or write it for the add-in with `--token-file`, mode 0600). The compare is constant-time (`crypto.timingSafeEqual`).
 - **Origin allowlist, fail-closed.** Browser requests must carry an `Origin` header matching a repeatable `--origin` value. Once one `--origin` exists, a missing or unlisted Origin is a 403 — never a pass.
-- **CORS.** The add-in pane is served from the Notees origin (`https://<host>/word/`) but fetches the loopback bridge, so every pane request is a cross-origin fetch: the browser sends an `OPTIONS` preflight before `POST /document` and blocks the response without `Access-Control-Allow-Origin`. The bridge answers the preflight (`204` + `Access-Control-Allow-Origin` / `-Methods` / `-Headers`) and echoes the matched origin on `POST` responses — the exact presented origin, never `*`. **Pairing therefore requires `--origin https://<host>`** (the Notees server origin that serves `/word/`); without it the browser blocks the pane before any request reaches the bridge, and an unlisted origin gets a 403 with no ACAO headers at all.
+- **CORS.** The add-in pane is served from the Notees origin (`https://<host>/word/`) but fetches the loopback bridge, so every pane request is a cross-origin fetch: the browser sends an `OPTIONS` preflight before `POST /document` and blocks the response without `Access-Control-Allow-Origin`. The bridge answers the preflight (`204` + `Access-Control-Allow-Origin` / `-Methods` / `-Headers`) and echoes the matched origin on `POST` responses — the exact presented origin, never `*`. **Pairing therefore requires `--origin <add-in origin>`** — the origin `notees word serve` hosts the pane at (`http://localhost:8471` by default); without it the browser blocks the pane before any request reaches the bridge, and an unlisted origin gets a 403 with no ACAO headers at all.
 - **No arbitrary filesystem endpoints.** The bridge exposes exactly one endpoint — search and CSL renders over the local store. Nothing reads or writes your files in response to a request except the traversal-guarded `--styles-dir` (list-styles reads its file names per request; a render reads one `.csl` inside it, with the id checked against a strict file-name pattern first) and the workspace's own derived store; the `--token-file` write happens once, after the bridge is listening.
 - **Protocol.** `POST /document` with `{cmd: "search" | "render-citation" | "render-bibliography" | "list-styles", …}` — see the Word add-in docs. Every failure answers the `{ok: false, error: {code, message}}` envelope (unknown_cmd / not_found / render_failed / bad_request).
 - **One bridge per store.** A second `notees serve` on the same workspace store exits 4 (conflict) — the derived store is single-writer. The lock records the holder pid; a stale lock from a dead process is stolen on the next start.
 - **Offline-first.** One `LocalWorkspace` stays open for the server's lifetime with a background sync every `--sync-interval` seconds (≥ 5, default 60). A failed initial sync still serves the last synced store; a store that has never synced fails loudly instead of serving an empty projection. Request handling performs no network I/O.
 - **Styles.** APA, IEEE, and Chicago (notes & bibliography) are bundled; drop additional `.csl` files in a `--styles-dir`.
+
+## `notees word serve` — host the Word add-in locally
+
+The Notees-for-Word task pane is no longer served by the Notees sync server; `notees word serve` hosts it on the machine running Word:
+
+    notees word serve [--port 8471] [--restart]
+
+- **Vendored statics.** It serves `vendor/word/dist` — a built snapshot of the `miquelrosell99/notees-word` localhost flavor — read-only at the root of `http://localhost:<port>`, bound to `127.0.0.1` only (post-listen address check, like the bridge). `GET /` is the pane, `GET /manifest.xml` is the sideload manifest re-rendered for the actual port.
+- **Sideload manifest.** The manifest is written to the per-user cache dir — `~/.cache/notees/word/manifest.xml` on Linux/macOS (`$XDG_CACHE_HOME` respected), `%LOCALAPPDATA%\notees\word\manifest.xml` on Windows. Point Word's shared-folder catalog at that folder (Windows trusted-catalog registry value; Word for Mac copies it into the wef folder). The add-in's sync server URL + API key are entered in the pane's settings.
+- **One serve per cache dir.** A second `notees word serve` exits 4 (conflict) with a `--restart` hint; `--restart` SIGTERMs the live holder and waits it out. The lock records the holder pid; a stale lock from a dead process is stolen.
+- **Port.** `--port` > `NOTEES_WORD_PORT` > 8471.
+- **No server, no credential.** The command is purely local; the pane's server settings live in the pane, not the CLI. For citation pairing, run `notees serve --origin http://localhost:<port>` so the pane's cross-origin bridge fetches are allowed.
+- **Release bundles.** The single-file `cli.mjs` carries no vendor tree; an installed bundle resolves the dist from `NOTEES_WORD_DIST` (point it at a `vendor/word/dist` snapshot).
 
 ## Installing
 
@@ -152,6 +166,16 @@ pnpm build && pnpm test
 ```
 
 Commit the submodule bump — CI installs with `--frozen-lockfile`, so run `pnpm install` once locally to refresh `pnpm-lock.yaml` and commit that too.
+
+### Refreshing the vendored Word add-in (`vendor/word`)
+
+`vendor/word` is a built snapshot of the `notees-word` repo's `pnpm build:localhost` output (statics + the raw manifest template + `PROVENANCE.json` recording the source commit). Refresh it from a notees-word checkout — never edit it by hand:
+
+```bash
+node scripts/sync-word-dist.mjs [--from <notees-word checkout>] [--no-build]
+```
+
+Unlike the `vendor/notees` submodule there is no lockstep law — the snapshot moves when the add-in ships, not on the core repo's fixture gate.
 
 ## Versioning
 

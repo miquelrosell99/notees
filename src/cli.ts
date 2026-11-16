@@ -82,6 +82,9 @@ import { resolveServeConfig } from "./serve/config.js";
 import { createCiteRenderer } from "./serve/cite.js";
 import { dispatchDocument } from "./serve/document.js";
 import { startBridge, type Bridge } from "./serve/server.js";
+import { resolveWordServeConfig } from "./word/config.js";
+import { wordCacheDir, resolveWordDistDir } from "./word/paths.js";
+import { startWordServe, type WordServeSession } from "./word/serve.js";
 import { openBridgeSession } from "./serve/session.js";
 import { runShell } from "./shell.js";
 import { clearCachedMasterKey, defaultStatePath, profileDefaults, serverState, updateProfileDefaults, updateServerState, type StoredCredential } from "./state.js";
@@ -2087,6 +2090,50 @@ async function runServe(ctx: CommandContext, options: {
       `notees serve: bridge listening on http://${config.host}:${bridge.port} (workspace ${workspaceId})\n` +
         `pairing token: ${bridge.token}\n` +
         `press Ctrl-C to stop\n`,
+    );
+  }
+  await new Promise<never>(() => {}); // runs until SIGINT/SIGTERM
+}
+
+/**
+ * `notees word serve` — host the Word add-in locally: serve the vendored
+ * dist on 127.0.0.1 and render the sideload manifest for
+ * http://localhost:<port> into the per-user cache dir. Purely local — no
+ * server, no credential, no workspace (the add-in's sync settings live in
+ * the pane). Resolves the dist and cache dir like the doctor: nothing
+ * required, clear usage errors when the snapshot is missing.
+ */
+async function runWordServe(command: Command, options: { port?: string; restart?: boolean }): Promise<void> {
+  const root = rootOf(command);
+  const opts = root.opts<GlobalOptions>();
+  const io = (root.getOptionValue("__io") as CliIo | undefined) ?? defaultIo;
+  const config = resolveWordServeConfig(options);
+  const distDir = resolveWordDistDir();
+  const session: WordServeSession = await startWordServe({
+    distDir,
+    cacheDir: wordCacheDir(),
+    port: config.port,
+    restart: config.restart,
+  });
+  const shutdown = async (): Promise<void> => {
+    await session.close();
+  };
+  process.once("SIGINT", () => void shutdown().finally(() => process.exit(0)));
+  process.once("SIGTERM", () => void shutdown().finally(() => process.exit(0)));
+  const machine = { ok: true, port: session.port, url: session.url, manifestPath: session.manifestPath };
+  if (opts.json === true) {
+    io.stdout.write(`${JSON.stringify(machine)}\n`);
+  } else {
+    io.stderr.write(
+      `notees word serve: add-in statics on ${session.url}/ (127.0.0.1 only)\n` +
+        `manifest written: ${session.manifestPath}\n` +
+        "next steps:\n" +
+        "  1. Sideload: point Word's shared-folder catalog at the manifest's folder\n" +
+        "     (Windows: HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\TrustedCatalogs string value;\n" +
+        "     Word for Mac: copy the manifest into the wef folder), restart Word, then\n" +
+        "     Insert -> My Add-ins -> SHARED FOLDER -> Notees.\n" +
+        "  2. Open the Notees pane -> settings: enter your Notees sync server URL + API key.\n" +
+        "press Ctrl-C to stop\n",
     );
   }
   await new Promise<never>(() => {}); // runs until SIGINT/SIGTERM
@@ -4243,6 +4290,7 @@ const HELP_ROWS: Record<string, { flags: string }> = {
   asset: { flags: "add <path…> --object --jobs --stop-on-error · attach --object · list --object --limit · get --output" },
   sync: { flags: "status" },
   serve: { flags: "[--port · --origin · --token-file · --sync-interval · --styles-dir]" },
+  word: { flags: "serve [--port · --restart]" },
   doctor: { flags: "(resolves flag > env > stored)" },
   shell: { flags: "[script]" },
   export: { flags: "markdown · json · bibtex" },
@@ -4920,6 +4968,20 @@ function buildProgram(): Command {
       stylesDir?: string;
     }, command: Command) => {
       await runServe(ctxOf(command), options);
+    });
+
+  const word = program
+    .command("word")
+    .description("the Word add-in — serve the task-pane statics + sideload manifest locally (the add-in is no longer hosted on the sync server)");
+  word
+    .command("serve")
+    .description(
+      "serve the Word add-in on http://localhost:<port> (127.0.0.1 only) and render the sideload manifest into the per-user cache dir; runs until Ctrl-C",
+    )
+    .option("--port <n>", "port to bind (default 8471; env NOTEES_WORD_PORT; 0 = OS-assigned)")
+    .option("--restart", "stop a running notees word serve (same cache dir) and start anew")
+    .action(async (options: { port?: string; restart?: boolean }, command: Command) => {
+      await runWordServe(command, options);
     });
 
   program
