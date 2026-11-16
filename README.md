@@ -2,15 +2,20 @@
 
 An Office.js task-pane add-in for Word: search your Notees graph, insert live
 citations as Word fields, refresh them in place, and build a bibliography —
-all offline-first. The pane talks **only** to the `notees serve` CLI bridge on
-`http://127.0.0.1:<port>` (your own machine); it holds no server credentials
-and makes no other network calls.
+all offline-first. The pane's only backends are local: the `notees word serve`
+gateway (its own origin — statics plus `/api/*` proxied to the sync server
+with auth injected) and the `notees serve` citation bridge on
+`http://127.0.0.1:<port>`. It holds no server URL, no API key, and makes no
+other network calls.
 
 The add-in's statics (`dist/`) are plain files, served **locally on the
-machine running Word** by the Notees CLI: `notees word serve` serves the
-vendored localhost build at `http://localhost:<port>` (loopback only) and
-renders the sideload manifest for that origin into its per-user cache dir.
-Nothing is hosted on the Notees sync server.
+machine running Word** by the Notees CLI: `notees word serve` is the pane's
+local gateway — it serves the vendored localhost build at
+`http://localhost:<port>` (loopback only), renders the sideload manifest for
+that origin into its per-user cache dir, and proxies the pane's same-origin
+`/api/*` calls to the configured sync server with the credential injected
+server-side. The pane holds no server URL and no API key; nothing is hosted
+on the Notees sync server and the pane makes no other network calls.
 
 ## Build
 
@@ -116,6 +121,17 @@ Copy the rendered manifest (from the `notees word serve` cache dir,
 
 Restart Word; the add-in appears in the task-pane picker.
 
+## The pane's backends (no server settings in the pane)
+
+- **Gateway** — every `/api/*` call the pane makes is same-origin and lands
+  on `notees word serve`, which relays it to the configured sync server with
+  the CLI's credential injected (`x-api-key`, plus `x-workspace-id` when the
+  CLI has a workspace configured). Client-supplied auth headers are dropped
+  at the gateway; the relay WebSocket (`/api/relay/v2/ws/:workspaceId`) is
+  tunneled the same way. There is nothing to configure in the pane.
+- **Citation bridge** — search + CSL renders stay on the `notees serve`
+  bridge (below); that pairing is the only setting the pane keeps.
+
 ## Pairing the pane with your workspace
 
 The pane does nothing until it is paired with a `notees serve` bridge:
@@ -127,6 +143,10 @@ The pane does nothing until it is paired with a `notees serve` bridge:
 3. Open the Notees pane in Word → settings → enter the port and token →
    **Connect**. The token is stored in the pane's local storage, so pairing
    persists across Word sessions.
+
+The pane's settings store also migrates itself: a record written by an older
+pane that carried its own sync-server URL/API key loads fine and is rewritten
+without those fields on first load.
 
 ## Development
 

@@ -21,6 +21,10 @@ pane settings → port + token → Connect.
   center, open the pane in Word for the web: the pane loads, the badge counts
   fields, and refresh shows the read-only-host message instead of failing when
   the WordApi 1.5 field APIs are unavailable.
+- [ ] **4a. Gateway only.** With `notees word serve` running, the pane's
+  server-backed features work and a dev-tools network trace shows only
+  same-origin requests: statics plus `/api/*` on the gateway origin — no
+  direct calls to the sync server, no credentials in pane storage.
 - [ ] **4. Portability.** Save a document with notees citations as `.docx`,
   reopen it in LibreOffice: citations still show their rendered text (the
   `ADDIN notees.Citation` field carries its display text; documents stay

@@ -47,6 +47,30 @@ describe("createSettingsStore", () => {
     expect(s.save({ port: 9002 }).token).toBe("Bearer-token-123");
   });
 
+  describe("legacy pre-gateway records", () => {
+    it("a stored server URL + API key does not break startup and is dropped on load", () => {
+      const kv = memoryKV(
+        JSON.stringify({ port: 9001, token: "tok", styleId: "ieee", serverUrl: "https://old.example", apiKey: "old-key" }),
+      );
+      const store = createSettingsStore(kv);
+      expect(store.load()).toEqual({ port: 9001, token: "tok", styleId: "ieee" });
+      // Migration rewrites the record: the legacy fields leave localStorage.
+      expect(JSON.parse(kv.dump()!)).toEqual({ port: 9001, token: "tok", styleId: "ieee" });
+    });
+
+    it("a legacy-only record falls back to defaults and is rewritten", () => {
+      const kv = memoryKV(JSON.stringify({ serverUrl: "https://old.example", apiKey: "old-key" }));
+      expect(createSettingsStore(kv).load()).toEqual({ port: 8474, token: "", styleId: "apa" });
+      expect(JSON.parse(kv.dump()!)).toEqual({ port: 8474, token: "", styleId: "apa" });
+    });
+
+    it("a canonical record is not rewritten (no spurious writes)", () => {
+      const kv = memoryKV(JSON.stringify({ port: 9001, token: "tok", styleId: "apa" }));
+      createSettingsStore(kv).load();
+      expect(JSON.parse(kv.dump()!)).toEqual({ port: 9001, token: "tok", styleId: "apa" });
+    });
+  });
+
   it("save merges onto stored state and clear resets to defaults", () => {
     const kv = memoryKV();
     const s = createSettingsStore(kv);
