@@ -12,13 +12,14 @@
  *   checkpoint lands, and the NEXT pull retries (no permanent latch).
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import {
   Clock,
   importWorkspaceKey,
   newEnvelope,
   type Envelope,
+  type Hlc,
 } from "@notees/protocol";
 import { Store } from "@notees/store";
 
@@ -56,9 +57,9 @@ const BIG_TEXT = "chunk-me ".repeat(2048); // ~18 KiB → sealed ~18 KiB
 
 interface SpiedTransport {
   transport: MemoryTransport;
-  single: ReturnType<typeof vi.spyOn>;
-  part: ReturnType<typeof vi.spyOn>;
-  commit: ReturnType<typeof vi.spyOn>;
+  single: MockInstance<(bytes: Uint8Array, hlc: Hlc, sealed?: boolean) => Promise<void>>;
+  part: MockInstance<(bytes: Uint8Array, uploadId: string, index: number) => Promise<void>>;
+  commit: MockInstance<(uploadId: string, parts: number, hlc: Hlc, sealed: boolean) => Promise<void>>;
 }
 
 function spiedTransport(relay: MemoryRelay): SpiedTransport {
