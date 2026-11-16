@@ -60,7 +60,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { envelopeSchema, payloadSchemaFor } from "../packages/protocol/src/index.ts";
+import { envelopeSchema, payloadSchemaFor, type Envelope } from "../packages/protocol/src/index.ts";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "../packages/domain/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
 
@@ -80,6 +80,8 @@ import {
  * "content" plans against the object graph — refused server-side on a keyed workspace (run it through a keyed client).
  */
 export const CONTENT_CLASS: MigrationContentClass = "content";
+
+const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
 
 // The migration's planning core is NODE-FREE (scripts/lib/migrations/ — the

@@ -65,7 +65,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { envelopeSchema, payloadSchemaFor } from "../packages/protocol/src/index.ts";
+import { envelopeSchema, payloadSchemaFor, type Envelope } from "../packages/protocol/src/index.ts";
 import { Store } from "../packages/store/src/index.ts";
 
 import { RelayStorage } from "../apps/server/src/relay-storage.ts";
@@ -81,6 +81,8 @@ import {
  * "content" plans against the object graph — refused server-side on a keyed workspace (run it through a keyed client).
  */
 export const CONTENT_CLASS: MigrationContentClass = "content";
+
+const DEFAULT_WORKSPACE = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
 
 // The migration's planning core is NODE-FREE (scripts/lib/migrations/ — the
@@ -279,16 +281,6 @@ function verify(
 }
 
 // --- main ---------------------------------------------------------------------
-
-function isConverged(plan: AlignmentPlan): boolean {
-  return plan.properties.every(
-    (property) =>
-      !property.schemaMissing &&
-      !property.scopeConverge &&
-      (property.base === null || !property.base.planSet) &&
-      property.classBindings.every((binding) => !binding.planSet),
-  );
-}
 
 async function migrateWorkspace(relay: RelayStorage, options: CliOptions, workspaceId: string): Promise<void> {
   const apply = options.apply;
