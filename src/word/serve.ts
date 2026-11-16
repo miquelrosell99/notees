@@ -33,9 +33,31 @@ const CONTENT_TYPES: Record<string, string> = {
   ".ico": "image/x-icon",
 };
 
+/** One embedded add-in asset: utf8 text, or base64 for binary kinds. */
+export interface EmbeddedWordAsset {
+  readonly content: string;
+  readonly encoding: "utf8" | "base64";
+}
+
+/**
+ * The add-in statics embedded in the release bundle — generated from
+ * vendor/word by scripts/gen-word-embedded.mjs (`embedded.generated.ts`).
+ * The manifest template carries the raw `${HOST}`/`${BASE_PATH}`
+ * placeholders, rendered per port exactly like the on-disk template.
+ */
+export interface EmbeddedWordStatics {
+  readonly assets: Record<string, EmbeddedWordAsset>;
+  readonly manifestTemplate: string;
+}
+
 export interface WordServeOptions {
-  /** Directory of built add-in statics (the vendored `vendor/word/dist`). */
-  readonly distDir: string;
+  /**
+   * Directory of built add-in statics (the vendored `vendor/word/dist`).
+   * Optional now that the bundle carries the embedded fallback: when set it
+   * wins (NOTEES_WORD_DIST / the dev walk-up); when unset the embedded map
+   * serves. At least one of distDir/embedded is required.
+   */
+  readonly distDir?: string;
   /** Per-user cache dir: the rendered manifest and the serve lock live here. */
   readonly cacheDir: string;
   /** Port to bind; 0 = OS-assigned (tests). */
@@ -44,6 +66,8 @@ export interface WordServeOptions {
   readonly restart?: boolean;
   /** The raw manifest template (defaults to manifest.xml next to the dist). */
   readonly manifestTemplatePath?: string;
+  /** Embedded statics fallback for bundle installs with no on-disk dist. */
+  readonly embedded?: EmbeddedWordStatics;
   /**
    * Fixed upstream for the same-origin `/api/*` gateway. When set, `/api/*`
    * requests (any method, plus WebSocket upgrades) relay here with the
@@ -137,16 +161,31 @@ function isProcessAlive(pid: number): boolean {
  * exit 4 (conflict), never a stack trace.
  */
 export async function startWordServe(options: WordServeOptions): Promise<WordServeSession> {
-  const distRoot = resolve(options.distDir);
-  const templatePath = options.manifestTemplatePath ?? join(dirname(distRoot), MANIFEST_FILE_NAME);
+  // Statics source: an on-disk dist wins (NOTEES_WORD_DIST, the dev
+  // walk-up); otherwise the bundle's embedded map. The embedded path has no
+  // filesystem traversal to guard — only exact map keys are served.
+  const useDisk = options.distDir !== undefined;
+  if (!useDisk && options.embedded === undefined) {
+    throw new CliError(
+      EXIT.usage,
+      "no Word add-in statics available: neither an on-disk dist (NOTEES_WORD_DIST / vendor/word) nor the embedded bundle copy",
+    );
+  }
+  const distRoot = useDisk ? resolve(options.distDir!) : null;
+  const templatePath = useDisk
+    ? (options.manifestTemplatePath ?? join(dirname(distRoot!), MANIFEST_FILE_NAME))
+    : null;
   const lockPath = join(options.cacheDir, LOCK_FILE_NAME);
   const manifestPath = join(options.cacheDir, MANIFEST_FILE_NAME);
 
   mkdirSync(options.cacheDir, { recursive: true });
   await acquireWordServeLock(lockPath, options.restart === true);
 
+  const statics: StaticsSource = useDisk
+    ? { kind: "dir", distRoot: distRoot! }
+    : { kind: "embedded", assets: options.embedded!.assets };
   const server: Server = createServer((req, res) => {
-    respond(req, res, distRoot, manifestPath, options.proxy).catch(() => {
+    respond(req, res, statics, manifestPath, options.proxy).catch(() => {
       if (!res.headersSent) res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       res.end("internal error");
     });
@@ -196,15 +235,8 @@ export async function startWordServe(options: WordServeOptions): Promise<WordSer
   // The manifest renders against the ACTUAL port (0 = OS-assigned), both
   // into the cache dir (Word's shared-folder catalog reads that file) and
   // into memory (served at /manifest.xml).
-  if (!existsSync(templatePath)) {
-    server.close();
-    rmSync(lockPath, { force: true });
-    throw new CliError(
-      EXIT.domain,
-      `Word manifest template not found at ${templatePath} — the vendored snapshot is incomplete; re-run scripts/sync-word-dist.mjs`,
-    );
-  }
-  const manifest = renderWordManifest(readFileSync(templatePath, "utf8"), address.port);
+  const template = useDisk ? readTemplateFromDisk(templatePath!) : options.embedded!.manifestTemplate;
+  const manifest = renderWordManifest(template, address.port);
   writeFileSync(manifestPath, manifest);
 
   return {
@@ -224,10 +256,14 @@ export async function startWordServe(options: WordServeOptions): Promise<WordSer
   };
 }
 
+type StaticsSource =
+  | { kind: "dir"; distRoot: string }
+  | { kind: "embedded"; assets: Record<string, EmbeddedWordAsset> };
+
 async function respond(
   req: IncomingMessage,
   res: ServerResponse,
-  distRoot: string,
+  statics: StaticsSource,
   manifestPath: string,
   proxy: WordProxyTarget | undefined,
 ): Promise<void> {
@@ -271,9 +307,24 @@ async function respond(
   }
   if (pathname === "/") pathname = "/index.html";
 
+  if (statics.kind === "embedded") {
+    // Map lookup only — no path arithmetic, no traversal surface.
+    const asset = statics.assets[normalize(pathname).split("\\").join("/")];
+    if (asset === undefined) {
+      res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+      res.end("not found");
+      return;
+    }
+    const type = CONTENT_TYPES[extname(pathname).toLowerCase()] ?? "application/octet-stream";
+    const body = Buffer.from(asset.content, asset.encoding);
+    sendBytes(res, req.method, body, type);
+    return;
+  }
+
   // Containment: the normalized path must stay under distRoot. Escape
   // attempts (.. segments, encoded or not) and non-file hits 404 — this
   // server has no directory index and no symlinks-out.
+  const distRoot = statics.distRoot;
   const candidate = normalize(join(distRoot, pathname));
   if (candidate !== distRoot && !candidate.startsWith(distRoot + sep)) {
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
@@ -305,6 +356,17 @@ async function respond(
       .on("error", rejectPipe)
       .pipe(res);
   });
+}
+
+/** Disk template read, with the vendored-snapshot diagnostic. */
+function readTemplateFromDisk(templatePath: string): string {
+  if (!existsSync(templatePath)) {
+    throw new CliError(
+      EXIT.domain,
+      `Word manifest template not found at ${templatePath} — the vendored snapshot is incomplete; re-run scripts/sync-word-dist.mjs`,
+    );
+  }
+  return readFileSync(templatePath, "utf8");
 }
 
 function sendBytes(res: ServerResponse, method: string, body: Buffer, contentType: string): void {

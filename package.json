@@ -6,11 +6,11 @@
     "notees": "./dist/cli.js"
   },
   "scripts": {
-    "dev": "tsx src/cli.ts",
-    "build": "tsup",
+    "dev": "node scripts/gen-word-embedded.mjs && tsx src/cli.ts",
+    "build": "node scripts/gen-word-embedded.mjs && tsup",
     "bundle:styles": "tsx scripts/bundle-styles.mts",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "test": "node scripts/gen-word-embedded.mjs && vitest run",
+    "typecheck": "node scripts/gen-word-embedded.mjs && tsc --noEmit"
   },
   "dependencies": {
     "@notees/domain": "workspace:*",

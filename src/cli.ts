@@ -83,7 +83,8 @@ import { createCiteRenderer } from "./serve/cite.js";
 import { dispatchDocument } from "./serve/document.js";
 import { startBridge, type Bridge } from "./serve/server.js";
 import { resolveWordServeConfig } from "./word/config.js";
-import { wordCacheDir, resolveWordDistDir } from "./word/paths.js";
+import { EMBEDDED_WORD_ASSETS, EMBEDDED_WORD_MANIFEST_TEMPLATE } from "./word/embedded.generated.js";
+import { wordCacheDir, resolveWordStatics } from "./word/paths.js";
 import { startWordServe, type WordServeSession } from "./word/serve.js";
 import { openBridgeSession } from "./serve/session.js";
 import { runShell } from "./shell.js";
@@ -2112,7 +2113,9 @@ async function runWordServe(command: Command, options: { port?: string; restart?
   const io = (root.getOptionValue("__io") as CliIo | undefined) ?? defaultIo;
   const ctx = ctxOf(command);
   const config = resolveWordServeConfig(options);
-  const distDir = resolveWordDistDir();
+  // Statics: NOTEES_WORD_DIST > a walk-up vendor/word/dist > the copy
+  // embedded in this bundle at build time (always there for cli.mjs).
+  const statics = resolveWordStatics();
   const upstream = process.env.NOTEES_WORD_UPSTREAM ?? ctx.client.server;
   // Best-effort, exactly what the CLI's own requests resolve: a workspace
   // configured by flag/env/config set becomes the default x-workspace-id;
@@ -2124,7 +2127,8 @@ async function runWordServe(command: Command, options: { port?: string; restart?
     io.stderr.write("warning: workspace resolution failed — proxying without a default x-workspace-id\n");
   }
   const session: WordServeSession = await startWordServe({
-    distDir,
+    ...(statics.kind === "dir" ? { distDir: statics.distDir } : {}),
+    embedded: { assets: EMBEDDED_WORD_ASSETS, manifestTemplate: EMBEDDED_WORD_MANIFEST_TEMPLATE },
     cacheDir: wordCacheDir(),
     port: config.port,
     restart: config.restart,
@@ -2146,6 +2150,7 @@ async function runWordServe(command: Command, options: { port?: string; restart?
     io.stderr.write(
       `notees word serve: add-in gateway on ${session.url}/ (127.0.0.1 only)\n` +
         `manifest written: ${session.manifestPath}\n` +
+        `statics: ${statics.kind === "dir" ? `${statics.distDir} (on disk)` : "embedded in this bundle"}\n` +
         `/api/* proxied to ${upstream} (auth injected from this CLI's config)\n` +
         "next steps:\n" +
         "  1. Sideload: point Word's shared-folder catalog at the manifest's folder\n" +
