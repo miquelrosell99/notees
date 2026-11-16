@@ -52,7 +52,7 @@ from typing import Any
 from content_ast import content_tokens_from_source, normalize_class_name, plain_text
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent.parent.parent  # /etc/periphery/stacks/notees
+REPO_ROOT = HERE.parent.parent.parent  # the repo checkout root
 EXTRACT_DIR = HERE / ".extract"
 SEEDS_TS = REPO_ROOT / "v2" / "packages" / "domain" / "src" / "seeds.ts"
 V2_DATA_DIR = REPO_ROOT / "config" / "notees" / "sync"

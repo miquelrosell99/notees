@@ -23,7 +23,7 @@
  * epoch bump; the payload keys predate every client, no lockstep gate).
  *
  * DRY RUN BY DEFAULT. --apply backs up relay.db NEXT TO THE DATA DIR (the
- * /tmp scratch filesystem can be full on fleet hosts — learned 2026-10-29),
+ * /tmp scratch filesystem can be full on busy hosts — learned 2026-10-29),
  * ingests through RelayStorage.ingest, then verifies from the persisted
  * log: the new envelopes read back + protocol-validate, and a FRESH scratch
  * replay shows every planned node carrying its citekey. The sync server's
@@ -475,7 +475,7 @@ function main(): void {
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     // The backup lands NEXT to the relay (the data dir — borgmatic's source,
     // where the prior ops' relay.db.bak-* files live), not /tmp: the scratch
-    // filesystem can be full on fleet hosts (learned 2026-10-29 — the apply
+    // filesystem can be full on busy hosts (learned 2026-10-29 — the apply
     // died on ENOSPC mid-backup with the stack down).
     const backupPath = join(options.dataDir, `relay.db.bak-backfill-citekeys-${stamp}`);
     copyFileSync(join(options.dataDir, "relay.db"), backupPath);

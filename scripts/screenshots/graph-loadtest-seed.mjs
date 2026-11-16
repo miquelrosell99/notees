@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 const API = "http://localhost:8377";
 const RELAY = API + "/api/relay/v2";
 const WS = "c491595f-9f94-5ade-a620-e30ed063d8d2"; // test workspace (law 8)
-const KEY = readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
+const KEY = readFileSync(`${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees/sync/api_key.txt`, "utf8").trim();
 const IDS_PATH = "/tmp/graph-loadtest-probe-ids.json";
 const BASELINE_PATH = "/tmp/graph-loadtest-baseline.json";
 const NODE_COUNT = 50_000;

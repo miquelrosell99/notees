@@ -12,13 +12,13 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  // Generous timeout: the fleet host runs backups and media services
+  // Generous timeout: a loaded host runs backups and media services
   // alongside the browser; a quiet CI runner finishes in seconds.
   timeout: 120_000,
   use: {
     baseURL: "http://127.0.0.1:8479",
     // The full chromium build (not the headless shell) — proven stable
-    // on the loaded fleet host.
+    // on a loaded host.
     channel: "chromium",
   },
   webServer: {

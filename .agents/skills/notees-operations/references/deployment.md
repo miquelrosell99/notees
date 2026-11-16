@@ -11,9 +11,9 @@ artifacts — never committed** (enforced by the
 `cp compose.example.yaml compose.yaml && cp .env.example .env`. The compose
 project name derives from the folder name (no `name:` pin). The live data
 dir binds `${NOTEES_DATA_DIR:-./config/notees/sync}`; hosts keeping the data
-at the fleet stacks location (the fleet host:
-`/etc/periphery/stacks/notees/config/notees/sync`, the borgmatic backup
-source) set `NOTEES_DATA_DIR` in the gitignored repo-root `.env`.
+outside the checkout (e.g. a stack managed by an orchestrator: the stack
+dir's `config/notees/sync`, the borgmatic backup source) set `NOTEES_DATA_DIR`
+in the gitignored repo-root `.env`.
 
 ```sh
 # repo split 2026-11-05: each image builds from its own checkout
@@ -28,8 +28,7 @@ cd <notees-web checkout>/scripts/screenshots && node verify-min.mjs
 `verify-min.mjs` logs in via `/api/auth/login`, seeds localStorage, and asserts
 the footer has no sync error + UI search finds a known hit; prints
 `VERIFY-PASS` / `VERIFY-FAIL` (exit 1), with a 900 s boot window. Run it from
-any cwd — it self-locates the stack dir (`NOTEES_STACK_DIR` →
-`/etc/periphery/stacks/notees` when present → repo root), the API key
+any cwd — it self-locates the stack dir (`NOTEES_STACK_DIR` → repo root), the API key
 (`<stack>/config/notees/sync/api_key.txt`), and the admin password
 (`<stack>/config/notees/.admin_password`); every value is env-overridable
 (`NOTEES_API`/`NOTEES_WEB`/`NOTEES_API_KEY`/`NOTEES_ADMIN_PASSWORD`/`NOTEES_ADMIN_EMAIL`/`NOTEES_WORKSPACE`/`NOTEES_VERIFY_OUT`).
@@ -96,8 +95,8 @@ plugin: `NOTEES_EDGE_NAME=<host>.<tailnet>.ts.net` in `.env` + `docker compose
 certs issue/renew via the mounted tailscaled socket; `/api/*` → sync and
 everything else → web over the compose network (the https page is
 same-origin). App publishes are remappable full `ip:port` envs
-(`NOTEES_SYNC_HTTP`, `NOTEES_WEB_HTTP`, `*_LAN_HTTP`) — fleet host pins
-loopback. The core stack runs fine without the edge (no https = in-process
+(`NOTEES_SYNC_HTTP`, `NOTEES_WEB_HTTP`, `*_LAN_HTTP`) — a host shared with
+other services pins loopback. The core stack runs fine without the edge (no https = in-process
 store banner). Undo: remove the profile. Never write real host/tailnet names
 into any artifact — `.env` only.
 

@@ -30,8 +30,8 @@ cannot break another's typecheck or tests; the main checkout is where slices
 land, not where concurrent development happens. Dev servers are NOT
 isolated: each session's dev commands take distinct ports (Vite
 auto-increments). A solo session or a trivial docs-only slice may stay in
-the main checkout — commit promptly. Never a random sibling folder — the
-fleet host accumulates checkouts otherwise, and a forgotten sibling is
+the main checkout — commit promptly. Never a random sibling folder — a
+shared host accumulates checkouts otherwise, and a forgotten sibling is
 invisible to `git worktree list` hygiene.
 
 **Landing + shared record files**: slices land one at a
@@ -217,7 +217,8 @@ against the **test workspace** (law: never the owner's live workspace):
 
 - Boot pattern (copy from any `scripts/screenshots/*-probe.mjs`): login via
   `POST /api/auth/login` on `:8377` (credentials self-locate from
-  `/etc/periphery/stacks/notees/config/notees/.admin_password`), then seed
+  the stack's `config/notees/.admin_password` — env `NOTEES_STACK_DIR`
+  overrides the repo-relative default), then seed
   `localStorage` in an init script: `notees.serverUrl`, `notees.sessionToken`,
   `notees.workspaceId` (the fixed test-workspace seed — probes read it from
   the existing scripts), `notees.theme`.
@@ -260,7 +261,7 @@ one entry per shipped slice, newest first:
 
 Never hardcode machine names, IPs, or tailnet names in code, templates, docs,
 or notes — write `<host>`, `<tailnet>`, `<lan-ip>`, `<tailscale-ip>`, or
-"the fleet host". Concrete values live only in gitignored host-local files
+"the host". Concrete values live only in gitignored host-local files
 (`.env`) and per-host operator config.
 
 ## Gate economics + host memory discipline

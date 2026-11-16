@@ -7,7 +7,7 @@ if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin log
 
 const API = "http://localhost:8377";
 const WEB = "http://localhost:8378";
-const KEY = (await import("node:fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
+const KEY = (await import("node:fs")).readFileSync(`${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees/sync/api_key.txt`, "utf8").trim();
 const WS = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 const TARGET = process.env.PROBE_TARGET ?? "Proyecto Transición a MDR";
 

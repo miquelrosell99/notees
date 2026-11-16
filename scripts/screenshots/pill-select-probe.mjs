@@ -10,7 +10,7 @@ if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin log
 
 const API = "http://localhost:8377";
 const WEB = "http://localhost:8378";
-const KEY = (await import("node:fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
+const KEY = (await import("node:fs")).readFileSync(`${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees/sync/api_key.txt`, "utf8").trim();
 const WS = "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 
 const api = async (path) => {
@@ -54,7 +54,8 @@ const loginRes = await fetch(API + "/api/auth/login", {
 if (!loginRes.ok) throw new Error(`login: ${loginRes.status}`);
 const { token: SESSION } = await loginRes.json();
 
-mkdirSync("/etc/periphery/stacks/notees/scripts/migrated-verify", { recursive: true });
+const OUT_DIR = process.env.NOTEES_VERIFY_OUT ?? new URL("../migrated-verify", import.meta.url).pathname;
+mkdirSync(OUT_DIR, { recursive: true });
 const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage"] });
 const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
 const page = await context.newPage();
@@ -114,10 +115,10 @@ const state = await page.evaluate(() => {
 console.log("after click:", JSON.stringify(state));
 const urlAfterClick = page.url();
 
-mkdirSync("/etc/periphery/stacks/notees/scripts/migrated-verify", { recursive: true });
+mkdirSync(OUT_DIR, { recursive: true });
 const pillBox = await pill.boundingBox();
 await page.screenshot({
-  path: "/etc/periphery/stacks/notees/scripts/migrated-verify/pill-selected.jpg",
+  path: `${OUT_DIR}/pill-selected.jpg`,
   type: "jpeg",
   quality: 90,
   clip: pillBox

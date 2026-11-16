@@ -17,7 +17,7 @@ const WS = "c491595f-9f94-5ade-a620-e30ed063d8d2";
 const RENDERER = process.env.RENDERER ?? "webgl";
 const PASSWORD =
   process.env.NOTEES_ADMIN_PASSWORD ??
-  readFileSync("/etc/periphery/stacks/notees/config/notees/.admin_password", "utf8").trim();
+  readFileSync(`${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees/.admin_password`, "utf8").trim();
 
 const { token: SESSION } = await (
   await fetch(API + "/api/auth/login", {

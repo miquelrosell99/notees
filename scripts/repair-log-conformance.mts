@@ -45,7 +45,7 @@
  *
  * Usage (from the repo root):
  *   pnpm --filter @notees/server exec tsx ../../scripts/repair-log-conformance.mts \
- *     --data-dir /etc/periphery/stacks/notees/config/notees/sync [--workspace <uuid>] [--apply]
+ *     --data-dir /path/to/your/stack/config/notees/sync [--workspace <uuid>] [--apply]
  */
 
 import { copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";

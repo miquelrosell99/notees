@@ -72,9 +72,10 @@ const { chromium } = require("playwright");
 
 const BASE = (process.env.BASE_URL ?? "http://localhost:8378").replace(/\/$/, "");
 const API = (process.env.API_URL ?? "http://localhost:8377").replace(/\/$/, "");
+const STACK_DIR = process.env.NOTEES_STACK_DIR ?? path.join(SCRIPT_DIR, "..", "..");
 const API_KEY =
   process.env.API_KEY ??
-  readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
+  readFileSync(path.join(STACK_DIR, "config/notees/sync/api_key.txt"), "utf8").trim();
 const WORKSPACE_ID = process.env.WORKSPACE_ID ?? "3b30e070-039b-47bc-ad0d-2440a2f173c5";
 const OUT = process.env.OUT_DIR ?? path.join(SCRIPT_DIR, "migrated-verify");
 // Fast-path boot is expected well under 5 minutes; SYNC_TIMEOUT_MS is the

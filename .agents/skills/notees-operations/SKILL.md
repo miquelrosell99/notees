@@ -1,6 +1,6 @@
 ---
 name: notees-operations
-description: Operate a Notees deployment — the notees-sync (:8377) + notees-web (:8378) docker compose stack with data under ./config/notees/. Use when deploying, upgrading, restarting, health-checking, rolling back, backing up, migrating, monitoring, or troubleshooting the Notees stack on the fleet host. Covers deployment, health checks, logs, rollback, database migrations, backups, monitoring, incident response, and maintenance.
+description: Operate a Notees deployment — the notees-sync (:8377) + notees-web (:8378) docker compose stack with data under ./config/notees/. Use when deploying, upgrading, restarting, health-checking, rolling back, backing up, migrating, monitoring, or troubleshooting the Notees stack on a host managed by an orchestrator. Covers deployment, health checks, logs, rollback, database migrations, backups, monitoring, incident response, and maintenance.
 ---
 
 # Notees operations
@@ -35,7 +35,7 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
    hard error; the way back is a backup restore.
 5. **Never re-tag a release.** Same-day correction = next patch tag.
 6. **Fleet-agnostic artifacts** — never hardcode host names, IPs, or tailnet
-   names; write `<host>`, `<tailnet>`, `<lan-ip>`, "the fleet host". Real
+   names; write `<host>`, `<tailnet>`, `<lan-ip>`, "the host". Real
    values live only in gitignored `.env`.
 7. **Deployment and rollback discipline follows the `deployment-runbook`
    skill** — pre-deployment checklist, health checks before/after, rollback
@@ -60,7 +60,7 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
 The end-to-end smoke after any deploy or restart:
 `node scripts/screenshots/verify-min.mjs` (runnable from any cwd — it
 self-locates the stack dir, API key, admin password, and workspace: env →
-`/etc/periphery/stacks/notees` when present → repo root) → expect
+repo root) → expect
 `VERIFY-PASS`. Env overrides: `NOTEES_STACK_DIR`, `NOTEES_API`/`NOTEES_WEB`,
 `NOTEES_API_KEY` (+`_FILE`), `NOTEES_ADMIN_PASSWORD` (+`_FILE`),
 `NOTEES_ADMIN_EMAIL`, `NOTEES_WORKSPACE`, `NOTEES_VERIFY_OUT`.

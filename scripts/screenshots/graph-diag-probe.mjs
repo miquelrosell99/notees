@@ -6,7 +6,7 @@ if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin log
 
 const API = "http://localhost:8377";
 const WEB = "http://localhost:8378";
-const KEY = (await import("node:fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
+const KEY = (await import("node:fs")).readFileSync(`${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees/sync/api_key.txt`, "utf8").trim();
 const WS = "c491595f-9f94-5ade-a620-e30ed063d8d2"; // test workspace (law 8)
 
 const loginRes = await fetch(API + "/api/auth/login", {

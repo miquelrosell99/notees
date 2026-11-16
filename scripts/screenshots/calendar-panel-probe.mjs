@@ -14,7 +14,7 @@ const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
 if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin login email)");
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const stackDir = existsSync("/etc/periphery/stacks/notees") ? "/etc/periphery/stacks/notees" : repoRoot;
+const stackDir = process.env.NOTEES_STACK_DIR ?? repoRoot;
 const API = process.env.NOTEES_API ?? "http://localhost:8377";
 const WEB = process.env.NOTEES_WEB ?? "http://localhost:8378";
 const WS = process.env.NOTEES_WORKSPACE ?? "c491595f-9f94-5ade-a620-e30ed063d8d2"; // TEST workspace only

@@ -31,7 +31,7 @@
  *
  * Usage (from the repo root; the tsx binary lives in apps/server):
  *   pnpm --filter @notees/server exec tsx ../../scripts/migrate-url-source-binding.mts \
- *     --data-dir /etc/periphery/stacks/notees/config/notees/sync [--workspace <uuid> | --all] [--apply]
+ *     --data-dir /path/to/your/stack/config/notees/sync [--workspace <uuid> | --all] [--apply]
  */
 
 import { join } from "node:path";

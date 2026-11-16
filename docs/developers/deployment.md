@@ -264,8 +264,10 @@ workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
   main's head (`ci.yml`). The per-push-main CI trigger was retired: the
   nightly cron covers main's head, and per-push failures were the noise.
 
-**Deploy: plain Docker — Komodo is NOT required** (every
-operation it performs is reproducible with the commands below).
+**Deploy: plain Docker Compose.** The baseline is the `docker` CLI — every
+operation below is a plain `docker compose` command from the checkout.
+Compose-compatible orchestrators (Komodo, Portainer, Dockge, …) can run the
+same stack, but none is required.
 
 **Deployment files are host-local artifacts (enforced fleet-wide by the `rosellramos-coding-standards` skill):** the live
 `compose.yaml` and `.env` are **gitignored, never committed**. The repo ships
@@ -277,28 +279,27 @@ edge), and `.env.example`. Bootstrap a fresh host from a checkout:
 cp compose.example.yaml compose.yaml && cp .env.example .env   # then adjust .env
 ```
 
-The compose **project name derives from the folder name** (fleet convention —
-no `name:` pin), so keep the repo folder named `notees` on production hosts;
+The compose **project name derives from the folder name** (convention — no
+`name:` pin), so keep the repo folder named `notees` on production hosts;
 a dev instance gets its own folder (e.g. `notees-dev`) so the two projects
 never collide. Keep `compose.example.yaml` in sync with the live file by
 hand. The **data dir** binds `${NOTEES_DATA_DIR:-./config/notees/sync}` —
-fresh hosts default repo-local; the fleet host sets
-`NOTEES_DATA_DIR=<fleet-stack-data-dir>` in `.env`,
-keeping the live dataset (and the borgmatic `notees` backup source) at the
-fleet's stacks location, outside the dev repo where a `git clean` could never
+fresh hosts default repo-local; a host that keeps its data outside the
+checkout sets `NOTEES_DATA_DIR=<stack-data-dir>` in `.env` (e.g.
+`/opt/notees/config/notees/sync` — the borgmatic backup source), keeping
+the live dataset outside the dev repo where a `git clean` could never
 reach `relay.db`. The old source/stack split (a compose copy outside the
 checkout) and its hijack incident (2026-10-20) retired with
-the collapse — one live file, living beside the source it builds. Komodo:
-the `notees` stack resource points at the repo root (run directory
-`/root/projects/notees`, project name `notees`, env file `.env`); the
-periphery container carries a same-path volume of the repo so it can deploy
-there (validated with a Komodo deploy — `VERIFY-PASS`). Build/up from the
-repo root:
+the collapse — one live file, living beside the source it builds. On a host
+managed by an orchestrator, point the stack resource at your clone of the
+repo (run directory = the checkout path, project name `notees`, env file
+`.env`) and give the orchestrator's agent a same-path view of the checkout
+so it can build and deploy there (validated — `VERIFY-PASS`). Build/up from
+the repo root:
 
 ```sh
-# from the notees-sync checkout (this repo):
+# both images build from this repo (2026-11-12 re-merge, ADR-001):
 docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \
-# from the notees-web checkout (vendor submodule initialized):
 && docker build -f apps/web/Dockerfile -t ghcr.io/miquelrosell99/notees-web:latest . \
 && docker compose up -d
 ```
@@ -313,8 +314,8 @@ builds). After a data migration that rewrites the log,
 `docker compose restart notees-sync` rehydrates the server's derived store
 from snapshot+tail (`RelayStorage.ingest` alone does not apply to the
 running store — see `migrations.md`). Smoke:
-`node scripts/screenshots/verify-min.mjs` from the `notees-web` checkout (the
-script ships there — `scripts/screenshots/`), run against the live stack,
+`node scripts/screenshots/verify-min.mjs` from the repo root (the script
+ships at `scripts/screenshots/`), run against the live stack,
 with `NOTEES_ADMIN_EMAIL`/`NOTEES_ADMIN_PASSWORD` (`NOTEES_ADMIN_PASSWORD`, or
 `.admin_password` inside the stack's `config/` on a split host; `config/notees/.admin_password` on a repo-root deployment).
 
@@ -396,7 +397,7 @@ docker compose --profile edge up -d              # or COMPOSE_PROFILES=edge
 - **No edge / no tailnet**: run your own reverse proxy instead — the contract
   is two routes: `/api/*` → the sync port, `/*` → the web port; set the web
   client's `NOTEES_SERVER_URL` (or sign in through the UI's server field).
-- **Fleet host shape** (gitignored `.env`): `NOTEES_SYNC_HTTP=127.0.0.1:8377`,
+- **Loopback-pinned host shape** (gitignored `.env`): `NOTEES_SYNC_HTTP=127.0.0.1:8377`,
   `NOTEES_WEB_HTTP=127.0.0.1:8378`, LAN http via `*_LAN_HTTP=<lan-ip>:…` if
   wanted, `COMPOSE_PROFILES=edge` + `NOTEES_EDGE_NAME`. Loopback app binds keep
   the tailnet/LAN edges as the only listeners on their port numbers — the

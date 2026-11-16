@@ -53,7 +53,7 @@
  * SAFETY (the repo law): --apply NEVER touches relay.db while the notees-sync
  * stack is up. Before any child runs, the orchestrator execs
  * `docker compose ps notees-sync --status running` in the compose project dir
- * (NOTEES_STACK_DIR, else /etc/periphery/stacks/notees when present, else the
+ * (NOTEES_STACK_DIR, else the
  * cwd) and ABORTS with instructions if the container runs. The orchestrator
  * itself never writes the relay DB — pending detection is strictly read-only,
  * and every actual rewrite is delegated to the entry script's own --apply.
@@ -73,7 +73,6 @@
  */
 
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -220,8 +219,7 @@ function resolveStackDir(): string {
   if (process.env.NOTEES_STACK_DIR !== undefined && process.env.NOTEES_STACK_DIR !== "") {
     return process.env.NOTEES_STACK_DIR;
   }
-  const fleetStack = "/etc/periphery/stacks/notees";
-  return existsSync(fleetStack) ? fleetStack : process.cwd();
+  return process.cwd();
 }
 
 /** Run the orchestrator; returns the process exit code (0 / 1). */

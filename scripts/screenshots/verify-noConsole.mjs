@@ -3,7 +3,7 @@
 // Hard timeouts everywhere; streams progress; exits non-zero on failure.
 //
 // Run from anywhere: `node scripts/screenshots/verify-min.mjs` — every path
-// below self-locates (env → fleet stack dir → repo root). It verifies the
+// below self-locates (env `NOTEES_STACK_DIR` → repo root). It verifies the
 // migrated workspace, so the search term and workspace default to that
 // dataset; point the env vars elsewhere to smoke another deployment.
 import { chromium } from "playwright";
@@ -12,10 +12,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-// Fleet hosts keep the live stack outside the checkout (source/stack split);
-// repo-root deployments use the repo's own config/.
-const stackDir = process.env.NOTEES_STACK_DIR
-  ?? (existsSync("/etc/periphery/stacks/notees") ? "/etc/periphery/stacks/notees" : repoRoot);
+// Hosts with the source/stack split point NOTEES_STACK_DIR at the live stack
+// outside the checkout; repo-root deployments use the repo's own config/.
+const stackDir = process.env.NOTEES_STACK_DIR ?? repoRoot;
 
 const API = process.env.NOTEES_API ?? "http://localhost:8377";
 const WEB = process.env.NOTEES_WEB ?? "http://localhost:8378";
@@ -35,7 +34,11 @@ const PASSWORD = process.env.NOTEES_ADMIN_PASSWORD
     join(stackDir, "config/notees/.admin_password"),
     join(repoRoot, "config/notees/.admin_password"),
   ], "admin password");
-const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL ?? "miquelroselltarrago@gmail.com";
+const ADMIN_EMAIL = process.env.NOTEES_ADMIN_EMAIL;
+if (!ADMIN_EMAIL) {
+  console.error("set NOTEES_ADMIN_EMAIL (the account the sign-in path uses)");
+  process.exit(2);
+}
 const OUT_DIR = process.env.NOTEES_VERIFY_OUT ?? join(stackDir, "scripts/migrated-verify");
 
 const api = async (path) => {

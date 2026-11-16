@@ -47,14 +47,14 @@ only that they exist and how the wire stays convergent between them:
   outliner editor + worker (`notees-web` image), consuming this repo's
   packages via a pinned `vendor/notees` submodule. Releases: `v*` tags → CI
   publishes the `notees-web` image.
-- **notees-gtk** (`/root/projects/notees-gtk`) — the GTK4 desktop client:
+- **notees-gtk** (`miquelrosell99/notees-gtk`) — the GTK4 desktop client:
   Python lockstep port of the protocol, derived SQLite appliers, sync
   engine. Releases: annotated `v*` tags → CI publishes sdist/wheel + Arch
   package + GitHub Release.
-- **notees-flutter** (`/root/projects/notees-flutter`) — the mobile client:
+- **notees-flutter** (`miquelrosell99/notees-flutter`) — the mobile client:
   Dart port, hand-rolled validators. Releases: `v*` tags → CI
   production-signed APK + GitHub Release.
-- **notees-cli** (`/root/projects/notees-cli`) — the command-line client:
+- **notees-cli** (`miquelrosell99/notees-cli`) — the command-line client:
   consumes this repo's packages via a pinned `vendor/notees` submodule; the
   pin is the lockstep boundary. Releases: `v*` tags → CI attaches the
   `cli.mjs` bundle to the GitHub Release.

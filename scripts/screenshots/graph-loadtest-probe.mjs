@@ -21,7 +21,7 @@ const RENDERER = process.env.RENDERER ?? "webgl";
 const PROFILE = "/tmp/graph-loadtest-profile";
 const PASSWORD =
   process.env.NOTEES_ADMIN_PASSWORD ??
-  readFileSync("/etc/periphery/stacks/notees/config/notees/.admin_password", "utf8").trim();
+  readFileSync(`${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees/.admin_password`, "utf8").trim();
 
 const loginRes = await fetch(API + "/api/auth/login", {
   method: "POST",

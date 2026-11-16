@@ -9,7 +9,7 @@ Canonical: `docs/developers/deployment.md`.
   when you don't want `:latest`.
 - **Re-check `.env`** against `.env.example` after pulls — LAN ports and
   `NOTEES_CORS_ORIGIN` defaults changed meaning over time; loopback-only
-  defaults are intentional on the fleet host.
+  defaults are intentional on a host shared with other services.
 - **Disk:** watch `config/notees/sync/relay.db` (append-only) and
   `workspaces/*/assets/` (CAS growth); clean up `/tmp` migration backups
   (`/tmp/notees-backup-*`) once a restore is no longer plausible.

@@ -4,7 +4,7 @@
 # committed (enforced fleet-wide by the
 # rosellramos-coding-standards skill). Keep this example in sync with the
 # live file by hand. The compose PROJECT name derives from the folder name
-# (fleet convention — no `name:` pin); keep the repo folder named `notees` on
+# (convention — no `name:` pin); keep the repo folder named `notees` on
 # production hosts.
 #
 # Data: the sync server's data dir binds ${NOTEES_DATA_DIR:-./config/notees/sync}

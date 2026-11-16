@@ -58,7 +58,7 @@ the default is taken; note which ports a session uses). The main checkout is
 where slices land, not where concurrent development happens — but a solo
 session, or a trivial docs-only slice while others are landing, may work
 directly in the main checkout and commit promptly. Never a random sibling
-folder: the fleet host accumulates checkouts otherwise, and forgotten
+folder: a shared host accumulates checkouts otherwise, and forgotten
 siblings escape `git worktree list` hygiene.
 
 Commit and push when done: a finished slice — gate green,

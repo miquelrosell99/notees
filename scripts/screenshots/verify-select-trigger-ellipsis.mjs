@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 const API = "http://localhost:8377";
 const WEB = "http://localhost:8378";
 const TEST_WS = "c491595f-9f94-5ade-a620-e30ed063d8d2";
-const STACK = "/etc/periphery/stacks/notees/config/notees";
+const STACK = `${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees`;
 const PASSWORD = readFileSync(`${STACK}/.admin_password`, "utf8").trim();
 const EMAIL = "miquelroselltarrago@gmail.com";
 

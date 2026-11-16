@@ -4,7 +4,7 @@
 import { chromium } from "playwright";
 const API = "http://localhost:8377", WEB = "http://localhost:8378";
 const TEST_WS = "c491595f-9f94-5ade-a620-e30ed063d8d2";
-const KEY = (await import("fs")).readFileSync("/etc/periphery/stacks/notees/config/notees/sync/api_key.txt", "utf8").trim();
+const KEY = (await import("fs")).readFileSync(`${process.env.NOTEES_STACK_DIR ?? new URL("../..", import.meta.url).pathname}/config/notees/sync/api_key.txt`, "utf8").trim();
 const login = await fetch(API + "/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json", "x-api-key": KEY }, body: JSON.stringify({ email: process.env.NOTEES_ADMIN_EMAIL ?? "admin@localhost", password: process.env.NOTEES_ADMIN_PASSWORD }) });
 const { token } = await login.json();
 const browser = await chromium.launch();

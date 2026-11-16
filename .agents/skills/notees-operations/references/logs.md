@@ -11,7 +11,8 @@ Canonical: `docs/developers/deployment.md` (compose logging posture).
   JSON. The sync WS URL carries only a single-use 60 s ticket (minted at
   `POST /api/relay/v2/tickets`), never the credential.
 - To get full request logging on the sync server, run it with
-  `NOTEES_LOG=true` (dev/single-machine), never by default on the fleet host.
+  `NOTEES_LOG=true` (dev/single-machine), never by default on a production
+  host.
 - No log-aggregation stack is documented — if one is added, wire it per the
   `deployment-runbook` skill's monitoring section and record it here + in
   `docs/developers/deployment.md`.

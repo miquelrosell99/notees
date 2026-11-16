@@ -3,7 +3,7 @@
 // Hard timeouts everywhere; streams progress; exits non-zero on failure.
 //
 // Run from anywhere: `node scripts/screenshots/verify-min.mjs` — every path
-// below self-locates (env → fleet stack dir → repo root). It verifies the
+// below self-locates (env `NOTEES_STACK_DIR` → repo root). It verifies the
 // migrated workspace, so the search term and workspace default to that
 // dataset; point the env vars elsewhere to smoke another deployment.
 //
@@ -19,10 +19,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-// Fleet hosts keep the live stack outside the checkout (source/stack split);
-// repo-root deployments use the repo's own config/.
-const stackDir = process.env.NOTEES_STACK_DIR
-  ?? (existsSync("/etc/periphery/stacks/notees") ? "/etc/periphery/stacks/notees" : repoRoot);
+// Hosts with the source/stack split point NOTEES_STACK_DIR at the live stack
+// outside the checkout; repo-root deployments use the repo's own config/.
+const stackDir = process.env.NOTEES_STACK_DIR ?? repoRoot;
 
 const API = process.env.NOTEES_API ?? "http://localhost:8377";
 const WEB = process.env.NOTEES_WEB ?? "http://localhost:8378";

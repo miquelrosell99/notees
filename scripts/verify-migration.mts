@@ -33,7 +33,7 @@
  *
  * Usage (from the repo root; the tsx binary lives in apps/server):
  *   pnpm --filter @notees/server exec tsx ../../scripts/verify-migration.mts \
- *     --data-dir /etc/periphery/stacks/notees/config/notees/sync \
+ *     --data-dir /path/to/your/stack/config/notees/sync \
  *     [--workspace <uuid> | --all] --device migrate-pmid-property \
  *     [--server http://localhost:8377] [--api-key <operator key>]
  */
