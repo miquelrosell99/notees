@@ -307,6 +307,19 @@ function parseSearchCursor(cursor: string | null | undefined): number {
 
 export interface RankedSearchHit {
   nodeId: string;
+  /**
+   * The hit's ranking tier — the machine signal that separates a direct FTS
+   * hit from the degraded rescue arms. Roster (the scorer's contract):
+   * 0 main-title literal/starts-with · 1 text literal/starts-with ·
+   * 2 title ordered terms · 3 text ordered terms · 4 first-parent-name ·
+   * 5 alias terminal · 6 fuzzy rescue (the whole query as an ordered
+   * subsequence — loose by design, Capacities "find by intent") ·
+   * 7 property fan-out. Search consumers that only want direct matches
+   * filter `tier <= 3`; treating every row of a search page as a direct
+   * match is the bug this field exists to prevent (2026-11-16: a cleanup
+   * loop consumed unannotated fuzzy-rescue rows as exact matches).
+   */
+  tier: number;
 }
 
 export interface RankedSearchPage {
@@ -847,7 +860,7 @@ export function searchNodesPage(
     );
   });
 
-  const hits = scored.slice(offset, offset + limit).map(({ row }) => ({ nodeId: row.nodeId }));
+  const hits = scored.slice(offset, offset + limit).map(({ row, score }) => ({ nodeId: row.nodeId, tier: score.tier }));
   return { hits, nextCursor: hits.length === limit ? String(offset + limit) : null };
 }
 

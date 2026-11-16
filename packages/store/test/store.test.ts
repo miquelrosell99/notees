@@ -2725,18 +2725,18 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("finds the block containing 'Kuhn'", async () => {
       const store = baseStoreWithBlock();
       store.applyMany(await loadFixture("typed-link-mark.json"));
-      expect(store.search("Kuhn")).toEqual([{ nodeId: NODE_BLOCK }]);
+      expect(store.search("Kuhn")).toEqual([expect.objectContaining({ nodeId: NODE_BLOCK })]);
     });
 
     it("multi-term queries rank whole-query matches first and partial matches last", async () => {
       const store = baseStoreWithBlock();
       store.applyMany(await loadFixture("typed-link-mark.json"));
       // "Kuhn Scient" — the block carrying both terms still wins…
-      expect(store.search("Kuhn Scient")).toEqual([{ nodeId: NODE_BLOCK }]);
+      expect(store.search("Kuhn Scient")).toEqual([expect.objectContaining({ nodeId: NODE_BLOCK })]);
       // …but "Kuhn absentterm" no longer returns nothing: the partial match
       // (Kuhn only) enters the list as a lower tier (priority ranking,
       //). Quoted phrases stay strict AND.
-      expect(store.search("Kuhn absentterm")).toEqual([{ nodeId: NODE_BLOCK }]);
+      expect(store.search("Kuhn absentterm")).toEqual([expect.objectContaining({ nodeId: NODE_BLOCK })]);
       expect(store.search('"Kuhn absentterm"')).toEqual([]);
     });
 
@@ -2757,8 +2757,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           1727200009000,
         ),
       );
-      expect(store.search("Paradigms")).toEqual([{ nodeId: NODE_BOOK }]);
-      expect(store.search("Paradigms rules")).toEqual([{ nodeId: NODE_BOOK }]);
+      expect(store.search("Paradigms")).toEqual([expect.objectContaining({ nodeId: NODE_BOOK })]);
+      expect(store.search("Paradigms rules")).toEqual([expect.objectContaining({ nodeId: NODE_BOOK })]);
     });
 
     it("excludes soft-deleted nodes from search results", async () => {
@@ -2766,6 +2766,30 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.applyMany(await loadFixture("typed-link-mark.json"));
       store.apply(env("object.delete", { objectId: NODE_BLOCK }, 1727200010000));
       expect(store.search("Kuhn")).toEqual([]);
+    });
+
+    it("annotates every hit with its ranking tier — direct hits vs the fuzzy rescue arm", () => {
+      const store = baseStore();
+      store.apply(
+        env(
+          "object.update",
+          { objectId: NODE_BOOK, contentAst: [{ type: "text", text: "Alphabet soup" }] },
+          1727200009000,
+        ),
+      );
+      // Direct literal hit: the tier rides along so machine consumers can
+      // weigh the match.
+      const direct = store.search("alphabet");
+      expect(direct[0]).toEqual(expect.objectContaining({ nodeId: NODE_BOOK, tier: 0 }));
+      // No direct match at all: the ordered-subsequence rescue arm still
+      // admits "aet" (a→e→t in order) — annotated as the fuzzy tier, never
+      // silently promoted to a direct match (2026-11-16: a cleanup loop
+      // consumed unannotated fuzzy rows as exact matches).
+      const fuzzy = store.search("aet");
+      const book = fuzzy.find((h) => h.nodeId === NODE_BOOK);
+      expect(book?.tier).toBe(6);
+      expect(direct[0]!.tier).not.toBe(book!.tier);
+      for (const hit of fuzzy) expect(typeof hit.tier).toBe("number");
     });
 
     it("finds a page by its title text (title-is-content: one indexed text run)", () => {
@@ -2783,9 +2807,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         ),
       );
       // Title-term match.
-      expect(store.search("Quantum")).toEqual([{ nodeId: quantum }]);
+      expect(store.search("Quantum")).toEqual([expect.objectContaining({ nodeId: quantum })]);
       // Content-term search hits the same indexed row.
-      expect(store.search("unrelated")).toEqual([{ nodeId: quantum }]);
+      expect(store.search("unrelated")).toEqual([expect.objectContaining({ nodeId: quantum })]);
     });
 
     it("indexes a bare mention's target name, cascading through link-bearing titles", () => {
@@ -2861,15 +2885,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = baseStore();
       const id = "0192a000-0000-7000-8000-0000000000d1";
       store.apply(env("object.create", { objectId: id, contentAst: [{ type: "text", text: "Alpha" }]}, 1727200002000));
-      expect(store.search("Alpha")).toEqual([{ nodeId: id }]);
+      expect(store.search("Alpha")).toEqual([expect.objectContaining({ nodeId: id })]);
       // Name LWW update: the new name is indexed, the old one stops matching.
       store.apply(env("object.update", { objectId: id, contentAst: [{ type: "text", text: "Beta" }]}, 1727200003000));
       expect(store.search("Alpha")).toEqual([]);
-      expect(store.search("Beta")).toEqual([{ nodeId: id }]);
+      expect(store.search("Beta")).toEqual([expect.objectContaining({ nodeId: id })]);
       // A lower-HLC rename is dropped by LWW: the index keeps the winner.
       store.apply(env("object.update", { objectId: id, contentAst: [{ type: "text", text: "Gamma" }]}, 1727200002500));
       expect(store.search("Gamma")).toEqual([]);
-      expect(store.search("Beta")).toEqual([{ nodeId: id }]);
+      expect(store.search("Beta")).toEqual([expect.objectContaining({ nodeId: id })]);
     });
 
     it("matches hyphenated identifiers across the punctuation boundary", () => {
@@ -2887,8 +2911,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
       // unicode61 indexes "11607-1" as the tokens 11607 and 1; the query must
       // split at the same boundary instead of merging into "116071".
-      expect(store.search("11607-1")).toEqual([{ nodeId: id }]);
-      expect(store.search("ISO 11607")).toEqual([{ nodeId: id }]);
+      expect(store.search("11607-1")).toEqual([expect.objectContaining({ nodeId: id })]);
+      expect(store.search("ISO 11607")).toEqual([expect.objectContaining({ nodeId: id })]);
     });
   });
 
@@ -3036,13 +3060,13 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("finds a node by its full uuid even when the title does not contain the term", () => {
       const store = uuidStore();
-      expect(store.search(UUID_TARGET)).toEqual([{ nodeId: UUID_TARGET }]);
+      expect(store.search(UUID_TARGET)).toEqual([expect.objectContaining({ nodeId: UUID_TARGET })]);
       store.close();
     });
 
     it("answers an uppercase paste too (ids are hex, case-insensitive)", () => {
       const store = uuidStore();
-      expect(store.search(UUID_TARGET.toUpperCase())).toEqual([{ nodeId: UUID_TARGET }]);
+      expect(store.search(UUID_TARGET.toUpperCase())).toEqual([expect.objectContaining({ nodeId: UUID_TARGET })]);
       store.close();
     });
 

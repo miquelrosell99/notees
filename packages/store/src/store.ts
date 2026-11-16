@@ -109,6 +109,13 @@ export interface NodeRow {
 
 export interface SearchHit {
   nodeId: string;
+  /**
+   * The hit's ranking tier (0–3 direct · 4 first-parent-name · 5 alias ·
+   * 6 fuzzy rescue · 7 property fan-out) — the machine signal that tells a
+   * direct FTS hit from a degraded rescue arm. Roster: `RankedSearchHit` in
+   * search.ts.
+   */
+  tier: number;
 }
 
 /** One memorization-card review history row (SCHEMA.md "Memorization
