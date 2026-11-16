@@ -2096,24 +2096,43 @@ async function runServe(ctx: CommandContext, options: {
 }
 
 /**
- * `notees word serve` — host the Word add-in locally: serve the vendored
- * dist on 127.0.0.1 and render the sideload manifest for
- * http://localhost:<port> into the per-user cache dir. Purely local — no
- * server, no credential, no workspace (the add-in's sync settings live in
- * the pane). Resolves the dist and cache dir like the doctor: nothing
- * required, clear usage errors when the snapshot is missing.
+ * `notees word serve` — the Word add-in's local gateway: serve the vendored
+ * dist on 127.0.0.1, render the sideload manifest for
+ * http://localhost:<port>, and relay the pane's same-origin `/api/*` calls
+ * to the configured sync server with the credential injected server-side
+ * (the pane holds no server URL and no key). The upstream is the same
+ * server/credential resolution every other command uses — NOTEES_WORD_UPSTREAM
+ * overrides the base URL (tests, exotic setups); the credential always
+ * comes from the CLI config. The configured workspace id is injected as
+ * `x-workspace-id` when the pane does not send one.
  */
 async function runWordServe(command: Command, options: { port?: string; restart?: boolean }): Promise<void> {
   const root = rootOf(command);
   const opts = root.opts<GlobalOptions>();
   const io = (root.getOptionValue("__io") as CliIo | undefined) ?? defaultIo;
+  const ctx = ctxOf(command);
   const config = resolveWordServeConfig(options);
   const distDir = resolveWordDistDir();
+  const upstream = process.env.NOTEES_WORD_UPSTREAM ?? ctx.client.server;
+  // Best-effort, exactly what the CLI's own requests resolve: a workspace
+  // configured by flag/env/config set becomes the default x-workspace-id;
+  // an unresolvable one only means the header stays client-driven.
+  let workspaceId: string | undefined;
+  try {
+    workspaceId = await ctx.client.workspaceId();
+  } catch {
+    io.stderr.write("warning: workspace resolution failed — proxying without a default x-workspace-id\n");
+  }
   const session: WordServeSession = await startWordServe({
     distDir,
     cacheDir: wordCacheDir(),
     port: config.port,
     restart: config.restart,
+    proxy: {
+      upstream,
+      apiKey: ctx.client.apiKey,
+      ...(workspaceId !== undefined ? { workspaceId } : {}),
+    },
   });
   const shutdown = async (): Promise<void> => {
     await session.close();
@@ -2125,14 +2144,16 @@ async function runWordServe(command: Command, options: { port?: string; restart?
     io.stdout.write(`${JSON.stringify(machine)}\n`);
   } else {
     io.stderr.write(
-      `notees word serve: add-in statics on ${session.url}/ (127.0.0.1 only)\n` +
+      `notees word serve: add-in gateway on ${session.url}/ (127.0.0.1 only)\n` +
         `manifest written: ${session.manifestPath}\n` +
+        `/api/* proxied to ${upstream} (auth injected from this CLI's config)\n` +
         "next steps:\n" +
         "  1. Sideload: point Word's shared-folder catalog at the manifest's folder\n" +
         "     (Windows: HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\TrustedCatalogs string value;\n" +
         "     Word for Mac: copy the manifest into the wef folder), restart Word, then\n" +
         "     Insert -> My Add-ins -> SHARED FOLDER -> Notees.\n" +
-        "  2. Open the Notees pane -> settings: enter your Notees sync server URL + API key.\n" +
+        "  2. The pane needs no server URL or API key — this gateway is its only backend.\n" +
+        "     For citation pairing, run: notees serve --origin " + session.url + "\n" +
         "press Ctrl-C to stop\n",
     );
   }
@@ -4290,7 +4311,7 @@ const HELP_ROWS: Record<string, { flags: string }> = {
   asset: { flags: "add <path…> --object --jobs --stop-on-error · attach --object · list --object --limit · get --output" },
   sync: { flags: "status" },
   serve: { flags: "[--port · --origin · --token-file · --sync-interval · --styles-dir]" },
-  word: { flags: "serve [--port · --restart]" },
+  word: { flags: "serve [--port · --restart] (server/credential via the global options)" },
   doctor: { flags: "(resolves flag > env > stored)" },
   shell: { flags: "[script]" },
   export: { flags: "markdown · json · bibtex" },
@@ -4972,11 +4993,11 @@ function buildProgram(): Command {
 
   const word = program
     .command("word")
-    .description("the Word add-in — serve the task-pane statics + sideload manifest locally (the add-in is no longer hosted on the sync server)");
+    .description("the Word add-in — local gateway: task-pane statics + sideload manifest + same-origin /api proxy to the sync server");
   word
     .command("serve")
     .description(
-      "serve the Word add-in on http://localhost:<port> (127.0.0.1 only) and render the sideload manifest into the per-user cache dir; runs until Ctrl-C",
+      "serve the Word add-in on http://localhost:<port> (127.0.0.1 only), render the sideload manifest into the per-user cache dir, and proxy /api/* to the configured sync server with auth injected (the pane holds no server URL or key); runs until Ctrl-C",
     )
     .option("--port <n>", "port to bind (default 8471; env NOTEES_WORD_PORT; 0 = OS-assigned)")
     .option("--restart", "stop a running notees word serve (same cache dir) and start anew")

@@ -116,17 +116,19 @@ Display names: the human tables of `object children` / `object list` render a ro
 - **Offline-first.** One `LocalWorkspace` stays open for the server's lifetime with a background sync every `--sync-interval` seconds (≥ 5, default 60). A failed initial sync still serves the last synced store; a store that has never synced fails loudly instead of serving an empty projection. Request handling performs no network I/O.
 - **Styles.** APA, IEEE, and Chicago (notes & bibliography) are bundled; drop additional `.csl` files in a `--styles-dir`.
 
-## `notees word serve` — host the Word add-in locally
+## `notees word serve` — the Word add-in's local gateway
 
-The Notees-for-Word task pane is no longer served by the Notees sync server; `notees word serve` hosts it on the machine running Word:
+The Notees-for-Word task pane is no longer served by the Notees sync server; `notees word serve` is its local gateway on the machine running Word — statics, sideload manifest, and the pane's only path to the sync server:
 
     notees word serve [--port 8471] [--restart]
 
 - **Vendored statics.** It serves `vendor/word/dist` — a built snapshot of the `miquelrosell99/notees-word` localhost flavor — read-only at the root of `http://localhost:<port>`, bound to `127.0.0.1` only (post-listen address check, like the bridge). `GET /` is the pane, `GET /manifest.xml` is the sideload manifest re-rendered for the actual port.
-- **Sideload manifest.** The manifest is written to the per-user cache dir — `~/.cache/notees/word/manifest.xml` on Linux/macOS (`$XDG_CACHE_HOME` respected), `%LOCALAPPDATA%\notees\word\manifest.xml` on Windows. Point Word's shared-folder catalog at that folder (Windows trusted-catalog registry value; Word for Mac copies it into the wef folder). The add-in's sync server URL + API key are entered in the pane's settings.
+- **Same-origin API gateway.** Every `/api/*` request (any method) relays to the configured sync server — the same `--server` / `NOTEES_SERVER` / `notees config set server` resolution every command uses (`NOTEES_WORD_UPSTREAM` overrides the base URL). The credential comes only from the CLI config (`--key` / `NOTEES_API_KEY` / stored credential) and is injected server-side as `x-api-key`; the configured workspace becomes a default `x-workspace-id` when the pane does not send one. Client-supplied auth headers (`x-api-key`, `authorization`, `cookie`) are dropped, never forwarded — the pane holds nothing and cannot retarget the proxy: one fixed origin, `/api/*` paths only. The relay WebSocket (`/api/relay/v2/ws/:workspaceId`) is tunneled at the upgrade layer with the same injection. No CORS headers anywhere: the pane is same-origin.
+- **Streaming, not buffering.** Request and response bodies relay chunk-for-chunk (relay snapshots, any future SSE-style feed); long-lived responses get no client-side cutoff.
+- **Sideload manifest.** The manifest is written to the per-user cache dir — `~/.cache/notees/word/manifest.xml` on Linux/macOS (`$XDG_CACHE_HOME` respected), `%LOCALAPPDATA%\notees\word\manifest.xml` on Windows. Point Word's shared-folder catalog at that folder (Windows trusted-catalog registry value; Word for Mac copies it into the wef folder).
 - **One serve per cache dir.** A second `notees word serve` exits 4 (conflict) with a `--restart` hint; `--restart` SIGTERMs the live holder and waits it out. The lock records the holder pid; a stale lock from a dead process is stolen.
 - **Port.** `--port` > `NOTEES_WORD_PORT` > 8471.
-- **No server, no credential.** The command is purely local; the pane's server settings live in the pane, not the CLI. For citation pairing, run `notees serve --origin http://localhost:<port>` so the pane's cross-origin bridge fetches are allowed.
+- **Server + credential required.** Unlike the statics-only early shape, the gateway resolves the sync server and credential at startup (the standard global options) — without them there is nothing to proxy to. For citation pairing, run `notees serve --origin http://localhost:<port>` so the pane's cross-origin bridge fetches are allowed.
 - **Release bundles.** The single-file `cli.mjs` carries no vendor tree; an installed bundle resolves the dist from `NOTEES_WORD_DIST` (point it at a `vendor/word/dist` snapshot).
 
 ## Installing

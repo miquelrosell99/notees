@@ -14,6 +14,7 @@ import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 
 import { CliError, EXIT } from "../exit-codes.js";
 import { renderWordManifest } from "./manifest.js";
+import { isProxyPath, proxyApiRequest, proxyApiUpgrade, type WordProxyTarget } from "./proxy.js";
 
 const LOCK_FILE_NAME = "word-serve.lock";
 const MANIFEST_FILE_NAME = "manifest.xml";
@@ -43,6 +44,13 @@ export interface WordServeOptions {
   readonly restart?: boolean;
   /** The raw manifest template (defaults to manifest.xml next to the dist). */
   readonly manifestTemplatePath?: string;
+  /**
+   * Fixed upstream for the same-origin `/api/*` gateway. When set, `/api/*`
+   * requests (any method, plus WebSocket upgrades) relay here with the
+   * credential injected server-side; when unset, `/api/*` 404s like any
+   * missing static.
+   */
+  readonly proxy?: WordProxyTarget;
 }
 
 export interface WordServeSession {
@@ -138,11 +146,31 @@ export async function startWordServe(options: WordServeOptions): Promise<WordSer
   await acquireWordServeLock(lockPath, options.restart === true);
 
   const server: Server = createServer((req, res) => {
-    respond(req, res, distRoot, manifestPath).catch(() => {
+    respond(req, res, distRoot, manifestPath, options.proxy).catch(() => {
       if (!res.headersSent) res.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
       res.end("internal error");
     });
   });
+  if (options.proxy !== undefined) {
+    const proxy = options.proxy;
+    // WebSocket upgrades cannot ride the request handler: take the socket
+    // and tunnel it to the fixed upstream (relay socket included, it lives
+    // under /api/relay/v2/ws/). Anything not /api/* gets no upgrade here.
+    server.on("upgrade", (req, socket, head) => {
+      let pathname: string;
+      try {
+        pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+      } catch {
+        socket.destroy();
+        return;
+      }
+      if (!isProxyPath(pathname)) {
+        socket.destroy();
+        return;
+      }
+      proxyApiUpgrade(req, socket, head, proxy);
+    });
+  }
   try {
     await new Promise<void>((resolveListen, rejectListen) => {
       server.once("error", rejectListen);
@@ -196,7 +224,31 @@ export async function startWordServe(options: WordServeOptions): Promise<WordSer
   };
 }
 
-async function respond(req: IncomingMessage, res: ServerResponse, distRoot: string, manifestPath: string): Promise<void> {
+async function respond(
+  req: IncomingMessage,
+  res: ServerResponse,
+  distRoot: string,
+  manifestPath: string,
+  proxy: WordProxyTarget | undefined,
+): Promise<void> {
+  // The gateway branch rides the RAW path (undecoded) — /api/ URLs are the
+  // upstream's business, and any method (incl. POST/PUT bodies and future
+  // long-lived feeds) relays. This precedes the static GET/HEAD gate on
+  // purpose.
+  if (proxy !== undefined) {
+    let rawPathname: string;
+    try {
+      rawPathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    } catch {
+      res.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+      res.end("malformed path");
+      return;
+    }
+    if (isProxyPath(rawPathname)) {
+      await proxyApiRequest(req, res, proxy);
+      return;
+    }
+  }
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405, { allow: "GET, HEAD", "content-type": "text/plain; charset=utf-8" });
     res.end("method not allowed");
