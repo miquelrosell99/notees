@@ -1,15 +1,16 @@
-import { createRequire } from "node:module";
-
 import type { CslItem } from "@notees/export";
 
 import { serveError, type ServeErrorBody } from "./protocol.js";
 import { localeXml, resolveStyleXml } from "./styles.js";
 
-// citeproc-js is CommonJS and ships no ESM entry; the release bundle's
-// createRequire banner (tsup.config.ts) and Node's native createRequire
-// both serve this equally. citeproc-js parses CSL XML through the DOM
-// parser it finds in the environment — browsers have one, Node does not,
-// so the bridge installs xmldom's as a global before the first Engine.
+// citeproc-js is CommonJS with no ESM entry and no statically analyzable
+// named exports, so it comes in through the default-import interop (Node's
+// CJS default in dev, esbuild's CJS shim in the release bundle) — a raw
+// require() would survive bundling as a runtime call and crash a standalone
+// cli.mjs at startup. citeproc-js parses CSL XML through the DOM parser it
+// finds in the environment — browsers have one, Node does not, so the
+// bridge installs xmldom's as a global before the first Engine.
+import citeproc from "citeproc";
 import { DOMParser as XmldomParser } from "@xmldom/xmldom";
 
 const globalScope = globalThis as { DOMParser?: unknown };
@@ -17,8 +18,7 @@ if (globalScope.DOMParser === undefined) {
   globalScope.DOMParser = XmldomParser;
 }
 
-const require = createRequire(import.meta.url);
-const { Engine } = require("citeproc") as typeof import("citeproc");
+const { Engine } = citeproc as unknown as typeof import("citeproc");
 
 export interface CiteRenderer {
   /** Raw citeproc cluster string — light markup (<i>, <b>) included. */
