@@ -172,7 +172,11 @@ function db2epochs(dataDir: string): Array<{ workspace_id: string; epoch: number
 }
 
 describe("migrate-e2ee (plan 06)", () => {
-  it("dry-run plans the full scope with ZERO writes; migrate seals in place; verify is green; re-run is idempotent; clients can read the log back", async () => {
+  // 30 s: the migration derives keys (scrypt) and seals/reopens envelopes
+  // and assets — under a contended shared CI runner the default 5 s budget
+  // is not enough (the 2026-11-13..16 nightly reds were all this timeout on
+  // an otherwise-green test; locally it finishes in ~2 s).
+  it("dry-run plans the full scope with ZERO writes; migrate seals in place; verify is green; re-run is idempotent; clients can read the log back", { timeout: 30_000 }, async () => {
     const fixture = buildFixture();
     const before = open(fixture.dbPath);
     const dumpBefore = JSON.stringify(dump(before));
