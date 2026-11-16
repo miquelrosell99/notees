@@ -557,14 +557,24 @@ describe("L4 breadcrumb edit gestures", () => {
   });
 
   it("date-chain parenting lock: editable renders no parent-edit affordance on a date page", async () => {
+    // Hermetic format: the month crumb renders per the device dateFormat,
+    // which defaults to YYYY-MM-DD — pin the slash format so the assertion
+    // does not depend on settings-boot convergence order (the seeded
+    // workspace pref and the device fallback can disagree under load,
+    // 2026-11-16 CI).
+    localStorage.setItem(`${DEVICE_SETTINGS_PREFIX}dateFormat`, '"YYYY/MM/DD"');
     const client = await seedClient();
     const chain = await client.ensureDateChain("2026-09-27");
 
     const { container } = render(
       <Breadcrumbs client={client} nodeId={chain.day} onOpenNode={() => {}} editable />,
     );
-    // The trail still renders (month → year crumbs, date-formatted)…
-    expect(screen.getByRole("button", { name: "2026/09" })).not.toBeNull();
+    // The trail still renders (month → year crumbs, date-formatted)… — the
+    // trail populates from an async store hydration (deep links render null
+    // first), so await convergence rather than asserting the first render:
+    // under CI load the hydration lands after a synchronous getByRole
+    // (2026-11-16 — the year crumb was present, the month crumb not yet).
+    expect(await screen.findByRole("button", { name: "2026/09" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "2026" })).not.toBeNull();
     // …but every chain edge is locked: no chevron buttons at all, and the
     // right-click menu never opens (both crumbs' edges lead into date nodes).
