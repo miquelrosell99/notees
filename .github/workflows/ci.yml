@@ -1,13 +1,23 @@
 name: ci
 
+# Gating: PRs + a nightly run of main's head (fleet trigger matrix). The
+# `push: [main]` trigger is retired — the nightly cron covers main's head,
+# and per-push CI on main was a recurring failure source. A manual dispatch
+# runs whatever ref the operator picks in the UI.
+
 on:
-  push:
-    branches: [main]
   pull_request:
+  schedule:
+    - cron: "23 3 * * *"   # nightly main-head cover, off the :00 mark
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
@@ -15,12 +25,12 @@ jobs:
         # stay green on both the LTS train and current node.
         node-version: [22, 26]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           # The @notees/* packages are consumed from the vendored monorepo
           # checkout (see README "Syncing the vendored packages").
           submodules: recursive
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node-version }}
       - name: Enable pnpm
