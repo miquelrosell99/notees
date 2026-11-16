@@ -45,12 +45,14 @@ async function createClient(
     onSyncError?: (error: Error) => void;
     gate?: ClientGate;
     /**
-     * Per-cycle snapshot uploads: this pin's convergence rides on the relay
-     * carrying a fresh snapshot at the final pulls (the production 6-hour
-     * throttle lets pure log replay surface a delete-vs-concurrent-edit
-     * divergence the snapshot shortcut otherwise masks — 2026-11-16).
+     * Short outbox retry backoff: A's delete push fails at the offline gate
+     * and the production ladder's first retry (5 s) would land after this
+     * scenario's own awaits — the delete would never reach the relay before
+     * the convergence assertions (the 2026-11-16 CI flake; the engine itself
+     * converges, proven by a two-engine probe). 20 ms keeps the retry inside
+     * the test's tick.
      */
-    sync?: { snapshotUploadMinIntervalMs?: number; snapshotUploadBehindOps?: number };
+    sync?: { snapshotUploadMinIntervalMs?: number; snapshotUploadBehindOps?: number; retryDelaysMs?: readonly number[] };
   } = {},
 ): Promise<WorkspaceClient> {
   const gate = options.gate ?? { offline: false };
@@ -167,9 +169,9 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
       onConflict: (c) => conflicts.push(...c),
       onSyncError: (e) => syncErrors.push(e),
       gate: gateA,
-      sync: { snapshotUploadMinIntervalMs: 0 },
+      sync: { retryDelaysMs: [20] },
     });
-    const clientB = await createClient(ctx, { sync: { snapshotUploadMinIntervalMs: 0 } });
+    const clientB = await createClient(ctx);
     await clientA.bootstrapWorkspace(WS);
     await clientB.bootstrapWorkspace(WS);
 

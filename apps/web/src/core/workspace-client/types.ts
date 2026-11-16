@@ -894,5 +894,7 @@ export interface WorkspaceClientOptions {
   sync?: {
     snapshotUploadMinIntervalMs?: number;
     snapshotUploadBehindOps?: number;
+    /** Outbox retry backoff schedule (tests shorten it — see SyncEngineOptions). */
+    retryDelaysMs?: readonly number[];
   };
 }

@@ -183,6 +183,15 @@ export interface SyncEngineOptions {
    * (50_000).
    */
   snapshotUploadBehindOps?: number;
+  /**
+   * Outbox retry backoff schedule (ms per failed-attempt index): a failed
+   * push marks its envelopes failed and waits `retryDelaysMs[attempt - 1]`
+   * before they ride again; past the schedule they quarantine. Defaults to
+   * the production ladder (5 s, 15 s, 60 s, 5 min, 30 min) — tests shorten
+   * it so a failed-then-restored push retries inside the scenario's own
+   * awaits (the offline-gate conflict pin).
+   */
+  retryDelaysMs?: readonly number[];
   callbacks?: SyncEngineCallbacks;
   /**
    * Optional E2EE boundary (spec §2): encrypt at the push boundary, decrypt
@@ -221,6 +230,8 @@ export class SyncEngine {
   private readonly snapshotUploadMinIntervalMs: number;
   /** Behind-ops escape threshold; mirrors the SyncEngineOptions field. */
   private readonly snapshotUploadBehindOps: number;
+  /** Outbox retry backoff schedule; mirrors the SyncEngineOptions field. */
+  private readonly retryDelaysMs: readonly number[];
   private callbacks: SyncEngineCallbacks;
   /** E2EE boundary; null → plaintext wire. Mutable: setCrypto swaps the key. */
   private crypto: EnvelopeCrypto | null;
@@ -314,6 +325,7 @@ export class SyncEngine {
     this.snapshotCompactThreshold = options.snapshotCompactThreshold ?? SNAPSHOT_COMPACT_THRESHOLD;
     this.snapshotUploadMinIntervalMs = options.snapshotUploadMinIntervalMs ?? SNAPSHOT_UPLOAD_MIN_INTERVAL_MS;
     this.snapshotUploadBehindOps = options.snapshotUploadBehindOps ?? SNAPSHOT_UPLOAD_BEHIND_OPS;
+    this.retryDelaysMs = options.retryDelaysMs ?? RETRY_DELAYS_MS;
     this.snapshotChunkThreshold = options.snapshotChunkThreshold ?? SNAPSHOT_CHUNK_THRESHOLD;
     this.snapshotPartSize = options.snapshotPartSize ?? SNAPSHOT_PART_SIZE;
     this.callbacks = options.callbacks ?? {};
@@ -498,7 +510,7 @@ export class SyncEngine {
         onProgress?.({ sent, total });
       } catch (err) {
         const error = asError(err);
-        this.outbox.markFailed(ids, error.message, this.now(), RETRY_DELAYS_MS);
+        this.outbox.markFailed(ids, error.message, this.now(), this.retryDelaysMs);
         this.reportOutboxCounts();
         this.setStatus("error", error);
         this.callbacks.onError?.(error);

@@ -229,6 +229,39 @@ describe("two-device convergence", () => {
 });
 
 describe("retry and quarantine", () => {
+  it("honors a custom retryDelaysMs schedule (the test-shortened seam)", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    let failSend = true;
+    const transport = new MemoryTransport(relay, {
+      hooks: {
+        beforeSendBatch: async () => {
+          if (failSend) throw new Error("network down");
+        },
+      },
+    });
+    const store = new Store();
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      retryDelaysMs: [10, 100],
+    });
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 3000, "object.create", {
+        objectId: "0192a000-0000-7000-8000-0000000000c9",
+        contentAst: [{ type: "text", text: "custom-schedule" }],
+      }),
+    );
+    await expect(engine.syncOnce()).rejects.toThrow("network down");
+    // The production ladder's first slot is 5 s — the custom 10 ms one makes
+    // the very next push due.
+    nowMs += 11;
+    failSend = false;
+    await engine.syncOnce();
+    expect(engine.getOutboxCounts()).toEqual({ pending: 0, failed: 0, quarantined: 0 });
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
+  });
+
   it("backs off through the schedule, then quarantines and recovers", async () => {
     const relay = new MemoryRelay();
     let nowMs = 100_000;
