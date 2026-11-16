@@ -44,6 +44,13 @@ async function createClient(
     onConflict?: (conflicts: SyncConflict[]) => void;
     onSyncError?: (error: Error) => void;
     gate?: ClientGate;
+    /**
+     * Per-cycle snapshot uploads: this pin's convergence rides on the relay
+     * carrying a fresh snapshot at the final pulls (the production 6-hour
+     * throttle lets pure log replay surface a delete-vs-concurrent-edit
+     * divergence the snapshot shortcut otherwise masks — 2026-11-16).
+     */
+    sync?: { snapshotUploadMinIntervalMs?: number; snapshotUploadBehindOps?: number };
   } = {},
 ): Promise<WorkspaceClient> {
   const gate = options.gate ?? { offline: false };
@@ -58,6 +65,7 @@ async function createClient(
     transport,
     actorId: ACTOR,
     sqlJs: sqlModule,
+    ...(options.sync !== undefined ? { sync: options.sync } : {}),
     ...(options.onConflict ? { onConflict: options.onConflict } : {}),
     ...(options.onSyncError ? { onSyncError: options.onSyncError } : {}),
   });
@@ -159,8 +167,9 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
       onConflict: (c) => conflicts.push(...c),
       onSyncError: (e) => syncErrors.push(e),
       gate: gateA,
+      sync: { snapshotUploadMinIntervalMs: 0 },
     });
-    const clientB = await createClient(ctx);
+    const clientB = await createClient(ctx, { sync: { snapshotUploadMinIntervalMs: 0 } });
     await clientA.bootstrapWorkspace(WS);
     await clientB.bootstrapWorkspace(WS);
 

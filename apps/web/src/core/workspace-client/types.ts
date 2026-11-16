@@ -866,4 +866,16 @@ export interface WorkspaceClientOptions {
    * connecting screen renders it as a real progress bar + percentage.
    */
   onSyncProgress?: (applied: number, total: number) => void;
+  /**
+   * Sync-engine tuning forwarded to the SyncEngine at bootstrap (the
+   * SyncEngineOptions knobs the client exposes). Tests pin
+   * `snapshotUploadMinIntervalMs: 0` where a scenario's convergence rides on
+   * per-cycle snapshot uploads — the production default (6 h) throttles
+   * them, and pure log replay surfaces a delete-vs-concurrent-edit
+   * divergence the snapshot shortcut otherwise masks (2026-11-16).
+   */
+  sync?: {
+    snapshotUploadMinIntervalMs?: number;
+    snapshotUploadBehindOps?: number;
+  };
 }

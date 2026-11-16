@@ -56,6 +56,7 @@ export class WorkspaceClientSync {
         : undefined;
     this.ctx.engine = new SyncEngine(this.ctx.store, this.ctx.transport, this.ctx.clock, {
       workspaceId,
+      ...(this.ctx.syncOptions ?? {}),
       ...(crypto !== undefined ? { crypto } : {}),
       callbacks: {
         onConflict: (conflicts) => {

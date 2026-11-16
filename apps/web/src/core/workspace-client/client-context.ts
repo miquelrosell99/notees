@@ -70,6 +70,8 @@ export class ClientContext {
   readonly userOnSyncError: ((error: Error) => void) | undefined;
   readonly userOnSyncPhase: ((phase: string, message: string) => void) | undefined;
   readonly userOnSyncProgress: ((applied: number, total: number) => void) | undefined;
+  /** Sync-engine tuning overrides (WorkspaceClientOptions.sync); forwarded at bootstrap. */
+  readonly syncOptions: { snapshotUploadMinIntervalMs?: number; snapshotUploadBehindOps?: number } | undefined;
   readonly clock: Clock;
   readonly listeners = new Set<(change: ChangeNotification) => void>();
   /** Server REST access (asset upload/download); null without serverUrl/apiKey. */
@@ -136,6 +138,7 @@ export class ClientContext {
     this.userOnSyncError = options.onSyncError;
     this.userOnSyncPhase = options.onSyncPhase;
     this.userOnSyncProgress = options.onSyncProgress;
+    this.syncOptions = options.sync;
     this.clock = new Clock(this.deviceId);
     this.restServerUrl =
       options.serverUrl !== undefined && options.serverUrl !== "" ? options.serverUrl : null;
