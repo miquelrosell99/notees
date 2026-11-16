@@ -34,6 +34,13 @@ export interface PersistedSyncState {
    * uploaded yet this epoch (an epoch bump resets it).
    */
   uploadedSnapshotHlc?: Hlc | null;
+  /**
+   * Wall-clock ms (engine clock) of the last successful snapshot upload — the
+   * durable anchor of the min-interval upload throttle. Null/absent = nothing
+   * uploaded yet this epoch (an epoch bump resets it, same as
+   * uploadedSnapshotHlc: the wiped relay needs the re-upload promptly).
+   */
+  lastSnapshotUploadAt?: number | null;
 }
 
 export class SyncMeta {

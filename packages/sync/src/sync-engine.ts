@@ -79,6 +79,23 @@ export const SNAPSHOT_UPLOAD_BODY_LIMIT = 256 * 1024 * 1024;
 export const SNAPSHOT_COMPACT_THRESHOLD = 32 * 1024 * 1024;
 /** Sealed-image ceiling for the single-PUT path; above it the upload rides part+commit. */
 export const SNAPSHOT_CHUNK_THRESHOLD = 48 * 1024 * 1024;
+/**
+ * Minimum wall-clock interval between client snapshot uploads (6 h). A sealed
+ * workspace leaves the relay's snapshot watermark to client uploads, and
+ * without a floor every sync cycle that applied new ops re-runs the
+ * compact+seal+upload of the whole projection — on a large sealed workspace
+ * that blocks the embedding thread for seconds per cycle (observed
+ * 2026-11-16 on a ~160 MiB sealed workspace: uploads every 30–60 min, each
+ * freezing the web client's worker — and every edit with it — for 5–30 s).
+ */
+export const SNAPSHOT_UPLOAD_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+/**
+ * Escape hatch for the min-interval throttle: when the relay's snapshot
+ * watermark trails the applied log head by at least this many envelopes, a
+ * fresh client's restore would replay a painful tail, so the upload rides
+ * even inside the interval.
+ */
+export const SNAPSHOT_UPLOAD_BEHIND_OPS = 50_000;
 /** Part size for the chunked path (the relay's per-part contract is ≤64 MiB). */
 export const SNAPSHOT_PART_SIZE = 64 * 1024 * 1024;
 
@@ -149,6 +166,22 @@ export interface SyncEngineOptions {
   snapshotChunkThreshold?: number;
   /** Part size for the chunked path. Defaults to SNAPSHOT_PART_SIZE (64 MiB). */
   snapshotPartSize?: number;
+  /**
+   * Minimum wall-clock interval between client snapshot uploads (ms): within
+   * the interval an otherwise-triggered upload rides out unless the relay's
+   * snapshot has none at all or trails the log head by
+   * `snapshotUploadBehindOps` envelopes. 0 disables the throttle. Defaults to
+   * SNAPSHOT_UPLOAD_MIN_INTERVAL_MS (6 h) — see its comment for the pathology
+   * this prevents on sealed workspaces.
+   */
+  snapshotUploadMinIntervalMs?: number;
+  /**
+   * Escape threshold for the min-interval throttle (envelopes): uploads ride
+   * even inside the interval once the relay snapshot watermark trails the
+   * applied log head by this much. Defaults to SNAPSHOT_UPLOAD_BEHIND_OPS
+   * (50_000).
+   */
+  snapshotUploadBehindOps?: number;
   callbacks?: SyncEngineCallbacks;
   /**
    * Optional E2EE boundary (spec §2): encrypt at the push boundary, decrypt
@@ -183,6 +216,10 @@ export class SyncEngine {
   private readonly snapshotChunkThreshold: number;
   /** Part size for the multipart flow. */
   private readonly snapshotPartSize: number;
+  /** Min-interval throttle; mirrors the SyncEngineOptions field. */
+  private readonly snapshotUploadMinIntervalMs: number;
+  /** Behind-ops escape threshold; mirrors the SyncEngineOptions field. */
+  private readonly snapshotUploadBehindOps: number;
   private callbacks: SyncEngineCallbacks;
   /** E2EE boundary; null → plaintext wire. Mutable: setCrypto swaps the key. */
   private crypto: EnvelopeCrypto | null;
@@ -194,6 +231,12 @@ export class SyncEngine {
   private lastError: Error | null = null;
   /** HLC watermark of the last snapshot this device uploaded; avoids re-uploading. Durable (app_meta) — see maybeUploadSnapshot. */
   private uploadedSnapshotHlc: Hlc | null = null;
+  /**
+   * Wall clock (this.now) of the last successful snapshot upload — the
+   * min-interval throttle's durable anchor (an epoch bump resets it, same as
+   * uploadedSnapshotHlc: the wiped relay needs the re-upload promptly).
+   */
+  private lastSnapshotUploadAt: number | null = null;
   private snapshotQuarantineReported = false;
   /**
    * The oversize-upload report latch: the relay answers an over-cap
@@ -240,6 +283,8 @@ export class SyncEngine {
     this.catchUpLimit = options.catchUpLimit ?? DEFAULT_CATCH_UP_LIMIT;
     this.snapshotUploadLimit = options.snapshotUploadLimit ?? SNAPSHOT_UPLOAD_BODY_LIMIT;
     this.snapshotCompactThreshold = options.snapshotCompactThreshold ?? SNAPSHOT_COMPACT_THRESHOLD;
+    this.snapshotUploadMinIntervalMs = options.snapshotUploadMinIntervalMs ?? SNAPSHOT_UPLOAD_MIN_INTERVAL_MS;
+    this.snapshotUploadBehindOps = options.snapshotUploadBehindOps ?? SNAPSHOT_UPLOAD_BEHIND_OPS;
     this.snapshotChunkThreshold = options.snapshotChunkThreshold ?? SNAPSHOT_CHUNK_THRESHOLD;
     this.snapshotPartSize = options.snapshotPartSize ?? SNAPSHOT_PART_SIZE;
     this.callbacks = options.callbacks ?? {};
@@ -251,6 +296,7 @@ export class SyncEngine {
     this.restoreEpoch = persisted?.restoreEpoch ?? 0;
     this.firstSkippedSeq = persisted?.firstSkippedSeq ?? null;
     this.uploadedSnapshotHlc = persisted?.uploadedSnapshotHlc ?? null;
+    this.lastSnapshotUploadAt = persisted?.lastSnapshotUploadAt ?? null;
     // The W2 unlock re-open constructs a FRESH engine with crypto in the
     // constructor options — the persisted locked-skip marker must rewind
     // here too (the setCrypto path alone never runs for this flow), else
@@ -360,6 +406,7 @@ export class SyncEngine {
       restoreEpoch: this.restoreEpoch,
       firstSkippedSeq: this.firstSkippedSeq,
       uploadedSnapshotHlc: this.uploadedSnapshotHlc,
+      lastSnapshotUploadAt: this.lastSnapshotUploadAt,
     });
   }
 
@@ -586,6 +633,7 @@ export class SyncEngine {
     // uploadedSnapshotHlc would otherwise suppress the re-upload the wiped
     // relay needs).
     this.uploadedSnapshotHlc = null;
+    this.lastSnapshotUploadAt = null;
     this.persistState();
 
     // The full replay runs inside the store's bulk window (the wipe-rebuild
@@ -644,6 +692,25 @@ export class SyncEngine {
     const newerThanUploaded =
       this.uploadedSnapshotHlc === null || compareHlc(this.receivedHlc, this.uploadedSnapshotHlc) > 0;
     if (!newerThanServer || !newerThanUploaded) return;
+    // Min-interval throttle: on a sealed workspace the relay's snapshot
+    // watermark only advances when a client uploads, so every sync cycle
+    // that applied new ops would otherwise re-run compact+seal+upload of the
+    // whole projection — seconds of blocked embedding thread per cycle on a
+    // large sealed workspace. Ride out the interval unless the relay has no
+    // snapshot at all (a fresh client's restore would replay the whole log)
+    // or its watermark trails the applied log head by snapshotUploadBehindOps
+    // (the restore tail would be painful). Snapshots are an optimization,
+    // never authority — the seq catch-up covers everything a skipped upload
+    // would have.
+    if (
+      this.snapshotUploadMinIntervalMs > 0 &&
+      this.lastSnapshotUploadAt !== null &&
+      meta.hasSnapshot &&
+      this.now() - this.lastSnapshotUploadAt < this.snapshotUploadMinIntervalMs
+    ) {
+      const behind = meta.upToSeq === null ? Number.POSITIVE_INFINITY : this.cursorSeq - meta.upToSeq;
+      if (behind < this.snapshotUploadBehindOps) return;
+    }
     try {
       if (this.crypto) {
         // E2EE: the streaming source would upload the RAW image (the OPFS
@@ -733,6 +800,7 @@ export class SyncEngine {
       }
       }
       this.uploadedSnapshotHlc = this.receivedHlc;
+      this.lastSnapshotUploadAt = this.now();
       this.snapshotOversizeReported = false;
       this.snapshotQuarantineReported = false;
       // Durable, not just session state: a short-lived client (a fresh engine

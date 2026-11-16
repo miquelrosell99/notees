@@ -595,6 +595,115 @@ describe("snapshot upload — the pre-flight size guard", () => {
   });
 });
 
+describe("snapshot upload — the min-interval throttle", () => {
+  it("rides out the interval unless critically behind, the relay has none, or the epoch resets the anchor", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 1_000_000;
+    const store = new Store();
+    const transport = new MemoryTransport(relay);
+    let uploadCalls = 0;
+    const realUpload = transport.uploadSnapshot.bind(transport);
+    transport.uploadSnapshot = async (bytes, hlc) => {
+      uploadCalls++;
+      await realUpload(bytes, hlc);
+    };
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      snapshotUploadMinIntervalMs: 60_000,
+      snapshotUploadBehindOps: 3,
+    });
+
+    // First sync: the relay has no snapshot, so the throttle bypasses and
+    // the base-state upload proceeds (relay snapshot watermark = seq 5).
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(1);
+
+    // Within the interval, watermark ahead but the relay snapshot fresh
+    // (behind = 0) → the upload rides out.
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9000, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "edit-1" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(1);
+
+    // Another device pushes five ops WITHOUT refreshing the relay snapshot;
+    // A applies them and its watermark now trails by ≥ behindOps → the
+    // critically-behind escape fires even inside the interval.
+    const b = makeDevice(relay, DEVICE_B, () => nowMs);
+    await b.engine.pull();
+    for (let i = 0; i < 5; i += 1) {
+      b.engine.enqueue(
+        makeEnvelope(DEVICE_B, T0 + 9100 + i * 10, "object.update", {
+          objectId: NODE,
+          contentAst: [{ type: "text", text: `from-b-${i}` }],
+        }),
+      );
+    }
+    await b.engine.syncOnce({ skipSnapshotUpload: true });
+    expect(uploadCalls).toBe(1);
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(2);
+
+    // Past the interval a plain watermark advance uploads again.
+    nowMs += 120_000;
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9200, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "past-the-interval" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(3);
+  });
+
+  it("resets the throttle anchor on a restoreEpoch change — the wiped relay gets a prompt re-upload", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 1_000_000;
+    const store = new Store();
+    const transport = new MemoryTransport(relay);
+    let uploadCalls = 0;
+    const realUpload = transport.uploadSnapshot.bind(transport);
+    transport.uploadSnapshot = async (bytes, hlc) => {
+      uploadCalls++;
+      await realUpload(bytes, hlc);
+    };
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      snapshotUploadMinIntervalMs: 60_000,
+      snapshotUploadBehindOps: 1_000_000,
+    });
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(1);
+
+    relay.bumpRestoreEpoch();
+    await engine.pull();
+
+    // Another device re-establishes a relay snapshot within A's interval.
+    const b = makeDevice(relay, DEVICE_B, () => nowMs);
+    await b.engine.pull();
+    await b.engine.syncOnce();
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
+
+    // A's pre-wipe upload timestamp would throttle this re-upload; the epoch
+    // reset must clear the anchor so the wiped relay is covered promptly.
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9300, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "post-wipe edit" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(uploadCalls).toBe(2);
+  });
+});
+
 describe("snapshot upload — the streaming source", () => {
   function streamHarness() {
     const relay = new MemoryRelay();
@@ -674,6 +783,7 @@ describe("snapshot upload — the 413 honesty", () => {
     const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
       workspaceId: WS,
       now: () => nowMs,
+      snapshotUploadMinIntervalMs: 0, // the 413 latch mechanics, not the cadence
       callbacks: { onError: (e) => errors.push(e) },
     });
 
@@ -792,6 +902,7 @@ describe("snapshot upload — the watermark survives restarts", () => {
       const store = new Store(dbPath);
       const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
         workspaceId: WS,
+        snapshotUploadMinIntervalMs: 0, // the watermark mechanics, not the cadence
       });
       await engine.syncOnce();
       store.close();
@@ -815,6 +926,7 @@ describe("snapshot upload — the watermark survives restarts", () => {
       const store = new Store(dbPath);
       const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
         workspaceId: WS,
+        snapshotUploadMinIntervalMs: 0, // the watermark mechanics, not the cadence
       });
       await engine.syncOnce();
       store.close();
@@ -833,6 +945,7 @@ describe("snapshot upload — the watermark survives restarts", () => {
       const store = new Store(dbPath);
       const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
         workspaceId: WS,
+        snapshotUploadMinIntervalMs: 0, // the watermark mechanics, not the cadence
       });
       await engine.syncOnce();
       store.close();
@@ -853,6 +966,7 @@ describe("snapshot upload — the watermark survives restarts", () => {
       const store = new Store(dbPath);
       const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
         workspaceId: WS,
+        snapshotUploadMinIntervalMs: 0, // the watermark mechanics, not the cadence
       });
       await engine.syncOnce();
       store.close();
@@ -867,6 +981,7 @@ describe("snapshot upload — the watermark survives restarts", () => {
       const store = new Store(dbPath);
       const engine = new SyncEngine(store, countingTransport(relay, uploads), new Clock(DEVICE_A), {
         workspaceId: WS,
+        snapshotUploadMinIntervalMs: 0, // the watermark mechanics, not the cadence
       });
       await engine.syncOnce();
       store.close();
