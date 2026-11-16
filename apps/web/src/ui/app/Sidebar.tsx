@@ -154,12 +154,6 @@ export function Sidebar({
           : syncBacklog > 0
             ? "backlog"
             : "idle";
-  const syncStateLabel =
-    syncState === "backlog"
-      ? `${syncBacklog} waiting`
-      : syncState === "idle"
-        ? "up to date"
-        : (syncState ?? "");
   // Client snapshot upload in flight: a full-image compact+seal+upload can
   // block the worker for seconds on a large sealed workspace — the bar is
   // what turns "the app froze" into "it is uploading 161 MiB, 60% done".
@@ -172,6 +166,14 @@ export function Sidebar({
       : snapshotUpload.phase === "sealing"
         ? `Preparing snapshot (${formatMiB(snapshotUpload.totalBytes)})…`
         : `Uploading snapshot (${formatMiB(snapshotUpload.sentBytes)} / ${formatMiB(snapshotUpload.totalBytes)})`;
+  const syncStateLabel =
+    snapshotUpload !== null
+      ? "uploading snapshot"
+      : syncState === "backlog"
+        ? `${syncBacklog} waiting`
+        : syncState === "idle"
+          ? "up to date"
+          : (syncState ?? "");
   // Workspace-settings sidebar visibility toggles (device-local).
   const [showJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox] = useDeviceSetting("sidebarShowInbox", true);

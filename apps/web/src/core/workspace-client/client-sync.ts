@@ -332,6 +332,8 @@ export class WorkspaceClientSync {
       realtime: this.isRealtimeActive(),
       cursorSeq: this.ctx.engine.getCursorSeq(),
       snapshotUpload: this.ctx.snapshotUploadProgress,
+      lastSnapshotUploadAt: this.ctx.engine.getLastSnapshotUploadAt(),
+      serverSnapshot: this.ctx.engine.getServerSnapshot(),
     };
   }
 

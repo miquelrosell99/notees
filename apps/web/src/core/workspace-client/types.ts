@@ -47,6 +47,14 @@ export interface SyncStatusSnapshot {
    * sync-details row; null when no upload is running.
    */
   snapshotUpload: SnapshotUploadProgress | null;
+  /** Wall clock of the last successful snapshot upload ("never" before the first). */
+  lastSnapshotUploadAt: number | null;
+  /**
+   * The server-side snapshot view from the most recent pull — the sync
+   * details "server snapshot" row (none yet / N ops behind). Null before
+   * the first pull.
+   */
+  serverSnapshot: { hasSnapshot: boolean; upToSeq: number | null } | null;
 }
 
 /**
@@ -69,6 +77,8 @@ export const IDLE_SNAPSHOT: SyncStatusSnapshot = {
   realtime: false,
   cursorSeq: 0,
   snapshotUpload: null,
+  lastSnapshotUploadAt: null,
+  serverSnapshot: null,
 };
 
 /** Conflict-history retention for the sync details modal. */

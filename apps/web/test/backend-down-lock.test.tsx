@@ -42,6 +42,8 @@ function snapshot(pending: number, failed = 0): SyncStatusSnapshot {
     realtime: false,
     cursorSeq: 42,
     snapshotUpload: null,
+    lastSnapshotUploadAt: null,
+    serverSnapshot: null,
   };
 }
 

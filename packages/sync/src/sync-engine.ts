@@ -244,10 +244,27 @@ export class SyncEngine {
    * status() between callback firings.
    */
   private snapshotUploadProgress: SnapshotUploadProgress | null = null;
+  /**
+   * The server-side snapshot view from the most recent pull (hasSnapshot /
+   * watermark seq) — the sync-details panel's "server snapshot" row and the
+   * behind-threshold diagnostics. Reflects the pull that SAW it: an upload
+   * this cycle advances the relay after the meta was read.
+   */
+  private lastServerSnapshot: { hasSnapshot: boolean; upToSeq: number | null } | null = null;
 
   private reportSnapshotUpload(progress: SnapshotUploadProgress | null): void {
     this.snapshotUploadProgress = progress;
     this.callbacks.onSnapshotUpload?.(progress);
+  }
+
+  /** The server-side snapshot view from the most recent pull (null before the first pull). */
+  getServerSnapshot(): { hasSnapshot: boolean; upToSeq: number | null } | null {
+    return this.lastServerSnapshot;
+  }
+
+  /** Wall clock (engine clock) of the last successful snapshot upload; null when none this epoch. */
+  getLastSnapshotUploadAt(): number | null {
+    return this.lastSnapshotUploadAt;
   }
   private snapshotQuarantineReported = false;
   /**
@@ -683,6 +700,7 @@ export class SyncEngine {
   private async maybeUploadSnapshot(meta: SnapshotMeta, skip: boolean): Promise<void> {
     const upload = this.transport.uploadSnapshot?.bind(this.transport);
     if (!upload || skip) return;
+    this.lastServerSnapshot = { hasSnapshot: meta.hasSnapshot, upToSeq: meta.upToSeq };
     // A store that skipped ops (a non-empty quarantine table) must not become
     // the bootstrap source for other devices: the divergence would ride into
     // every fresh client's restore, and ops referencing the skipped state

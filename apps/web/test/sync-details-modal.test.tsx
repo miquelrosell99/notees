@@ -25,6 +25,8 @@ const SNAPSHOT: SyncStatusSnapshot = {
   realtime: true,
   cursorSeq: 42,
   snapshotUpload: null,
+  lastSnapshotUploadAt: null,
+  serverSnapshot: null,
 };
 
 function makeClient(overrides: {
@@ -68,6 +70,26 @@ describe("SyncDetailsModal", () => {
     expect(screen.getByText("Snapshot upload")).toBeTruthy();
     expect(screen.getByRole("progressbar")).toBeTruthy();
     expect(screen.getByText("60 MiB / 160 MiB")).toBeTruthy();
+  });
+
+  it("shows the server-snapshot and last-upload diagnostics", () => {
+    render(
+      <SyncDetailsModal
+        client={makeClient()}
+        snapshot={{
+          ...SNAPSHOT,
+          cursorSeq: 1042,
+          serverSnapshot: { hasSnapshot: true, upToSeq: 1000 },
+          lastSnapshotUploadAt: Date.now() - 5 * 60 * 1000,
+        }}
+        isOpen
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText("Server snapshot")).toBeTruthy();
+    expect(screen.getByText("42 ops behind")).toBeTruthy();
+    expect(screen.getByText("Last snapshot upload")).toBeTruthy();
+    expect(screen.getByText("5 min ago")).toBeTruthy();
   });
 
   it("renders no snapshot-upload row at idle", () => {

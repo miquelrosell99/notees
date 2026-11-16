@@ -727,9 +727,15 @@ describe("snapshot upload — progress reporting", () => {
     expect(events[0]).toEqual({ phase: "uploading", sentBytes: 0, totalBytes: expect.any(Number) });
     expect((events[0] as { totalBytes: number }).totalBytes).toBeGreaterThan(0);
     expect(events[1]).toBeNull();
+    // Diagnostics for the sync-details rows: the first pull saw no server
+    // snapshot (the meta is read before the upload lands); the upload itself
+    // is timestamped.
+    expect(engine.getServerSnapshot()).toEqual({ hasSnapshot: false, upToSeq: null });
+    expect(engine.getLastSnapshotUploadAt()).toBe(nowMs);
 
     // Inside the min-interval window the next cycle rides out: no upload,
-    // no progress events.
+    // no progress events — but the pull re-reads the meta, now carrying the
+    // first upload.
     const countAfterFirst = events.length;
     engine.enqueue(
       makeEnvelope(DEVICE_A, T0 + 9100, "object.update", {
@@ -739,6 +745,7 @@ describe("snapshot upload — progress reporting", () => {
     );
     await engine.syncOnce();
     expect(events.length).toBe(countAfterFirst);
+    expect(engine.getServerSnapshot()?.hasSnapshot).toBe(true);
   });
 });
 

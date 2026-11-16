@@ -28,6 +28,17 @@ import "./SyncDetailsModal.css";
 const formatMiB = (bytes: number): string =>
   bytes >= 1048576 ? `${(bytes / 1048576).toFixed(0)} MiB` : `${Math.round(bytes / 1024)} KiB`;
 
+/** Relative age for the "last snapshot upload" row. */
+const formatAge = (ms: number): string => {
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} d ago`;
+};
+
 const CONFLICT_LABELS: Record<string, string> = {
   move_move: "Concurrent moves",
   node_deleted: "Edit vs delete",
@@ -139,6 +150,30 @@ export function SyncDetailsModal({
           <div className="sync-details-row">
             <dt>Server seq</dt>
             <dd>{snapshot.cursorSeq}</dd>
+          </div>
+          <div className="sync-details-row">
+            <dt>Server snapshot</dt>
+            <dd>
+              {snapshot.serverSnapshot === null
+                ? "…"
+                : !snapshot.serverSnapshot.hasSnapshot
+                  ? "none yet"
+                  : (() => {
+                      const behind =
+                        snapshot.serverSnapshot.upToSeq === null
+                          ? 0
+                          : Math.max(0, snapshot.cursorSeq - snapshot.serverSnapshot.upToSeq);
+                      return behind === 0 ? "current" : `${behind.toLocaleString()} ops behind`;
+                    })()}
+            </dd>
+          </div>
+          <div className="sync-details-row">
+            <dt>Last snapshot upload</dt>
+            <dd>
+              {snapshot.lastSnapshotUploadAt === null
+                ? "never"
+                : formatAge(Date.now() - snapshot.lastSnapshotUploadAt)}
+            </dd>
           </div>
           {snapshot.error !== null && (
             <div className="sync-details-row sync-details-row-error">

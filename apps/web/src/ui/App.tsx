@@ -157,6 +157,8 @@ const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {
   realtime: false,
   cursorSeq: 0,
   snapshotUpload: null,
+  lastSnapshotUploadAt: null,
+  serverSnapshot: null,
 };
 
 /** Poll cadence for the sync status snapshot while mounted. */
@@ -179,6 +181,11 @@ export function syncStatusEqual(a: SyncStatusSnapshot, b: SyncStatusSnapshot): b
     a.parked === b.parked &&
     a.realtime === b.realtime &&
     a.cursorSeq === b.cursorSeq &&
+    a.lastSnapshotUploadAt === b.lastSnapshotUploadAt &&
+    (a.serverSnapshot === null || b.serverSnapshot === null
+      ? a.serverSnapshot === b.serverSnapshot
+      : a.serverSnapshot.hasSnapshot === b.serverSnapshot.hasSnapshot &&
+        a.serverSnapshot.upToSeq === b.serverSnapshot.upToSeq) &&
     (au === null || bu === null ? au === bu : au.phase === bu.phase && au.sentBytes === bu.sentBytes && au.totalBytes === bu.totalBytes)
   );
 }

@@ -54,6 +54,8 @@ const SYNC_IDLE: SyncStatusSnapshot = {
   realtime: false,
   cursorSeq: 0,
   snapshotUpload: null,
+  lastSnapshotUploadAt: null,
+  serverSnapshot: null,
 };
 
 let sqlModule: SqlJsStatic;
