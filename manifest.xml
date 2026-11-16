@@ -9,8 +9,8 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Notees"/>
   <Description DefaultValue="Notees for Word — search your Notees graph, insert citations as Word fields, build bibliographies."/>
-  <IconUrl DefaultValue="${HOST}/word/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="${HOST}/word/assets/icon-80.png"/>
+  <IconUrl DefaultValue="${HOST}${BASE_PATH}/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="${HOST}${BASE_PATH}/assets/icon-80.png"/>
   <SupportUrl DefaultValue="https://github.com/miquelrosell99/notees-word"/>
   <AppDomains>
     <AppDomain>http://127.0.0.1</AppDomain>
@@ -20,7 +20,7 @@
     <Host Name="Document"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="${HOST}/word/index.html"/>
+    <SourceLocation DefaultValue="${HOST}${BASE_PATH}/index.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <Requirements>

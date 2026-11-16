@@ -2,17 +2,17 @@
 
 The parts of the Notees-for-Word add-in that vitest cannot cover: real Word
 hosts, real sideloading, real field rendering. Run every item against a real
-build (`pnpm build`, statics served at `https://<host>/word/`) before calling a
+build (`pnpm build:localhost`, served by `notees word serve` at `http://localhost:8471`) before calling a
 lane done. Check items off here only by hand.
 
-Pairing for all items below: `notees serve --port 8474` on the same machine,
+Pairing for all items below: `notees serve --origin http://localhost:8471` on the same machine,
 pane settings → port + token → Connect.
 
 ## Host lifecycle & pairing
 
 - [ ] **1. Shared-folder sideload (Windows desktop).** Sideload via the
   shared-folder catalog (registry trusted-catalog entry, Insert → My Add-ins →
-  SHARED FOLDER). The pane loads from `https://<host>/word/index.html`, pairs
+  SHARED FOLDER). The pane loads from `http://localhost:8471/index.html`, pairs
   with the bridge, and settings (port + token) persist across a Word restart.
 - [ ] **2. Bridge offline / reconnect.** Stop `notees serve` → open the pane:
   it shows "bridge offline"; field text already in the document is untouched.

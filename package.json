@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "node scripts/gen-icons.mjs && vite build && node scripts/copy-office-js.mjs && node scripts/copy-manifest.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:localhost": "node scripts/gen-icons.mjs && vite build && node scripts/copy-office-js.mjs && node scripts/copy-manifest.mjs localhost"
   },
   "dependencies": {
     "@microsoft/office-js": "^1.1.98",
