@@ -135,8 +135,17 @@ describe("client-side seeding of empty keyed workspaces", () => {
     expect(a.getNode(SOURCE)).toBeDefined();
     expect(b.getNode(SOURCE)).toBeDefined();
     // No pull errors surfaced and the stores agree on the seeded content.
+    // createdAt/updatedAt are per-side APPLICATION stamps — each device
+    // applied its own seed envelope first and the duplicate create no-ops
+    // by design — so they legitimately differ (the runner's event loop can
+    // skew the two bootstraps by hundreds of ms under load, 2026-11-16 CI).
+    // The converged CONTENT is what this pin compares.
     const inboxA = a.getNode(INBOX);
     const inboxB = b.getNode(INBOX);
-    expect(JSON.stringify(inboxB)).toBe(JSON.stringify(inboxA));
+    const stripStamps = (node: unknown): unknown => {
+      const { createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = node as Record<string, unknown>;
+      return rest;
+    };
+    expect(JSON.stringify(stripStamps(inboxB))).toBe(JSON.stringify(stripStamps(inboxA)));
   });
 });
