@@ -42,8 +42,13 @@ services:
 
   notees-web:
     image: ${NOTEES_WEB_IMAGE:-ghcr.io/miquelrosell99/notees-web:latest}
-    # Repo split 2026-11-05: the web image builds from the notees-web repo —
-    # pull it (or build it there) for this dev stack.
+    # Re-merged 2026-11-12 (ADR-001): the web image builds from THIS repo
+    # (dockerfile apps/web/Dockerfile), same as the sync service — a local
+    # build is `docker compose build notees-web`; NOTEES_WEB_IMAGE overrides
+    # track a ghcr channel instead.
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
     container_name: notees-web-dev
     ports:
       - "${NOTEES_WEB_HTTP:-127.0.0.1:8380}:80"
