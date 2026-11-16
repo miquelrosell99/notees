@@ -5,7 +5,10 @@ name: Nightly Docker images
 # for hosts that want to track main without building
 # locally. Publishes `ghcr.io/miquelrosell99/notees-sync:nightly` and
 # `ghcr.io/miquelrosell99/notees-web:nightly` plus dated tags
-# (`nightly-YYYYMMDD`). NEVER `:latest` — that tag belongs
+# (`nightly-YYYYMMDD`) and the short commit SHA of main's head
+# (`a1b2c3d`) — every nightly is immutable and roll-back-able, and a
+# host can pin an exact build via `NOTEES_*_IMAGE` without tracking the
+# moving `:nightly`. NEVER `:latest` — that tag belongs
 # to stable semver releases only (see release-docker.yml). Uses the
 # workflow's GITHUB_TOKEN (packages: write); manual dispatch reruns the
 # nightly build on demand.
@@ -82,6 +85,7 @@ jobs:
           tags: |
             type=raw,value=nightly
             type=schedule,pattern=nightly-{{date 'YYYYMMDD'}}
+            type=sha,format=short
 
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0

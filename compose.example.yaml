@@ -17,8 +17,10 @@
 # Image channels (ghcr.io/miquelrosell99/…):
 #   :latest  — the latest STABLE semver release (release-docker.yml, tag push;
 #              prereleases never move :latest)
-#   :nightly — the scheduled build of main's head (nightly-docker.yml, 03:23
-#              UTC; also nightly-YYYYMMDD dated tags)
+#   :nightly — the scheduled build of main's head (nightly-docker.yml, 03:47
+#              UTC; also nightly-YYYYMMDD dated tags and the short commit
+#              SHA of main's head — every nightly is immutable, so a host can
+#              pin an exact build via NOTEES_*_IMAGE and roll back)
 # The edge image is a one-command local build:
 # docker build -t notees-edge:local -f deploy/Dockerfile.caddy deploy/
 

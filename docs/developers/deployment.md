@@ -258,7 +258,8 @@ workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
   sonarly semantics (fleet ruling): the workflow's manual dispatch is
   build-verify only and never pushes images.
 - `:vX.Y.Z` (+ `X.Y`) — the release tags from the same tag push.
-- `:nightly` (+ `nightly-YYYYMMDD`) — the scheduled build of main's head
+- `:nightly` (+ `nightly-YYYYMMDD`, + the short commit SHA of main's head) —
+  the scheduled build of main's head
   (`nightly-docker.yml`, cron `47 3 * * *`, manual dispatch too). Main is
   not built per push: CI gates PRs and runs the same nightly cron against
   main's head (`ci.yml`). The per-push-main CI trigger was retired: the
