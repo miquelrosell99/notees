@@ -749,22 +749,29 @@ export class LocalWorkspace {
       limit: query.limit ?? 50,
       cursor: query.cursor ?? null,
     });
-    const results = page.hits
-      .map((hit) => this.store.getNode(hit.nodeId))
-      .filter((row): row is NodeRow => row !== undefined && row.is_active === 1)
-      .filter((row) => query.isClass === undefined || (row.is_class === 1) === query.isClass)
-      .filter((row) => query.isEmbedded === undefined || (row.is_embedded === 1) === query.isEmbedded)
-      .map((row) => {
-        const api = this.nodeToApi(row);
-        return {
+    const results = page.hits.flatMap((hit) => {
+      const row = this.store.getNode(hit.nodeId);
+      if (row === undefined || row.is_active !== 1) return [];
+      if (query.isClass !== undefined && (row.is_class === 1) !== query.isClass) return [];
+      if (query.isEmbedded !== undefined && (row.is_embedded === 1) !== query.isEmbedded) return [];
+      const api = this.nodeToApi(row);
+      return [
+        {
           id: api.id,
           isClass: api.isClass,
           isEmbedded: api.isEmbedded,
           name: api.name,
           parentId: api.parentId,
           updatedAt: api.updatedAt,
-        };
-      });
+          // The ranking tier rides into the machine surface so consumers can
+          // weigh the match — 0–3 direct, 4 parent-name, 5 alias, 6 fuzzy
+          // rescue, 7 property fan-out. Never drop it: an unannotated fuzzy
+          // page consumed as exact matches is how a cleanup loop once deleted
+          // a hundred unrelated nodes.
+          tier: hit.tier,
+        },
+      ];
+    });
     return { results, nextCursor: page.nextCursor };
   }
 

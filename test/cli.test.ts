@@ -3226,6 +3226,27 @@ describe("class render-as", () => {
   });
 });
 
+describe("search tier surface", () => {
+  it("annotates --json results with the ranking tier — direct hits vs the fuzzy rescue arm", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--name", "tierprobe-alphabet-soup")).toBe(EXIT.ok);
+    const id = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    // Direct literal hit: a direct tier (0–3).
+    expect(await h.runCli("--json", "search", "tierprobe-alphabet-soup")).toBe(EXIT.ok);
+    const direct = JSON.parse(h.io.stdoutText) as { results: Array<{ id: string; tier: number }> };
+    expect(direct.results[0]).toEqual(expect.objectContaining({ id }));
+    expect(direct.results[0]!.tier).toBeLessThanOrEqual(3);
+    // No direct match at all: the ordered-subsequence rescue arm still
+    // admits "tirpbet" (t→i→r→p→b→e→t in order) — annotated as the fuzzy
+    // tier, never silently a direct match.
+    expect(await h.runCli("--json", "search", "tirpbet")).toBe(EXIT.ok);
+    const fuzzy = JSON.parse(h.io.stdoutText) as { results: Array<{ id: string; tier: number }> };
+    const hit = fuzzy.results.find((r) => r.id === id);
+    expect(hit?.tier).toBe(6);
+    for (const r of fuzzy.results) expect(typeof r.tier).toBe("number");
+  });
+});
+
 describe("object list --all", () => {
   it("follows the cursor to exhaustion", async () => {
     const h = harness;

@@ -4659,7 +4659,8 @@ function buildProgram(): Command {
     .description(
       "search — plain text (FTS) or the query language: class:Name (name or uuid), isClass:true|false, isEmbedded:true|false, " +
         "prop:name:<op>value (:= != :> :>= :< :<=, bare : = contains, no value = exists; schema by name or uuid), " +
-        "bare schema fields (year:>2010), text:term, linked:Name (name or uuid), \"quoted phrases\", AND OR NOT, ( )",
+        "bare schema fields (year:>2010), text:term, linked:Name (name or uuid), \"quoted phrases\", AND OR NOT, ( ). " +
+        "--json rows carry the match tier (0–3 direct · 4 parent-name · 5 alias · 6 fuzzy rescue · 7 property fan-out)",
     )
     .addOption(new Option("--isClass", "filter: class nodes only (plain-text search only)").default(undefined))
     .addOption(new Option("--no-isClass", "filter: non-class nodes only (plain-text search only)"))
