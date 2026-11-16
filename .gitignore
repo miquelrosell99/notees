@@ -10,3 +10,6 @@ config/
 
 # Agent worktrees (git worktree add .worktrees/<slug>)
 .worktrees/
+
+# The vendored Word add-in snapshot carries its built dist (see vendor/word/README.md)
+!vendor/word/dist/
