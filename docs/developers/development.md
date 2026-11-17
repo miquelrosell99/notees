@@ -82,6 +82,21 @@ scoped to the changed services (a web-only slice builds `notees-web` only),
 per the parallel-session preference for scoped commands. Docs-only or
 repo-only slices (no runtime behavior) need no redeploy.
 
+Publish what you ship (ghcr-following hosts): hosts that pull published
+images instead of building a checkout only see a landed slice once a
+workflow has built main's head — `:latest` moves only on a stable `v*` tag
+push, and the nightly (`nightly-docker.yml`, cron 03:47 UTC) publishes
+`:nightly` + `nightly-YYYYMMDD` + the short-SHA tag of main's head. After a
+slice that changed runtime behavior has landed on main, dispatch the nightly
+(`gh workflow run nightly-docker.yml`) so the channels move now rather than
+up to a day later; the session's local redeploy above covers this host, the
+dispatch covers the rest. Docs-only or repo-only slices need no dispatch
+(the same boundary as the redeploy law). Fleet hosts pull `:nightly` at
+their own pace (`docker compose pull && docker compose up -d` — the pull
+matters: the default policy is `missing`); a host pinning `NOTEES_*_IMAGE`
+to the SHA tag rides the same dispatch with an immutable, roll-back-able
+ref.
+
 Landing a worktree slice: with several worktree branches
 in flight, slices land one at a time in the main checkout — fetch, rebase
 the session branch onto the freshest main, fast-forward merge, push. If main

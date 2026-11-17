@@ -116,6 +116,20 @@ rebuilt and the stack recreated. Before ending the session:
 (deployment discipline + rollback law). Docs-only or repo-only slices (no
 runtime behavior) need no redeploy.
 
+**Publish what you ship (ghcr hosts)**: hosts that pull published images
+instead of building a checkout only see a landed slice once a workflow has
+built main's head — `:latest` moves only on a stable `v*` tag push; the
+nightly (`nightly-docker.yml`, cron 03:47 UTC) publishes `:nightly` +
+`nightly-YYYYMMDD` + the short-SHA tag. After a runtime slice lands on main,
+`gh workflow run nightly-docker.yml` — don't leave the publish to the cron
+when the change should be live on fleet hosts; the local redeploy above
+covers this host, the dispatch covers the rest. Docs-only or repo-only
+slices need no dispatch (the redeploy law's boundary). Fleet hosts pull
+`:nightly` at their own pace (`docker compose pull && docker compose up -d`
+— the pull matters: the default policy is `missing`); pinning
+`NOTEES_*_IMAGE` to the SHA tag rides the same dispatch with an immutable,
+roll-back-able ref.
+
 ## Read by topic
 
 - **Architecture** → `references/architecture.md`
