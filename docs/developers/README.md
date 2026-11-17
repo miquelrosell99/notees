@@ -25,13 +25,13 @@ change it describes.
 
 [ui-primitives.md](ui-primitives.md) is the web client's component-library
 reference: the compose-from-the-library law, the primitive catalog, and the
-popup-dismissal seam. (The web app itself lives in
-[`miquelrosell99/notees-web`](https://github.com/miquelrosell99/notees-web)
-— repo split 2026-11-05; the page stays here as the core-side reference.)
+popup-dismissal seam. (The web app itself lives in-tree at `apps/web` —
+repo split 2026-11-05, re-merged 2026-11-12; the page stays here as the
+core-side reference.)
 
 [ui-debugging.md](ui-debugging.md) is the visual-diagnosis runbook. Its tools
 (the screenshot capture suite `scripts/screenshots/run.sh`, the probe
-pattern) ship in the `notees-web` repo now — the page stays as the method
+pattern) ship in-tree at `scripts/screenshots/` — the page is the method
 reference.
 
 [sdk-publishing.md](sdk-publishing.md) is archived reference for the parked
@@ -39,30 +39,35 @@ npm-distribution program.
 
 ## Clients
 
-The companion clients are sibling repos, checked out next to this one; each
-owns its own releases (tags, CI publishing, changelog) — this repo documents
-only that they exist and how the wire stays convergent between them:
+The companion clients live **in-tree** under `clients/`, each merged with
+its full history and keeping its own toolchain, per-client `AGENTS.md`, and
+project skills; each owns its releases (component-prefixed tags, CI
+publishing, per-client changelog) — this page documents only that they
+exist and how the wire stays convergent between them:
 
-- **notees-web** (`miquelrosell99/notees-web`) — the web client: React/Vite
-  outliner editor + worker (`notees-web` image), consuming this repo's
-  packages via a pinned `vendor/notees` submodule. Releases: `v*` tags → CI
-  publishes the `notees-web` image.
-- **notees-gtk** (`miquelrosell99/notees-gtk`) — the GTK4 desktop client:
-  Python lockstep port of the protocol, derived SQLite appliers, sync
-  engine. Releases: annotated `v*` tags → CI publishes sdist/wheel + Arch
-  package + GitHub Release.
-- **notees-flutter** (`miquelrosell99/notees-flutter`) — the mobile client:
-  Dart port, hand-rolled validators. Releases: `v*` tags → CI
-  production-signed APK + GitHub Release.
-- **notees-cli** (`miquelrosell99/notees-cli`) — the command-line client:
-  consumes this repo's packages via a pinned `vendor/notees` submodule; the
-  pin is the lockstep boundary. Releases: `v*` tags → CI attaches the
-  `cli.mjs` bundle to the GitHub Release.
+- **clients/cli** — the command-line client: a root pnpm workspace project
+  consuming this repo's `packages/*` directly (the retired `vendor/notees`
+  submodule is gone). Releases: `cli-v*` tags → `release-cli.yml` attaches
+  the `cli.mjs` bundle to the tag's GitHub Release.
+- **clients/gtk** — the GTK4 desktop client: Python lockstep port of the
+  protocol, derived SQLite appliers, sync engine. Releases: `gtk-v*` tags →
+  `release-gtk.yml` publishes sdist/wheel + Arch package + GitHub Release.
+- **clients/flutter** — the mobile client: Dart port, hand-rolled
+  validators. Releases: `flutter-v*` tags → `release-flutter.yml` publishes
+  a production-signed APK + GitHub Release.
+- **clients/word** — the Word add-in (Office.js). Releases: `word-v*` tags →
+  `release-word.yml` attaches the built dist as a release zip.
+- **clients/connector** — the Firefox capture extension. Releases:
+  `connector-v*` tags → `release-connector.yml` attaches the built dist as a
+  release zip.
 
 The convergence law they all follow is the **fixture gate + three-way
 lockstep** in [development.md](development.md); wire-affecting changes are
 not done until the TS reference, GTK, and Flutter apply byte-identical
-fixtures.
+fixtures. The `fixture-drift` workflow at the repo root enforces the sha256
+identity of the corpus across `packages/protocol/fixtures/`,
+`clients/gtk/tests/fixtures/wire/`, and `clients/flutter/test/fixtures/wire/`
+in one commit.
 
 The normative model and wire spec live in
 [packages/protocol/SCHEMA.md](../../packages/protocol/SCHEMA.md); the

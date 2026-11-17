@@ -103,6 +103,12 @@ folder's retirement:
 
 ## Repo split (notees-sync / notees-web)
 
+*Superseded 2026-11-17 by ADR-002 (the full monorepo reunification, recorded
+in the workspace-level decisions folder): the five client repos — CLI, GTK,
+Flutter, Word, connector — re-merged in-tree under `clients/` and the vendor
+pins retired. The entries below stay as the record of the 2026-10-05/11-05
+decisions.*
+
 - **CLI** — split out 2026-10-05: `notees-cli` lives
   in its own repo (sibling to the GTK/Flutter clients), consuming the
   packages via a pinned `vendor/notees` git submodule as pnpm workspace

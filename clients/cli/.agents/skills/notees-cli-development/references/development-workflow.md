@@ -1,64 +1,64 @@
 # Development workflow
 
-Canonical: `README.md` in this repo + the main repo's
-`docs/developers/development.md` (through the `vendor/notees` checkout).
-Commands assume the repo root, Node 22 or 26 + pnpm 9 (corepack).
+Canonical: `README.md` in this repo + the monorepo root's
+`docs/developers/development.md`. Commands assume the monorepo root is the
+pnpm workspace (Node 22 or 26 + pnpm 9 via corepack); running them from
+`clients/cli` resolves the same workspace.
 
 ## Commands
 
 ```sh
-git submodule update --init                 # if cloned without --recurse-submodules
 corepack enable && corepack prepare pnpm@9.0.0 --activate
-pnpm install                                # setup (CI uses --frozen-lockfile)
-pnpm -r --filter "@notees/*" build          # rebuild vendored packages' dists (after a vendor bump)
+pnpm install                                # setup from the monorepo root (CI uses --frozen-lockfile)
+pnpm -r --filter "@notees/*" build          # rebuild the core packages' dists (after changing a packages/* public API)
 pnpm build                                  # tsup bundle → dist/cli.js (the `notees` bin)
 pnpm typecheck                              # tsc --noEmit
 pnpm test                                   # vitest run — the blocking gate
 pnpm dev -- --help                          # run the CLI from source via tsx
 ```
 
-**better-sqlite3 on node 26:** the vendored `@notees/*` packages pin
-`better-sqlite3` ^11, whose native build fails on node 26's V8 — and `vendor/`
-is never edited. The root `package.json` carries a `pnpm.overrides` forcing
-`^12.11.1` (node 20–26); when the main repo moves to 12, drop the override.
-Do not widen it to v13 without checking the store/server adapter API.
+**better-sqlite3 on node 26:** the core packages declare `better-sqlite3`
+^11, whose native build fails on node 26's V8. The CLI carries its own
+`^12.11.1` pin (node 20–26) in `package.json`. Do not widen it to v13
+without checking the store/server adapter API.
 
 CI-equivalent gate (run before claiming done on anything non-trivial):
-`pnpm typecheck && pnpm test`. CI itself (`.github/workflows/ci.yml`)
-additionally runs `pnpm -r --workspace-concurrency=1 build` on every push/PR.
+`pnpm typecheck && pnpm test`. CI itself (`ci-cli.yml` at the monorepo
+root) additionally runs the workspace build on every push/PR touching
+`clients/cli/**` or `packages/**`.
 
 **Dev-condition exports:** vitest resolves `src`, tsc resolves `dist`. After
-a vendor bump, rebuild the vendored packages' dists first, then typecheck and
-test.
+changing a core package's public API, rebuild its dist first, then
+typecheck and test.
 
-## The submodule lockstep law (blocking)
+## The workspace lockstep law (blocking)
 
-The `vendor/notees` pin is the lockstep boundary with the main repo:
+`packages/*` is the lockstep boundary — there is no vendor pin:
 
-- **Never edit anything under `vendor/`** — it is a pinned snapshot of the
-  main repo. A fix lands in the main repo, then arrives here as a pin bump.
-- **Only bump forward past the main repo's convergence gate.** A wire
-  change / new op / strict payload change is not done in the main repo until
-  its fixture gate converges — byte-identical fixture files in
-  `packages/protocol/fixtures/`, sha256-checked across the TS reference, GTK,
-  and Flutter appliers. Never edit fixture bytes anywhere.
-- **Bump recipe** (from README "Syncing the vendored packages"):
+- **Never edit fixture bytes anywhere.** A wire change / new op / strict
+  payload change is not done in the monorepo until its fixture gate
+  converges — byte-identical fixture files in `packages/protocol/fixtures/`,
+  sha256-checked across the TS reference, GTK (`clients/gtk/tests/fixtures/wire/`),
+  and Flutter (`clients/flutter/test/fixtures/wire/`) appliers. The root
+  `fixture-drift` workflow enforces the sha256 identity on every push/PR
+  that touches the corpus — one commit updates every copy.
+- **Core changes land in `packages/*` here; the CLI converges in the same
+  tree.** There is no submodule bump recipe anymore — after a core change,
+  rebuild the packages' dists and run the gate:
 
   ```sh
-  cd vendor/notees && git fetch origin && git checkout origin/main && cd ../..
-  pnpm install
-  pnpm -r --filter "@notees/*" build   # rebuild the vendored dists
+  pnpm -r --filter "@notees/*" build   # rebuild the core dists
   pnpm build && pnpm test
   ```
 
-  Commit the submodule bump; CI installs with `--frozen-lockfile`, so run
-  `pnpm install` once locally to refresh `pnpm-lock.yaml` and commit that
+  CI installs with `--frozen-lockfile`, so run `pnpm install` once locally
+  to refresh `pnpm-lock.yaml` when dependencies changed, and commit that
   too.
 
 ## Test-suite shape
 
 - One file, `test/cli.test.ts`; `vitest.config.ts` includes only
-  `test/**/*.test.ts` so the vendored packages' own suites never leak into
+  `test/**/*.test.ts` so the core packages' own suites never leak into
   this run.
 - The suite boots a **real** server (`buildServer` from `@notees/server`) on
   an ephemeral port with a temp workspace — no mocks of the object API. One

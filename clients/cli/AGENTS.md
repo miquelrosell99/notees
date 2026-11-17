@@ -4,18 +4,18 @@ Notees CLI — the `notees` command-line client for Notees: the
 object/property/search surface, plus markdown / JSON-archive export and a
 scripting REPL (`notees shell`). **Local-first like the other clients**
 since the server retired its content API (plan 07): the CLI syncs a
-workspace through the vendored `@notees/sync` engine into a per-workspace
-derived SQLite store (the vendored `@notees/store`, better-sqlite3 backend,
+workspace through the `@notees/sync` engine into a per-workspace
+derived SQLite store (the `@notees/store` package, better-sqlite3 backend,
 one file under `<state-dir>/stores/<workspace-id>.db`), serves every content
 read from that store, and pushes writes as protocol-v3 envelopes through the
-engine's outbox. A standalone pnpm workspace (Node 22 or 26, pnpm 9,
-TypeScript, vitest) that consumes the main monorepo's TypeScript packages
+engine's outbox. Since the ADR-002 reunification this CLI is a **workspace
+project of the Notees monorepo** (`clients/cli`, Node 22 or 26, pnpm 9,
+TypeScript, vitest): it consumes the monorepo's TypeScript packages
 (`@notees/protocol`, `@notees/domain`, `@notees/store`, `@notees/sync`,
-`@notees/query`, `@notees/export`; `@notees/server` for the test suite) from
-a **pinned git submodule at `vendor/notees`** — never edit anything under
-`vendor/` (each entry is a snapshot with its own lifecycle: `vendor/notees`
-tracks the main repo, `vendor/word` is a built snapshot of the notees-word
-add-in refreshed only by `scripts/sync-word-dist.mjs`).
+`@notees/query`, `@notees/export`; `@notees/server` for the test suite)
+directly from `packages/*` — there is no `vendor/notees` submodule and no
+vendor bump; the lockstep boundary is the monorepo workspace itself plus the
+fixture gate.
 
 ## Skills (mandatory)
 
@@ -34,9 +34,9 @@ host-global at `~/.agents/skills/`; repo scope stays for development and
 operations.)
 
 - **Any code, test, or doc change → invoke the `notees-cli-development` skill
-  first** and follow its laws (submodule lockstep, gate-before-done,
+  first** and follow its laws (workspace lockstep, gate-before-done,
   changelog-as-record, docs-in-the-same-pass).
-- **Any release, versioning, or submodule-bump task → invoke the
+- **Any release or versioning task → invoke the
   `notees-cli-operations` skill first.**
 - **Any task that edits graph data through the CLI (retagging, Description
   links, batch node edits) → the user-scope `notees-cli-manipulation`
@@ -44,8 +44,8 @@ operations.)
   root-flatten invariant, idempotent membership — decide whether a script
   is safe to re-run).
 - The skills summarize and enforce; their references point at the canonical
-  homes (README.md here, and the main repo's `docs/developers/` runbooks
-  through the vendor checkout). Content is referenced, not duplicated —
+  homes (README.md here, and the monorepo root's `docs/developers/`
+  runbooks). Content is referenced, not duplicated —
   update skill + doc in the same pass.
 
 ## Layout
@@ -61,47 +61,52 @@ operations.)
   `uuid.ts`)
 - `test/` — vitest suite; boots a **real** server from `@notees/server`
   against a temp workspace (`vitest.config.ts` deliberately excludes the
-  vendored packages' own suites); `test/fake-relay.ts` implements the relay
+  core packages' own suites); `test/fake-relay.ts` implements the relay
   wire over an in-memory envelope log for the mocked unit specs (the
   retired content REST API can no longer be mocked — there is nothing left
   to mock it with)
-- `scripts/install.sh` — release-bundle installer (fetches a tag's `cli.mjs`
-  + checksum, links `notees` into `~/.local/bin`)
-- `packaging/arch/` — the pacman PKGBUILD (builds from the release assets;
-  release.yml verifies its checksum and smoke-builds it on Arch)
-- `vendor/notees/` — git submodule → the main repo (pinned commit);
-  `pnpm-workspace.yaml` consumes its packages as workspace projects
-- `vendor/word/` — built snapshot of the notees-word add-in (localhost
-  flavor); refreshed only by `scripts/sync-word-dist.mjs`, served by
-  `notees word serve`
-- `.github/workflows/ci.yml` — install (`--frozen-lockfile`,
-  `submodules: recursive`) + build + test on push/PR;
-  `.github/workflows/release.yml` — on `v*` tags: gate + build, check the
-  PKGBUILD checksum, attach the bundle (`cli.mjs` + sha256) to the tag's
-  GitHub Release (consumed by `scripts/install.sh`), and a `pacman-smoke`
-  job that build-installs `packaging/arch/` on Arch and runs `notees`
+- `scripts/install.sh` — release-bundle installer (resolves the newest
+  `cli-v*` release, fetches its `cli.mjs` + checksum, links `notees` into
+  `~/.local/bin`)
+- `packaging/arch/` — the pacman PKGBUILD (builds from the release assets of
+  the `miquelrosell99/notees` repo; `release-cli.yml` verifies its checksum
+  and smoke-builds it on Arch)
+- `word-snapshot/` — committed snapshot of the notees-word add-in's
+  localhost build (the fallback that keeps fresh checkouts and CI green);
+  `notees word serve` resolves its statics `NOTEES_WORD_DIST` > a built
+  `clients/word/dist` > `word-snapshot/dist` > the copy embedded in the
+  bundle at build time
+- the monorepo root's `.github/workflows/ci-cli.yml` — install
+  (`--frozen-lockfile`) + build + test on pushes/PRs touching `clients/cli/`
+  or `packages/**`; `.github/workflows/release-cli.yml` — on `cli-v*` tags:
+  a guard job fails a tag that does not touch `clients/cli/`, then gate +
+  build, the PKGBUILD checksum check, attaching the bundle (`cli.mjs` +
+  sha256) to the tag's GitHub Release (consumed by `scripts/install.sh`),
+  and a `pacman-smoke` job that build-installs `packaging/arch/` on Arch and
+  runs `notees`
 
 ## Commands
 
-- Setup: `git submodule update --init` (if cloned without
-  `--recurse-submodules`) → `corepack enable && corepack prepare pnpm@9.0.0 --activate`
-  → `pnpm install`
-- Build: `pnpm build` (tsup bundle → `dist/cli.js`, the `notees` bin). After a
-  vendor bump, first `pnpm -r --filter "@notees/*" build` to rebuild the
-  vendored packages' dists (dev-condition exports: tsc reads `dist`).
+- Setup: from the monorepo root, `corepack enable && corepack prepare pnpm@9.0.0 --activate` → `pnpm install` (the CLI is a workspace project — running `pnpm install` inside `clients/cli` resolves the root workspace too). There are no submodules to init.
+- Build: `pnpm build` (tsup bundle → `dist/cli.js`, the `notees` bin). After changing a `packages/*` public API, first `pnpm -r --filter "@notees/*" build` to rebuild the core packages' dists (dev-condition exports: tsc reads `dist`).
 - Test: `pnpm test` (vitest) · Typecheck: `pnpm typecheck` (`tsc --noEmit`)
 - **Gate before declaring done: `pnpm typecheck && pnpm test` — all green.**
 - Run from source: `pnpm dev -- --help` (tsx).
 
 ## Invariants / conventions
 
-- **The submodule pin is the lockstep boundary.** Wire/applier/model changes
-  arrive only via a vendor bump after the main repo's fixture gate (TS
-  reference + GTK + Flutter over byte-identical, sha256-pinned fixtures) has
-  converged. Never edit `vendor/` — fix it in the main repo, then bump the
-  pin. Never edit fixture bytes anywhere.
-  The `vendor/word` snapshot is outside this law — it refreshes from the
-  notees-word repo via its sync script, not from the main repo's gate.
+- **The monorepo workspace is the lockstep boundary.** Wire/applier/model
+  changes land in `packages/*` in this repo, and a wire change is not done
+  until the monorepo's fixture gate has converged (TS reference + GTK +
+  Flutter over byte-identical, sha256-pinned fixtures) — the
+  `fixture-drift` workflow at the repo root fails any commit that changes
+  the canonical corpus (`packages/protocol/fixtures/`) without updating the
+  GTK (`clients/gtk/tests/fixtures/wire/`) and Flutter
+  (`clients/flutter/test/fixtures/wire/`) copies in the same commit. The CLI
+  consumes the core packages as workspace projects — there is no vendor pin
+  to bump. Never edit fixture bytes anywhere.
+  The `word-snapshot/` copy of the Word add-in is outside this law — it
+  follows the add-in's own build, not the fixture gate.
 - **The CLI's only authoritative state is the relay log** — the per-workspace
   derived store (`<state-dir>/stores/<workspace-id>.db`) is a disposable
   projection (delete it any time; the next command re-syncs). The state file
@@ -128,7 +133,7 @@ operations.)
 | Record | Home |
 |--------|------|
 | Shipped work | `CHANGELOG.md` (newest first, one entry per slice) |
-| In-flight proposals | `.plans/YYYY-MM-DD-HHMM-<slug>/` (date-stamped proposal folders, created on demand) |
+| In-flight proposals | `.plans/YYYY-MM-DD-HHMM-<slug>/` at the monorepo root (date-stamped proposal folders, created on demand) |
 | Project skills | `.agents/skills/` |
 
 ## Working rules (owner)

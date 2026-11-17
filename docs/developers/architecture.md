@@ -683,10 +683,12 @@ The live count moved OFF the panel: the ACTIVE hosted tab carries a total-count
 badge beside its name (NodeCollection computes the open tab's displayed row
 count post-refinement and hands it to NodeCollectionTabs;, replacing the "N of M nodes match" foot line).
 
-**GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
+**GTK / Flutter** (in-tree at `clients/gtk`, `clients/flutter` — formerly the `notees-gtk` / `notees-flutter` sibling repos). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
-**CLI** (standalone repo `notees-cli` — split from `apps/cli` 2026-10-05; consumes
-this repo's packages via a pinned `vendor/notees` git submodule).
+**CLI** (in-tree at `clients/cli` — merged 2026-11-17, formerly the standalone
+`notees-cli` repo split from `apps/cli` 2026-10-05; a root pnpm workspace
+project consuming this repo's packages directly — the `vendor/notees`
+submodule is retired).
 **Plan-07 debt:** the CLI drives the retired content API (object/search/query/
 backlinks/merge) — it is broken against a post-plan-07 server until its
 relay+local-store rewrite (its own plan); until then CLI releases pin a

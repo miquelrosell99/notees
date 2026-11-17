@@ -1,22 +1,25 @@
 ---
 name: notees-flutter-development
-description: Develop the Notees Flutter mobile client — a lockstep client of the Notees op-log protocol (envelope v3, relay protocol v2). Use when writing or changing code, wire models, appliers, fixtures, sync, or UI in the notees-flutter repo; when touching test/fixtures/wire; or when porting a notees-sync protocol/store change to Dart.
+description: Develop the Notees Flutter mobile client — a lockstep client of the Notees op-log protocol (envelope v3, relay protocol v2), living at clients/flutter in the Notees monorepo. Use when writing or changing code, wire models, appliers, fixtures, sync, or UI in this tree; when touching test/fixtures/wire; or when porting a packages/* protocol/store change to Dart.
 ---
 
 # notees-flutter-development
 
 First-class Flutter (Android/iOS) client of the Notees object graph. The
-notees-sync (TypeScript) is the source of truth; this app adapts to it — never
-the other way around. AGENTS.md at the repo root is the canonical orientation
-(overview, layout, build, CI pitfalls); this skill enforces the laws.
+in-tree TypeScript core (`packages/*` in this monorepo) is the source of
+truth; this app adapts to it — never the other way around. AGENTS.md in this
+tree is the canonical orientation (overview, layout, build, CI pitfalls);
+this skill enforces the laws.
 
 ## Laws
 
 1. **The fixture corpus is byte-pinned.** `test/fixtures/wire/` is byte-identical
-   (sha256) to the notees-sync repo's `packages/protocol/fixtures/` — the shared
-   convergence corpus for the TS reference, the GTK client, and this app.
-   NEVER edit fixture bytes, names, or counts. If the protocol changes, the
-   fixtures change in the notees-sync repo first and are copied here verbatim.
+   (sha256) to this monorepo's `packages/protocol/fixtures/` — the shared
+   convergence corpus for the TS reference, the GTK client (`clients/gtk`),
+   and this app. NEVER edit fixture bytes, names, or counts. If the protocol
+   changes, the fixtures change in `packages/protocol/fixtures/` first and
+   are copied here verbatim; the monorepo root's `fixture-drift` workflow
+   fails any commit that changes one copy without the others.
 2. **The lockstep law.** A wire/applier/model change is not done until all
    three implementations (TS reference, GTK, Flutter) converge on the same
    envelopes and derived state. Land parsers before authoring where the batch
@@ -37,8 +40,8 @@ the other way around. AGENTS.md at the repo root is the canonical orientation
    overlap; a red that vanishes on an unloaded re-run is a load symptom —
    root-cause before retrying.
 4. **The changelog is the record.** One entry per shipped slice in
-   `CHANGELOG.md` (repo root), newest first. Docs/comment updates ride in the
-   same change; a change without its changelog entry is not done.
+   `CHANGELOG.md` (this tree), newest first. Docs/comment updates ride in
+   the same change; a change without its changelog entry is not done.
 5. **No legacy version names.** No §-citation tokens, no milestone markers
    (M1–M5), no narrative v1/v2 qualifiers ("the v2 store", "v1 behavior") in
    comments, docs, or test titles. Version numbers that ARE the protocol stay
@@ -58,8 +61,8 @@ the other way around. AGENTS.md at the repo root is the canonical orientation
 - `lib/core/utils/ast_builder.dart` / `ast_stringifier.dart` — the flat
   content-grammar port (`content-mark.ts`), including legacy nested-AST
   conversion.
-- Reference the core through a sibling clone of notees-sync kept up to date
-  (`git@github.com:miquelrosell99/notees-sync.git`) — never hardcode host paths.
+- Reference the core in-tree at `packages/*` (+ `apps/server` for the wire
+  server behavior) in this monorepo — never hardcode host paths.
 
 Longer workflow detail (fixture sync procedure, adding an op type, the
 analyze pitfalls that break CI): `references/development-workflow.md`.

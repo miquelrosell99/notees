@@ -10,19 +10,22 @@ flutter analyze
 flutter test
 ```
 
-CI runs the same analyze/test steps (`.github/workflows/android.yml`), so a
-green local gate means a green CI build. `flutter test` needs no device; the
-sqflite tests run on `sqflite_common_ffi`.
+CI runs the same analyze/test steps (the monorepo root's
+`flutter-android.yml`, path-filtered to `clients/flutter/**` + `packages/**`),
+so a green local gate means a green CI build. `flutter test` needs no device;
+the sqflite tests run on `sqflite_common_ffi`.
 
-## Fixture sync procedure (protocol change lands in the core repo first)
+## Fixture sync procedure (protocol change lands in the core packages first)
 
-1. The notees-sync repo authors/updates fixtures under `packages/protocol/fixtures/`
-   and its own gate goes green.
+1. The fixtures are authored/updated under `packages/protocol/fixtures/` in
+   this monorepo (repo root) and the core gate goes green there.
 2. Copy the changed files into `test/fixtures/wire/` **verbatim** — byte-for-
    byte, including the `comment` fields (they carry §-era history; that is
    fine, the corpus is pinned). Do not hand-edit, reformat, or "fix" a
-   fixture; if it looks wrong, the core repo is wrong.
-3. Verify identity: `sha256sum` each file against the notees-sync copy.
+   fixture; if it looks wrong, the core is wrong.
+3. Verify identity: `sha256sum` each file against the `packages/protocol/fixtures/`
+   copy. The root `fixture-drift` workflow re-checks the sha256 identity in
+   CI — one commit must update every copy (GTK's included).
 4. Wire new fixtures into the replay suites (`fixtures_test.dart`,
    `fixture_replay_test.dart`, `content_lockstep_test.dart`, and the
    per-batch acceptance tests) so the Flutter appliers prove convergence with
@@ -38,8 +41,8 @@ sqflite tests run on `sqflite_common_ffi`.
 - Extend the local schema in `app_database.dart` if derived rows change
   (bump `_schemaVersion`, add an idempotent migration, keep vN comments).
 - Add the op to the known-registry test surface and replay the fixture.
-- The change is NOT done until the notees-sync and GTK implementations converge
-  on the same fixture outcomes.
+- The change is NOT done until the TS reference (`packages/*`) and GTK
+  (`clients/gtk`) implementations converge on the same fixture outcomes.
 
 ## Analyze pitfalls that break CI (from AGENTS.md, kept current)
 
@@ -58,11 +61,11 @@ sqflite tests run on `sqflite_common_ffi`.
 
 ## Record-keeping rules
 
-- `CHANGELOG.md` at the repo root is the shipped-work record: newest first,
+- `CHANGELOG.md` in this tree is the shipped-work record: newest first,
   one entry per slice. AGENTS.md and `docs/` stay static — never append
   work-log entries to them.
 - The `docs/plan*.md` and `docs/*audit*.md` files are historical
   plan/audit documents, kept for context; the changelog supersedes them as
   the record of what actually shipped.
-- Keep all host references fleet-agnostic: "a sibling clone of
-  `git@github.com:miquelrosell99/notees-sync.git`", never machine-specific paths.
+- Keep all host references fleet-agnostic: reference the core in-tree at
+  `packages/*` in this monorepo, never machine-specific paths.

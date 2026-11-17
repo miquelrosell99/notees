@@ -58,8 +58,9 @@ node apps/server/dist/server.js
 # or: pnpm --filter @notees/server start
 ```
 
-The CLI builds the same way in its own repo (`notees-cli`):
-`pnpm build` → `dist/cli.js` (exposed as the `notees` bin).
+The CLI (`clients/cli`, a root workspace project) builds the same way:
+`pnpm --filter @notees/cli build` → `clients/cli/dist/cli.js` (exposed as
+the `notees` bin).
 
 First boot prints the generated API key once to stderr and persists it (see the
 Data directory layout section).
@@ -84,7 +85,7 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_SIGNUP_ENABLED` | off | Open registration: `POST /api/auth/signup` creates non-admin accounts and the login screen shows "Create one". Accepts `1`/`true`/`yes`/`on`. Off → the route answers 404 and the client hides the link |
 | `NOTEES_REQUIRE_KEYED` | on | Workspace keying is mandatory: `POST /workspaces` and the clone route require a `wrappedKey` bundle — a creation without one answers 422 `keying_required` before anything is minted. `0`/`false` restores the legacy unkeyed creation for dev/test fleets; the seeded demo fixtures are exempt (`KEYING_EXEMPT_WORKSPACE_IDS`, `auth.ts`). Bundles are minted client-side in the browser's Web Crypto — a secure context: plain-http clients cannot mint one (§10) |
 
-CLI environment (for clients, `notees-cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
+CLI environment (for clients, `clients/cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
 `NOTEES_STATE_FILE` (default `~/.notees/state.json`).
 

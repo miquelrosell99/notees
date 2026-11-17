@@ -10,7 +10,10 @@ other network calls.
 
 The add-in's statics (`dist/`) are plain files, served **locally on the
 machine running Word** by the Notees CLI: `notees word serve` is the pane's
-local gateway — it serves the vendored localhost build at
+local gateway — it serves the localhost build of this add-in (resolved
+`NOTEES_WORD_DIST` > a built `clients/word/dist` > the committed
+`clients/cli/word-snapshot/dist` > the copy embedded in the CLI bundle — see
+"How the CLI resolves the build" below) read-only at
 `http://localhost:<port>` (loopback only), renders the sideload manifest for
 that origin into its per-user cache dir, and proxies the pane's same-origin
 `/api/*` calls to the configured sync server with the credential injected
@@ -45,15 +48,15 @@ The manifest's `SourceLocation`/icon URLs are written at build time by
 - `${BASE_PATH}` — `NOTEES_WORD_BASE_PATH`, default `/word`, the path prefix
   under which a static file server fronts the dist.
 
-The **localhost flavor** (`pnpm build:localhost` — the build the Notees CLI
-vendors and serves) targets the `notees word serve` layout: `${HOST}`
+The **localhost flavor** (`pnpm build:localhost` — the build `notees word
+serve` serves) targets the `notees word serve` layout: `${HOST}`
 defaults to `http://localhost:8471` and `${BASE_PATH}` to "", so the URLs
 read `http://localhost:8471/index.html`. Env vars override either flavor.
 
 ## How the statics are served (matters for the manifest URLs)
 
-`notees word serve` (from the `notees` CLI) serves the vendored localhost
-build read-only at the **root** of `http://localhost:<port>`, bound to
+`notees word serve` (from the `notees` CLI) serves the localhost build
+read-only at the **root** of `http://localhost:<port>`, bound to
 127.0.0.1 only:
 
 - `GET /` serves `index.html`; `GET /manifest.xml` serves the manifest
@@ -70,6 +73,22 @@ fronts the dist under a prefix (the layout the Notees sync server used to
 serve): such a server must name files explicitly — no directory index,
 `/word/index.html`, not `/word/` — and `NOTEES_WORD_BASE_PATH` must match
 the prefix it mounts the dist under.
+
+## How the CLI resolves the build (the word-snapshot chain)
+
+This add-in and the CLI are trees of the same monorepo (`clients/word` and
+`clients/cli`), and `notees word serve` resolves its statics at runtime, most
+specific first:
+
+1. `NOTEES_WORD_DIST` — an explicit path to a dist tree wins outright.
+2. A built `clients/word/dist` — a local `pnpm build:localhost` in this tree.
+3. The committed `clients/cli/word-snapshot/dist` — the snapshot checked into
+   the CLI tree (refreshed when the add-in ships; keeps fresh checkouts and
+   CI green).
+4. The copy embedded in the CLI bundle at build time (last resort).
+
+There is no sync script to run — serving a just-built add-in is either
+pointing `NOTEES_WORD_DIST` at it or having the built `dist/` in place.
 
 ## Sideloading
 
@@ -156,7 +175,7 @@ pnpm test       # vitest unit suite (run after `pnpm build` — the scaffold
                 # smoke test pins the default-flavor dist layout)
 pnpm typecheck  # tsc --noEmit
 pnpm build      # full dist/ (icons + bundle + office.js + manifest)
-pnpm build:localhost  # the dist/ the CLI vendors and serves locally
+pnpm build:localhost  # the dist/ `notees word serve` serves locally
 ```
 
 Layout: `src/bridge/` (typed fetch client for the bridge protocol),
@@ -166,3 +185,12 @@ Office.js adapter), `src/ui/` (React task pane), `scripts/` (build helpers).
 Host-only behavior that vitest cannot cover is checked by hand — see
 [docs/smoke-checklist.md](docs/smoke-checklist.md) (sideloading, field codes,
 refresh, bibliography, style picker, read-only hosts).
+
+## Releases
+
+Pushing a `word-v*` tag runs `.github/workflows/release-word.yml` at the
+monorepo root — a guard job fails the run unless the tagged commit touches
+`clients/word/`, then install + build + test, `zip -r notees-word-<tag>.zip
+dist/`, and the zip attaches to the tag's GitHub Release. This tree is a
+standalone pnpm project (`pnpm-workspace.yaml` with empty `packages:` fences
+it off from the monorepo root workspace).

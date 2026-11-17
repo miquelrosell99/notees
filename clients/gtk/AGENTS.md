@@ -4,11 +4,12 @@
 
 notees-gtk is the first-class GTK4/libadwaita desktop client for Notees — a
 self-hosted, privacy-first, local-first personal information environment whose
-only authority is an immutable operation log (envelope **v3**). This repo is
+only authority is an immutable operation log (envelope **v3**). This tree is
 the Python lockstep implementation of the wire protocol, the derived SQLite
-appliers, and the sync engine; the TypeScript core
-(`miquelrosell99/notees-sync` — the wire authority + server) is the reference implementation, and the Flutter
-client is the third implementation of the same contracts.
+appliers, and the sync engine, living in the Notees monorepo at
+`clients/gtk`; the TypeScript core in this repo (`packages/*` — the wire
+authority + `apps/server`) is the reference implementation, and the Flutter
+client (`clients/flutter`) is the third implementation of the same contracts.
 
 The GTK client is offline-first: edits land in a local SQLite outbox and sync
 through the relay (`/api/relay/v2`, WS framing v2) when the server is
@@ -33,7 +34,7 @@ AGENTS.md
   gate, the changelog-as-record rule, docs-part-of-change).
 - **Any release/packaging task — tag, CI, PKGBUILD, GitHub Release →
   invoke the `notees-gtk-operations` skill first.**
-- The skills summarize and enforce; the notees-sync repo's `docs/developers/`
+- The skills summarize and enforce; the monorepo root's `docs/developers/`
   runbooks are the canonical protocol/wire reference for all three
   implementations.
 
@@ -72,29 +73,34 @@ AGENTS.md
   graph surface (`graph_view.py`) draws the headless `core/graph/`
   projection (topology, deterministic layout, viewport, color groups — all
   GTK-free and unit-tested) behind the "Graph" sidebar row.
-- `tests/` — pytest suite; `tests/fixtures/wire/` is the vendored protocol
-  fixture corpus (see the lockstep law below — never edit those bytes).
-- `PKGBUILD` + `.github/workflows/` — Arch packaging and CI/release
+- `tests/` — pytest suite; `tests/fixtures/wire/` is the GTK copy of the
+  canonical protocol fixture corpus (see the lockstep law below — never
+  edit those bytes).
+- `PKGBUILD` + the monorepo root's `.github/workflows/` (`ci-gtk.yml`,
+  `release-gtk.yml`) — Arch packaging and CI/release
   (operations detail in the operations skill).
 
 ## Commands
 
 - Setup: `uv sync` (Python 3.12; the `ui` extra pulls PyGObject and is only
   needed to run the app, not the checks).
-- Gate (blocking, mirrors `ci.yml`): `uv run pytest && uv run ruff check &&
+- Gate (blocking, mirrors `ci-gtk.yml`): `uv run pytest && uv run ruff check &&
   uv run mypy src`.
 - Arch package locally: `makepkg -si` from a clone.
-- Live end-to-end check: build the sync server (`pnpm --filter
-  @notees/server build` in a notees-sync checkout) and point `NOTEES_V2_ROOT` at
-  it; `tests/test_live_server_e2e.py` self-skips when the server build or
-  node is absent.
+- Live end-to-end check: build the sync server in this monorepo
+  (`pnpm --filter @notees/server build` at the repo root) and point
+  `NOTEES_V2_ROOT` at it; `tests/test_live_server_e2e.py` self-skips when the
+  server build or node is absent.
 
 ## Invariants
 
-- **The fixture corpus is byte-pinned.** `tests/fixtures/wire/` is a vendored
-  copy of the notees-sync repo's `packages/protocol/fixtures/` (sha256-identical at
-  vendor time). Never edit, reformat, or regenerate those bytes; a wire change
-  re-vendors the corpus from the notees-sync repo.
+- **The fixture corpus is byte-pinned.** The canonical corpus lives in this
+  monorepo at `packages/protocol/fixtures/`; `tests/fixtures/wire/` is the
+  GTK copy, sha256-identical by fiat — the root `fixture-drift.yml` workflow
+  fails any commit that changes one copy without the other (the Flutter copy
+  at `clients/flutter/test/fixtures/wire/` is the third leg). Never edit,
+  reformat, or regenerate those bytes; a fixture change updates every copy in
+  the same commit.
 - **Lockstep law.** A wire/applier change is not done until the three
   implementations converge — the TS reference, this client, and Flutter — each
   with fixtures exercising every affected applier. Recipe:
@@ -104,7 +110,7 @@ AGENTS.md
   `displayTemplate` (fixture `class-display-template.json`), but no GTK
   surface renders it yet — the web reference chrome (mentions, pickers,
   breadcrumbs, search rows) does. When building class-aware titles, read the
-  contract in the notees-sync repo's `packages/protocol/SCHEMA.md` (reference-chrome
+  contract in this monorepo's `packages/protocol/SCHEMA.md` (reference-chrome
   only, the tri-state, the dual-key/folded placeholder rule, the
   equal-rank first-index-wins alias precedence).
 - **Fail loud; no backward compatibility.** Retired wire keys are rejected
@@ -125,8 +131,8 @@ AGENTS.md
 
 | Record | Home |
 |--------|------|
-| Shipped work | `CHANGELOG.md` at the repo root (newest first, one entry per slice) |
-| In-flight proposals | none today; if the repo grows proposal folders they follow `.plans/YYYY-MM-DD-HHMM-<slug>/` |
+| Shipped work | `CHANGELOG.md` in this tree (newest first, one entry per slice) |
+| In-flight proposals | none today; if the repo grows proposal folders they follow `.plans/YYYY-MM-DD-HHMM-<slug>/` (the monorepo root's `.plans/`) |
 | Project skills | `.agents/skills/` (auto-discovered by Kimi Code, Project scope) |
 
 ## Working rules (owner)
@@ -135,12 +141,12 @@ AGENTS.md
   `CHANGELOG.md` — one entry per shipped slice, newest first. `AGENTS.md` is
   static guidance: never append history, dates, or work-record entries to it;
   edit it only when the guidance changes. Before implementing, skim
-  `CHANGELOG.md` for recent related work. A change without its changelog +
+  `CHANGELOG.md`. A change without its changelog +
   doc updates is not done.
-- **Docs are part of the change:** behavior, wire, or UX changes update the
-  relevant docs in the same pass — the notees-sync repo's `SCHEMA.md`/`WIRE.md` when
-  the wire changes, this file and the skills when they describe changed
-  reality.
+- **Docs are part of the change:** behavior, wire, or UX changes update
+  the relevant docs in the same pass — this monorepo's
+  `packages/protocol/SCHEMA.md`/`WIRE.md` when the wire changes, this file
+  and the skills when they describe changed reality.
 - **No legacy version names:** narrative v1/v2 history and milestone labels
   (M1–M5) stay out of comments, docs, and test titles. Live version
   identifiers are the only exceptions — envelope v3, `/api/relay/v2`, WS

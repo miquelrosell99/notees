@@ -2,11 +2,17 @@
 
 > **Repo history.** This repo (`miquelrosell99/notees`) is Notees whole:
 > wire authority (`packages/protocol`), the TypeScript reference packages,
-> the sync relay (`apps/server`), and the web client (`apps/web`). Split
-> 2026-11-05 into `notees-sync` + `notees-web`, **re-merged 2026-11-12** —
-> the split's audience-scope rationale did not hold for this pair
-> (`.agents/decisions/ADR-001-merge-sync-and-web.md`). The core packages are
-> workspace projects here — there is no `vendor/notees` in this repo.
+> the sync relay (`apps/server`), the web client (`apps/web`), and the five
+> companion clients (`clients/{cli,gtk,flutter,word,connector}`). Split
+> 2026-11-05 into `notees-sync` + `notees-web`, **re-merged 2026-11-12**
+> (ADR-001 — the split's audience-scope rationale did not hold for that
+> pair), and **reunified 2026-11-17** with the five client repos, their full
+> histories merged under `clients/` (ADR-002 — the full monorepo
+> reunification; the lockstep boundary is now the workspace itself plus the
+> fixture gate). The core packages and the CLI are workspace projects here —
+> there is no `vendor/notees` anywhere. The pre-merge repos survive as
+> archived mirrors; the ADRs live at the workspace level
+> (`<workspace>/.agents/decisions/`), not in this repo.
 
 Notees — a self-hosted, privacy-first, local-first **personal information environment**: one object graph (nodes carry `is_class` + `is_embedded`; "page" and "block" are structural roles, not node kinds; typed properties, typed link marks, assets) whose only authority is an immutable **operation log** (envelope **v3**); every SQLite database (server, browser worker, CLI) is a derived projection of that log. TypeScript everywhere (Node 22, pnpm 9).
 
@@ -32,11 +38,11 @@ AGENTS.md
            └── maintenance            → references/maintenance.md
 ```
 
-- **Any code, model, wire, applier, fixture, sync, web-client, or (through
-  the vendor pin) client-facing core change → invoke the `notees-development`
+- **Any code, model, wire, applier, fixture, sync, web-client, or client-facing core change → invoke the `notees-development`
   skill first** and follow its laws (fixture gate + GTK/Flutter/CLI lockstep,
   dev-condition exports, changelog-as-record, docs-part-of-change,
-  designed-not-built register). Web UI work composes the ui-kit law below.
+  designed-not-built register). The clients are in-tree under `clients/` — a
+  client-facing core change is a lockstep change. Web UI work composes the ui-kit law below.
 - **Any operations task — deploy, health check, logs, rollback, database
   migration, backup, monitoring, incident response, maintenance → invoke the
   `notees-operations` skill first.** Deployment and rollback discipline
@@ -64,9 +70,10 @@ AGENTS.md
 - `apps/server` — sync relay + object API + CAS assets + coordination state (per-user prefs, plugin-manifest registry, workflow rules + run audit) + read-only public page shares (`notees-sync` image)
 - `apps/web` — the web client: outliner editor + worker (sql.js/OPFS derived store), `src/components/ui/kit/` the component library, feature surfaces under `src/features/`, the undo journal (`src/core/undo-journal.ts`), `test/` the vitest suite (`notees-web` image)
 - `src-tauri/` — the Tauri v2 desktop shell (a build target for the web client; `pnpm tauri:dev` / `pnpm tauri:build`)
+- `clients/` — the five companion clients, each merged with its full history and keeping its own toolchain, per-client `AGENTS.md`, and per-client project skills under `clients/<name>/.agents/skills/`: `clients/cli` (the `notees` command-line client — a root pnpm workspace project consuming `packages/*` directly), `clients/gtk` (Python/GTK4 desktop, uv), `clients/flutter` (Dart mobile/desktop, Flutter SDK), `clients/word` (Office.js add-in) and `clients/connector` (Firefox extension) — the latter two are standalone pnpm projects fenced off from the root workspace by their own `pnpm-workspace.yaml` (`packages: []`) and lockfiles; each client releases with a component-prefixed tag (`cli-v*` / `gtk-v*` / `flutter-v*` / `word-v*` / `connector-v*`)
 - `scripts/` — log-migration scripts, conformance checkers, the migration rehearsal harness · `scripts/screenshots/` — the visual-diagnosis probe suite + `verify-min.mjs` (the post-deploy smoke; method runbook: `docs/developers/ui-debugging.md`) · `scripts/check-css-tokens.mjs` — the CSS token-drift gate (CI job `css-token-drift`)
 - `docs/` — **person-facing only**: front door, `getting-started.md`, `cli.md`, `api.md`, `feature-status.md`, `philosophy.md`, one page per feature under `features/`, the convention docs under `workflows/`. **Internal notes never go in `docs/`; user docs never go in dot-folders.** `docs/developers/` — the runbooks (indexed by `docs/developers/README.md`)
-- `.plans/` — date-stamped proposal folders (`YYYY-MM-DD-HHMM-<slug>/`). The shipped-work record lives in `CHANGELOG.md`. · `.audits/` — internal audit reports · `.agents/` — internal agent reference: `parked-decisions.md` + `design-overrides.md` + `decisions/` (ADRs) + the **project skills** (`skills/notees-development`, `skills/notees-operations` — Kimi Code auto-discovers project skills from `.agents/skills/`, Project scope)
+- `.plans/` — date-stamped proposal folders (`YYYY-MM-DD-HHMM-<slug>/`). The shipped-work record lives in `CHANGELOG.md`. · `.audits/` — internal audit reports · `.agents/` — internal agent reference: `parked-decisions.md` + `design-overrides.md` + the **project skills** (`skills/notees-development`, `skills/notees-operations` — Kimi Code auto-discovers project skills from `.agents/skills/`, Project scope); the ADRs live at the workspace level (`<workspace>/.agents/decisions/`), not in this repo
 - `brand/` — the brand submodule (design tokens/assets; `apps/web/src/ui/variables.css` is seeded from it)
 
 Full file map: `docs/developers/architecture.md` · normative model & wire: `packages/protocol/SCHEMA.md` (and `WIRE.md`).
@@ -76,7 +83,7 @@ Full file map: `docs/developers/architecture.md` · normative model & wire: `pac
 - Install: `pnpm install` · Build: `pnpm -r --workspace-concurrency=1 build` · Test: `pnpm test` (all green = blocking gate) · Typecheck: `pnpm -r typecheck`. Full command table, the fixture gate, and the add-an-op recipe: `docs/developers/development.md`.
 - Server dev: `pnpm --filter @notees/server dev` (:8377). Web dev: `pnpm --filter @notees/web dev` (vite; `/api/*` proxies to a sync server on :8377). Web build/test/typecheck: `pnpm --filter @notees/web {build,test,typecheck}`.
 - **Dev-condition exports**: vitest reads `src`, `tsc` reads `dist` — after changing a package's public API, rebuild its dist before typechecking dependents.
-- Deploy: plain Docker, `docker compose build` + `docker compose up -d` from the repo root. The live `compose.yaml` + `.env` are **gitignored host-local artifacts — never committed**; the repo ships `compose.example.yaml` (+ a dev variant) and `.env.example` only. The compose project name derives from the folder name (no `name:` pin) — keep the repo folder `notees` on production hosts. The live data dir binds `${NOTEES_DATA_DIR:-./config/notees/sync}` — a host keeping its data outside the checkout sets `NOTEES_DATA_DIR` in `.env` to the stack's data dir (a host-local path; borgmatic backup source; `relay.db` never lives in the dev repo). Server-only stacks skip the web service with the compose `web` profile. Then the `verify-min.mjs` smoke (run against the live stack) — **invoke the `notees-operations` skill first** (plus `deployment-runbook` for the deploy/rollback discipline). Full runbook + the ghcr/CI publish path: `docs/developers/deployment.md`; the companion clients (GTK/Flutter/CLI — each owns its releases) are documented in `docs/developers/README.md`.
+- Deploy: plain Docker, `docker compose build` + `docker compose up -d` from the repo root. The live `compose.yaml` + `.env` are **gitignored host-local artifacts — never committed**; the repo ships `compose.example.yaml` (+ a dev variant) and `.env.example` only. The compose project name derives from the folder name (no `name:` pin) — keep the repo folder `notees` on production hosts. The live data dir binds `${NOTEES_DATA_DIR:-./config/notees/sync}` — a host keeping its data outside the checkout sets `NOTEES_DATA_DIR` in `.env` to the stack's data dir (a host-local path; borgmatic backup source; `relay.db` never lives in the dev repo). Server-only stacks skip the web service with the compose `web` profile. Then the `verify-min.mjs` smoke (run against the live stack) — **invoke the `notees-operations` skill first** (plus `deployment-runbook` for the deploy/rollback discipline). Full runbook + the ghcr/CI publish path: `docs/developers/deployment.md`; the companion clients live in-tree under `clients/`, each releasing with a component-prefixed tag, and are documented in `docs/developers/README.md`.
 
 ## Invariants (design law — read the linked homes before changing the model, wire, or appliers)
 
@@ -119,10 +126,10 @@ Core-side rule: **fixtures, protocol docs, and SCHEMA/WIRE are the shared law ac
 | Shipped work | `CHANGELOG.md` (newest first, one entry per slice) |
 | In-flight proposals | `.plans/YYYY-MM-DD-HHMM-<slug>/` |
 | Parked decisions | `.agents/parked-decisions.md` |
-| Architecture decisions | `.agents/decisions/` (ADR-000 the split law, ADR-001 the re-merge) |
+| Architecture decisions | workspace-level `<workspace>/.agents/decisions/` (ADR-000 the split law, ADR-001 the sync+web re-merge, ADR-002 the full monorepo reunification) — the ADRs are not files in this repo |
 | Design overrides (deviations from the RosellRamos design system) | `.agents/design-overrides.md` |
 | Audit reports | `.audits/` |
 
 ## Parked decisions
 
-See **`.agents/parked-decisions.md`** — SDK publish archived (2026-10-03) · releases/lockstep runbook pointer · repo split SHIPPED 2026-11-05, **RE-MERGED 2026-11-12 (ADR-001)**: `notees` is core + server + web again; `notees-cli`/GTK/Flutter keep vendoring this repo through pinned submodules (the pin stays their lockstep boundary).
+See **`.agents/parked-decisions.md`** — SDK publish archived (2026-10-03) · releases/lockstep runbook pointer · repo split SHIPPED 2026-11-05, **RE-MERGED 2026-11-12 (ADR-001)**: `notees` is core + server + web again · the five client repos (CLI/GTK/Flutter/Word/connector) **re-merged in-tree 2026-11-17 (ADR-002)** under `clients/` — the vendor pins retired with them; each client releases with a component-prefixed tag.

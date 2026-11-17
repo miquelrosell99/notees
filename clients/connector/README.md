@@ -1,7 +1,7 @@
 # Notees Connector
 
 A Firefox extension that captures web pages into your self-hosted
-[Notees](https://github.com/miquelrosell99/notees-web) workspace — as
+[Notees](https://github.com/miquelrosell99/notees) workspace — as
 **bibliography sources** or **read-it-later** entries. Privacy-first: it sends
 nothing anywhere except the Notees server you configure.
 

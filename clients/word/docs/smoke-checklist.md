@@ -8,6 +8,11 @@ lane done. Check items off here only by hand.
 Pairing for all items below: `notees serve --origin http://localhost:8471` on the same machine,
 pane settings → port + token → Connect.
 
+The build under test reaches the gateway through the usual chain (see the
+README): a just-built `dist/` is picked up either by pointing
+`NOTEES_WORD_DIST` at it or by the built-`clients/word/dist` walk-up —
+no sync step exists.
+
 ## Host lifecycle & pairing
 
 - [ ] **1. Shared-folder sideload (Windows desktop).** Sideload via the

@@ -1,6 +1,6 @@
 # AGENTS.md — Notees Mobile
 
-This file contains project-specific context for the first-class Flutter mobile app in this repository.
+This file contains project-specific context for the first-class Flutter mobile app in this repository (`clients/flutter` in the Notees monorepo).
 
 ## Overview
 
@@ -13,12 +13,12 @@ The mobile app is a **first-class native Flutter app** for Notees. It provides n
 - **Functional accent**: Advance Green `#2E5E46` (Margin Green brand identity)
 - **Architecture**: feature-first Flutter with Provider + ChangeNotifier, Dio, go_router, sqflite
 - **Native features**: biometric app lock, offline quick-capture queue, share receiver, native block editor with inline styles and node/class/tag links, native list/card/table views, bottom navigation, advanced search filters, reusable node picker, native settings with server and account management, local task due-date reminders with snooze actions and boot reschedule, Android home-screen widgets (today's tasks, favorites, Inbox preview)
-- **displayTemplate render consumption is PENDING (store done, schema v40, 2026-10-29).** The local store accepts and resolves the class-level `displayTemplate` wire key (fixture `class-display-template.json`), but no Flutter surface renders it yet — the web reference chrome (mentions, pickers, breadcrumbs, search rows) does. When building class-aware titles, follow the contract in the notees-sync repo's `packages/protocol/SCHEMA.md` (reference-chrome only, the tri-state, the dual-key/folded placeholder rule, the equal-rank first-index-wins alias precedence).
+- **displayTemplate render consumption is PENDING (store done, schema v40, 2026-10-29).** The local store accepts and resolves the class-level `displayTemplate` wire key (fixture `class-display-template.json`), but no Flutter surface renders it yet — the web reference chrome (mentions, pickers, breadcrumbs, search rows) does. When building class-aware titles, follow the contract in this monorepo's `packages/protocol/SCHEMA.md` (reference-chrome only, the tri-state, the dual-key/folded placeholder rule, the equal-rank first-index-wins alias precedence).
 
 ## Key Files
 
 ```
-notees-flutter/
+clients/flutter/
 ├── lib/
 │   ├── main.dart
 │   ├── app.dart
@@ -54,9 +54,8 @@ notees-flutter/
 ├── android/                  # Android platform project
 ├── ios/                      # iOS platform project
 ├── packaging/                # Release packaging (arch/ = the Linux pacman PKGBUILD)
-├── .github/workflows/        # Android CI
 ├── scripts/                  # Build helpers (KGP + MDI icon patches) + screenshots harness (scripts/screenshots)
-└── AGENTS.md                # This file
+└── AGENTS.md                 # This file
 ```
 
 ## Build
@@ -65,14 +64,13 @@ notees-flutter/
 
 Two kinds of APK come out of CI — never confuse them:
 
-- **Release APKs** (`.github/workflows/release.yml`, runs on `v*` tags): production-signed, versioned from the tag (see below), published as a GitHub Release. **This is the only APK to install on a real device.**
-- **CI artifacts** (`.github/workflows/android.yml`, runs nightly on a schedule + on PRs to `main`): a testing build named `notees-android-ci-<sha>.apk`, debug-signed, pubspec version `1.0.0+1` — for trying out main or a PR on an emulator or clean install. It can never update over a release (signature and versionCode differ by design).
+- **Release APKs** (`.github/workflows/release-flutter.yml` at the monorepo root, runs on `flutter-v*` tags): production-signed, versioned from the tag (see below), published as a GitHub Release. **This is the only APK to install on a real device.**
+- **CI artifacts** (`.github/workflows/flutter-android.yml` at the monorepo root, reusable; runs nightly on a schedule + on PRs touching `clients/flutter/**` or `packages/**`): a testing build named `notees-android-ci-<sha>.apk`, debug-signed, pubspec version `1.0.0+1` — for trying out main or a PR on an emulator or clean install. It can never update over a release (signature and versionCode differ by design).
 
 The Android CI workflow builds, signs, and uploads the APK on a nightly
-schedule (building main's head) and on every pull request targeting `main`.
-
-The scheduled run produces the CI artifact APK from main's head, so a manual
-trigger is usually unnecessary.
+schedule (building main's head) and on every pull request touching the
+Flutter client or the shared packages (a package or fixture-corpus change
+re-runs this gate — lockstep).
 
 CI uses directly-installed tooling (`actions/setup-java`, `subosito/flutter-action`, `android-actions/setup-android`) with cached `~/.pub-cache` and Gradle homes, following the same pattern as Logseq's Android workflow. It builds an unsigned release APK and then signs it with `apksigner` using the production keystore.
 
@@ -87,15 +85,16 @@ Then download the artifact from the printed workflow run.
 
 **Always commit and push snapshots before expecting them in a CI APK.** The workflow checks out `main` (or the configured git ref), so uncommitted local changes are not included in the build.
 
-**Tag releases**: pushing a `v*` tag (e.g. `v1.2.3`) runs
-`.github/workflows/release.yml`, which reuses `android.yml` to build a
-production-signed release APK and publishes a GitHub Release for the tag with
-the APK and its SHA-256 checksum attached. The app version is derived from the
-tag at build time (`v2.0.0-m11` → versionName `2.0.0-m11`, versionCode
-`2000011`; plain `vX.Y.Z` → versionCode `(X·10000 + Y·100 + Z)·100`), so every
-release is a distinct in-place upgrade and any tag orders above its plain
-base. Non-tag builds keep the pubspec version — never reuse a tag that
-already exists.
+**Tag releases**: pushing a `flutter-v*` tag (e.g. `flutter-v1.2.3`) runs
+`.github/workflows/release-flutter.yml` at the monorepo root, which reuses
+`flutter-android.yml` to build a production-signed release APK and publishes
+a GitHub Release for the tag with the APK and its SHA-256 checksum attached.
+The app version is derived from the tag at build time: the `flutter-` prefix
+is stripped, then the documented rules apply (`flutter-v2.0.0-m11` →
+versionName `2.0.0-m11`, versionCode `2000011`; plain `flutter-vX.Y.Z` →
+versionCode `(X·10000 + Y·100 + Z)·100`), so every release is a distinct
+in-place upgrade and any tag orders above its plain base. Non-tag builds keep
+the pubspec version — never reuse a tag that already exists.
 
 ## Local development
 
@@ -174,22 +173,26 @@ For major refactors, trigger a CI build via `./trigger-ci-build.sh` rather than 
 
 ## Server Reference
 
-The backend/server source for Notees is kept in a sibling clone of
-`git@github.com:miquelrosell99/notees-sync.git` (the core + sync server repo), kept up to date, for reference
-while building the mobile app:
+The backend/server source for Notees lives **in this monorepo** — the core
+packages at `packages/*` (the wire authority: protocol, domain, store, sync,
+query, export) plus the sync server at `apps/server` — for reference while
+building the mobile app:
 
-Keep the clone current when the mobile app needs to align with API contracts,
-data models, auth flows, or deployment conventions from the server
-repository.
+Keep aligned with the API contracts, data models, auth flows, and deployment
+conventions there; the monorepo root's `docs/developers/` runbooks are the
+canonical reference. The fixture corpus at `test/fixtures/wire/` is a copy of
+`packages/protocol/fixtures/` — the root `fixture-drift` workflow enforces
+sha256 identity (one commit updates every copy).
 
 ## Records
 
 - **The changelog is the record**: what shipped and why lives in
-  `CHANGELOG.md` at the repo root — one entry per shipped slice, newest
+  `CHANGELOG.md` in this tree — one entry per shipped slice, newest
   first. This file and `docs/` stay static guidance/history; never append
   work-log entries to them. A change without its changelog entry is not done.
-- In-flight proposals and parked decisions live in the notees-sync repo
-  (`.plans/YYYY-MM-DD-HHMM-<slug>/` and `.agents/parked-decisions.md` there).
+- In-flight proposals and parked decisions live in this monorepo: the root
+  `.plans/YYYY-MM-DD-HHMM-<slug>/` proposal folders and
+  `.agents/parked-decisions.md`.
 
 | Record | Home |
 |--------|------|

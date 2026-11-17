@@ -1,19 +1,23 @@
 # Development workflow — notees-gtk
 
 The longer form of the laws in `SKILL.md`: the three-client lockstep recipe,
-the fixture byte-pin procedure, and the coding conventions this repo enforces
-through `ruff`/`mypy`/review.
+the fixture byte-pin procedure, and the coding conventions this tree enforces
+through `ruff`/`mypy`/review. All paths are relative to `clients/gtk` unless
+noted; the monorepo root is one level up.
 
 ## The lockstep recipe (a wire/applier change, GTK side)
 
 A protocol change lands here in this order; every step is part of the change:
 
-1. **Read the normative docs in the notees-sync repo** — `packages/protocol/SCHEMA.md`
-   and `WIRE.md` — before writing any Python. The core repo ships the change
-   first (op schema, TS appliers, canonical fixtures, its own tests).
-2. **Re-vendor the fixture corpus.** Copy the changed/new files from
-   `packages/protocol/fixtures/` into `tests/fixtures/wire/` verbatim — never
-   retype, reformat, or "fix" a fixture. Then run the byte-pin check below.
+1. **Read the normative docs in this monorepo** — `packages/protocol/SCHEMA.md`
+   and `WIRE.md` (repo root) — before writing any Python. The core ships the
+   change first (op schema, TS appliers, canonical fixtures, its own tests).
+2. **Copy the fixture corpus.** Copy the changed/new files from
+   `packages/protocol/fixtures/` (repo root) into `tests/fixtures/wire/`
+   verbatim — never retype, reformat, or "fix" a fixture. Then run the
+   byte-pin check below; the root `fixture-drift` workflow enforces the
+   sha256 identity in CI (one commit updates the GTK and Flutter copies
+   together).
 3. **Port the wire models** in `src/notees_gtk/core/protocol/`: envelope/
    payload pydantic models are `extra="forbid"` zod-strict parity with
    camelCase alias generators; new payload keys get validators matching the
@@ -44,20 +48,20 @@ A protocol change lands here in this order; every step is part of the change:
 7. **Record + docs.** Add the `CHANGELOG.md` entry; update `README.md`/
    `AGENTS.md`/skills when behavior they describe changed.
 
-The change is not done until the Flutter client converges too (tracked in the
-notees-sync repo's changelog/lockstep notes).
+The change is not done until the Flutter client converges too (tracked in
+this monorepo's changelog/lockstep notes).
 
 ## Fixture byte-pin procedure
 
 ```sh
-# from the repo root, with a notees-sync checkout available
-diff -r tests/fixtures/wire <notees-checkout>/packages/protocol/fixtures \
+# from the monorepo root
+diff -r clients/gtk/tests/fixtures/wire packages/protocol/fixtures \
   && echo "fixtures in lockstep"
 ```
 
-Any drift means: re-vendor from the notees-sync repo (copy the file(s) verbatim),
-never hand-edit the GTK copy. The byte-pin is on file contents, not on the
-`wire/` directory name — `git mv` carries history and leaves the bytes
+Any drift means: copy the file(s) from `packages/protocol/fixtures/`
+verbatim, never hand-edit the GTK copy. The byte-pin is on file contents, not
+on the `wire/` directory name — `git mv` carries history and leaves the bytes
 untouched, so the corpus may be renamed freely; the bytes may never be
 edited.
 

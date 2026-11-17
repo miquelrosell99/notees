@@ -1,6 +1,6 @@
 # The Notees CLI
 
-The `notees` command-line client: configuration, the scripting shell, one real end-to-end session, and the use cases the CLI is built for. The CLI lives in the standalone [`notees-cli`](https://github.com/miquelrosell99/notees-cli) repo, invoked as `notees` once built — see its README. For the HTTP surface underneath it, see the [Object API quick reference](api.md); the web-app counterparts of these gestures live in the feature pages under `features/`.
+The `notees` command-line client: configuration, the scripting shell, one real end-to-end session, and the use cases the CLI is built for. The CLI lives in-tree at [`clients/cli/`](../clients/cli/), invoked as `notees` once built — see its README. For the HTTP surface underneath it, see the [Object API quick reference](api.md); the web-app counterparts of these gestures live in the feature pages under `features/`.
 
 ## Configuring the CLI
 

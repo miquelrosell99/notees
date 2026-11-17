@@ -36,7 +36,7 @@ Run from the repo root:
 | `pnpm --filter @notees/server typecheck` | typecheck one package |
 | `pnpm --filter @notees/server dev` | `tsx watch src/server.ts` — dev server with reload |
 | `pnpm --filter @notees/web dev` | vite dev server (browser client against a running server) |
-| the CLI | split into its own repo (`notees-cli`) — `pnpm dev -- <args>` runs it from source via tsx there |
+| the CLI | in-tree at `clients/cli` (a root workspace project) — `pnpm --filter @notees/cli dev -- <args>` runs it from source via tsx |
 | `node scripts/check-css-tokens.mjs` | the CSS token-drift gate — app CSS must reference `var(--*)` tokens; law-owned literals (colors, motion, spacing, z-index) fail CI. Dependency-free; self-tests at `node --test scripts/check-css-tokens.test.mjs` |
 
 Per-package scripts (`packages/*`): `test` (vitest run), `typecheck` (tsc --noEmit). Apps
@@ -249,14 +249,18 @@ width — that is precisely the discipline applied on 2026-09-25 when the relati
 fixtures were replaced by typed-link-mark fixtures exercising the same scenarios.
 
 **Cross-implementation parity (client lockstep).** The same canonical fixtures are
-vendored byte-identical (sha256-verified) by the sibling client repos and replayed
-through their appliers with the same expected outcomes: `notees-gtk`
-(`tests/fixtures/wire/` + `tests/test_store_fixtures.py`, pytest) and `notees-flutter`
-(`test/fixtures/wire/` + `test/fixture_replay_test.dart`, flutter_test). A semantic
-change is not done until all three implementations converge on the same fixture
-expectations — this is the practical enforcement of "one semantics, many clients".
-Update all three repos' fixture copies together (they are the same bytes). An
-applier-only semantic guard with no wire change (the 2026-10-13 date-chain
+copied byte-identical (sha256-verified) into the client trees and replayed
+through their appliers with the same expected outcomes: `clients/gtk`
+(`tests/fixtures/wire/` + `tests/test_store_fixtures.py`, pytest) and
+`clients/flutter` (`test/fixtures/wire/` + `test/fixture_replay_test.dart`,
+flutter_test). A semantic change is not done until all three implementations
+converge on the same fixture expectations — this is the practical enforcement
+of "one semantics, many clients".
+Update all three copies together, in the same commit (they are the same
+bytes) — the root `fixture-drift` workflow sha256-compares
+`packages/protocol/fixtures/` against both client copies and fails a commit
+that changes one without the others. An applier-only semantic guard with no
+wire change (the 2026-10-13 date-chain
 parenting/class locks shipped this way: the TS reference landed first
 LOCKSTEP-PENDING, the GTK and Flutter ports converged the same day — SCHEMA.md
 "Datetime") is recorded next to the normative rule; the three implementations
@@ -265,12 +269,12 @@ converge before the marker clears.
 **Seed-manifest changes align clients in the same slice.** Any change to the system seed manifest in
 `packages/domain/src/seeds.ts` — class/property UUIDs, `SYSTEM_PROPERTY_SPECS`
 bindings or scope flags, `SYSTEM_EXTRA_CLASS_BINDINGS`, extends edges, icons,
-display names — checks the sibling clients' seed manifests for the same constants
-in the same slice: `notees-gtk` (`src/notees_gtk/core/protocol/features.py`),
-`notees-flutter` (`lib/core/constants/system.dart` +
-`lib/domain/services/local_workspace_seed.dart`), and `notees-cli` (consumes
-`@notees/domain` through its pinned `vendor/notees` submodule — no manifest of its
-own; it converges on the submodule bump). A client that carries the touched slice
+display names — checks the client trees' seed manifests for the same constants
+in the same slice: `clients/gtk` (`src/notees_gtk/core/protocol/features.py`),
+`clients/flutter` (`lib/core/constants/system.dart` +
+`lib/domain/services/local_workspace_seed.dart`), and `clients/cli` (consumes
+`@notees/domain` as a root workspace project — no manifest of its own; it
+converges in the same tree). A client that carries the touched slice
 is aligned in the same pass, with its own changelog entry and gate. A change the
 clients receive purely through the log (e.g. a binding-row move — ordinary
 `class.property.set` envelopes, no client manifest entry) needs no client code —
@@ -369,7 +373,7 @@ but the data converges, it is a conflict report, not an apply failure.
 | Domain | `packages/domain/test/domain.test.ts` | seeds (fixed UUIDs never drift), name derivation |
 | Sync | `packages/sync/test/sync.test.ts` | two-device convergence over one in-process `MemoryRelay` (dumps compared via ordered full-database dumps), retry/backoff/quarantine, restoreEpoch wipe+park recovery, catch-up idempotency, conflict reporting |
 | Server | `apps/server/test/` (`relay-batch`, `relay-catchup`, `relay-snapshot`, `relay-ws`, `objects`, `assets`, `config`, `e2e`, `helpers.ts`) | `buildServer` against a temp data dir via fastify inject — real HTTP layer, no sockets needed; helpers in `helpers.ts` |
-| CLI e2e | `notees-cli` repo (split 2026-10-05), `test/cli.test.ts` | boots the real server on an ephemeral port, drives `run()` with captured IO/stdin, asserts `--json` output and exit codes |
+| CLI e2e | `clients/cli/` (in-tree since the 2026-11-17 reunification), `test/cli.test.ts` | boots the real server on an ephemeral port, drives `run()` with captured IO/stdin, asserts `--json` output and exit codes |
 | Web client | `apps/web/test/` (`workspace-client.test.ts` over `MemoryTransport` + jsdom rendering tests) | the browser data path without a browser; slice-1 rendering |
 
 Convergence is asserted by comparing serialized database dumps, not row samples — the
@@ -395,8 +399,8 @@ launches to leak. Probe rules:
   PNG back before asserting.
 
 Legacy self-launching probes (`scripts/screenshots/*-probe.mjs`) still exist
-in the `notees-web` repo (the whole probe suite moved there in the 2026-11-05
-split);
+in-tree at `scripts/screenshots/` (they moved to the `notees-web` repo in the
+2026-11-05 split and came back with the 2026-11-12 re-merge);
 any NEW one must launch through `scripts/screenshots/probe-lib.mjs`
 (`launchProbeBrowser` — guaranteed teardown), and the
 `reap-orphan-chrome.mjs` cron (every 15 min, kills Playwright-cache chromium
