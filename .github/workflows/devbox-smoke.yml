@@ -1,0 +1,27 @@
+name: devbox-smoke
+
+# Manual smoke for the session-scoped self-hosted runner on the development
+# workstation (`gh-runner start` brings it online; `gh-runner stop` ends the
+# session). Dispatch-only — it never triggers on pushes or PRs, and the
+# runner only exists while the owner is developing on that machine.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, arch, dev]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Runner identity
+        run: |
+          uname -a
+          echo "runner=$RUNNER_NAME"
+      - name: Toolchain probe (what the dev box offers)
+        run: |
+          for t in node pnpm uv flutter docker; do
+            printf '%s: %s\n' "$t" "$(command -v "$t" || echo absent)"
+          done
