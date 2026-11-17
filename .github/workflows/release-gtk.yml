@@ -37,6 +37,10 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.git-ref || github.ref }}
+          # The guard diffs the commit against its parent (git show
+          # --name-only); a depth-1/partial checkout leaves no parent and
+          # the scope check misfires — fetch the parent too.
+          fetch-depth: 2
 
       - name: Enforce dispatch semantics
         run: |

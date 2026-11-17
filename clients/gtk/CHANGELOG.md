@@ -8,6 +8,9 @@ history.
 
 ## 2026-11-17
 
+- **fix(ci): the release guard fetches the tag's parent — the first monorepo tag (`gtk-v4.4.4`, guard-only failure, nothing published) is superseded by gtk-v4.4.5.** The scope check diffs the tagged commit with `git show --name-only`; the checkout v7 partial clone left no parent in the worktree and the check misfired. `fetch-depth: 2` on the guard's checkout fixes it (verified in a local depth-2 clone). This entry also makes the fix commit touch the component, per the guard's own law.
+  - Files: root `.github/workflows/release-gtk.yml` (+ the same guard fix across the sibling release workflows), `CHANGELOG.md`.
+
 - **chore(release,ci): monorepo reunification (ADR-002) — release tags are now
   `gtk-v*`, the workflows live at the repo root, and the fixture-drift gate
   enforces one-commit corpus updates.** The five Notees client repos merged
