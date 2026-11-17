@@ -1,3 +1,12 @@
 [submodule "brand"]
 	path = brand
 	url = git@github.com:miquelrosell99/notees-brand.git
+[submodule "clients-cli-brand"]
+	path = clients/cli/brand
+	url = git@github.com:miquelrosell99/notees-brand.git
+[submodule "clients-flutter-brand"]
+	path = clients/flutter/brand
+	url = git@github.com:miquelrosell99/notees-brand.git
+[submodule "clients-gtk-brand"]
+	path = clients/gtk/brand
+	url = git@github.com:miquelrosell99/notees-brand.git
