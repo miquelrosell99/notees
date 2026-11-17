@@ -1,0 +1,28 @@
+{
+  "name": "notees-word",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/gen-icons.mjs && vite build && node scripts/copy-office-js.mjs && node scripts/copy-manifest.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build:localhost": "node scripts/gen-icons.mjs && vite build && node scripts/copy-office-js.mjs && node scripts/copy-manifest.mjs localhost"
+  },
+  "dependencies": {
+    "@microsoft/office-js": "^1.1.98",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/office-js": "^1.0.445",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}
