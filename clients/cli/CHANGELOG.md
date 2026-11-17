@@ -8,6 +8,9 @@ history.
 
 ## 2026-11-17
 
+- **docs(security): the cached-master-key threat model is stated honestly in the README.** The encrypted-workspace paragraph now spells out what the first-unlock cache actually is: where the web client prefers a non-extractable `CryptoKey` handle (raw bytes only as the Firefox fallback), the CLI has no non-extractable primitive and caches the raw 32 master-key bytes in the state file (mode 0600) — anyone who can read the file gets the key until `notees auth lock`, the same exposure class as the session credential the file already carries. Behavior is unchanged; the caveat closes the gap the E2EE audit found between the web custody doc and the CLI's. No code change — the unwrap-side KDF fix rides the monorepo's `@notees/protocol` workspace package (see the root changelog's 2026-11-17 protocol entry).
+  - Files: `README.md`, `CHANGELOG.md`.
+
 - **chore(release): cli-v4.6.3 — the recorded icon hash was wrong (a transcription error in the 4.6.0 bookkeeping), not the CI bytes.** Three consecutive pacman-smoke failures were the pipeline catching a real corruption: the icon fetched in CI always hashed correctly (the 4.6.2 hardening proved it by printing the bytes), but the PKGBUILD recorded `340e36f8**e0c1**…` for a file that has always been `340e36f8**a0e1**…` — a mis-transcription introduced when the PKGBUILD was rewritten for the monorepo. The smoke was right all along; the fetch hardening stays (it diagnosed this in one run) and the hash is corrected. `CLI_VERSION` 4.6.1 → 4.6.3 (the law: tag ↔ CLI_VERSION match; 4.6.2 shipped identical bits at 4.6.1's version string).
   - Files: `src/cli.ts` (CLI_VERSION), `packaging/arch/PKGBUILD` (bundle hash + the icon-hash correction), `CHANGELOG.md`.
   - Verification: the rebuilt bundle prints `--version` standalone (4.6.3); the self-consistency check (fetched icon hash greps the fetched PKGBUILD) passes locally in the archlinux container — GREP-PASS.

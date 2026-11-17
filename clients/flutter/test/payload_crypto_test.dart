@@ -252,6 +252,59 @@ void main() {
       expect(unwrapMasterKey('nope', record), throwsStateError);
     });
 
+    Future<KdfRecord> buildRecordWithParams(int n, int r, int p) async {
+      final derived = deriveScryptKeyBytes(password, salt, n: n, r: r, p: p);
+      final box = await AesGcm.with256bits().encrypt(
+        masterBytes,
+        secretKey: SecretKey(derived),
+        nonce: fixedIv,
+      );
+      return KdfRecord(
+        algorithm: 'scrypt',
+        n: n,
+        r: r,
+        p: p,
+        salt: b64uEncode(salt),
+        wrappedMasterKey: b64uEncode(
+          [...fixedIv, ...box.mac.bytes, ...box.cipherText],
+        ),
+        keyVerifier: b64uEncode(await keyVerifierBytes(derived)),
+      );
+    }
+
+    test('unwrap derives with the RECORD params — a strengthened record '
+        'opens without a format break', () async {
+      // N=2^14 (the accepted floor): deriving with the minting defaults
+      // (2^17) fails the verifier, so a pass proves the record's params win.
+      final record = await buildRecordWithParams(1 << 14, 8, 1);
+      final masterKey = await unwrapMasterKey(password, record);
+      expect(await masterKey.extractBytes(), masterBytes);
+    });
+
+    test('out-of-window params fail loud before any derivation', () async {
+      // The wrap bytes are irrelevant — the client must reject the params
+      // before deriving anything.
+      final base = await buildRecordWithParams(scryptN, 8, 1);
+      for (final params in <List<int>>[
+        [1 << 10, 8, 1], // below the floor — weaker than accepted
+        [1 << 22, 8, 1], // above the ceiling — scratch-memory DoS
+        [3 * (1 << 13), 8, 1], // not a power of two
+        [scryptN, 16, 1], // r past the ceiling
+        [scryptN, 8, 8], // p past the ceiling
+      ]) {
+        final record = KdfRecord(
+          algorithm: base.algorithm,
+          n: params[0],
+          r: params[1],
+          p: params[2],
+          salt: base.salt,
+          wrappedMasterKey: base.wrappedMasterKey,
+          keyVerifier: base.keyVerifier,
+        );
+        expect(unwrapMasterKey(password, record), throwsFormatException);
+      }
+    });
+
     test('workspace key wrap/unwrap round-trip; wrong master fails', () async {
       final master = generateMasterKey();
       final otherMaster = generateMasterKey();

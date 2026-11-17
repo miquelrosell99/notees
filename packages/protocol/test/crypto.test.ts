@@ -29,6 +29,7 @@ import {
   recoveryKeyVerifierOf,
   SCRYPT_PARAMS,
   unwrapMasterKey,
+  unwrapMasterKeyWithBytes,
   unwrapWorkspaceKey,
   wrapWorkspaceKey,
   type KdfRecord,
@@ -65,6 +66,55 @@ describe("master-key KDF record", () => {
     expect(again).toBeDefined();
     // Wrong password must fail at the verifier, not silently unwrap garbage.
     await expect(unwrapMasterKey("wrong", record)).rejects.toThrow(/verifier|password/i);
+  });
+});
+
+describe("kdf record parameter versioning", () => {
+  /** Mint a record with EXPLICIT scrypt params (server formulas, node:crypto). */
+  async function buildRecordWithParams(
+    password: string,
+    params: { N: number; r: number; p: number },
+  ): Promise<KdfRecord> {
+    const salt = Uint8Array.from({ length: 16 }, (_, i) => i + 1);
+    const iv = Uint8Array.from({ length: 12 }, (_, i) => 0xa0 + i);
+    const masterBytes = Uint8Array.from({ length: 32 }, (_, i) => 0x50 + i);
+    const derived = await nodeScrypt(password, salt, 32, { ...params, maxmem: 512 * 1024 * 1024 });
+    const cipher = createCipheriv("aes-256-gcm", derived, Buffer.from(iv));
+    const ct = Buffer.concat([cipher.update(Buffer.from(masterBytes)), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return {
+      algorithm: "scrypt",
+      ...params,
+      salt: b64uEncode(salt),
+      wrappedMasterKey: b64uEncode(Buffer.concat([iv, tag, ct])),
+      keyVerifier: b64uEncode(createHmac("sha256", derived).update("notees-key-check").digest()),
+      keyFp: masterKeyFp(masterBytes),
+    };
+  }
+
+  it("unwrap derives with the RECORD's params — a strengthened record opens without a format break", async () => {
+    // N=2^14 (the accepted floor): the unwrap must derive with the record's
+    // params, not the minting defaults — deriving with 2^17 fails the verifier.
+    const record = await buildRecordWithParams("golden horse battery", { N: 2 ** 14, r: 8, p: 1 });
+    const { bytes } = await unwrapMasterKeyWithBytes("golden horse battery", record);
+    expect([...bytes]).toEqual([...Uint8Array.from({ length: 32 }, (_, i) => 0x50 + i)]);
+  });
+
+  it("out-of-window params fail loud before any derivation", async () => {
+    // The wrap bytes are irrelevant — the client must reject the params
+    // before deriving anything (building these records through real scrypt
+    // would itself blow a scratch-memory limit for N=2^22).
+    const base = await buildRecordWithParams("golden horse battery", { N: 2 ** 17, r: 8, p: 1 });
+    for (const params of [
+      { N: 2 ** 10, r: 8, p: 1 }, // below the floor — weaker than accepted
+      { N: 2 ** 22, r: 8, p: 1 }, // above the ceiling — scratch-memory DoS
+      { N: 3 * 2 ** 13, r: 8, p: 1 }, // not a power of two
+      { N: 2 ** 17, r: 16, p: 1 }, // r past the ceiling
+      { N: 2 ** 17, r: 8, p: 8 }, // p past the ceiling
+    ]) {
+      const record: KdfRecord = { ...base, ...params };
+      await expect(unwrapMasterKey("golden horse battery", record)).rejects.toThrow(/unsupported scrypt/);
+    }
   });
 });
 

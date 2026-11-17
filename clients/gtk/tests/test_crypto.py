@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from notees_gtk.core.protocol.crypto import (
     GCM_TAG_BYTES,
@@ -215,6 +216,59 @@ class TestKdfRecordRoundTrip:
     def test_short_master_key_fails_loud(self) -> None:
         with pytest.raises(ValueError, match="32 raw bytes"):
             create_kdf_record(b"\x00" * 16, "hunter2")
+
+
+class TestKdfRecordParamsVersioning:
+    """The unwrap side honors the RECORD-carried scrypt parameters (the
+    record is the versioned KDF contract), bounded by an accepted window —
+    mirroring the TS reference's ``SCRYPT_PARAM_LIMITS``."""
+
+    def _record_with_params(self, n: int, r: int, p: int) -> KdfRecord:
+        """A record whose wrap was built with EXPLICIT scrypt params."""
+        master = bytes(range(0x50, 0x50 + 32))
+        salt = bytes(range(1, 17))
+        iv = bytes(range(0xA0, 0xA0 + 12))
+        derived = scrypt_key_bytes(GOLDEN_PASSWORD, salt, n=n, r=r, p=p)
+        sealed = AESGCM(derived).encrypt(iv, master, None)  # ct ‖ tag
+        ct, tag = sealed[:-GCM_TAG_BYTES], sealed[-GCM_TAG_BYTES:]
+        return KdfRecord(
+            algorithm="scrypt",
+            n=n,
+            r=r,
+            p=p,
+            salt=b64u_encode(salt),
+            wrapped_master_key=b64u_encode(iv + tag + ct),
+            key_verifier=b64u_encode(key_verifier_of(derived)),
+        )
+
+    def test_unwrap_derives_with_the_records_params(self) -> None:
+        # N=2^14 (the accepted floor): deriving with the minting defaults
+        # (2^17) fails the verifier, so a pass proves the record's params win.
+        record = self._record_with_params(n=2**14, r=8, p=1)
+        assert unwrap_master_key(GOLDEN_PASSWORD, record) == bytes(range(0x50, 0x50 + 32))
+
+    def test_out_of_window_params_fail_loud_before_any_derivation(self) -> None:
+        # The wrap bytes are irrelevant — the client must reject the params
+        # before deriving anything.
+        base = self._record_with_params(n=2**17, r=8, p=1)
+        for n, r, p in (
+            (2**10, 8, 1),  # below the floor — weaker than accepted
+            (2**22, 8, 1),  # above the ceiling — scratch-memory DoS
+            (3 * 2**13, 8, 1),  # not a power of two
+            (2**17, 16, 1),  # r past the ceiling
+            (2**17, 8, 8),  # p past the ceiling
+        ):
+            record = KdfRecord(
+                algorithm=base.algorithm,
+                n=n,
+                r=r,
+                p=p,
+                salt=base.salt,
+                wrapped_master_key=base.wrapped_master_key,
+                key_verifier=base.key_verifier,
+            )
+            with pytest.raises(ValueError, match="unsupported scrypt"):
+                unwrap_master_key(GOLDEN_PASSWORD, record)
 
 
 class TestWorkspaceKeyWrap:

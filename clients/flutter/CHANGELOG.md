@@ -8,6 +8,9 @@ lives in git history.
 
 ## 2026-11-17
 
+- **feat(crypto): the KDF record's scrypt parameters are honored at unwrap — the record is the versioned KDF contract in code.** `unwrapMasterKey` used to derive with the module's hardcoded scrypt constants, ignoring the record's own `N/r/p` (parsed by `KdfRecord.fromJson` then discarded): a strengthened server-side record would have failed the verifier as a "wrong password" on every shipped client. The unwrap now derives with the record-carried parameters via `deriveScryptKeyBytes(password, salt, n:, r:, p:)`, validated against the TS reference's accepted window before any scratch is allocated (N a power of two, 2^14 ≤ N ≤ 2^18, r ≤ 8, p ≤ 4) — out-of-window records throw instead of unwrapping under a weak KDF or allocating hostile scratch. `createKdfRecord`'s minting defaults are unchanged. New pins in `test/payload_crypto_test.dart`: a record minted at N=2^14 opens (defaults-derivation would fail the verifier, so a pass proves the record wins) and five out-of-window shapes fail loud before any derivation. **Verification**: the dev host's Flutter SDK (3.44.6) predates the pubspec SDK floor, so the local gate can't run — `flutter-android.yml` was dispatched against the pushed ref and watched to completion (analyze + test inside the CI run); the Dart edits were kept minimal and syntax-verified.
+  - Files: `lib/domain/models/relay/payload_crypto.dart`, `test/payload_crypto_test.dart`, `CHANGELOG.md`.
+
 - **chore(release,ci): monorepo reunification (ADR-002) — release tags are now
   `flutter-v*`, the workflows live at the repo root, and the APK version
   derivation is prefix-aware.** The five Notees client repos merged into

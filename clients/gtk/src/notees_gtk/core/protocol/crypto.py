@@ -81,12 +81,36 @@ __all__ = [
 GCM_NONCE_BYTES = 12
 GCM_TAG_BYTES = 16
 
-#: scrypt parameters — fixed by the server record (``apps/server/src/auth.ts``);
-#: byte-compat with it is the contract (the plan-01 TS golden vector pins it).
+#: scrypt minting defaults — new records are created with this triple (the
+#: TS reference's ``SCRYPT_PARAMS``); the unwrap side derives with the
+#: RECORD-carried parameters instead (see ``_scrypt_params_from_record``).
 SCRYPT_N = 131072
 SCRYPT_R = 8
 SCRYPT_P = 1
 SCRYPT_DKLEN = 32
+
+#: The accepted window for the record-carried scrypt parameters, mirroring
+#: the TS reference's ``SCRYPT_PARAM_LIMITS``: below the floor a record is
+#: weaker than the accepted minimum (fail loud rather than unwrap under a
+#: weak KDF), above the ceiling a corrupted or hostile record would
+#: allocate unreasonable scrypt scratch before any verifier can be checked
+#: (worst case inside the window is 256 MiB).
+SCRYPT_MIN_N = 2**14
+SCRYPT_MAX_N = 2**18
+SCRYPT_MAX_R = 8
+SCRYPT_MAX_P = 4
+
+
+def _scrypt_params_from_record(record: KdfRecord) -> tuple[int, int, int]:
+    """The record's scrypt parameters, validated against the accepted window."""
+    n, r, p = record.n, record.r, record.p
+    if n < SCRYPT_MIN_N or n > SCRYPT_MAX_N or n & (n - 1):
+        raise ValueError(f"unsupported scrypt N in kdf record: {n}")
+    if not 1 <= r <= SCRYPT_MAX_R:
+        raise ValueError(f"unsupported scrypt r in kdf record: {r}")
+    if not 1 <= p <= SCRYPT_MAX_P:
+        raise ValueError(f"unsupported scrypt p in kdf record: {p}")
+    return n, r, p
 
 #: The HMAC message binding a derived wrap key to its record — the verifier
 #: is computed over the scrypt-DERIVED key, not the master key, so a wrong
@@ -168,9 +192,15 @@ class KdfRecord:
         }
 
 
-def scrypt_key_bytes(password: str, salt: bytes) -> bytes:
-    """Derive the 32-byte wrap key (fixed params — the server record's contract)."""
-    kdf = Scrypt(salt=salt, length=SCRYPT_DKLEN, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P)
+def scrypt_key_bytes(password: str, salt: bytes, n: int = SCRYPT_N, r: int = SCRYPT_R, p: int = SCRYPT_P) -> bytes:
+    """Derive the 32-byte wrap key (the minting defaults unless overridden).
+
+    The unwrap path passes the RECORD-carried parameters (validated by
+    ``_scrypt_params_from_record``) — the record is the versioned KDF
+    contract, so a future strengthening opens on every shipped client
+    without a format break.
+    """
+    kdf = Scrypt(salt=salt, length=SCRYPT_DKLEN, n=n, r=r, p=p)
     return kdf.derive(password.encode("utf-8"))
 
 
@@ -215,10 +245,12 @@ def unwrap_master_key(password: str, record: KdfRecord) -> bytes:
     Fail fast on a wrong password: the verifier is over the derived key, so
     it is checkable (constant-time) before touching the wrapped master key
     (auth.ts parity). A verifier match with an unopenable wrap (a tampered
-    record) fails loud at the GCM tag.
+    record) fails loud at the GCM tag. The derivation honors the record's
+    scrypt parameters — validated against the accepted window BEFORE any
+    scratch is allocated.
     """
     salt = b64u_decode(record.salt)
-    derived = scrypt_key_bytes(password, salt)
+    derived = scrypt_key_bytes(password, salt, *_scrypt_params_from_record(record))
     if not hmac.compare_digest(key_verifier_of(derived), b64u_decode(record.key_verifier)):
         raise ValueError("master-key verifier mismatch (wrong password)")
     raw = b64u_decode(record.wrapped_master_key)

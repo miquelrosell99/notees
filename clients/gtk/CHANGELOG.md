@@ -8,6 +8,9 @@ history.
 
 ## 2026-11-17
 
+- **feat(crypto): the KDF record's scrypt parameters are honored at unwrap — the record is the versioned KDF contract in code.** `unwrap_master_key` used to derive with the hardcoded `SCRYPT_N/R/P` constants, ignoring the record's own `n/r/p` (parsed by `KdfRecord.from_dict` then discarded): a strengthened server-side record would have failed the verifier as a "wrong password" on every shipped client. The unwrap now derives with the record-carried parameters, validated against the TS reference's accepted window before any scratch is allocated (N a power of two, 2^14 ≤ N ≤ 2^18, r ≤ 8, p ≤ 4) — out-of-window records fail loud instead of unwrapping under a weak KDF or allocating hostile scratch. `scrypt_key_bytes` keeps the minting defaults; `create_kdf_record` is unchanged. New pins in `tests/test_crypto.py`: a record minted at N=2^14 opens (defaults-derivation would fail the verifier, so a pass proves the record wins) and five out-of-window shapes fail loud before any derivation. **Verification**: `tests/test_crypto.py` 41/41, `ruff check` clean, `mypy src` clean — and the full GTK gate (`uv sync && uv run pytest && uv run ruff check && uv run mypy src`) before landing.
+  - Files: `src/notees_gtk/core/protocol/crypto.py`, `tests/test_crypto.py`, `CHANGELOG.md`.
+
 - **fix(ci): the archpkg job scopes its working directory to the makepkg step — the first monorepo GTK release moves to gtk-v4.4.6.** gtk-v4.4.5 (nothing published) died before any build: the job-level `defaults.run.working-directory: clients/gtk` made the container's pre-checkout environment step (`pacman-key`/`pacman -Syu`) chdir into a directory that only exists after checkout. The working directory now applies to the makepkg step only. This entry makes the fix commit touch the component, per the guard's own law.
   - Files: root `.github/workflows/release-gtk.yml`, `CHANGELOG.md`.
 

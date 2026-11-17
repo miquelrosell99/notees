@@ -33,7 +33,37 @@ type KeyUsage =
   | "unwrapKey";
 type BufferSource = ArrayBufferView<ArrayBuffer> | ArrayBuffer;
 
+/** Minting defaults for new KDF records (the server pins the same triple). */
 export const SCRYPT_PARAMS = { N: 131072, r: 8, p: 1 } as const;
+
+/**
+ * The accepted window for the RECORD-CARRIED scrypt parameters. Unwrap
+ * honors the record's N/r/p (the record is the versioned KDF contract — a
+ * future strengthening opens on every shipped client without a format
+ * break), bounded both ways: below the floor a record is weaker than the
+ * accepted minimum (fail loud rather than unwrap under a weak KDF), above
+ * the ceiling a corrupted or hostile record would allocate unreasonable
+ * scrypt scratch before any verifier can be checked (worst case inside the
+ * window is 256 MiB). The ports (GTK cryptography, Flutter pointycastle)
+ * carry the same window — keep them in sync.
+ */
+export const SCRYPT_PARAM_LIMITS = { minN: 2 ** 14, maxN: 2 ** 18, maxR: 8, maxP: 4 } as const;
+
+/** The record's scrypt parameters, validated against SCRYPT_PARAM_LIMITS. */
+function scryptParamsFromRecord(record: Pick<KdfRecord, "N" | "r" | "p">): { N: number; r: number; p: number } {
+  const { N, r, p } = record;
+  const { minN, maxN, maxR, maxP } = SCRYPT_PARAM_LIMITS;
+  if (!Number.isInteger(N) || N < minN || N > maxN || (N & (N - 1)) !== 0) {
+    throw new Error(`unsupported scrypt N in kdf record: ${N}`);
+  }
+  if (!Number.isInteger(r) || r < 1 || r > maxR) {
+    throw new Error(`unsupported scrypt r in kdf record: ${r}`);
+  }
+  if (!Number.isInteger(p) || p < 1 || p > maxP) {
+    throw new Error(`unsupported scrypt p in kdf record: ${p}`);
+  }
+  return { N, r, p };
+}
 
 // --- base64url -----------------------------------------------------------------
 
@@ -142,8 +172,8 @@ export function masterKeyFp(masterBytes: Uint8Array): string {
   return b64uEncode(hmac(sha256, masterBytes, utf8ToBytes("notees-key-fp")));
 }
 
-function scryptKeyBytes(password: string, salt: Uint8Array): Uint8Array {
-  return scrypt(utf8ToBytes(password), salt, { ...SCRYPT_PARAMS, dkLen: 32 });
+function scryptKeyBytes(password: string, salt: Uint8Array, params: { N: number; r: number; p: number } = SCRYPT_PARAMS): Uint8Array {
+  return scrypt(utf8ToBytes(password), salt, { ...params, dkLen: 32 });
 }
 
 export function generateMasterKey(): Promise<CryptoKey> {
@@ -257,20 +287,21 @@ export function machineKeyVerifierOf(machineKeyBytes: Uint8Array): Uint8Array {
 }
 
 /**
- * Unwrap the account master key: ONE scrypt derivation yielding BOTH the
- * non-extractable handle (the session's working key) and the raw 32-byte
- * material. `bytes` exists so a caller that must persist the key through a
- * storage layer refusing CryptoKey structured-clone (Firefox + IndexedDB,
- * 2026-11-04) can do so without a second scrypt; the caller must not retain
- * it beyond the put. The verifier is checked before touching the wrapped
- * key so a wrong password fails loud.
+ * Unwrap the account master key: ONE scrypt derivation honoring the
+ * RECORD's parameters (scryptParamsFromRecord — the record is the versioned
+ * KDF contract) yielding BOTH the non-extractable handle (the session's
+ * working key) and the raw 32-byte material. `bytes` exists so a caller
+ * that must persist the key through a storage layer refusing CryptoKey
+ * structured-clone (Firefox + IndexedDB, 2026-11-04) can do so without a
+ * second scrypt; the caller must not retain it beyond the put. The verifier
+ * is checked before touching the wrapped key so a wrong password fails loud.
  */
 export async function unwrapMasterKeyWithBytes(
   password: string,
   record: KdfRecord,
 ): Promise<{ key: CryptoKey; bytes: Uint8Array }> {
   const salt = b64uDecode(record.salt);
-  const wrapKeyBytes = scryptKeyBytes(password, salt);
+  const wrapKeyBytes = scryptKeyBytes(password, salt, scryptParamsFromRecord(record));
   if (!constantTimeEqual(keyVerifierOf(wrapKeyBytes), b64uDecode(record.keyVerifier))) {
     throw new Error("master-key verifier mismatch (wrong password)");
   }

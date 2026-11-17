@@ -10,12 +10,43 @@ import 'package:pointycastle/key_derivators/scrypt.dart' show Scrypt;
 import './operation_envelope.dart';
 
 /// The scrypt parameters every client and the server agree on
-/// (`SCRYPT_PARAMS` in crypto.ts, `KDF_N/R/P` in apps/server/src/auth.ts).
+/// (`SCRYPT_PARAMS` in crypto.ts, `KDF_N/R/P` in apps/server/src/auth.ts) —
+/// the MINTING defaults for new records. The unwrap side derives with the
+/// RECORD-carried parameters instead (see [_scryptParamsFromRecord]).
 /// N=131072, r=8, p=1, dkLen=32.
 const scryptN = 131072;
 const scryptR = 8;
 const scryptP = 1;
 const scryptKeyLength = 32;
+
+/// The accepted window for the record-carried scrypt parameters, mirroring
+/// the TS reference's `SCRYPT_PARAM_LIMITS`: below the floor a record is
+/// weaker than the accepted minimum (fail loud rather than unwrap under a
+/// weak KDF), above the ceiling a corrupted or hostile record would
+/// allocate unreasonable scrypt scratch before any verifier can be checked
+/// (worst case inside the window is 256 MiB).
+const scryptMinN = 1 << 14;
+const scryptMaxN = 1 << 18;
+const scryptMaxR = 8;
+const scryptMaxP = 4;
+
+/// The record's scrypt parameters, validated against the accepted window
+/// BEFORE any scratch is allocated.
+({int n, int r, int p}) _scryptParamsFromRecord(KdfRecord record) {
+  final n = record.n;
+  final r = record.r;
+  final p = record.p;
+  if (n < scryptMinN || n > scryptMaxN || n & (n - 1) != 0) {
+    throw FormatException('unsupported scrypt N in kdf record: $n');
+  }
+  if (r < 1 || r > scryptMaxR) {
+    throw FormatException('unsupported scrypt r in kdf record: $r');
+  }
+  if (p < 1 || p > scryptMaxP) {
+    throw FormatException('unsupported scrypt p in kdf record: $p');
+  }
+  return (n: n, r: r, p: p);
+}
 
 /// The account's password-wrapped master key record (server
 /// `createKdfRecord`, KdfRecord in crypto.ts): scrypt parameters + salt, the
@@ -84,14 +115,23 @@ bool _constantTimeEqual(List<int> a, List<int> b) {
 /// Derives the 32-byte password wrap key via scrypt (pointycastle —
 /// package:cryptography has no scrypt). Pure Dart; N=131072 needs ~128MiB
 /// of scratch, so this is the expensive step of login (the same cost the
-/// web/GTK clients pay).
-Uint8List deriveScryptKeyBytes(String password, List<int> salt) {
+/// web/GTK clients pay). The unwrap path passes the RECORD-carried
+/// parameters (validated by [_scryptParamsFromRecord]) — the record is the
+/// versioned KDF contract, so a future strengthening opens on every shipped
+/// client without a format break.
+Uint8List deriveScryptKeyBytes(
+  String password,
+  List<int> salt, {
+  int? n,
+  int? r,
+  int? p,
+}) {
   final derivator = Scrypt()
     ..init(
       ScryptParameters(
-        scryptN,
-        scryptR,
-        scryptP,
+        n ?? scryptN,
+        r ?? scryptR,
+        p ?? scryptP,
         scryptKeyLength,
         Uint8List.fromList(salt),
       ),
@@ -142,10 +182,14 @@ Future<KdfRecord> createKdfRecord(SecretKey masterKey, String password) async {
 
 /// Opens a [KdfRecord] with [password] (`unwrapMasterKey` in crypto.ts).
 /// Fail-fast: the verifier is over the derived key, so a wrong password is
-/// rejected before the wrapped key is touched.
+/// rejected before the wrapped key is touched. The derivation honors the
+/// record's scrypt parameters — validated against the accepted window
+/// BEFORE any scratch is allocated.
 Future<SecretKey> unwrapMasterKey(String password, KdfRecord record) async {
   final salt = b64uDecode(record.salt);
-  final wrapKeyBytes = deriveScryptKeyBytes(password, salt);
+  final params = _scryptParamsFromRecord(record);
+  final wrapKeyBytes =
+      deriveScryptKeyBytes(password, salt, n: params.n, r: params.r, p: params.p);
   final expected = b64uDecode(record.keyVerifier);
   final actual = await keyVerifierBytes(wrapKeyBytes);
   if (!_constantTimeEqual(actual, expected)) {
