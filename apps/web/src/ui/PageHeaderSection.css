@@ -12,6 +12,19 @@
   align-items: start;
 }
 
+/* The panelled page's gap below the header rides the SECTION, not a margin
+   inside the header: there the header is sticky with the card surface
+   behind it, and margins cannot collapse through a positioned box — so the
+   tags row's own margin-bottom landed INSIDE the header's painted strip,
+   flush against the first body row. A collapsed block's bullet ring stands
+   3px proud of its row (BlockRow.css .nt-bullet-ring), so the first row's
+   ring slid those 3px under the header's background and read as clipped.
+   The section is static: this margin stays below the painted strip, giving
+   the ring its clearance back. */
+.nt-page--panelled .page-header-section {
+  margin-bottom: var(--spacing-2);
+}
+
 .page-header-section .nt-page-header {
   grid-column: 1;
   grid-row: 1;

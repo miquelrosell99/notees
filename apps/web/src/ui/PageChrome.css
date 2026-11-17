@@ -81,6 +81,14 @@
   margin-top: var(--spacing-3);
 }
 
+/* The panelled page zeroes this margin: with the sticky surfaced header it
+   cannot collapse through the header box, so it would only inflate the
+   painted strip — the section carries the real gap below the header
+   (PageHeaderSection.css .nt-page--panelled .page-header-section). */
+.nt-page--panelled .nt-page-header .nt-tags-row {
+  margin-bottom: 0;
+}
+
 .page-header__title-row {
   display: flex;
   /* flex-start, NOT center: the icon anchors to the FIRST title row (see
