@@ -32,6 +32,7 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs['dry-run'] }}
+      GH_TOKEN: ${{ github.token }} # gh CLI auth (packages: write above)
     steps:
       - name: Prune ghcr package versions
         run: |
