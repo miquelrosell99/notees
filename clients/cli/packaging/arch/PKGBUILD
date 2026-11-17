@@ -16,7 +16,7 @@
 # file is the supported way to build the package yourself.
 
 pkgname=notees-cli
-pkgver=4.6.1
+pkgver=4.6.3
 pkgrel=1
 pkgdesc="The notees command-line client for Notees (object/property/search surface over the server's API)"
 arch=('any')
@@ -28,10 +28,10 @@ source=("$url/releases/download/cli-v$pkgver/cli.mjs"
         "$url/releases/download/cli-v$pkgver/cli.mjs.sha256"
         "https://raw.githubusercontent.com/miquelrosell99/notees/cli-v$pkgver/clients/cli/LICENSE"
         "notees.png")
-sha256sums=('8695e9622a4ff421f5d3a08e0615deb919d7055b3da4a7af3fc0a35d1270698a'
+sha256sums=('d0933dd6f43b53b490197700afb09dd0e634ab2e7ddf28effafca1c4aa3d7790'
             'SKIP'
             'SKIP'
-            '340e36f8e0c1e1402073c464a71d69bedfb61f4c71b5df959bab838c8c874769')
+            '340e36f8a0e1c1402073c464a71d69bedfb61f4c71b5df959bab838c8c874769')
 
 build() {
   # The bundle lazy-loads the native better-sqlite3 at store-command time

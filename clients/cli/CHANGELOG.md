@@ -8,6 +8,10 @@ history.
 
 ## 2026-11-17
 
+- **chore(release): cli-v4.6.3 — the recorded icon hash was wrong (a transcription error in the 4.6.0 bookkeeping), not the CI bytes.** Three consecutive pacman-smoke failures were the pipeline catching a real corruption: the icon fetched in CI always hashed correctly (the 4.6.2 hardening proved it by printing the bytes), but the PKGBUILD recorded `340e36f8**e0c1**…` for a file that has always been `340e36f8**a0e1**…` — a mis-transcription introduced when the PKGBUILD was rewritten for the monorepo. The smoke was right all along; the fetch hardening stays (it diagnosed this in one run) and the hash is corrected. `CLI_VERSION` 4.6.1 → 4.6.3 (the law: tag ↔ CLI_VERSION match; 4.6.2 shipped identical bits at 4.6.1's version string).
+  - Files: `src/cli.ts` (CLI_VERSION), `packaging/arch/PKGBUILD` (bundle hash + the icon-hash correction), `CHANGELOG.md`.
+  - Verification: the rebuilt bundle prints `--version` standalone (4.6.3); the self-consistency check (fetched icon hash greps the fetched PKGBUILD) passes locally in the archlinux container — GREP-PASS.
+
 - **fix(ci): two release-pipeline fixes — the pacman-smoke fetch verifies its bytes (retries, prints actual hashes, self-checks the icon against the fetched PKGBUILD), and this component's releases move to cli-v4.6.2.** The cli-v4.6.1 pacman-smoke failed twice inside makepkg at the icon's sha256 with bytes that reproduce correctly in a local archlinux container — the fetch step now fails loud with the actual hashes visible instead of burning versions deep in makepkg. The cli-v4.6.1 bundle assets are published and good (the standalone-fix release); 4.6.2 re-publishes identical bits plus this smoke hardening.
   - Files: root `.github/workflows/release-cli.yml`, `CHANGELOG.md`.
 
