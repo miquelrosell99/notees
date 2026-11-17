@@ -1,0 +1,1086 @@
+# Changelog
+
+The record of shipped work for the Notees CLI. One entry per shipped slice,
+newest first. This file — not `AGENTS.md`, not the README — is where history
+goes; those stay static guidance. Before implementing a change, skim this
+file for recent related work. Anything before 2026-10-06 lives in git
+history.
+
+## 2026-11-17
+
+- **fix(ci): the frozen install stops dying on the better-sqlite3 override — the lockfile now records it.** The store-schema-v37 vendor bump added the root `pnpm.overrides` (`better-sqlite3 ^12.11.1`) and `pnpm.onlyBuiltDependencies` to `package.json` but shipped the previously generated `pnpm-lock.yaml`, so `pnpm install --frozen-lockfile` failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` — the nightly cron over main's head caught it, since no push-triggered gate ever ran on the bump. The lockfile is regenerated with the `overrides:` section; behavior from source is unchanged. Environment note: the gate needs Node 22/26 + pnpm 9 (`corepack enable && corepack prepare pnpm@9.0.0 --activate`) — a Node 20 system install has neither corepack nor a compatible lockfile reader.
+  - Files: `pnpm-lock.yaml`.
+  - Verification: `pnpm install --frozen-lockfile` clean (the exact step the nightly failed); full gate `pnpm typecheck && pnpm test` green (307/307, 18 files) on node 22.23.5 / pnpm 9.0.0.
+
+## 2026-11-16
+
+- **feat: `search --json` rows carry the match `tier` — direct FTS hits are finally distinguishable from the fuzzy rescue arm.** The vendored store's `RankedSearchHit` gained `tier` (0–3 direct · 4 first-parent-name · 5 alias · 6 fuzzy rescue · 7 property fan-out) and `searchObjects` maps it through; the search help text documents the roster. Motivating incident: a cleanup loop consumed unannotated fuzzy-rescue rows as exact matches and deleted a hundred unrelated test-workspace nodes — the tier is the annotation that prevents a repeat. Vendor pin moves 50f78b7aa → 930ca8588 (the tier surface + the migrate-e2ee CI-timeout fix).
+  - Files: `src/local-workspace.ts` (`searchObjects`), `src/cli.ts` (help text), `test/cli.test.ts` (a tier pin: direct ≤3, rescue-only 6), `vendor/notees` (the pin), `pnpm-lock.yaml`.
+  - Verification: full gate `pnpm typecheck && pnpm test` green (307/307, 18 files — +1 tier pin); `pnpm build` green.
+
+- **chore(vendor): pin vendor/notees to main @ 50f78b7aa — store schema v37 support lands, mandatory keying, and the snapshot-upload throttle.** The pin moves ~3 weeks forward: the derived store schema v36 → v37 (every command against a current server otherwise dies with "store schema v36 cannot open database at user_version 37 (newer store required)"); the vendored server's mandatory-workspace-keying config (`ServerConfig.requireKeyed` — the test harnesses boot keyless fixtures with `requireKeyed: false`); and the vendored server's better-sqlite3 11.10.0 alongside the root `^12.11.1` override (`pnpm.onlyBuiltDependencies` declares the native build for pnpm ≥ 10; a fresh pnpm-12 environment materializes the binding via `prebuild-install` in the package dir, which the install-script gate otherwise skips). The CLI's embedded sync engine picks up the 6-hour client snapshot-upload min-interval — a sealed workspace no longer triggers a full-image upload on every watermark-advancing sync cycle. The `class render-as` pin's direct store peek is read-only now: a read-write external open of the WAL store checkpoints and removes the WAL at close, and under the v37 store the second such open left the next CLI run failing with disk I/O errors (45 downstream failures, one root cause).
+  - Files: `vendor/notees` (the pin), `package.json` (`pnpm.onlyBuiltDependencies`), `pnpm-lock.yaml`, `test/helpers/serve-harness.ts`, `test/cli.test.ts`, `test/import-logseq-db.test.ts`, `test/workflow.test.ts`.
+  - Verification: full gate `pnpm typecheck && pnpm test` green (306/306, 18 files); `pnpm build` green; live spot-checks against a schema-v37 dev stack (search, object create/update/delete, trash list/restore) and a read-only probe against the production relay (object get over the test workspace — the v37 snapshot opens cleanly).
+- **ci(cli): the gate runs on PRs + a 03:23 UTC nightly cron over main's head — the `push: [main]` trigger retires per the fleet trigger matrix (owner directive 2026-11-16).** The nightly cron covers main's head — per-push CI on main was a recurring failure source, so it is gone, not replaced. `workflow_dispatch` re-runs the gate on demand, and a concurrency block cancels superseded runs. The runner pins `ubuntu-22.04` (never `ubuntu-latest`) and every action is SHA-pinned with a version comment (checkout v7.0.0, setup-node v7.1.0 — the fleet-verified pins). The gate itself is unchanged: recursive-submodule install, `--frozen-lockfile`, the vendored-workspace build plus the root bundle, `pnpm test` on the node 22/26 matrix.
+  - Files: `.github/workflows/ci.yml`.
+
+- **fix: the release bundle no longer crashes at startup — citeproc-js comes in through the default-import interop instead of a raw `require()`.** `src/serve/cite.ts` loaded citeproc via `createRequire`, which esbuild leaves untouched in an ESM bundle, so a standalone `cli.mjs` (installed per `scripts/install.sh`, which provisions only better-sqlite3) threw `Cannot find module 'citeproc'` at import time — the release-bundle gate checks bare `import` specifiers, not runtime `require` calls, and repo-local runs masked it behind `node_modules`. Found by the embedded-statics acceptance proof (a standalone bundle could never boot). The ESM default import interops identically in dev (Node's CJS default) and in the bundle (esbuild's CJS shim), and esbuild now compiles citeproc in (+~0.4 MB); the createRequire banner stays for commander's CJS entry. Behavior from source is unchanged (306/306 green either way).
+  - Files: `src/serve/cite.ts`.
+- **feat: the release bundle is self-contained — the Word add-in statics are embedded in `cli.mjs` at build time.** `scripts/gen-word-embedded.mjs` generates `src/word/embedded.generated.ts` from `vendor/word` (path → asset map: text as utf8 JSON strings, png/ico as base64; plus the raw `${HOST}`/`${BASE_PATH}` manifest template), and the `build`/`typecheck`/`test`/`dev` scripts all run it first — so CI, the release workflow, and a fresh checkout always typecheck/test/bundle against a fresh embed, and the gitignored output can never go stale in git. `word serve` statics resolution is now `NOTEES_WORD_DIST` > walk-up `vendor/word/dist` > the embedded map (map lookups only — no traversal surface), with the per-port manifest rendered from whichever template won; an on-disk dist behaves exactly as before, and passing neither a dist nor an embed is a usage error. `NOTEES_WORD_DIST` is now only a dev/exotic override, not a requirement for installed bundles.
+  - Files: `scripts/gen-word-embedded.mjs`, `src/word/serve.ts` (embedded source branch), `src/word/paths.ts` (`resolveWordStatics`), `src/cli.ts`, `package.json` (gen step), `.gitignore` (generated module), `test/word-embedded.test.ts` (9 specs), `README.md`.
+  - Verification: `pnpm build && pnpm typecheck && pnpm test` 306/306 (18 files); bundle 1.69 MB -> 2.44 MB. Acceptance proof: `dist/cli.js` copied alone (plus the documented better-sqlite3 runtime module) into an empty directory, `NOTEES_WORD_DIST` unset, no vendor tree - `word serve` prints `statics: embedded in this bundle`, `GET /` 200 text/html, `GET /lib/office.js` 200 text/javascript (59,420 bytes), `/manifest.xml` rendered for `http://localhost:8471`, and `/api/relay/v2/stats` proxied 200 with no client auth.
+- **feat: `notees word serve` is now the pane's local gateway — a fixed-upstream, same-origin `/api/*` proxy with server-side auth injection.** The pane holds no server URL and no API key: every `/api/*` request (any method) on the gateway origin relays to the configured sync server — the standard `--server` / `NOTEES_SERVER` / `notees config set server` resolution (`NOTEES_WORD_UPSTREAM` overrides the base URL), credential from `--key` / `NOTEES_API_KEY` / the state file, injected as `x-api-key`; the resolved workspace becomes a default `x-workspace-id` when the pane sends none. Client-supplied `x-api-key` / `authorization` / `cookie` are dropped, never forwarded, and nothing client-controlled can retarget the proxy — one configured origin, `/api/*` paths only, 127.0.0.1 bind unchanged. The relay WebSocket (`/api/relay/v2/ws/:workspaceId`) tunnels at the upgrade layer (raw socket pipe after a rewritten handshake — the gateway never parses frames; `Connection`/`Upgrade` survive the rewrite, Host and auth do not). Request/response bodies stream chunk-for-chunk both directions (undici decodes content encodings transparently, so the relay strips `content-encoding`/`content-length` and goes out chunked); no CORS headers — the pane is same-origin. Server + credential are now required at startup (usage error without them). New `src/word/proxy.ts` (`WordProxyTarget`, `isProxyPath`, `proxyApiRequest`, `proxyApiUpgrade`); `test/word-proxy.test.ts` pins header injection/dropping, fixed-upstream enforcement, workspace-header defaulting, SSE-shaped streaming, POST body relay, and a byte-level WebSocket echo through the tunnel (9 specs).
+  - Files: `src/word/proxy.ts`, `src/word/serve.ts`, `src/cli.ts`, `test/word-proxy.test.ts`, `README.md`.
+  - Verification: `pnpm typecheck` clean; full gate `pnpm build && pnpm typecheck && pnpm test` 297/297 (17 files, +9 proxy specs); end-to-end against the local dev stack: direct unauthenticated/bogus-key calls to the sync server 401, through the gateway (no client auth) 200 with the expected shape; WebSocket upgrade to `/api/relay/v2/ws/:workspaceId` opens through the tunnel with the key injected and fails unauthenticated direct.
+- **feat: `notees word serve` — the Word add-in is hosted locally by the CLI, replacing the retired `/word/` prod hosting.** The sync server stopped serving the add-in statics; `notees word serve` now serves the vendored build on the machine running Word: `vendor/word/dist` (a built snapshot of the notees-word repo's localhost flavor, refreshed only by `scripts/sync-word-dist.mjs [--from <checkout>]`, with `PROVENANCE.json` recording the source commit) read-only at the root of `http://localhost:<port>` — 127.0.0.1 bind with the post-listen address check, the word repo's content types, `GET /` as the pane, traversal-guarded paths, and the sideload manifest re-rendered per port (`${HOST}`/`${BASE_PATH}` template substitution) both into the per-user cache dir (`~/.cache/notees/word/manifest.xml`, `%LOCALAPPDATA%\\notees\\word\\manifest.xml` on Windows; `NOTEES_WORD_CACHE_DIR` overrides) and at `/manifest.xml`. One serve per cache dir: a second start exits 4 with a `--restart` hint, `--restart` SIGTERMs the live holder (the grace wait is asynchronous — a synchronous spin leaves a terminated child unreaped, its zombie answering `kill(pid, 0)` as alive), and a stale lock from a dead pid is stolen. Port precedence `--port` > `NOTEES_WORD_PORT` > 8471; a busy port maps to exit 4, not a stack trace. The command needs no server and no credential; the printed next steps cover the shared-folder catalog, the pane's sync server URL + API key, and `notees serve --origin http://localhost:<port>` for citation pairing (the README's CORS bullet now names the local add-in origin). The single-file release bundle carries no vendor tree — installed bundles resolve the dist via `NOTEES_WORD_DIST`.
+  - Files: `src/word/config.ts`, `src/word/paths.ts`, `src/word/manifest.ts`, `src/word/serve.ts`, `src/cli.ts` (the `word serve` command + `HELP_ROWS`), `scripts/sync-word-dist.mjs`, `vendor/word/` (snapshot), `test/word-config.test.ts`, `test/word-paths.test.ts`, `test/word-serve.test.ts` (23 specs), `README.md`, `AGENTS.md`.
+  - Verification: `pnpm typecheck` clean; full gate `pnpm typecheck && pnpm test` 288/288 (16 files — with `pnpm build` first, the CI order, so the release-bundle test has its bundle); end-to-end against the built bundle: `notees word serve` on 8471 answers `curl http://127.0.0.1:8471/` (200, the pane) and `curl http://127.0.0.1:8471/manifest.xml` (rendered for `http://localhost:8471`), writes the cache-dir manifest, a second serve exits 4 with the `--restart` hint, `--restart` replaces the live holder, and `--port 8472` renders a matching manifest.
+
+## 2026-11-12
+
+- **chore(ci): retire the vendor-dispatch leg — hourly schedule + manual dispatch only.** The `repository_dispatch` trigger and its `VENDOR_DISPATCH_TOKEN` secret are gone from `vendor-bump.yml` (the core repo deleted its `vendor-dispatch.yml` the same pass): the dispatch shipped broken, the PAT could only be minted in GitHub's web UI, and minute-level latency buys nothing for pin bumps. The hourly drift net keeps `vendor/notees` within an hour of core main; `workflow_dispatch` (optional SHA input) covers exceptional pins.
+- **chore(ci): the vendor-bump drift net goes hourly — the dispatch token is optional, not required.** Fine-grained PATs can only be minted in GitHub's web UI (no API), so the `VENDOR_DISPATCH_TOKEN`-driven immediate dispatch cannot be wired by an agent; the scheduled drift net rises from Monday 04:17 UTC to hourly (:23) instead, keeping the pin within an hour of core main with zero secrets. The dispatch path stays in place — it activates the moment the secret exists on `miquelrosell99/notees`.
+- **chore(vendor): repoint `vendor/notees` at the re-merged `miquelrosell99/notees` repo — ADR-001 ships.** The sync+web split was re-merged into the `notees` repo (2026-11-12); the submodule URL moves with it (`.gitmodules` + local remote), the pinned commit is unchanged and verified reachable in the new remote. The vendor-dispatch/vendor-bump automation is unaffected — bumps now track `notees` main.
+- **chore(ci): automated vendor-bump — the `vendor/notees` pin now bumps by PR, opened by `.github/workflows/vendor-bump.yml`.** notees-sync's `vendor-dispatch` fires a `notees-sync-updated` `repository_dispatch` on every sync main push; this workflow pins `vendor/notees` at the pushed SHA (manual `workflow_dispatch` takes an optional SHA; the Monday 04:17 UTC scheduled run re-pins to sync's `origin/main` as the drift net), rebuilds the vendored `@notees/*` dists, refreshes the lockfile, runs the gate (`pnpm typecheck && pnpm test`), prepends the changelog entry, and opens `vendor/bump-<sha>` — auto-squash-merged when the gate is green, left open as the lockstep alarm when red (`ci.yml` also runs on the PR). No CLI release rides on a bump (the operations law stands); this only retires the hand-run bookkeeping. Verification: YAML parse clean; changelog-insert path exercised against a scratch copy (fresh-date and same-date headings); the live run happens on the next sync main push or the next scheduled run.
+
+## 2026-11-08
+
+- **fix: `notees serve` answers CORS preflight and echoes `Access-Control-Allow-Origin`
+  for allowlisted origins — the Word add-in can pair across origins.** The pane
+  is served from the Notees origin (`https://<host>/word/`) but fetches
+  `127.0.0.1`, so every pane request is a non-simple cross-origin fetch: the
+  browser preflights with `OPTIONS` and blocks the response without ACAO. Until
+  now the bridge answered anything but `POST /document` with a bare 404 and set
+  no CORS headers, so no pane fetch could ever succeed. `OPTIONS` is now
+  answered with `204` plus `Access-Control-Allow-Origin` (the exact matched
+  origin, never `*`), `Access-Control-Allow-Methods: POST, OPTIONS`, and
+  `Access-Control-Allow-Headers: authorization, content-type`; `POST`
+  responses echo ACAO for the same matched origin so the pane can read them.
+  Fail-closed like the origin gate: no allowlist configured, or an origin that
+  does not match, means no ACAO at all — the preflight itself 403s — and
+  non-OPTIONS method/path 404s are unchanged. The README states the operator
+  requirement: `--origin https://<host>` (the Notees origin serving `/word/`)
+  is mandatory for pairing.
+  - Files: `src/serve/server.ts`, `test/serve-server.test.ts` (+2 specs),
+    `README.md`.
+
+- **fix: `notees serve` review fixes — the `--token-file` write lands after the
+  bridge is listening, search guards its per-id reads, and the session close
+  is idempotent.** A failed bridge start (or a failed token-file write) now
+  tears down the session and leaves no stale pairing token behind, instead of
+  writing the token before the bridge was ever up; `searchSources` skips an
+  object id whose row throws between the query and the read (parity with the
+  name-ref resolver) and the result slice happens inside the query's
+  try/catch; `session.close()` carries a `closed` guard so a double close
+  cannot delete a lock a fresh bridge on the same store has since acquired,
+  and `runServe` closes the session if `startBridge` throws. The README and
+  this changelog now state the filesystem posture honestly — request-time
+  reads are confined to the traversal-guarded `--styles-dir` and the
+  workspace's own derived store — and NOTICE dedupes the CSL styles-repo
+  attribution (upstream filename `chicago-notes-bibliography.csl`), plus the
+  `@xmldom/xmldom` (MIT) attribution.
+  - Files: `src/cli.ts` (`runServe`), `src/serve/session.ts`, `README.md`,
+    `NOTICE`, `test/serve.test.ts` (+2: a stale-lock steal against a real
+    dead child pid, a 422 `render_failed` pin for a corrupt `.csl` over the
+    bridge; one duplicate list-styles block dropped).
+
+- **feat: `notees serve` — the localhost citation bridge for the Word add-in
+  goes live: search + CSL citation/bibliography renders over the local derived
+  store.** A long-running `node:http` server bound to 127.0.0.1 only (no
+  `--host` flag exists; a post-listen address check refuses to serve if the
+  bind ever resolved anything else), speaking one JSON endpoint — `POST
+  /document` with `search` / `render-citation` / `render-bibliography` /
+  `list-styles` — so the Office.js task pane can cite the synced store
+  offline (the Zotero connector architecture: the add-in holds no credentials
+  and never touches the network). First-connect pairing is a bearer token
+  printed at startup (env-pinnable via `NOTEES_SERVE_TOKEN`, writable via
+  `--token-file`, mode 0600), compared constant-time via
+  `crypto.timingSafeEqual`; browser origins must match the repeatable
+  `--origin` allow-list, fail-closed — a missing Origin is never a pass. One
+  `LocalWorkspace` stays open for the server's lifetime with a background
+  sync every `--sync-interval` seconds (≥ 5, default 60); a failed initial
+  sync still serves the last synced store (offline-first), a never-synced
+  store fails loudly, and a second bridge on the same store exits 4 on the
+  pid-checked serve lock (a stale lock from a dead process is stolen). Search
+  executes through `@notees/query` (`LocalWorkspace.runQueryAst`, member
+  class-in-[source + roster] + quoted FTS tokens — an unparseable query
+  answers `[]`, never a 500); CSL-JSON items ride `@notees/export`'s existing
+  `nodeToCsl` (the mapping is reused, not duplicated). The bridge exposes no
+  arbitrary filesystem endpoints — request-time reads are confined to the
+  traversal-guarded `--styles-dir` and the workspace's own derived store —
+  and every failure answers the `{ok: false, error: {code, message}}`
+  envelope (unknown_cmd / not_found / render_failed / bad_request). The
+  citeproc renderer, the bundled apa/ieee/chicago-note-bibliography styles,
+  and the render arms ship in the two entries below; the README documents the
+  operator contract (security posture, pairing, the lock, the protocol).
+  - Files: `src/serve/{config,protocol,server,session,document,cite,csl-items,styles}.ts`,
+    `src/serve/citeproc.d.ts`, `src/serve/styles/*` (vendored CSL + generated.ts),
+    `scripts/bundle-styles.mts`, `src/cli.ts` (the command + the HELP_ROWS row),
+    `src/local-workspace.ts` (best-effort sync option), `test/serve*.test.ts`,
+    `package.json` (+ `citeproc`), `tsup.config.ts`, `README.md`, `NOTICE`.
+  - Verification: `pnpm typecheck && pnpm test` — all green (13 files,
+    262 tests); `pnpm build` green.
+
+- **feat: notees serve — the render arms go live: citations and
+  bibliographies over the bridge.** `render-citation` / `render-bibliography`
+  resolve every requested object id through the CSL-JSON projection against
+  the local store and render with the bundled citeproc: a missing id or a
+  non-source node answers `not_found` (404) so the add-in can tell "bad id"
+  from "render broke"; an unknown style id answers `not_found` too; a
+  citeproc exception answers `render_failed` (422) and leaves the bridge
+  usable. Several ids render as ONE combined citation cluster, an optional
+  `locator` rides as a page locator, and citekey-less sources render through
+  the node-id fallback — a search hit can never 404 at the render arm.
+  Dispatch never throws: every failure is an error envelope.
+  - Files: `src/serve/document.ts` (the render arms replace the stub),
+    `test/serve.test.ts` (+5: apa citation, locator, multi-source cluster,
+    citekey-less fallback, 404 pins for unknown id/style).
+  - Verification: `pnpm typecheck && pnpm test` — all green (13 files,
+    254 tests); `pnpm build` green.
+
+- **feat: notees serve — citeproc citation rendering with bundled CSL
+  styles.** The render/list-styles arms go live: `citeproc` (citeproc-js)
+  renders in-text citations and bibliographies from CSL-JSON items (one
+  engine per request — engine registry state never leaks between
+  documents; a corrupt style answers render_failed and leaves the bridge
+  usable), and apa / ieee / chicago-note-bibliography ship INSIDE the
+  release bundle — the CSL XML and the en-US locale are inlined as
+  `src/serve/styles/generated.ts` (produced by `pnpm bundle:styles`, kept
+  honest by a drift-gate test that diffs the generated module against the
+  canonical .csl/.xml files). `--styles-dir` user styles resolve after the
+  bundled ones (ids are strict file names, so traversal is impossible) and
+  appear in `list-styles` after the catalog. citeproc parses CSL XML
+  through a DOM parser, so `@xmldom/xmldom` installs itself as the global
+  `DOMParser` before the first Engine (bundled via `noExternal`, no
+  node_modules beside cli.mjs); the locale lookup maps citeproc's bare
+  "en-US" tag onto the vendored `locales-en-US.xml`. CC BY-SA 3.0
+  attribution for the CSL styles/locale and the citeproc license live in
+  `NOTICE`.
+  - Files: `src/serve/cite.ts` (the real renderer over the Task 4 stub),
+    `src/serve/citeproc.d.ts` (ambient types — the package ships none),
+    `src/serve/styles.ts`, `src/serve/styles/` (the four vendored CSL
+    assets + `generated.ts`), `src/serve/document.ts` (the list-styles arm
+    goes live), `scripts/bundle-styles.mts` (+ `package.json`
+    `bundle:styles`), `src/cli.ts` (`--styles-dir` reaches the list-styles
+    arm), `tsup.config.ts` (`@xmldom/xmldom` joins `noExternal`),
+    `tsconfig.json` (`allowImportingTsExtensions` for the drift-gate
+    import), `test/serve-cite.test.ts` (new), `test/serve-styles.test.ts`
+    (new), `test/serve.test.ts` (+2: list-styles over the bridge, an apa
+    projection+renderer smoke), `NOTICE`, `README.md`, `package.json`
+    (`citeproc`, `@xmldom/xmldom`), `pnpm-lock.yaml`.
+  - Verification: `pnpm typecheck && pnpm test` — all green (13 files,
+    249 tests); `pnpm build` green (the 1.7 MB cli.mjs carries styles,
+    locale, citeproc, and xmldom).
+
+## 2026-11-05
+
+- **feat: machine keys — an API key minted with custody opens encrypted
+  workspaces alone: no password, no cache.** `resolveKeyedCrypto` gains a
+  third source between the cache and the password: `GET
+  /api-keys/self/custody` (the key authenticates itself) hands the opaque
+  wrap, the token derives the machine key locally (`deriveMachineKey`), and
+  the unwrapped master opens the workspace key — so scripted manipulation
+  against an encrypted workspace rides the key alone, with nothing persisted
+  to the state file (the machine path deliberately skips the master-key
+  cache; a password-unlocked cache still takes precedence when present).
+  `notees auth unlock` reports `keySource: "machine"`. The unwrapped master
+  is re-imported with master usages — `unwrapWorkspaceKey` imports its result
+  workspace-key-shaped (encrypt/decrypt), and the recovery precedent never
+  needs the master to unwrap. `vendor/notees` pin `83e6fa105` → `2bce845`
+  (the machine-keys slice: custody routes + `deriveMachineKey`).
+  - Files: `src/local-workspace.ts` (the machine source + the
+    re-import), `src/cli.ts` (the unlock report), `test/key-cache.test.ts`
+    (+2 pins: machine custody answers with no password/no oracle call/nothing
+    cached; a corrupted record falls through to the password path),
+    `test/cli.test.ts` (+1 pin: the full two-phase mint through the real
+    server routes — machine key opens the keyed workspace with NO password
+    env and an empty cache, and persists nothing), `README.md`,
+    `vendor/notees`.
+  - Verification: `pnpm typecheck && pnpm test` — all green (201 tests).
+
+- **feat: encrypted workspaces stop asking for the password on every command
+  — the unlocked master key caches in the state file (the web client's
+  persisted-custody parity), with `notees auth unlock` / `notees auth
+  lock`.** The local-first rewrite made every content command open a keyed
+  workspace, and the only custody path was `NOTEES_EMAIL` + `NOTEES_PASSWORD`
+  on EVERY invocation — manipulation scripts against an encrypted workspace
+  were one env slip away from failing, and the password rode every shell.
+  Now the first successful unlock derives the master key via `/auth/unlock`,
+  unwraps the workspace key, and caches the raw master-key bytes in the CLI
+  state file (mode 0600, the credential's own trust domain — the exact
+  shape the web client persists in IndexedDB); every later command resolves
+  the envelope crypto from the cache alone — no password, no oracle
+  round-trip (the custody probe no longer pre-fetches the KDF record). A
+  stale cache (rotated password, replaced key) fails the unwrap locally and
+  falls through to the password path, overwriting the cache on success.
+  - `notees auth unlock` runs the unlock explicitly (reports whether the
+    cache or the password answered) and doubles as a sync warm-up;
+    `notees auth lock` drops the cache; `notees auth logout` clears it with
+    the credential (session end reverts to the password, as the web
+    client's custody store does at sign-out).
+  - **fix(auth): `auth store` / `auth status` verify against
+    `GET /api/workspaces` — the old `GET /api/classes` probe is a content
+    read the plan-07 server refuses on encrypted workspaces, so both
+    commands 404'd against exactly the workspaces they exist for.** The
+    workspaces listing answers for operator and user keys alike (and
+    carries the per-workspace `encrypted` flag).
+  - `vendor/notees` pin `7efe8abfa` → `83e6fa105` — carries the server fix
+    the new e2e pin surfaced: hydration never restores a SEALED snapshot
+    (restoring sealed bytes threw `SQLITE_NOTADB` and 500'd every ingest
+    for a keyed workspace once a sealed checkpoint was the latest — the
+    CLI's first keyed sync always produces one).
+  - Files: `src/state.ts` (the `masterKey` cache slot + helpers),
+    `src/local-workspace.ts` (`resolveKeyedCrypto`, the cache-first custody
+    path, `keySource` on the session), `src/cli.ts` (`auth unlock`/`lock`,
+    the probe fix, the state seams threaded into every
+    `openLocalWorkspace` call), `test/key-cache.test.ts` (new — the custody
+    seam: password path caches / cache hit skips the oracle / stale cache
+    falls back / wrong password surfaces the 401 / no-seams skips the
+    cache), `test/cli.test.ts` (+3 pins: keyless lock/unlock no-ops, and a
+    full keyed e2e — unlock caches → sealed write + cache-hit read → lock →
+    the password refusal returns), `README.md`, `vendor/notees`.
+  - Verification: `pnpm typecheck && pnpm test` — all green (192 tests).
+
+- **feat: local-first rewrite — the CLI works against the post-plan-07
+  server again.** The server retired its content API (object CRUD,
+  /api/search, /api/query, backlinks, effective-properties, merge,
+  export.zip, /api/version — plan 07), so every content command on a current
+  deployment rode retired routes. The CLI is now local-first like the other
+  clients: each command syncs the workspace through the vendored
+  `@notees/sync` engine into a per-workspace derived SQLite store (the
+  vendored `@notees/store`, better-sqlite3 backend, one file per workspace
+  under `<state-dir>/stores/<workspace-id>.db`), serves ALL content reads
+  from that store (objects, children, backlinks, search/FTS, the query
+  language — the retired server read projections ported to
+  `src/local-workspace.ts`, response shapes unchanged), and authors writes
+  as protocol-v3 envelopes that apply locally through the store appliers
+  and push through the engine's outbox — a failed push leaves the write
+  durable in the local op log instead of losing it (exit 0 with a stderr
+  warning; `notees sync` drains the backlog).
+  - `notees sync` (bare) runs one sync cycle and reports the watermarks;
+    `sync status` reports them without running a cycle. The old
+    state-file `cursorSeq` bookkeeping is gone — the cursor lives in the
+    store's `app_meta`.
+  - Keyed (E2EE) workspaces: with a user credential plus `NOTEES_EMAIL` /
+    `NOTEES_PASSWORD` the master key re-derives via `/auth/unlock` and the
+    wrapped workspace key unwraps (user custody — an operator credential
+    can never read a key and is refused loudly on a keyed workspace, as is
+    any keyed workspace without the password env pair).
+  - A fresh keyless workspace is seeded by the server's lazy shim, poked
+    by the bootstrap's `GET /api/classes` (the kept coordination read) so
+    read-first commands never see an empty workspace; an empty KEYED
+    workspace is client-seeded like the web client's bootstrap.
+  - The command surface is unchanged (`--json` shapes additive-only as
+    always); coordination reads that survived plan 07 (property-schema
+  CRUD, class bindings, features, assets, resolve's metadata branch) keep
+    riding the server. `doctor` probes `/api/server-info` (`/api/version`
+    retired); the shell probes the same plus the property-schema listing.
+  - `install.sh` now provisions the native `better-sqlite3` module beside
+    the release bundle (`NOTEES_SKIP_SQLITE=1` to opt out) — it cannot be
+    bundled. The Arch PKGBUILD/release-smoke plumbing still needs the same
+    provision (recorded debt).
+  - Files: `src/local-workspace.ts` (new — session, custody, read
+    projections, write seam, durable restore backend), `src/cli.ts`
+    (command ports), `src/shell.ts`, `src/markdown-export.ts`,
+    `src/json-export.ts`, `src/import-logseq-db.ts`, `src/assets-lib.ts`,
+    `src/client.ts` (nameless-workspace listing fix), `test/fake-relay.ts`
+    (new — the relay wire over an in-memory envelope log, replacing the
+    retired-API fetch mocks), `test/*.test.ts` (ports), `package.json`,
+    `pnpm-lock.yaml`, `vendor/notees` (pin `17ec1da49` → `eb50ade7f`),
+    `scripts/install.sh`, `README.md`, `AGENTS.md`.
+  - Verification: `pnpm typecheck && pnpm test` — all green (189 tests),
+    `pnpm build` green. The suite's sync-against-a-real-server integration
+    pattern is preserved (one vendored server per file; the workflow e2e
+    drives the full toggle lifecycle through the local-first path).
+
+## 2026-11-04
+
+- **chore(skills): move the `notees-cli-manipulation` skill from this repo
+  to user scope.** The manipulation playbook (class migrations,
+  carrier-block Description values, bulk jobs, verification sweeps) is a
+  usage contract for any workspace, not CLI-repo development, so it now
+  lives host-global as the atomic `miquelrosell99/skill-notees-cli-manipulation`
+  repo (`~/.agents/skills/notees-cli-manipulation`); repo scope keeps the
+  development and operations skills. The `notees-import` skill's pointer
+  updates with it.
+  - Files: `.agents/skills/notees-cli-manipulation/` (removed), `AGENTS.md`.
+  Docs-only; no code, no command surface change.
+
+## 2026-11-03
+
+- **chore(vendor): bump `vendor/notees` to main `17ec1da49` — the query-AST v2
+  grammar.** The main repo replaced the query AST with its version-2 wire
+  shape (parameterized member/content/name/property/date/nodeField
+  conditions); the server's `POST /api/query` accepts only `version: 2`
+  ASTs, so CLI builds pinned to the old grammar had the `search`
+  command's query-language path rejected at the wire (`queryAstSchema`
+  fails loud on `version: 1`).
+  - The CLI's consumed surface is unchanged — `parseQueryLanguage` and the
+    `QueryAst` type keep their signatures and now emit/declare the
+    version-2 AST, so the command path needed no source change; the
+    query-language suite (DSL → AST → `POST /api/query` against a real
+    vendored server) passes unmodified.
+  - The one bump-caused fix: the coverAsset predicate test hand-built an
+    old-shape AST literal (`{type:"class"}` + `{type:"coverAsset"}`); it
+    now posts the version-2 shape (`member`/`in` over an ids target +
+    `nodeField`/`exists`).
+  - The rest of the delta (protocol E2EE crypto core and its
+    `@noble/hashes` dependency — lockfile refresh committed alongside;
+    store tags-as-links; server seeding/auth changes) does not touch the
+    public surface the CLI consumes; the vendored dists were rebuilt per
+    the dev-condition law.
+  - Files: `vendor/notees` (pin `d2c5d0f69` → `17ec1da49`),
+    `pnpm-lock.yaml` (`@noble/hashes`), `test/cli.test.ts` (version-2 AST
+    literal).
+  - Verification: `pnpm -r --filter "@notees/*" build && pnpm typecheck &&
+    pnpm test && pnpm build` — all green (188 tests).
+
+## 2026-11-02
+
+- **feat(class): `class render-as <class> <page|block>` — the class-level
+  parentlessRole render contract from the CLI.** The web class page's
+  "Render as" control (Standalone instances) had no CLI surface, and the
+  field is not projected by the class REST routes — so the command validates
+  the role client-side (usage exit 2 on anything but `page`/`block`) and
+  rides ONE `class.update` envelope through the relay batch endpoint (the
+  `class set-extends` write path). `page` (the wire default) keeps the
+  class's parentless members in document chrome — Pages hub, page pickers,
+  the graph; `block` makes them full Block-role citizens — queries,
+  collections, the search "blocks" scope, out of the Pages hub and the
+  graph. The demote is extends-aware and one-way server-side (a class under
+  a flagged base inherits it; an inherited flag cannot be cleared per
+  level). Human output names the written contract; `--json` answers
+  `{class, parentlessRole}`.
+  - Files: `src/cli.ts` (command + the `notees help` overview row),
+    `test/cli.test.ts` (the effect assertion reads the derived store's
+    `class.parentless_role` directly — the routes do not project the
+    field), `README.md`.
+  - Verification: `pnpm typecheck && pnpm test` — all green (188 tests).
+
+- **fix(ci): build the root bundle before the test gate.** `pnpm-workspace.yaml`
+  does not list the root project, so `pnpm -r build` compiled only the
+  vendored packages and CI tested with no `dist/cli.js` — the
+  `release-bundle.test.ts` gate (shipped with the sax fix) failed every push
+  with "dist/cli.js missing", and release.yml had the same ordering.
+  ci.yml now runs `pnpm -r build && pnpm build`; release.yml builds the root
+  bundle before typecheck/test in its gate step.
+  - Verification: the two red CI runs failed only at
+    `test/release-bundle.test.ts` ("dist/cli.js missing"); local gate
+    (`pnpm build && pnpm typecheck && pnpm test`) green on node 22 and 26.
+
+- **feat: `notees import zotero-rdf` writes the full Zotero-aligned field set
+  (vendor bump to main `d2c5d0f69`).** The full-alignment slice lands from the
+  main repo (31 new source pool properties, the complete 39-class
+  `SYSTEM_SOURCE_CLASS_BINDINGS` roster) and the CLI's fill now covers the
+  complete Zotero export vocabulary, reusing the vendored tables rather than
+  duplicating them.
+  - The parser (`src/zotero-rdf.ts`) mirrors the main repo's bulk-importer
+    vocab: `dc:rights`→rights, `prism:edition`→edition, `z:PMCID`→pmcid,
+    `z:numPages`→numPages, `z:libraryCatalog`→libraryCatalog,
+    `z:authority`→court, `z:code`→code, `z:codeNumber`→codeNumber,
+    `z:type`→workType, `z:session`→session, `z:url`→url,
+    `dcterms:dateSubmitted`→accessDate, plus the structural shapes —
+    `dc:identifier` now handles the nested `dcterms:URI`/`rdf:value` URL, a
+    bare `rdf:resource` URL, and plain-URL text; `dc:subject`/`dcterms:LCC`
+    is the callNumber (plain-text subjects stay counted, never mapped);
+    `dc:relation` carries a URL; `z:shortTitle` wins over
+    `dcterms:alternative`; `z:PMID` and the `pmid:` identifier prefix ride
+    the pmid property (no longer the Identifier schema); and
+    `dcterms:isPartOf` resolves the container title by the container
+    resource's tag (Journal→publicationTitle, Book→bookTitle,
+    ConferenceProceedings→proceedingsTitle, Series→series,
+    Website→websiteTitle, Blog→blogTitle), merging the container's scalar
+    fields and ISSN with the item's own values always winning.
+  - The fill (`zoteroExtraFills`) gates every candidate through the vendored
+    `SYSTEM_SOURCE_CLASS_BINDINGS` roster for the item's class plus the
+    source base family (derived from `SYSTEM_PROPERTY_SPECS` `bindTo:
+    "source"` without `bind: false`) — a field the class does not bind
+    (numPages on a journal article, z:code on a document) is parsed but
+    never filled.
+  - Match order gains the main repo's identifier adoption tiers:
+    citekey → doi → isbn → `@citekey` title → create. A doi/isbn hit adopts
+    the node (the Zotero citationKey rides into the citekey fill, the class
+    eligibility repair applies); the Notees-wins fill policy is unchanged —
+    a matched node keeps every value it already holds and a re-run plans
+    zero fills.
+  - accessDate is a datetime schema: an ISO `dcterms:dateSubmitted` value
+    resolves through the deterministic date chain at day precision (the
+    `today`/`date ensure` convention), falling back to the raw string.
+  - `--json` report shapes are unchanged (the fill list is per-entry data);
+    the command help text and README index row record the new match order
+    and the binding gate.
+  - Tests: `test/cli.test.ts` — the full-entry fixture's `pmid:…`
+    identifier now asserts the pmid property; a new alignment spec (rights/
+    pmid/pmcid/libraryCatalog/accessDate/callNumber/container merges landed,
+    numPages/edition gated out, the case itemType riding the document class
+    with court/workType, second-run idempotency) and a doi/isbn adoption
+    spec.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` (after the vendor
+    bump) + `pnpm typecheck && pnpm test` — all green (187/187, 5 files).
+
+- **docs(agents): round-trip caveat in the manipulation skill's
+  class-migration recipe.** The recipe's Description-mention step (keep the
+  old tag visible) was unconditional; applied on a round-trip migration
+  (A → B, later B → A) it leaves a Description that is only a mention of the
+  class the node has again — noise that then needs a bulk cleanup. The skill
+  now states the mention preserves provenance only when the old tag is lost,
+  says to skip the mention steps on round-trips, and gives the cleanup path
+  (property delete + trash an emptied carrier; drop the mention token from
+  mixed-content carriers, trimming dangling separators and flattening the
+  rest to plain text).
+  Files: `.agents/skills/notees-cli-manipulation/SKILL.md`. Docs-only; no
+  code surface.
+
+- **chore(deps): node 26 support — better-sqlite3 12 via a pnpm override.**
+  The vendored `@notees/*` packages pin `better-sqlite3` ^11, whose native
+  build fails on node 26 (V8 API removals — `PropertyCallbackInfo::This`,
+  deprecated `External::Value`); on a node 26 host the dev loop died at
+  `pnpm install`. The root `package.json` now overrides the workspace to
+  `better-sqlite3` ^12.11.1 (supports node 20–26) without touching `vendor/`
+  (the lockstep boundary — the main repo moves to 12, then the override
+  drops). CI runs the build+test matrix on node 22 and 26; the release
+  workflow stays on 22, and the bundle's runtime floor is unchanged
+  (node ≥ 22). Docs and the development skill record the override and its
+  retirement condition.
+  - Verification: fresh `pnpm install`, vendored rebuild, `pnpm build`, and
+    `pnpm typecheck && pnpm test` green on node 26.13.0 and node 22.23.4
+    (185 tests each).
+
+- **fix(build): `sax` compiled into the release bundle — standalone installs
+  crashed at startup.** tsup keeps `dependencies` external by default, and
+  `noExternal` listed only the `@notees/*` workspace packages and `commander`;
+  `src/zotero-rdf.ts` (the Zotero RDF import surface) imports `sax`, so the
+  shipped `cli.mjs` carried a bare `from"sax"` and every install from the
+  release assets (`scripts/install.sh`, the pacman package) died at first run
+  with `ERR_MODULE_NOT_FOUND: Cannot find package 'sax'`. `sax` is now in
+  `noExternal`, and a new gate test (`test/release-bundle.test.ts`) fails the
+  suite if `dist/cli.js` contains a bare import outside node builtins — the
+  failure moves from the user's machine to gate time.
+  - Verification: `pnpm build` (bundle scan clean); `pnpm typecheck && pnpm
+    test` — all green (185 tests).
+
+- **docs(agents): gate economics + host memory discipline in the development
+  skill.** Two-tier gate (mirroring the main repo's 2026-10-30 ruling):
+  typecheck + the covering test files are the per-task loop; the full gate
+  (`pnpm typecheck && pnpm test` from the root) is blocking at pre-landing,
+  after a rebase onto a moved main, and when the change touches the vendored
+  packages' public API or the batch/shell write paths. Same pass records the
+  host discipline: one suite at a time (never parallel full gates — the suite
+  boots a real vendored server and two concurrent gates OOM the dev host).
+  Files: `.agents/skills/notees-cli-development/SKILL.md`. Docs-only; no code
+  surface.
+
+## 2026-10-30
+
+- **fix: `notees workflow list` human table renders the workflow label as its
+  first column.** The label (from `@notees/domain`'s `WORKFLOWS` registry) was
+  collected into every row but surfaced only in `--json`; the human table now
+  leads with `LABEL` (then WORKFLOW / STATE / ANCHOR), matching the other
+  human tables' display-name-first idiom. The `--json` shape is unchanged.
+  - Verification: `pnpm typecheck && pnpm test` — all green (184 tests,
+    including a new human-table assertion on the label column).
+
+- **feat: `notees workflow` + `notees feature` — CLI parity for the
+  workflows mechanism (vendor bump to main `b3558430f`).** The workflows
+  slice lands from the main repo (the `@notees/domain` workflow registry —
+  `WORKFLOWS` / `planWorkflowToggle` / `workflowAnchorId` / `workflowEntityId`
+  — plus `GET /api/features` on the server), and the CLI becomes the second
+  executor of the shared pure plan (D2: one definition, two executors).
+  - `notees workflow list` — ONE `GET /api/objects/:anchorId` probe per
+    workflow (never per-entity walks); absent = available, present + active
+    = installed, present + archived = disabled (installed state derives
+    from the probe, never a ledger).
+  - `notees workflow enable|disable <id>` — `planWorkflowToggle` wrapped in
+    `newEnvelope` (the `class set-extends` precedent) and posted as ONE
+    `/api/relay/v2/batch`; each step is existence-checked against the REST
+    read surface first (the web materializer's `stepConverged` shapes,
+    mirrored) and converged steps are skipped. An archived existing row
+    un-archives via `object.update {active: true}` (a plain create would
+    no-op without un-archiving). `class.property.set` steps are always
+    written: the server exposes bindings on no REST route, and the op is a
+    COALESCE partial-update upsert — a re-issue cannot clobber user edits.
+    Re-runs never reconcile drift (D1): user renames and option edits
+    survive.
+  - `notees feature list` — reads `GET /api/features` and defaults every
+    untoggled feature to enabled (the absent row IS the default-on state,
+    F2). `notees feature enable|disable <feature>` writes one
+    `workspace.feature.set` envelope, read-modify-merging an existing
+    `settings` record forward — a plain toggle never wipes the Sources
+    settings (the whole-row LWW settings-wiping hazard, the web client's
+    `setFeatureEnabled` contract).
+  - `--json` on all six commands (the `emit()` contract); HELP_ROWS +
+    README command reference.
+  - Tests: `test/workflow.test.ts` — 16 specs. Mocked-wire (the
+    `tag.test.ts` precedent): exactly-one-anchor-probe, the 48-step enable
+    envelope shapes + order against the pinned derived-id literals, the
+    un-archive swap, the 6-step disable archive shape (anchor first), the
+    converged re-enable (only the 7 binding upserts), the settings merge,
+    feature-list default-on parsing, usage errors. Plus an e2e block
+    against the vendored server: the full available → enable → installed →
+    re-enable → disable → disabled lifecycle, and the settings-preserving
+    feature toggle over a real `workspace_feature` row.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` (after the vendor
+    bump) + `pnpm typecheck && pnpm test` — all green (183/183, 4 files).
+
+## 2026-10-29
+
+- **chore(vendor): bump `vendor/notees` to main `8ad67a374` — the
+  citekey-centric feature lands (fixture gate converged across the TS
+  reference + GTK + Flutter, byte-identical fixtures).** The range carries
+  the class `displayTemplate` wire key + store schema v36 (the
+  extends-aware nearest-non-NULL-ancestor resolution, `""` opt-out stops
+  the walk), the search fan-out over authored property values + UUID
+  exact-match, the sources duplicates view + merge, and the citekey
+  regenerate / empty-field placeholder UI; it also lands `card.review`
+  (the new op pushes the catalog count 29 → 30, so the shell ops-count
+  pin moves to `3[0-9]`). No CLI surface change — the bump tracks the
+  main repo's protocol/store head.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` + `pnpm build`
+    + `pnpm typecheck && pnpm test` — all green (167/167).
+
+## 2026-10-28
+
+- **chore(vendor): bump `vendor/notees` to main `429e408bf` — the seeded
+  `project` property lands (the task→project membership relation) plus the
+  Tasks-hub subtask nesting.** The range is `429e408bf` (the seeded `project`
+  property schema — object-typed `{nodeId}` refs, multi, targetClassFilter
+  `["project"]`, global scope with the class-local binding on `task`, and the
+  first `hideWhenEmpty` seed) over `ebea36e7a` (the Tasks hub joins the
+  `nestUnderParents` family — a subtask nests under its parent task). Both are
+  server-side seed/render configuration with zero wire cost — no new ops, no
+  envelope or enum change — so this is pin catch-up with no CLI surface
+  change.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` +
+    `pnpm typecheck && pnpm test` — all green (167/167).
+
+- **chore(vendor): bump `vendor/notees` to main `922f7a556` — the `url`
+  property-type retirement lands (fixture gate converged across the TS
+  reference + GTK + Flutter, byte-identical fixtures).** The wire enum loses
+  `"url"` outright (strict rejection) while the seeded `url` property survives
+  as `type: "text"`; the CLI already tracks the retirement client-side
+  (`861e7ed` — `--type url` fails loud at exit 2, the importer's
+  canonicalization arms dropped the `url` alternative), so this bump is the
+  pin catch-up with no further CLI surface change.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` + `pnpm build`
+    + `pnpm typecheck && pnpm test` — all green (167/167).
+
+- **feat(property): accept the retired `url` property type (`url` → `text`).** The core retires the dedicated `url` property type (the wire enum loses `"url"` outright, strict rejection) while the seeded `url` property survives as `type: "text"` — values are plain strings, legal under text; `email` is untouched. The CLI tracks the retirement ahead of the vendor bump: `url` leaves the `property create --type` allowlist (`PROPERTY_TYPES`, which never carried `asset` — that asymmetry stays) so a `--type url` attempt fails loud client-side at exit 2 (the server's strict enum would 422 anyway), and the Logseq-DB importer's value-canonicalization arms drop the `url` alternative — `text`/`email` cover exactly what `url` did (plain-string literals and text-carried node refs). Zotero/CSL data fields named `url` are bibliographic data mapped onto the seeded property, not the type — untouched, and the seeded `url` property keeps accepting plain-string values under text.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green (incl. the new spec: `property create --type url` fails at exit 2 with the unknown-type usage error).
+
+## 2026-10-27
+
+- **feat(tag): `tag assign`/`tag unassign` at class parity, plus tag read parity in `object get`.** Tag management rides the server's new tag membership routes (`PUT`/`DELETE /api/objects/:id/tags/:tagId`, both returning the full object) exactly like class management rides the class routes: `notees tag assign <objectId> <tag>` and `notees tag unassign <objectId> <tag>` take a tag **uuid or page title** — the title resolves through the object listing (`GET /api/objects?q=…&limit=500`, exact case-insensitive match client-side, the `object upsert` lookup shape) filtered to page-role rows, because a tag IS a page: class nodes and embedded blocks never resolve, and zero or multiple live matches fail loud as usage errors naming the fix (mirroring `resolveClassRef`'s contract). Both ops are idempotent (OR-Set add-wins re-issue / tombstone) and the human/machine output mirrors `class assign` exactly: `assigned <id> — tags now: <id…|(none)>` and `--json` as `{objectId, tagId, tagName, tagIds}`. `object get`'s human output gains a two-line membership summary above the unchanged JSON dump — `Classes:` / `Tags:` with the projection's resolved names (falling back to the raw id arrays, `—` when empty; an absent `tags` field — a server predating the tags surface — reads as no tags, never an error); `--json` passes the server's `tags`/`tagIds` through verbatim. The list/search `--json` surfaces already carry server rows verbatim, so `tagIds` on the listing/search projections flows through additively with no CLI change (defensive by construction when absent). `notees help` gains the `tag` row (drift-proof overview) and the README Command reference a matching table row.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green (167/167; 12 new mocked-wire unit specs in `test/tag.test.ts` — no live server: the vendored `@notees/server` predates the tag routes — covering title→id resolution incl. the class/block exclusion and the zero/ambiguous usage errors, uuid passthrough, PUT/DELETE route wiring, the `--json` machine shape, both `object get` summary-line cases, and the help surface; the e2e specs for the happy path flip on when the vendor pin crosses the tags-api slice).
+
+- **chore(vendor): bump `vendor/notees` to main `046b2fb00` — the
+  `class.property.set` `pinned` lockstep boundary closes (fixture gate
+  converged across the TS reference + GTK + Flutter, byte-identical
+  fixtures) — and the workspace-name resolution tests track the
+  operator-key sign-in change that rode along.** The bump spans the pinned
+  binding tier flag (schema v34, additive, no CLI surface change — the CLI
+  authors bindings through the server API) and the server commit that
+  accepts the operator key on account-discovery reads: `GET /workspaces`
+  now resolves for the operator key against the whole directory, so the
+  two tests that pinned the old 401 "needs an account credential" path now
+  assert the directory-listing reality (unknown name → usage error naming
+  the available workspaces; the stored-default-workspace test proves the
+  default was applied via the same not-found error). The 401 branch in
+  `client.ts` stays for genuinely invalid/absent credentials; its comment
+  no longer names the operator key as the example. No `--pinned` flag on
+  `property bind` yet — wiring arrives when a slice needs it.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` + `pnpm build`
+    + `pnpm typecheck && pnpm test` — all green (155/155, incl. the two
+    rewritten operator-key resolution specs).
+
+- **fix(object): the `children`/`list` NAME column renders rich-token content — a lone-mention child shows the target's current title, not "(untitled)".** The API `name` is a text-only flatten (title-is-content), and a mention stores no link text by design (the label resolves at render time), so every mention-only block arrived name-less and the human tables read `(untitled)` — a references section (a bullet per mention) was unreadable in CLI listings. The CLI now derives the display name for name-less rows from the row's contentAst via the domain's `fullTitleOf`, resolving mention targets to their current API names (one GET per target, deduped, 8-way — the `object get --ids` precedent; failures degrade to no prose, never a failed listing). Resolution is live and never stored — a rename re-resolves on the next read; an unresolvable target still reads `(untitled)`, exactly like the web mention chip. List rows carry no contentAst (the summary projection), so name-less list rows are re-read one GET each before the flatten (8-way; they are the rare case). Named rows are untouched; the `--json` machine surface is unchanged (rows ride the API verbatim — the derivation is human-table-only); `children --fields` stays the raw projection. Help text for both commands states the derivation; README's Command reference gains a Display names note.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green (155/155, incl. the new spec: a mention-only block renders the target's title in both the `children` and the `list --parent` tables, with no `(untitled)` in either).
+
+- **feat(import): bibliographic imports never create person/org nodes and never write Linked authors.** Authors and editors are bibliographic metadata: they ride the CSL text properties only (`Authors`/`Editors`, "Last, First", idx-ordered). `Linked authors` stays manual-only — the user-selected, relational form. Removed from the shared source-import pipeline (zotero-rdf, bibtex, csl-json): the find-or-create person machinery, the Linked authors write, and the Linked authors fill candidate. Citekey upsert, title adoption, Notees-wins fills, idempotency, and the reporting counters are unchanged; `persons`/`personsCreated` stay in `--json` (always 0). The export read contract is untouched (`export bibtex` still resolves hand-picked Linked authors refs). The ruling was also applied to data imported under the old behavior via a one-off cleanup (not part of this repo).
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (154/154, incl. specs that imports leave zero person/agent nodes for creators and zero Linked authors rows, the export dual-track read contract, a surviving manual pick, and idempotent re-run).
+
+## 2026-10-26
+
+- **fix(import): `import zotero-rdf` Publisher is the foaf:name, never the vcard locality.** A live import exposed it: the capture keyed on `dc:publisher` grabbed the FIRST text in document order, and Zotero organizations carry `<vcard:adr><vcard:Address><vcard:locality>…` BEFORE `<foaf:name>` — so Publisher landed as "London San Diego, CA Cambridge, MA Oxford" instead of "Academic Press". The parser now tracks the publisher nesting explicitly: `dc:publisher` → `foaf:Organization` → `foaf:name` is the only captured text (several organizations still join with "; "), and an organization closing WITHOUT a foaf:name is counted (`publisherNameMissing`, folded into the report like the other parser counters) — never address-guessed. `--json` additive-only; bibtex / csl-json untouched.
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (153/153, incl. the new spec over the exact live-bug XML shape: locality-before-name → Publisher "Academic Press" on the node; a nameless org → no Publisher write + `publisherNameMissing: 1`). A one-off repair pass (not shipped) corrected the values written under the old behavior; a nameless organization yields no Publisher write and is counted (`publisherNameMissing`).
+
+- **feat(import): `import zotero-rdf` is a full value-filling upsert (Notees-wins), not a create-only importer.** The importer previously created sources without filling their CSL values. The parser (`src/zotero-rdf.ts`) now extracts the whole field set: dcterms:abstract → Abstract; dc:publisher (the foaf:Organization's foaf:name, several joined with "; ") → Publisher; prism:volume / prism:number / bib:pages → Volume / Issue / Pages; dc:identifier by prefix (`isbn:`/`issn:`/`doi:` → ISBN/ISSN/DOI — the textual "ISBN …" / "DOI …" forms unchanged; `pmid:`/`arxiv:`/anything else → Identifier, multiple joined with "; "; z:PMID → Identifier as "PMID: …"); dcterms:URI → URL; z:language → Language; dcterms:alternative → Short title; dc:description → Extra; the dcterms:isPartOf container's dc:title → Publication title (Book title for book_section — the CSL convention the schema names imply). dc:date keeps the bibtex importer's date-else-year precedent exactly: the year lands as a content-addressed date-chain year-node ref (`ensureYearNode` + `{nodeId}`), never a bare string. Creators kept the then-existing find-or-create persons (retired the next day by the ruling above); the dual-track write shape was the bibtex precedent — `authors` text rows "Last, First" (idx-ordered) plus `linkedAuthors` `{nodeId}` refs to the persons, and `bib:editors` → `editors` text rows. Write semantics are Notees-wins (the fleet's drift-reconcile ruling), for matched AND newly created sources: the node's current property rows are read first and ONLY schemas it does not already hold are filled — hand-set values are never clobbered (the adoption path still sets the citekey and repairs eligibility). `dc:subject` (Zotero tags) is never mapped (class tags differ) — counted as `tagsSkipped`; `z:Attachment` items and `link:link` entries are skipped — counted as `attachmentsSkipped`; keyedness stays the idempotency authority, so unkeyed bib entries are skipped AND listed as `keylessSkipped` (rdf:about id + title). A second run plans and writes nothing — idempotency is tested, not assumed. CLI surface unchanged (`zotero-rdf <file> [--dry-run] [--no-create]`); human output gains one line per entry (`<citekey>: <action>, filled N (schemas…)`), the dry-run table a FILLS (PLANNED) column, and the summary the new counters; `--json` is additive-only — `entryFills` (per-entry applied fills), `fills` on dry-run plans, `keylessSkipped`/`tagsSkipped`/`attachmentsSkipped`. bibtex / csl-json behavior is untouched (the fill path only activates for zotero-rdf).
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (152/152, incl. 3 new real-server specs: the full-featured entry lands every value on the right schema (abstract, publisher, date-chain year, volume, issue, pages, isbn+doi+issn, pmid → Identifier, URL, language, short title, extra, journal → Publication title, two authors dual-track + one editor) with tags/attachments/keyless counted and listed; a matched node keeps its hand-fixed DOI while its empty Publisher/Abstract fill; dry-run plans per-field fills, a second real run applies zero fills, and a dry-run after import plans zero fills).
+
+- **feat(asset): bulk `asset add` (multi-file + directories, batch semantics), `asset attach`, `asset list`, and the `addAssets`/`attachAsset` shell helpers.** Born from today's 153-file asset migration friction: `asset add` handled exactly one file per invocation and there was no way to link an existing asset or list the workspace's assets. (1) `notees asset add <path…>` takes multiple files AND directories — a directory adds every regular file in it, recursively (name-sorted walks, deterministic output). Batch semantics mirror `object create --batch`: `--jobs 1–32` (default 8), per-item failures collected into a `failures` array in the `--json` report (each `{file, error}`; unreadable paths and server rejections alike), exit 1 when any item failed, `--stop-on-error` aborts the rest. `--object <nodeId>` attaches every uploaded asset to that node (verified to exist before any byte is uploaded — the server's attach path is dangling-id-tolerant and would otherwise silently store unattached bytes). Human output: one line per uploaded asset (id + filename), then the counts; failures listed in the exit-1 message. The `--json` shape is additive-only: multi-file adds report `{added, assets, failures}` and the single-file shape keeps its top-level `assetId`. (2) `notees asset attach <assetId> --object <nodeId>` links an EXISTING asset to a node — the `asset.attach` envelope (metadata from `GET /api/assets/:id/info`) rides the relay batch endpoint, the same write path as every other client and the envelope the server itself submits on multipart attach; both ids are verified before anything is written. Idempotent: the derived `node_asset` row is keyed `(node_id, asset_id)`, so re-attaching upserts the same row — a state no-op. (3) `notees asset list [--object <id>] [--limit n]` reads the server's workspace asset index (`GET /api/assets`, newest first; `--object` filters client-side on the index's attached-object ids). (4) `notees shell` gains `addAssets(pathOrPaths, objectId?)` and `attachAsset(assetId, objectId)` mirroring the commands (sequential by design — scripts needing concurrency use `pool()` over `upload()`), and the shared mechanics live in one home (`src/assets-lib.ts`) so the command and the REPL cannot drift. The help overview's `asset` row carries the new surface.
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (147/147, incl. 8 new real-server specs: multi-file add with per-asset human lines + counts, recursive directory expansion, per-item failure collection + exit 1 + `--stop-on-error` skips, `--jobs`/arity validation, the preserved single-file `--json` shape, `--object` bulk attach verified against the derived `node_asset` projection, attach + re-attach no-op + dangling-asset/dangling-node guards, and the two shell helpers). TWO SPECS PEND ON THE VENDOR BUMP (skipped, commented in `test/cli.test.ts`): the real `.aac` (ADTS) acceptance test and the `asset list` happy path — both need the main repo's asset-upload slice (audio extension fallback + the `GET /api/assets` index route), which the vendored `@notees/server` predates; the parent coordinates the pin bump, after which both `it.skip`s flip on. Dev-deps: `better-sqlite3` + `@types/better-sqlite3` (test-side read of the derived projection; same versions the vendored server uses).
+
+- **feat: `notees help` — the command overview + one-stop help; README gains a Command reference table.** (1) `notees help` (no argument) prints a grouped plain-text table of every top-level command — one-line purpose (derived from each command's own description, never duplicated) plus a curated key-flags column — with the usage line, the global-flag/env recap, and the exit-code legend. It resolves nothing (no server, no credential), so it works offline like `notees config`. (2) `notees help <command> [subcommand]` resolves the path and prints that command's own `--help` rendering — one source of truth for all help strings; an unknown path is a usage error (exit 2) naming the path and pointing at `notees help`. The overview is drift-proof by construction: a top-level command without a `HELP_ROWS` entry (or a stale entry for a removed command) fails loud at render time. Commander's built-in `help [command]` is replaced (`addHelpCommand(false)`) — the root `--help` listing now shows the real `help` command instead.
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (139/139, incl. 3 new help specs: the overview lists every top-level command and exits 0 with no server configured, `help object merge` prints the merge flags through the `--help` renderer, unknown/partial paths exit 2 naming the path); `node dist/cli.js help` / `help object merge` verified from the built bundle. README gains the "Command reference" section (the index table; `--help` stays canonical) and a pointer from the intro.
+
+- **feat: `import logseq-db <file.sqlite>` — the Logseq DB drift-reconcile as a first-class command (vendor `a216b07db → 455ea4214`).** Productizes a one-off drift-reconcile driver proven against a real 76 MB Logseq DB export: decode the Logseq DB kvs transit-datom store (via `@notees/export` `decodeKvs` + `buildLogseqDbModel`, reading the sqlite through Node's built-in `node:sqlite` — lazily `createRequire`'d so runtimes predating the builtin still boot the CLI, with a friendly usage error naming Node ≥ 22.13 / `--experimental-sqlite`; no native dependency, no sql.js wasm), plan the reconcile against the target workspace, and report. Semantics ported from the proven rehearsal scripts, not redesigned: class mapping by name (unmapped titles reported, never planned); the validated property mapping table (select values map onto options by label; the `domicilio social`/`Objetivo`/`Relacionado` trio is created as global text schemas when absent); missing nodes → creates with the preserved Logseq uuids, mention titles for uuid-resolvable links, Logseq fractional sibling order, parents resolved against the active target / the planned set / the deterministic date chain (the domain's `chainNodeIds`, never re-hardcoded), applied depth-layered with cycle-breaking (the `object create --batch` parent-group contract); title conflicts under `--strategy notees-wins` (default — Notees titles are never written) or `newer-wins` (Logseq title only when `:block/updated-at` is strictly newer than the Notees `updatedAt`); property fills for missing values always, restores for differing values only under `--restore-diffs` (restores clobber); extends-aware scope eligibility BOTH directions and extends-aware `targetClassFilter` validation; dangling-ref / single-value-cap (`extra-values-dropped`) report entries; trashed (inactive) target nodes reserve their id — skipped + reported (Notees wins on trashed). Dry-run is the default: the full plan report prints and nothing is written; `--write` (or `--yes`, the destructive-confirm alias) applies, with JSONL progress on stderr; idempotent — every write re-checks state and a re-run plans nothing. The `--json` machine surface is the reference `report.json` shape plus additive fields (`trashedSkipped`, `dryRun`/`strategy`/`restoreDiffs`, the full op lists under `ops`, post-write `executionFailures`); write failures exit 1 with the report already printed.
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (136/136, incl. 8 new real-server specs over an in-test transit-encoded sqlite fixture: dry-run-writes-nothing + skip classification, missing/non-Logseq file failures, `--dry-run`/`--write` exclusivity, notees-wins fills with preserved uuids + sibling order + date-chain parenting + trashed skip, extends-aware scope both directions (Obra extends Libro qualifies; Persona-only fails), idempotent re-run, newer-wins strictness, `--restore-diffs` gating); `notees import logseq-db --help` verified from the built bundle; bundle smoke ran the decode path against a real fixture sqlite.
+  - Vendor pin `a216b07db → 455ea4214` (+30 commits): the Logseq DB import parse layer (`f8dfd44e1`), the four rehearsal fixes (`02e1699df`, `2963f4cf8`, `17e3fe588`, `520a7581c`), and the merge-planner fix (`455ea4214`). Dev-deps: `@types/node ^22.13` (the `node:sqlite` types) and `transit-js` (fixture encoding), plus the repo-local `test/transit-js.d.ts` shim.
+
+- **feat: `object merge` hardening + shell helpers; `object list --embedded`/`--inactive`; `object get --ids` tolerates misses; `object property set --batch`; `class set-extends`; `date ensure`.** A six-part slice over the owner's merge-workflow gaps. (1) `object merge` drops its client-side self-merge shortcut — the server's merge planner now owns every guard (self-merge, a target inside the source's subtree, class/trashed endpoints) and answers them as 422 → exit 1 with the server's message; the human output is one line per nonzero plan counter (then a `Merged "…" into "…"` trailer, or the dry-run header); the machine shape gains `targetId` on the merge result (additive). (2) `notees shell` gains `merge(sourceId, targetId)` and `mergePlan(sourceId, targetId)` (same REST calls, listed in `.help`). (3) `object list` surfaces the row-visibility trap with explicit `--embedded` (embedded blocks) and `--inactive` (trashed rows) filters — combinable with `--all`, whose help text now states exactly that a bare listing is every ACTIVE row (classes, standalone pages, embedded blocks — narrow with the filters) and never trashed ones; `--all`'s default result set is unchanged. (4) `object get --ids` tolerates unknown ids: the found objects return with a `missing: [ids]` array, exit 0 (only 404 is tolerated; any other failure stays loud). (5) `object property set --batch --stdin` applies a JSON array of `{objectId, schema, value, idx?}` with `--jobs` bounded concurrency (mirror of `create --batch`), per-item failures collected into `failures` (exit 1 when any), `--stop-on-error` optional. (6) `class set-extends <class> [parents…]` is the first-class wrapper for the class.setExtends op (previously shell-only): REPLACE semantics (unlisted parents detach; an empty list detaches all — stated in the help), refuses without `--yes` showing the resulting parent set, then rides the relay batch envelope path like every other client. (7) `date ensure <YYYY-MM-DD>` ensures the year/month/day date-chain nodes for an arbitrary date (the domain's content-addressed `chainNodeIds` — never re-hardcoded; creates through the same client path as `today`, the already-exists 409 counts as success), prints the day node id, `--json` prints `{yearId, monthId, dayId}`.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green (128/128, incl. the merge guard/human-output/shell-helper specs, the list-visibility matrix, multi-get misses, the property-batch failure/stop-on-error/validation specs, the set-extends replace/detach specs, and the date-ensure idempotency/calendar-validation specs).
+
+- **chore(release): v4.5.3 — `doctor` honors stored config defaults and the stored credential.** `notees doctor` resolves through the same shared path as every other command (flag > env > stored per-profile default for the server/workspace; the stored standing credential alongside `--key`/`NOTEES_API_KEY`), so a fully stored setup no longer FAILs a doctor run that would actually work (PR #10 / issue #9). The check failures now name the fix (`notees config set server <url>`, `notees auth login` / `auth store --key`).
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (116/116); bundle sha256 `4ca8acbd…` recorded in the PKGBUILD.
+
+- **fix(doctor): honor stored config defaults and the stored credential (PR #9 / issue #9).** `notees doctor` read `--server` / `NOTEES_SERVER` and the flag/env credential only, so it FAILed setups that actually work — bare commands already resolve server/workspace/credential flag > env > stored. Doctor now resolves through the same shared path (`resolveServer` — extracted from `requireServer` so there is one resolution, not two — plus `resolveKey` with the same `${profile}:${server}` state key the command-context builder derives, so the stored server default selects the right credential slot): a fully stored setup reads all-ok, the `authentication:` check exercises the stored credential, and the FAIL hints name all three sources (`notees config set server`, `notees auth login` / `auth store`). Doctor also stops pre-empting its own report — with nothing configured it prints the failing checks and exits 2 instead of dying on a usage error before the report.
+  - **Verification**: `pnpm install && pnpm -r --filter "@notees/*" build && pnpm typecheck && pnpm test && pnpm build` — all green (116/116).
+
+- **chore(release): v4.5.2 — the merged PR queue: `auth store`, per-profile `config` defaults, `today --append` block id, Windows shim.** Rides the 4.5.x train (server 4.5.0): `notees auth store --key|--key-stdin` persists an existing API key (probe-verified; logout clears locally only for non-CLI-minted keys — PR #8 / issue #1); `notees config set|get|list` stores a per-profile default server/workspace with resolution flag > env > stored (PR #7 / issue #2); `notees today --append` reports the created block id (PR #6 / issue #4); `install.sh` emits a `notees.cmd` shim on Windows (PR #5 / issue #3).
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (113/113); bundle sha256 `a874279e…` recorded in the PKGBUILD.
+
+- **chore(release): v4.5.1 — vendor re-pin (source roster, dual-track authorship) and the day's commands.** Rides the 4.5.x train (server 4.5.0): `import` adopts `@citekey`-titled nodes and gains `csl-json`/`zotero-rdf` formats with `--dry-run`/`--no-create`; `class list --tree`; `property get` resolves eligible classes; `shell` gains `update(id,{name})` semantics, exit-code preservation, and the `pool()` worker pool; vendored main at `a216b07db` (the `name:` query arm arrives for the next train).
+  - **Verification**: `pnpm typecheck && pnpm test && pnpm build` — all green (104/104); bundle sha256 `5a2d1d9a…` recorded in the PKGBUILD.
+
+- **chore(vendor): vendor pin re-pointed at main `1423ce2c2 → a216b07db` — the
+  source-library roster, the dual-track authorship contract, and the mention
+  customLabel ruling.** A large jump (487 files in main across several
+  slices); the CLI adapts, the pin is law. Seed renames the gate caught:
+  `article` → `journal_article` (same uuid, never reuse) with new subtypes
+  `encyclopedia_article`/`magazine_article`/`newspaper_article`; `paper`,
+  `movie`, `weblink` retired (→ journal_article/film/web_page). Adaptations:
+  (1) import + export tests follow the new class vocabulary (`@article` →
+  journal_article, CSL `article-journal` → journal_article, new
+  `article-magazine` → magazine_article coverage in the csl-json suite);
+  (2) authorship is dual-track (SCHEMA.md "Citations") —
+  the import now writes the `authors` free-text rows (the citation track) AND
+  the `linkedAuthors` {nodeId} refs (the people-graph track, persons still
+  find-or-created), plus the reinstated `editors` text rows; `export bibtex`
+  resolves both through the new `NodeToCslOptions` (`resolveName` /
+  `resolveAgentName`), with the text rows the read-precedence winners;
+  (3) `import zotero-rdf` maps z:itemType through the vendored
+  `ZOTERO_ITEM_TYPE_TO_CLASS` manifest + `CLASS_NAME_TO_CSL_TYPE` instead of a
+  hand-rolled table; (4) the test harness config gains the new required
+  `resolverTimeoutMs`; (5) the query-language fixtures move from the retired
+  `paper` class to `journal_article` (`class:"journal article"` by title).
+  Per the main repo's seed-alignment law: the sibling manifests (GTK/Flutter)
+  already carry this seed change from main — no client code needed beyond
+  this adaptation.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` (done with the
+    bump) + `pnpm typecheck && pnpm test` — all green (104/104), incl. the
+    rewritten dual-track author round-trip (text rows win; linkedAuthors
+    resolves live once the text rows are cleared).
+  - **Files**: `vendor/notees` (the pin), `src/cli.ts`, `src/zotero-rdf.ts`,
+    `test/cli.test.ts`.
+
+- **feat(shell): `pool(items, concurrency, fn)` — the built-in worker pool for bulk-driver scripts.** The manipulation playbook prescribes "N-way concurrency pool + per-call retry + JSONL progress" for every bulk job, but each script hand-rolled its own pool (and died on the first item failure until it grew retry/collect). `pool` runs `fn` over `items` with 1–32 workers (validated — bad args/non-function fn exit 2 as usage), and NEVER throws on item failure: it resolves to per-item results in INPUT ORDER, `[{index, item, ok:true, value} | {index, item, ok:false, error}]`. Per-item JSONL progress stays in userland — `fn` may console.log per item and lines interleave across workers (documented in the interface + HELP_TEXT). Dependency-free (~30 lines); exposed as a script/REPL global like the other helpers.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. the new e2e (10 items at concurrency 3 with one throwing item → `ok 9 failed 1`, input-order results, captured error message; bad concurrency exits 2).
+
+- **feat(import): `notees import` evolves — title-match adoption, `csl-json` + `zotero-rdf` formats, `--dry-run` and `--no-create`.** The incident driver: a workspace had 160 source nodes titled `@citekey` with no Citekey property — a re-import would have created 160 duplicates, so the importer now adopts them. Per-entry lookup: (a) citekey-property match (unchanged, authoritative); (b) NEW exact node-title match on `citekey`/`@citekey` — adoption renames the node to the spec title (title-is-content), sets the Citekey property, repairs eligibility by assigning the spec's source class when the node's class closure misses the citekey scope (the Slice-B `resolveEligibleClasses` helper, lifted to module scope), then takes the normal update path; multiple same-titled nodes adopt the first and count the rest as `ambiguous`. New formats share one pipeline (schema ensure → authors find-or-create → source upsert/adopt → field writes): `import csl-json <file>` (top-level array or `{items}`) and `import zotero-rdf <file>` (sax-based `src/zotero-rdf.ts`; direct-child field capture so a nested `dcterms:isPartOf`/`bib:Journal` title never wins; `z:citationKey`-less top-level `bib:*` entries skipped and counted; `z:Attachment` ignored; lowercase `bib:authors` and `foaf:Organization` authors handled). New flags on all three subcommands: `--dry-run` (full match/plan phase, zero writes incl. schemas; per-entry `{citekey, action, nodeId?, title}` + planned persons/schemas; exit 0) and `--no-create` (match-only: would-create entries reported `skipped`). Exit contract per format: unreadable/malformed file → 2, zero entries → 1. Machine output additive: counts gain `adopted`/`skipped`/`ambiguous`, `skippedEntries` lists the skipped; the imported `entries` id list is unchanged. Human summary reports all counts.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. 7 new e2e (adoption + eligibility repair + dry-run + no-create, csl-json round, zotero-rdf nesting/skip/error contracts). Real-world smoke: the 4.7MB Zotero export parses to 1482 keyed items (+274 unkeyed top-level skipped) in ~150ms; 1432 carry authors.
+
+- **feat(property): `notees property get` resolves eligible classes client-side.** The schema dump now carries an `eligibleClasses` section: `null` for global schemas (every node), otherwise every class whose transitive extends-closure intersects `scopeClassIds`, each with a `via` chain — the shortest parent-chain from the class up to a scoped class as readable names, or `["(scoped directly)"]` when the class itself is in scope. `--json` keeps `{propertySchema}` and adds the same field (additive-only). The human output stays the pretty-printed schema JSON, now with the section inline.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. the new e2e (seeded `citekey` scoped to Source: Document listed with a via chain through Source, Person absent).
+
+- **feat(class): `notees class list --tree` renders the extends hierarchy.** Default flat table unchanged. With `--tree`: roots are parentless classes (sorted by name), children indented two spaces per level and sorted by name, `name (members)` lines; a class extending multiple parents renders under each parent with an `[also under: <names>]` tag; cycles on the current path render `(cycle)` and stop. `--json` keeps the flat `classes` body and adds a nested `tree` field (`{id, name, memberCount, children}`).
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. the new e2e (seeded Document renders indented under Source; a user class with two parents renders under each with the `also under` tag; `--json` carries both `classes` and `tree`).
+
+- **fix(shell): `update(id, fields)` accepts `name` (title-is-content).** The raw PATCH passthrough sent `{name}` verbatim and the server rejected it ("Unrecognized key(s)"); the helper now mirrors `object update --name`: `name` becomes `contentAst: [{type:"text",text: name}]`, and combining `name` with `contentAst` in one call fails loud as a usage error (exit 2 — `runScript` now preserves a helper-thrown `CliError`'s exit code instead of flattening every script failure to exit 1). HELP_TEXT and the interface doc state the shorthand.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. the new e2e (scripted rename via `update(id, {name})`; `name` + `contentAst` together exits 2).
+- **fix(install): `scripts/install.sh` now also writes a `notees.cmd` shim next
+  to the installed files (issue #3).** The extensionless `notees` is a
+  unix-shebang script — Git Bash/MSYS happens to execute it, but cmd and
+  PowerShell cannot, which left a fresh v4.5.0 install unusable from
+  PowerShell until a shim was hand-written. The installer now always emits
+  `notees.cmd` (`@echo off` + `node "%~dp0notees.mjs" %*`) alongside
+  `notees.mjs` / `notees`. Decision: always-write, no platform detection —
+  the shim is one small extra file on unix, and "always" is simpler and
+  directly testable with `NOTEES_RELEASE_BASE` pointed at local files.
+  Checksum verification, the `ln -sfn` unix path, and the post-install
+  `--version` sanity check are unchanged.
+  - **Verification**: manual — `NOTEES_INSTALL_DIR=<tempdir>` +
+    `NOTEES_RELEASE_BASE=file://<local-release-dir>` install landed
+    `notees.mjs`, `notees`, and `notees.cmd`; `<tempdir>\notees.cmd --version`
+    (run via `cmd /c`) printed the version string. Gate
+    (`pnpm install && pnpm typecheck && pnpm test` + `pnpm build`) green;
+    no vitest case added — the suite covers the TS CLI only and has no
+    shell-level harness.
+  - **Files**: `scripts/install.sh`, `README.md` (Installing section).
+- **feat(today): `notees today --append` reports the created block id.** The
+  append used to print the day page object alone — same `updatedAt`, no
+  children in the output — so a script had no confirmation of the write and no
+  id to reference (verifying took a second `notees object children` call).
+  The created block's id is now threaded through: human mode prints
+  `appended block <id> to <day name>`, and `--json` gains an `appendedBlock:
+  { id }` field alongside the unchanged day-page fields (additive-only per
+  the `--json` contract; no append leaves the output byte-identical to
+  before). Help text for `--append` updated in the same pass.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. the
+    extended `daily notes` e2e asserting the `appendedBlock.id` matches the
+    block listed under the day page and the human summary line names the id.
+- **feat(config): `notees config set|get|list server|workspace` — per-profile defaults so bare `notees <cmd>` works without env vars.** Every invocation previously required `--server` / `NOTEES_SERVER` (and, off the default workspace, `--workspace` / `NOTEES_WORKSPACE`). Now both resolve flag > env > stored default, matching the credential precedence: `notees config set server <url>` and `notees config set workspace <name|id>` persist the defaults, `config get` / `config list` print them (`--json` shape: `{key, value, profile}` / `{profile, server, workspace}`, `null` when unset). State shape: a top-level `profiles` record in the state file, keyed by profile name — the stored *default server* cannot live under `servers` (keyed `profile:server`, since the server is the thing being selected); `profiles` is optional, reads stay tolerant, writes stay atomic (tmp + rename), and pre-existing state files round-trip untouched. `notees config` needs no server or credential — it only touches the local state file; unknown keys exit 2 (usage). Root `--server` / `--workspace` help text now points at the stored default.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, 94/94 (five new e2e tests: set/get/list round-trip through the state file, unset values, stored server picked up with no env, flag/env beating the stored server, stored workspace applied with flag/env precedence; each uses an isolated `NOTEES_STATE_FILE` so the shared no-server usage-error tests are unaffected). `pnpm build` clean.
+  - **Files**: `src/state.ts` (`ProfileDefaults`, `profiles`, `profileDefaults` / `updateProfileDefaults`), `src/cli.ts` (`config` command group, stored-default fallback in `requireServer`, help text), `test/cli.test.ts`, `README.md` (new "Configuration" section).
+- **feat(auth): `notees auth store --key <credential>` (or `--key-stdin`) — persist an existing API key as the standing credential.** Closes #1. `auth login` mints a fresh CLI API key from email + password, but a user holding an app-minted key (`nk_…`) had no supported path to make it the standing credential short of env vars (plaintext in shell profiles / the user registry) or hand-editing the state file. `auth store` probe-verifies the key against the server (401 → exit 3, unreachable → exit 5), then writes `{ kind: "apiKey", token, createdAt }` into the per-server state entry — the exact slot `auth login` writes — so `auth status` / `auth logout` and the stored-credential fallback pick it up unchanged. Honest limitation, surfaced in the help text and output: a stored key carries no keyId, so `auth logout` clears it locally only — server-side revocation stays a login-minted-keys feature. The key is never printed; `--json` emits metadata only (`{stored, server, profile, kind, createdAt}` — a new command, so the additive-only machine surface is untouched).
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. the new `auth store` e2e cases (invalid key rejected with exit 3 and nothing written to the state file; valid key stored in the exact `StoredCredential` shape with no `keyId` and used by later commands without `--key`; `--key-stdin` + usage errors for both/missing flags; local-only logout, key still valid server-side).
+  - **Files**: `src/cli.ts`, `test/cli.test.ts`, `README.md`.
+
+## 2026-10-23
+
+- **feat(object): `notees object move <id> --parent <id> [--after <id> | --before <id>]` — the missing placement command.** Moves a node under a new parent with optional sibling anchoring. Placement is log-only state with no REST surface: the write rides the `object.move` op through the relay batch endpoint (the one write path), same envelope discipline as the class-remap path (HLC clock, actor derived from the credential). MoveGuard invariants apply server-side (no standalone child under a non-page parent; no demoting a page with standalone children). Usage errors (missing `--parent`, `--after` with `--before`) exit 2. Prints the moved id; `--json` adds `{moved, parent, object}`.
+  - **Verification**: `pnpm typecheck && pnpm test` — all green, incl. the new `object move` e2e (move + `--after` ordering across two pages, usage-error exit codes).
+
+## 2026-10-22
+
+- **chore(vendor): vendor pin re-pointed at main `bc3f856e7 → 1423ce2c2` —
+  carrying the classes gallery, the archival `active` bit, and the retired
+  `class.delete` op.** The main repo shipped the classes-gallery slice:
+  `object.update` gains `active` (archive/unarchive, a platform node field
+  like icon/color); `object.delete` on a class node routes four ways (locked
+  system classes fail loud, family bases route to the feature toggle, other
+  system classes archive, user classes trash — membership rides every path);
+  `class.delete` is retired outright; `workspace.feature.set` gains the
+  surfaces-only `journal` toggle (the date classes stay always-on, so the
+  CLI's `notees journal` read path is unaffected). Zero CLI-code delta (the
+  lockstep law): no CLI surface ever issued `class.delete` or a workspace
+  feature toggle, and the retired op's F4 delete-as-disable rule lives in the
+  vendored applier, which the CLI consumes whole. LOCKSTEP-PENDING for GTK +
+  Flutter on the `object-update-active` / `object-delete-class-routing`
+  fixtures.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` + `pnpm typecheck`
+    clean; `pnpm test` 87/87.
+  - **Files**: `vendor/notees` (the pin).
+
+- **fix(test): the suite blanks leaked `NOTEES_*` operator env for its
+  duration — the gate is environment-independent.** The fleet host's shell
+  exports `NOTEES_SERVER=http://localhost:8377`, which made the "missing
+  server → usage error (2)" test hit the live stack with the fake test key
+  and return auth (3) — a red gate that depended on what the operator shell
+  happened to carry, not on the code. `beforeAll` now saves and clears
+  `NOTEES_SERVER` / `NOTEES_WORKSPACE` / `NOTEES_API_KEY` / `NOTEES_EMAIL` /
+  `NOTEES_PASSWORD` (every var `src/` reads), `afterAll` restores them, and
+  `NOTEES_STATE_FILE` isolation is unchanged. Behavior change: none — test
+  harness only.
+  - **Verification**: `pnpm test` 87/87 **with the leak vars deliberately
+    exported** (`NOTEES_SERVER`, `NOTEES_WORKSPACE`, a decoy
+    `NOTEES_API_KEY`) — the exact combination that failed before the fix;
+    `pnpm typecheck` clean; `pnpm build` succeeds.
+  - **Files**: `test/cli.test.ts`.
+
+- **chore(vendor): vendor pin re-pointed at main `33e4af5e2 → bc3f856e7` —
+  carrying the WS admission tickets (the `?token=` retirement).** The main
+  repo retired the credential-in-URL fallback: the sync socket now admits
+  `Authorization: Bearer` (native clients) or a single-use `?ticket=ntk_…`
+  minted at `POST /api/relay/v2/tickets` (browsers), and `?token=` is rejected
+  on the whole API. Zero CLI-code delta (the lockstep law — the vendored
+  `packages/sync` transport mints tickets internally; its public options are
+  unchanged), and no CLI surface ever put a credential in a URL — the REST
+  client has always sent headers. GTK (`8269285`) and Flutter (`f9cfe75`)
+  converged the same day, closing the three-implementation lockstep.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` + `pnpm typecheck`
+    clean; `pnpm test` 87/87 (with `NOTEES_SERVER` unset — the known
+    env-leak note from the previous entry).
+  - **Files**: `vendor/notees` (the pin).
+
+- **chore(vendor): vendor pin re-pointed AGAIN at the rewritten main — `a4796bda3 →
+  33e4af5e2` — the releases.md scrub.** The main repo's history was rewritten a
+  second time 2026-10-22 (every trace of the retired `docs/developers/releases.md`
+  scrubbed via `git filter-repo`; all SHAs changed again), invalidating the
+  morning's pin. The new pin's tree is content-identical at the tip (the scrub
+  only rewrites history, not content), so the vendored packages carry the same
+  system-extends lock — no functional delta.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` + `pnpm build` +
+    `pnpm typecheck` clean; `pnpm test` 87/87 (with `NOTEES_SERVER` unset —
+    see the previous entry's note).
+  - **Files**: `vendor/notees` (the pin).
+
+- **chore(vendor): vendor pin re-pointed at the rewritten main — `278fb7cfe →
+  a4796bda3` — carrying the system-extends lock (and the readonly +
+  binding-sequence retirements).** The main repo's history was rewritten
+  2026-10-22 (every live compose file scrubbed from all commits via
+  `git filter-repo`; all old SHAs changed), so the recorded pin
+  `278fb7cfe` no longer exists upstream — this bump is also the repair that
+  makes a fresh `git submodule update --init` work again. The new pin rides
+  three slices, all with zero CLI-code delta (the lockstep law — the pin is
+  the boundary):
+  - **The system-extends lock**: `class.setExtends`
+    on a system class applies only when the payload equals the seeded parent
+    set; deviations fail loud with `SystemExtendsLockError`. Applier-side in
+    the vendored `@notees/store`; the CLI's `class.extends`-family writes
+    ride it automatically (fixture gate 36→37, `class-extends-system-lock.json`;
+    GTK v4.3.0 / Flutter v4.2.0 converged byte-identical before the bump).
+  - **The `readonly` retirement**: clients derive
+    readonly-ness from the system property list; the CLI never authored the
+    flag — no delta.
+  - **The binding-`sequence` retirement**: the
+    binding is strictly `{classId, propertySchemaId, active?}` — the CLI
+    never authored `sequence` — no delta.
+  - **Verification**: `pnpm -r --filter "@notees/*" build` + `pnpm build` +
+    `pnpm typecheck` clean; `pnpm test` 87/87 (run with `NOTEES_SERVER`
+    unset — a session-inherited `NOTEES_SERVER` pointing at a live stack
+    makes the "missing server → exit 2" test hit the real server and 401;
+    environmental, not a regression).
+  - **Files**: `vendor/notees` (the pin).
+
+## 2026-10-21
+
+- **feat(content,model): the CLI rides the external_link retirement AND the
+  property-definition batch — vendor pin `668a835b → 278fb7cfe`.** The pin
+  crosses three breaking slices on the main repo's main; the CLI follows all
+  of them (the lockstep law — the pin is the boundary, the CLI rides what it
+  carries):
+  - **`external_link` retires** (main commit `077f84b1`; normative grammar in
+    SCHEMA.md): links are markdown `[label](href)` spans inside ordinary
+    `text` tokens, parsed at render time; the retired token no longer passes
+    the strict content schema. The `--content` help text and docs comment
+    describe links as `[label](href)` spans in text tokens instead of
+    external links as a token type; the e2e `--content` test stores and
+    round-trips a text token carrying a markdown link next to a mention (the
+    old `external_link` payload is a strict-schema 422 now). The markdown
+    exporter needed no CLI-side change: it delegates to the vendored
+    `@notees/export` serializer, whose `renderSpan` text case splits links
+    with `splitMarkdownLinks` (`@notees/domain`) and emits link segments
+    verbatim while escaping non-link segments — previously `external_link`
+    tokens were silently dropped.
+  - **Binding `sequence`/`required` retire; `defaultValue` moves to the
+    property schema** (main `26a19684b` + `71047ba5a`): `class.property.set` is strictly
+    `{classId, propertySchemaId, active?}` — the strict schema rejects
+    `sequence`, `required`, and `defaultValue` like any retired key, and
+    class properties render as a pure alphabetical list by property name.
+    `property bind` drops `--sequence`, `--required/--no-required`,
+    `--readonly/--no-readonly`, `--hideWhenEmpty/--no-hideWhenEmpty`, and
+    `--default` (the main repo's docs flagged this as the pending CLI
+    lockstep follow-up); the one global default is now
+    `property create --default <json>` (typed per the schema type at apply —
+    a wrong-typed default is a server-side 422). The shell's
+    `setClassProperty` doc comments follow; the e2e property + shell tests
+    re-anchor to the presence-only binding and the schema-level default.
+  - **Schema `readonly` retires** (main `4eda19e07`): never user
+    configuration — clients derive readonly-ness from the system property
+    list (`isReadonlyProperty`, `@notees/domain`); the CLI never surfaced
+    the flag on the schema verbs, so no CLI change beyond the bind flags
+    above.
+  - **`CLI_VERSION` 4.1.1 → 4.4.0** — the vendored server rejoined the tag
+    train at 4.4.0 (`SERVER_VERSION`), and `CLI_VERSION` rides the server's
+    release train; `doctor`'s drift check compares against it.
+  Gate: `pnpm typecheck && pnpm test` green (87 tests; run with a clean
+  environment — a `NOTEES_SERVER` env var leaks a server into the
+  missing-server usage test, which then exits 3 against that server instead
+  of 2).
+
+## 2026-10-20
+
+- **feat(model): the CLI rides the property-scope retirement batch —
+  scopeClassIds is the sole locality authority.** The main monorepo retired
+  the display-only `scope: "global"|"class"|"object"` enum (rejected outright
+  like any retired key; live logs rewrite in place via
+  `scripts/migrate-property-scope.mts`) and made a schema's `scopeClassIds`
+  (absent/null = global; a non-empty class list = local to those classes and
+  their extends-ancestors) the only thing that says who may carry a property.
+  The batch also added the schema `icon`, update-side
+  `targetClassFilter`/`multi`/`validationRules` (min/max/pattern, enforced at
+  `property.set`), the R3/R5 eligibility guards (ineligible authored values
+  read tagged `eligible: false`, never derived), and the node `listStyle`
+  (numbered/alpha/roman). The CLI follows: vendor pin bumped
+  `0033e84b → 668a835b` (the batch's convergence commit on the main repo's
+  main); `property create` and the bibtex import's system-schema get-or-create
+  stop sending the retired `scope` key (global is the absence of
+  `scopeClassIds`; the server's strict payload rejected the old spelling with
+  a 422); `property list`'s SCOPE column renders the locality from
+  `scopeClassIds`, resolving class ids to titles via one `/api/classes` call
+  (ids with no live class row fall back to the raw id; `--json` keeps passing
+  the server rows through verbatim, now carrying `scopeClassIds`, `icon`, and
+  `validationRules`); `--targetClass` keeps feeding `targetClassFilter`
+  (unchanged semantics — node-typed target constraint, orthogonal to
+  locality). Gate: `pnpm typecheck && pnpm test` green (87 tests; the retired-
+  scope fixtures in the suite drop the enum the way the wire now demands).
+
+## 2026-10-13
+
+- **feat(merge): `notees object merge <source> <target>` — merge one object
+  into another, preview-first.** The main monorepo shipped node merge as a
+  planner over the derived store (a batch of existing op types — no wire
+  change) exposed at `POST /api/objects/:id/merge` with a `?dryRun=true`
+  preview; the CLI rides it. The command resolves both nodes, honors the
+  destructive-command contract (`--dry-run` prints the plan's counts and
+  writes nothing; without `--yes` it prints the blast radius to stderr and
+  exits 2; `--yes` merges), and reports the server's plan summary in human
+  text and `--json` (`{source, target, merged, summary}` — additive shape).
+  Semantics (SCHEMA.md "Node merge"): the source's children move, class/tag
+  bindings and authored properties remap (the target keeps values it already
+  has), references retarget (mentions, property references, aliases,
+  collections), and the source trashes. Vendor pin bumped `af57c5bb →
+  1b89adf0` (the merge slice's commit on the main repo's main). Gate: `pnpm
+  typecheck && pnpm test` green (87 tests, incl. the new `object merge`
+  preview/merge/guard specs).
+
+## 2026-10-09
+
+- **chore(release): v4.1.0 — the CLI rides the unified-datetime batch's
+  minor.** `CLI_VERSION` 4.0.0 → 4.1.0 (the server train shipped the batch as
+  the v4.1.0 minor; the GTK client tagged v4.1.0 in lockstep), the PKGBUILD
+  records the deterministic bundle's checksum, and the datetime slice below
+  ships with it. Gate: `pnpm typecheck && pnpm test` + `pnpm build` before
+  the tag.
+- **feat(datetime): the CLI rides the unified-datetime wire batch.** The main
+  monorepo retired the `date` / `date_range` property schema types and unified
+  on `datetime` (a value is a point `{nodeId, time?}` or a range
+  `{start, end}` of `{nodeId, time?}` slots, either side open; full-day is the
+  absence of `time`), and the live logs were rewritten by its migration. The
+  CLI follows: vendor pin bumped `a317fb67 → af57c5bb` (the batch's
+  convergence commit on main), `property create --type` routes `datetime` and
+  rejects the retired types client-side (the server's strict enum would 422
+  anyway — exit 2 lands first, and the usage message now lists the unified
+  enum), and the markdown exporter's reference closure walks the value union —
+  range `start`/`end` slots and metadata qualifier refs are collected so the
+  bundle resolves their display names instead of leaking raw ids; display
+  formatting itself (`<date> HH:MM`, ranges as a start/end map, open side
+  `null`) is the vendored exporter's `datetime` branches. Values still pass
+  through `object property set` verbatim as JSON — the server is the strict
+  shape gate (a malformed `time` 422s → exit 1). Test boot config gained the
+  vendored server's new required `signupEnabled: false`; a new suite block
+  exercises datetime schema creation, retired-type rejection, point/range/
+  open-range round-trips, malformed-time failure, markdown frontmatter
+  rendering, and the json-archive surface carrying the union verbatim.
+  Gate: `pnpm typecheck && pnpm test` green (85 tests).
+
+## 2026-10-08
+
+- **chore(release): v4.0.0 — the CLI rides the server's major.** The brand
+  slice + the covers slice ship as the CLI's v4.0.0: `CLI_VERSION` 3.2.3 →
+  4.0.0 (the server shipped v4.0.0 with the Margin Green identity), the
+  PKGBUILD records the deterministic bundle's checksum, and release.yml's
+  pacman-smoke now fetches the vendored icon beside the PKGBUILD. Gate:
+  `pnpm typecheck && pnpm test` + `pnpm build` before the tag.
+- **feat(packaging): the pacman package ships the brand app icon.**
+  `packaging/arch/PKGBUILD` vendors the Margin Green app icon (512, from the
+  `notees-brand` repo) and installs it into the hicolor theme, so desktop
+  environments and package managers show the mark. Verification: PKGBUILD
+  syntax + vendored sha256 recomputed and recorded.
+- **feat(covers): the cover command rides the `coverAssetId` wire node field.**
+  The main monorepo made `coverAssetId` / `bannerAssetId` / `aliasedNodeId`
+  wire node fields on `object.update` (optional nullable; present writes,
+  present-null clears) and exposed them on every REST object projection,
+  superseding the retired image-typed `cover` property schema (the stored
+  logs were rewritten by the monorepo migration). The CLI follows: `cover
+  set` / `cover get` / `cover clear` read `object.coverAssetId` and write via
+  `PATCH /api/objects/:id { coverAssetId }` (null clears) instead of the
+  property POST/DELETE; the `ensureCoverProperty` family ensure died with the
+  retired schema — the asset class root the upload flow needs is seeded by
+  the server on workspace bootstrap, so no ensure remains. Vendor pin bumped
+  `5e707374 → a317fb67` (the first commit exposing the fields on the REST
+  object API). Tests: the covers block asserts the field end-to-end against
+  the real vendored server; the retired `prop:cover:` exists-arm search test
+  now POSTs the `{type:"coverAsset", op:"exists"}` AST programmatically (the
+  query compiler accepts the wire-field predicates, but the query-language
+  grammar has no spelling for them yet — that production lands separately).
+  Gate: `pnpm typecheck && pnpm test` green (84 tests), full workspace build
+  green.
+- **feat(cli): align the CLI to the Margin Green brand tokens.** The brand
+  identity ("MARGIN — the page is the canvas; the margin is where thought
+  accumulates") now lives in this repo as a git submodule at `brand/`
+  (pinned to `v1.0.0`, <https://github.com/miquelrosell99/notees-brand>) —
+  the single source of truth every client consumes. Survey of the CLI's
+  brand surfaces: the tool emits plain text only (no ANSI colour, no
+  colour dependency, no hard-coded hex anywhere in `src/`, tests, scripts,
+  or packaging), so there were no terminal colours to remap; `doctor`'s
+  ok/FAIL markers and the `notees` shell prompt stay unstyled, and the
+  README carries no logo or badge block (left as-is). The submodule is
+  wired in so future coloured output derives from `brand/assets/tokens/`
+  (Advance Green `#2e5e46`, Iron Ink `#1c1a16`, Paper `#f7f4ec`,
+  Night `#161412`). Verification: `pnpm typecheck && pnpm test` — 84/84
+  green.
+
+## 2026-10-07
+
+- **fix(release): the pacman package installs the bundle executable.**
+  `install -Dm644` in the PKGBUILD left `/usr/lib/notees-cli/cli.mjs`
+  non-executable; `/usr/bin/notees` symlinks straight at it, so the packaged
+  CLI died with "Permission denied" (exit 126) — caught by the new
+  `pacman-smoke` job on the v3.2.2 tag (its release assets are unaffected;
+  install.sh there works fine). Fixed mode 0755. Per the never-re-tag law
+  the correction rides the next patch tag, v3.2.3.
+- **feat(release): pacman packaging — `packaging/arch/PKGBUILD` + release.yml
+  checksum gate + Arch smoke job.** Every tag now also feeds a pacman
+  package: the PKGBUILD builds from the tag's release assets (`cli.mjs` +
+  sha256 sidecar, LICENSE from the tag; `depends nodejs>=22`; AGPL-3.0-or-later;
+  `/usr/bin/notees → /usr/lib/notees-cli/cli.mjs`). The workflow greps the
+  staged bundle's sha256 into the PKGBUILD before publishing (a stale
+  checksum fails the release), and a `pacman-smoke` job build-installs the
+  package on an `archlinux` container via `makepkg` and runs the packaged
+  binary. AUR publication is deliberately deferred — the in-repo PKGBUILD is
+  the supported build. Docs: README Installing (pacman subsection + layout
+  tree), the operations skill (mechanism + cutting steps), AGENTS.md. The
+  fleet host runs Debian, so this tier targets Arch workstations; install.sh
+  stays the fleet path. Part of v3.2.2, the first tag released through the
+  workflow.
+- **fix(cli): the direct-execution guard follows symlinks.** The
+  `invokedDirectly` check compared `import.meta.url` (resolved realpath)
+  against `argv[1]` as typed, so invoking the CLI through a symlink — what
+  `install.sh` creates (`notees → notees.mjs`) and what the pacman package
+  creates under `/usr/bin` — silently no-opped with exit 0. Both spellings
+  are now compared; `install.sh`'s sanity check requires a version-shaped
+  `--version` output (a bare exit code also passes when the binary no-ops).
+  Found by testing the installed symlink against the live server.
+- **feat(release): tags carry an installable bundle — `release.yml` workflow
+  + `scripts/install.sh`.** A `v*` tag push now builds `dist/cli.js` in CI
+  (vendored build + typecheck + test + bundle, mirroring the release gate)
+  and attaches it to the tag's GitHub Release as `cli.mjs` + a sha256
+  sidecar — `.mjs` so the standalone ESM bundle keeps its module type
+  without a package.json beside it. `scripts/install.sh` fetches a release
+  (default latest, resolvable offline via the `/releases/latest` redirect),
+  verifies the checksum (sha256sum/shasum portable), needs node ≥ 22, and
+  links `notees → notees.mjs` into `~/.local/bin` (override
+  `NOTEES_INSTALL_DIR`; `NOTEES_RELEASE_BASE` mirrors/testing). No npm, no
+  docker — tags stay the only release coordinate. The bundle is
+  self-contained: tsup compiles every runtime dependency in
+  (`noExternal` for the `@notees/*` packages + commander, with a
+  `createRequire` banner shim — the first backfilled asset was not
+  standalone and was replaced). Docs: README "Installing" + "Versioning",
+  the operations skill (law 1 + `references/releases.md`), AGENTS.md's
+  workflow line. The v3.2.1 release was backfilled by hand so the install
+  path works today; the workflow takes over from the next tag.
+  Verification: gate re-run green; install.sh exercised end-to-end against
+  the live release (checksum verify + `notees doctor` from the installed
+  symlink).
+
+- **feat: graph-migration ergonomics — scoped bulk class ops, rich-content
+  flags, children windowing, uuid query refs, shell script files.** Grown
+  from a real 468-node migration (the MakerWorld "modelo 3D" → "Web link"
+  class move with the tag preserved as a Description mention): the friction
+  points became first-class surface.
+  - `class remap` gains `--parent <id>` (scope the move to members whose
+    direct parent is the given node — subtree-wide scoping rides the query
+    language) and `--jobs <n>` (member moves run in a concurrency pool,
+    default 8, cap 32; membership is an OR-Set so moves are order-free).
+    `class empty` / `class delete-members` gain the same `--parent` scope.
+    Scoped member lists resolve through the objects endpoint (class × parent
+    filter, cursor-followed) because the class-detail payload carries no
+    parent ids.
+  - `object create` / `object update` gain `--content <json>`: a contentAst
+    token array for rich content (mentions, external links) without dropping
+    into the shell; mutually exclusive with `--name` (name IS single-token
+    content), non-array JSON fails as usage. Note the standing model
+    invariant: root pages/classes carry text-only content — rich tokens on a
+    parentless create flatten server-side (the suite pins this).
+  - `object children` gains client-side windowing over the (unpaginated)
+    endpoint: `--offset`/`--limit` (machine surface reports `total`
+    alongside the window), `--count`, and `--fields a,b,c` projection (`id`
+    always kept).
+  - `search` query language: `class:`, `prop:`, and `linked:` accept uuids
+    verbatim (name-or-uuid refs, like `object list --class`), with the
+    `linked:` uuid prefetch skipped — no name lookup needed or possible.
+  - `notees shell [script]` runs a script file instead of piped stdin (the
+    REPL stays TTY-only); the help header now states the vm has no
+    `require`/`fs` so ids are fed inline or via a file.
+  - `object property set` help documents the `{"nodeId":"…"}` carrier-block
+    ref shape for text values (the shape the graph actually stores).
+  - Verification: `pnpm typecheck && pnpm test` — 84/84 green, incl. new
+    coverage for every flag above.
+
+## 2026-10-06
+
+- **chore(docs): plan-era record keeping retired; `CHANGELOG.md` becomes the
+  record.** Same treatment as the main repo: the plan §-citations in code
+  comments, test titles, and docs (`§34.28 #13`, `§34.32 PG7`, `§34.16.3`,
+  `§34.74`, `§34.59`, `§3`, the README's `§34.82` split-out note, …) are gone
+  — the text stands without the citation tokens; the main-repo plan pointer
+  in the README is deleted; narrative v1/v2 qualifiers ("Notees v2 CLI",
+  "the v1 migration", "the M1 CLI", the M1 drift/person-match notes) are
+  reworded without the labels. Deliberate exceptions, per the main repo's
+  policy: live version identifiers stay exact — `/api/relay/v2` paths, the
+  envelope, the `notees-json-archive` v1 envelope format, `v2.0.0-mN` git
+  tags — and the arbitrary test-data strings (`t1-cli-page-v2`) are data, not
+  history. `AGENTS.md` created as static guidance (layout, commands,
+  invariants, records index); the `notees-cli-development` +
+  `notees-cli-operations` project-skill pair added under `.agents/skills/`.
+  No logic, symbol, or assertion changes; gate re-run green.

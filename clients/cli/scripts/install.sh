@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Install the `notees` CLI from a release bundle.
+#
+#   curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash -s -- v3.2.1
+#
+# The script downloads the tag's `cli.mjs` bundle (+ sha256, verified before
+# install), places it as `notees.mjs` in the install dir, and symlinks
+# `notees` next to it. It also always writes a `notees.cmd` shim next to it
+# so cmd/PowerShell can invoke the CLI on Windows (a unix-shebang extensionless
+# script is not executable there). Requires bash, curl, and node (>= 22) on PATH.
+#
+# Since the local-first rewrite the bundle needs the NATIVE better-sqlite3
+# module at runtime (the per-workspace derived store) — it cannot be bundled.
+# The installer provisions it into a `node_modules` beside `notees.mjs` with
+# npm (a prebuilt binary is fetched for the host platform; no build toolchain
+# needed). Set NOTEES_SKIP_SQLITE=1 to skip (only safe when something else
+# already provides the module).
+#
+# Env overrides:
+#   NOTEES_INSTALL_DIR    where `notees` lands (default: ~/.local/bin)
+#   NOTEES_VERSION        release to install when no argument is given
+#   NOTEES_RELEASE_BASE   download base (default: this repo's GitHub releases;
+#                         override for mirrors or file-based testing)
+set -euo pipefail
+
+REPO="miquelrosell99/notees-cli"
+
+VERSION="${1:-${NOTEES_VERSION:-latest}}"
+case "$VERSION" in
+  latest) ;;
+  v*) ;;
+  *) VERSION="v$VERSION" ;;
+esac
+
+INSTALL_DIR="${NOTEES_INSTALL_DIR:-$HOME/.local/bin}"
+RELEASE_BASE="${NOTEES_RELEASE_BASE:-https://github.com/$REPO/releases/download}"
+
+log() { printf 'notees-install: %s\n' "$*" >&2; }
+die() { log "$*"; exit 1; }
+
+command -v curl >/dev/null 2>&1 || die "curl is required on PATH"
+command -v node >/dev/null 2>&1 || die "node (>= 22) is required on PATH"
+node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)' \
+  || die "node >= 22 is required (found $(node --version))"
+
+if [ "$VERSION" = "latest" ]; then
+  # /releases/latest redirects to the newest tag — the final URL carries it,
+  # no JSON parsing needed.
+  resolved="$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest")" \
+    || die "cannot resolve the latest release (network or repo unreachable)"
+  VERSION="${resolved##*/}"
+fi
+[ -n "$VERSION" ] && [ "$VERSION" != "latest" ] || die "could not resolve a release version"
+
+BASE="$RELEASE_BASE/$VERSION"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+log "downloading $VERSION from $BASE"
+curl -fsSL "$BASE/cli.mjs" -o "$TMP/cli.mjs" || die "no cli.mjs bundle for $VERSION (release assets missing?)"
+curl -fsSL "$BASE/cli.mjs.sha256" -o "$TMP/cli.mjs.sha256" || die "no cli.mjs.sha256 checksum for $VERSION"
+
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$TMP" && sha256sum -c cli.mjs.sha256 >/dev/null) || die "checksum mismatch for cli.mjs — refusing to install"
+else
+  (cd "$TMP" && shasum -a 256 -c cli.mjs.sha256 >/dev/null) || die "checksum mismatch for cli.mjs — refusing to install"
+fi
+
+mkdir -p "$INSTALL_DIR"
+if ! cp "$TMP/cli.mjs" "$INSTALL_DIR/notees.mjs" 2>/dev/null; then
+  die "cannot write to $INSTALL_DIR (permission? set NOTEES_INSTALL_DIR)"
+fi
+chmod 0755 "$INSTALL_DIR/notees.mjs"
+ln -sfn "notees.mjs" "$INSTALL_DIR/notees"
+
+# cmd/PowerShell cannot execute the extensionless `notees` (a unix-shebang
+# script), so always emit a `notees.cmd` shim next to it — one small extra
+# file on unix, and no platform detection to get wrong. `node` is already a
+# hard requirement of this installer, so the shim adds no dependency.
+cat > "$INSTALL_DIR/notees.cmd" <<'EOF'
+@echo off
+node "%~dp0notees.mjs" %*
+EOF
+
+# better-sqlite3 (native, runtime-required since the local-first rewrite):
+# provision it beside the bundle unless the caller opted out or it already
+# resolves from here. npm fetches a prebuilt binary for the host platform —
+# no build toolchain needed.
+if [ "${NOTEES_SKIP_SQLITE:-0}" != "1" ]; then
+  if (cd "$INSTALL_DIR" && node -e 'require("better-sqlite3")' 2>/dev/null); then
+    log "better-sqlite3 already provisioned beside the bundle — skipping"
+  else
+    command -v npm >/dev/null 2>&1 || die "npm is required to provision better-sqlite3 (or set NOTEES_SKIP_SQLITE=1 when it resolves already)"
+    log "installing better-sqlite3 into $INSTALL_DIR/node_modules (native prebuilt)"
+    (cd "$INSTALL_DIR" && npm install --no-save --no-fund --no-audit --omit=dev better-sqlite3@12) \
+      || die "better-sqlite3 provisioning failed (network? set NOTEES_SKIP_SQLITE=1 if provided otherwise)"
+  fi
+fi
+
+# Sanity: the installed symlink must answer --version with a version string
+# (a bare exit-code check is not enough — a silently no-op'ing binary also
+# exits 0).
+installed_version="$("$INSTALL_DIR/notees" --version 2>/dev/null || true)"
+case "$installed_version" in
+  [0-9]*.[0-9]*.[0-9]*) ;;
+  *) die "installed binary failed to run — check node >= 22" ;;
+esac
+
+log "installed notees $VERSION into $INSTALL_DIR (notees -> notees.mjs, + notees.cmd for cmd/PowerShell)"
+log "make sure $INSTALL_DIR is on PATH"

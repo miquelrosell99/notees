@@ -1,0 +1,4872 @@
+import { createServer } from "node:http";
+import { AddressInfo } from "node:net";
+import { Readable } from "node:stream";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join } from "node:path";
+
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import Database from "better-sqlite3";
+
+// One real server per file (was: per test — repeated boots accumulated
+// handles in the worker and beforeEach intermittently blew the 10 s hook
+// timeout under load; registered flake in SCHEMA.md's deviation register).
+// Generous timeouts kept as a bounded safety margin.
+vi.setConfig({ hookTimeout: 30_000, testTimeout: 30_000 });
+
+import {
+  Clock,
+  b64uDecode,
+  b64uEncode,
+  deriveMachineKey,
+  generateWorkspaceKey,
+  importMasterKey,
+  masterKeyFp,
+  newEnvelope,
+  unwrapMasterKeyWithBytes,
+  wrapWorkspaceKey,
+  type Envelope,
+} from "@notees/protocol";
+import {
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  chainNodeIds,
+  dateNodeDisplayLabel,
+  dateNodeLabel,
+  parseIsoDate,
+} from "@notees/domain";
+import { bibToCsl, parseBibtex } from "@notees/export";
+import { Store } from "@notees/store";
+
+import { buildServer, defaultWorkspaceId } from "@notees/server";
+
+import { run, type CliIo } from "../src/cli.js";
+import { EXIT } from "../src/exit-codes.js";
+import { LocalWorkspace, openLocalWorkspace } from "../src/local-workspace.js";
+import { buildMarkdownBundle } from "../src/markdown-export.js";
+import { updateServerState } from "../src/state.js";
+
+const API_KEY = `nk_${"c".repeat(32)}`;
+type App = Awaited<ReturnType<typeof buildServer>>["app"];
+
+class Capture implements CliIo {
+  stdoutText = "";
+  stderrText = "";
+  isTty = false;
+  stdin?: NodeJS.ReadableStream | undefined;
+  stdout = {
+    write: (chunk: string) => {
+      this.stdoutText += chunk;
+    },
+  };
+  stderr = {
+    write: (chunk: string) => {
+      this.stderrText += chunk;
+    },
+  };
+}
+
+interface Harness {
+  app: App;
+  dataDir: string;
+  baseUrl: string;
+  stateFile: string;
+  io: Capture;
+  runCli(...args: string[]): Promise<number>;
+  runCliWithStdin(stdin: string, ...args: string[]): Promise<number>;
+  createPage(name: string, contentAst: unknown[]): Promise<string>;
+  /** Seed a standalone object through the CLI create path -> its id. */
+  seedObject(name: string, classIds: string[]): Promise<string>;
+  /** Seed one typed property value through the CLI property-set path. */
+  seedProperty(objectId: string, propertySchemaId: string, value: unknown): Promise<void>;
+}
+
+async function bootServer(): Promise<Harness> {
+  const dataDir = mkdtempSync(join(tmpdir(), "notees-cli-test-"));
+  const stateFile = join(dataDir, "cli-state.json");
+  const { app } = await buildServer(
+    {
+      dataDir,
+      apiKey: API_KEY,
+      port: 0,
+      host: "127.0.0.1",
+      logger: false,
+      relayBatchPerMinute: 30_000,
+      globalRequestsPerMinute: 10_000,
+      maxMediaBytes: 50 * 1024 * 1024,
+      maxDocumentBytes: 100 * 1024 * 1024,
+      loginPerMinute: 10,
+      signupEnabled: false,
+      requireKeyed: false,
+      resolverTimeoutMs: 10_000,
+      corsOrigins: [],
+    },
+    { logger: false },
+  );
+  await app.listen({ port: 0, host: "127.0.0.1" });
+  const { port } = app.server.address() as AddressInfo;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const io = new Capture();
+  const harness: Harness = {
+    app,
+    dataDir,
+    baseUrl,
+    stateFile,
+    io,
+    async runCli(...args: string[]) {
+      io.stdoutText = "";
+      io.stderrText = "";
+      return run(["--server", baseUrl, "--key", API_KEY, ...args], io);
+    },
+    async runCliWithStdin(stdin: string, ...args: string[]) {
+      io.stdoutText = "";
+      io.stderrText = "";
+      io.stdin = Readable.from([stdin]);
+      const code = await run(["--server", baseUrl, "--key", API_KEY, ...args], io);
+      io.stdin = undefined;
+      return code;
+    },
+    async seedObject(name, classIds) {
+      const code = await this.runCliWithStdin(
+        JSON.stringify({ isEmbedded: false, name, classIds }),
+        "--json", "object", "create", "--stdin",
+      );
+      if (code !== EXIT.ok) throw new Error(`seedObject ${name} failed: ${io.stderrText}`);
+      return (JSON.parse(io.stdoutText) as { id: string }).id;
+    },
+    async seedProperty(objectId, propertySchemaId, value) {
+      // JSON-encoded on the wire so a bare numeric string (an ISBN) stays a
+      // string value for the text schema (the CLI JSON-parses the value arg).
+      const code = await this.runCli(
+        "--json", "object", "property", "set", objectId, propertySchemaId,
+        JSON.stringify(value),
+        "--idx", "0",
+      );
+      if (code !== EXIT.ok) throw new Error(`seedProperty ${objectId}/${propertySchemaId} failed: ${io.stderrText}`);
+    },
+    async createPage(name: string, contentAst: unknown[]) {
+      // Title-is-content: the page's own content IS its title; the given
+      // contentAst becomes a child block (pages are text-only by invariant).
+      const code = await this.runCliWithStdin(
+        JSON.stringify({ isEmbedded: false, contentAst: [{ type: "text", text: name }] }),
+        "--json", "object", "create", "--stdin",
+      );
+      if (code !== EXIT.ok) throw new Error(`createPage ${name} failed: ${io.stderrText}`);
+      const id = (JSON.parse(io.stdoutText) as { id: string }).id;
+      if (contentAst.length > 0) {
+        const blockCode = await this.runCliWithStdin(
+          JSON.stringify({ isEmbedded: true, parentId: id, contentAst }),
+          "--json", "object", "create", "--stdin",
+        );
+        if (blockCode !== EXIT.ok) throw new Error(`createPage block ${name} failed: ${io.stderrText}`);
+      }
+      return id;
+    },
+  };
+  return harness;
+}
+
+let harness: Harness;
+
+// The operator shell may export NOTEES_* defaults (the fleet host does) —
+// the suite asserts usage errors for exactly the cases those defaults would
+// silently satisfy ("no server configured" must not find one via the
+// environment). Blank them for the whole run and restore them afterwards.
+const LEAKED_ENV = [
+  "NOTEES_SERVER",
+  "NOTEES_WORKSPACE",
+  "NOTEES_API_KEY",
+  "NOTEES_EMAIL",
+  "NOTEES_PASSWORD",
+] as const;
+const savedEnv: Record<string, string | undefined> = {};
+
+beforeAll(async () => {
+  harness = await bootServer();
+  process.env.NOTEES_STATE_FILE = harness.stateFile;
+  for (const name of LEAKED_ENV) {
+    savedEnv[name] = process.env[name];
+    delete process.env[name];
+  }
+});
+afterAll(async () => {
+  await harness.app.close();
+  rmSync(harness.dataDir, { recursive: true, force: true });
+  delete process.env.NOTEES_STATE_FILE;
+  for (const name of LEAKED_ENV) {
+    if (savedEnv[name] === undefined) delete process.env[name];
+    else process.env[name] = savedEnv[name];
+  }
+});
+
+// A test-private state file: stored defaults/credentials must not leak into
+// the shared harness state (other tests assert the no-server usage error
+// against a blank environment).
+async function withFreshStateFile(fn: (stateFile: string) => Promise<void>): Promise<void> {
+  const dir = mkdtempSync(join(tmpdir(), "notees-cli-config-test-"));
+  const stateFile = join(dir, "state.json");
+  const saved = process.env.NOTEES_STATE_FILE;
+  process.env.NOTEES_STATE_FILE = stateFile;
+  try {
+    await fn(stateFile);
+  } finally {
+    if (saved === undefined) delete process.env.NOTEES_STATE_FILE;
+    else process.env.NOTEES_STATE_FILE = saved;
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("object lifecycle (json mode)", () => {
+  it("create → get → list → search → update → delete", async () => {
+    const h = harness;
+
+    // create (prints the new id; --json wraps it) — content via --stdin
+    // Title-is-content: the title IS the content; `name` is only a create
+    // convenience when no contentAst is given.
+    const stdin = JSON.stringify({
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "t1-cli-page" }],
+    });
+    const createCode = await h.runCliWithStdin(stdin, "--json", "object", "create", "--stdin");
+    expect(createCode).toBe(EXIT.ok);
+    const created = JSON.parse(h.io.stdoutText);
+    expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
+
+    // get
+    expect(await h.runCli("--json", "object", "get", created.id)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("t1-cli-page"); // derived from content
+
+    // update
+    expect(await h.runCli("--json", "object", "update", created.id, "--name", "t1-cli-page-v2")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("t1-cli-page-v2");
+
+    // list
+    expect(await h.runCli("--json", "object", "list", "--no-isEmbedded")).toBe(EXIT.ok);
+    const list = JSON.parse(h.io.stdoutText);
+    expect(list.objects.map((o: { id: string }) => o.id)).toContain(created.id);
+    expect(list.nextCursor).toBeDefined();
+
+    // search (title term — title-is-content: it lives in the content)
+    expect(await h.runCli("--json", "search", "t1-cli-page-v2")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).results.map((r: { id: string }) => r.id)).toContain(created.id);
+
+    // delete without --yes: exit 2, nothing deleted
+    const refused = await h.runCli("--json", "object", "delete", created.id);
+    expect(refused).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("--yes");
+    expect(await h.runCli("--json", "object", "get", created.id)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.isActive).toBe(true);
+
+    // delete with --yes (soft)
+    expect(await h.runCli("--json", "object", "delete", created.id, "--yes")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText)).toMatchObject({ id: created.id, deleted: true, permanent: false });
+
+    // permanent delete
+    expect(await h.runCli("--json", "object", "delete", created.id, "--permanent", "--yes")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", created.id)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("does not exist");
+  });
+
+  it("create reads the body from --stdin", async () => {
+    const h = harness;
+    const stdin = JSON.stringify({ isEmbedded: false, contentAst: [{ type: "text", text: "t2-stdin-page" }] });
+    const code = await h.runCliWithStdin(stdin, "--json", "object", "create", "--stdin");
+    expect(code).toBe(EXIT.ok);
+    const { id } = JSON.parse(h.io.stdoutText);
+    expect(await h.runCli("--json", "object", "get", id)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("t2-stdin-page");
+  });
+
+  it("create with --class shows up via class list members", async () => {
+    const h = harness;
+    await h.runCli("--json", "class", "list");
+    const classes = JSON.parse(h.io.stdoutText).classes as { id: string; name: string }[];
+    const taskClass = classes.find((c) => c.name === "Task")!;
+    expect(taskClass).toBeDefined();
+
+    const code = await h.runCli("--json", "object", "create", "--no-isEmbedded", "--name", "t3-task-page", "--class", taskClass.id);
+    expect(code).toBe(EXIT.ok);
+    const { id } = JSON.parse(h.io.stdoutText);
+    expect(await h.runCli("--json", "backlinks", id)).toBe(EXIT.ok);
+  });
+});
+
+describe("object merge", () => {
+  it("preview-first: --dry-run shows the plan, --yes merges, the source trashes", async () => {
+    const h = harness;
+    const source = await h.createPage("merge-source", [{ type: "text", text: "a block" }]);
+    const target = await h.createPage("merge-target", []);
+
+    // dry run: exit 0, plan only, nothing written.
+    expect(await h.runCli("--json", "object", "merge", source, target, "--dry-run")).toBe(EXIT.ok);
+    const dry = JSON.parse(h.io.stdoutText);
+    expect(dry.dryRun).toBe(true);
+    expect(dry.summary.childrenMoved).toBe(1);
+    expect(await h.runCli("--json", "object", "get", source)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.isActive).toBe(true);
+
+    // without --yes: exit 2 with the blast radius, nothing written.
+    const refused = await h.runCli("--json", "object", "merge", source, target);
+    expect(refused).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("--yes");
+    expect(await h.runCli("--json", "object", "get", source)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.isActive).toBe(true);
+
+    // --yes: the merge lands.
+    expect(await h.runCli("--json", "object", "merge", source, target, "--yes")).toBe(EXIT.ok);
+    const merged = JSON.parse(h.io.stdoutText);
+    expect(merged.merged).toBe(true);
+    expect(merged.summary.childrenMoved).toBe(1);
+
+    // The source is trashed; the target owns the block.
+    expect(await h.runCli("--json", "object", "get", source)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.isActive).toBe(false);
+    expect(await h.runCli("--json", "object", "children", target)).toBe(EXIT.ok);
+    const children = JSON.parse(h.io.stdoutText).children as Array<{ id: string }>;
+    expect(children.length).toBe(1);
+  });
+
+  it("guard failures surface the server's 422 → exit 1 (self-merge and descendant target)", async () => {
+    const h = harness;
+    const page = await h.createPage("merge-same", []);
+
+    // source === target: no client-side shortcut — the server's merge
+    // planner owns the guard and answers 422 → exit 1 (domain).
+    const selfCode = await h.runCli("--json", "object", "merge", page, page, "--yes");
+    expect(selfCode).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("must be different nodes");
+
+    // target inside the source's subtree (trashing the source would trash
+    // the target) — the same 422 path.
+    const outer = await h.createPage("merge-outer", []);
+    const inner = await h.createPage("merge-inner", []);
+    expect(await h.runCli("--json", "object", "move", inner, "--parent", outer)).toBe(EXIT.ok);
+    const descendantCode = await h.runCli("--json", "object", "merge", outer, inner, "--yes");
+    expect(descendantCode).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("subtree");
+  });
+
+  it("an unknown endpoint id follows the route-error mapping (404 → exit 1, not 3)", async () => {
+    const h = harness;
+    const target = await h.createPage("merge-404-target", []);
+    const code = await h.runCli("--json", "object", "merge", "00000000-0000-0000-0000-00000000dead", target, "--yes");
+    expect(code).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("does not exist");
+  });
+
+  it("human output: one line per nonzero summary counter, then the Merged trailer", async () => {
+    const h = harness;
+    const source = await h.createPage("merge-human-src", [{ type: "text", text: "payload block" }]);
+    const target = await h.createPage("merge-human-tgt", []);
+
+    expect(await h.runCli("object", "merge", source, target, "--dry-run")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("dry run:");
+    expect(h.io.stdoutText).toMatch(/^\s+1 children moved$/m);
+
+    expect(await h.runCli("object", "merge", source, target, "--yes")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toMatch(/^\s+1 children moved$/m);
+    expect(h.io.stdoutText).toContain(`Merged "merge-human-src" into "merge-human-tgt"`);
+  });
+});
+
+describe("exit codes", () => {
+  it("bad API key → 3", async () => {
+    const h = harness;
+    const io = new Capture();
+    const code = await run(["--server", h.baseUrl, "--key", `nk_${"z".repeat(32)}`, "--json", "object", "list"], io);
+    expect(code).toBe(EXIT.auth);
+  });
+
+  it("unreachable server → 5", async () => {
+    // A port that was just released: guaranteed nothing is listening there,
+    // and the shared file-level server stays up for the remaining tests.
+    const probe = createServer();
+    await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", resolve));
+    const deadPort = (probe.address() as AddressInfo).port;
+    await new Promise<void>((resolve, reject) =>
+      probe.close((error) => (error !== null && error !== undefined ? reject(error) : resolve())),
+    );
+    const io = new Capture();
+    const code = await run(
+      ["--server", `http://127.0.0.1:${deadPort}`, "--key", API_KEY, "--json", "object", "list"],
+      io,
+    );
+    expect(code).toBe(EXIT.network);
+  });
+
+  it("unknown object → 1 (domain)", async () => {
+    const h = harness;
+    const code = await h.runCli("--json", "object", "get", crypto.randomUUID());
+    expect(code).toBe(EXIT.domain);
+  });
+
+  it("usage errors → 2 (missing server, update without fields)", async () => {
+    const h = harness;
+    const io = new Capture();
+    const missingServer = await run(["--key", API_KEY, "object", "list"], io);
+    expect(missingServer).toBe(EXIT.usage);
+
+    // No update fields at all: client-side usage error (never hits the wire).
+    const emptyUpdate = await h.runCli("object", "update", crypto.randomUUID());
+    expect(emptyUpdate).toBe(EXIT.usage);
+  });
+
+  it("doctor passes against a healthy server and fails on a bad key", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "doctor")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).ok).toBe(true);
+
+    const io = new Capture();
+    const badKey = await run(["--server", h.baseUrl, "--key", `nk_${"y".repeat(32)}`, "doctor"], io);
+    expect(badKey).toBe(EXIT.auth);
+  });
+});
+
+describe("assets, classes, sync", () => {
+  it("asset add → get round-trip", async () => {
+    const h = harness;
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.from("cli-upload"),
+    ]);
+    const file = join(h.dataDir, "t4-upload.png");
+    writeFileSync(file, png);
+
+    const addCode = await h.runCli("--json", "asset", "add", file);
+    expect(addCode).toBe(EXIT.ok);
+    const { assetId } = JSON.parse(h.io.stdoutText);
+
+    const out = join(h.dataDir, "t4-downloaded.png");
+    const getCode = await h.runCli("--json", "asset", "get", assetId, "--output", out);
+    expect(getCode).toBe(EXIT.ok);
+    expect(readFileSync(out).equals(png)).toBe(true);
+  });
+
+  it("class list includes seeded classes", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "class", "list")).toBe(EXIT.ok);
+    const names = (JSON.parse(h.io.stdoutText).classes as { name: string }[]).map((c) => c.name);
+    expect(names).toContain("Task");
+    expect(names).toContain("Source");
+  });
+
+  it("sync status reports server stats and the local cursor", async () => {
+    const h = harness;
+    await h.runCli("--json", "object", "create", "--no-isEmbedded", "--name", "t5-sync-probe");
+    expect(await h.runCli("--json", "sync", "status")).toBe(EXIT.ok);
+    const status = JSON.parse(h.io.stdoutText);
+    // Every command syncs on open, so the persisted cursor tracks the relay
+    // log exactly: nothing is behind, nothing is unpushed. (envelopeCount
+    // includes seeding and every other test's writes — hence only > 0.)
+    expect(status.envelopeCount).toBeGreaterThan(0);
+    expect(status.localCursorSeq).toBe(status.envelopeCount);
+    expect(status.behind).toBe(0);
+    expect(status.unpushed).toBe(0);
+  });
+
+  it("`notees sync` runs a cycle and reports the watermarks", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "sync")).toBe(EXIT.ok);
+    const status = JSON.parse(h.io.stdoutText);
+    expect(status.envelopeCount).toBeGreaterThan(0);
+    expect(status.localCursorSeq).toBe(status.envelopeCount);
+    expect(status.behind).toBe(0);
+    expect(status.unpushed).toBe(0);
+  });
+
+  it("object create prints a bare id in human mode", async () => {
+    const h = harness;
+    expect(await h.runCli("object", "create", "--no-isEmbedded", "--name", "t6-human")).toBe(EXIT.ok);
+    expect(h.io.stdoutText.trim()).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+
+describe("export markdown", () => {
+  it("--linked-to prints the referrer's markdown with [[name]] mentions (stdout)", async () => {
+    const h = harness;
+    const target = await h.createPage("expm-target-x", [{ type: "text", text: "seed body" }]);
+    await h.createPage("expm-referrer-r", [
+      { type: "mention", targetNodeId: target, text: "expm-target-x" },
+      { type: "text", text: " points here" },
+    ]);
+
+    const code = await h.runCli("export", "markdown", "--linked-to", target, "--stdout");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-referrer-r");
+    expect(h.io.stdoutText).toContain("[[expm-target-x]]");
+    // The seed is part of the bundle (hub of the closure).
+    expect(h.io.stdoutText).toContain("# expm-target-x");
+  });
+
+  it("--output-dir writes <uuid>.md files + notees-manifest.json; --json reports the set", async () => {
+    const h = harness;
+    const a = await h.createPage("expm-file-a", [{ type: "text", text: "file a body" }]);
+    const b = await h.createPage("expm-file-b", []);
+    const dir = join(h.dataDir, "expm-out-dir");
+
+    const code = await h.runCli("--json", "export", "markdown", "--ids", a, b, "--output-dir", dir);
+    expect(code).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { files: number; nodes: { id: string; name: string }[] };
+    expect(machine.files).toBe(2);
+    expect(machine.nodes.map((n) => n.id).sort()).toEqual([a, b].sort());
+
+    const fileA = readFileSync(join(dir, `${a}.md`), "utf8");
+    expect(fileA).toContain("name: expm-file-a");
+    expect(fileA).toContain("# expm-file-a");
+    expect(fileA).toContain("file a body");
+    expect(existsSync(join(dir, `${b}.md`))).toBe(true);
+
+    const manifest = JSON.parse(readFileSync(join(dir, "notees-manifest.json"), "utf8")) as {
+      format: string;
+      version: number;
+      nodes: { id: string; name: string; type: string; isClass: boolean; isEmbedded: boolean }[];
+    };
+    expect(manifest.format).toBe("notees-markdown");
+    expect(manifest.version).toBe(2);
+    expect(manifest.nodes).toHaveLength(2);
+    expect(manifest.nodes.find((n) => n.id === a)).toMatchObject({
+      name: "expm-file-a",
+      type: "page",
+      isClass: false,
+      isEmbedded: false,
+    });
+  });
+
+  it("--depth 0 limits the closure to the seed's direct referrers", async () => {
+    const h = harness;
+    const target = await h.createPage("expm-depth-target", []);
+    const direct = await h.createPage("expm-depth-direct", [
+      { type: "mention", targetNodeId: target, text: "expm-depth-target" },
+    ]);
+    const transitive = await h.createPage("expm-depth-transitive", [
+      { type: "mention", targetNodeId: direct, text: "expm-depth-direct" },
+    ]);
+    expect(transitive).toBeDefined();
+
+    expect(await h.runCli("export", "markdown", "--linked-to", target, "--depth", "0", "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-depth-direct");
+    expect(h.io.stdoutText).not.toContain("# expm-depth-transitive");
+
+    // Default depth (3) reaches the transitive referrer.
+    expect(await h.runCli("export", "markdown", "--linked-to", target, "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-depth-transitive");
+  });
+
+  it("children render as nested bullets under their page", async () => {
+    const h = harness;
+    const pageId = await h.createPage("expm-parent", [{ type: "text", text: "parent body" }]);
+    await h.runCliWithStdin(
+      JSON.stringify({
+        isEmbedded: true,
+        parentId: pageId,
+        contentAst: [{ type: "text", text: "child bullet body" }],
+      }),
+      "--json", "object", "create", "--stdin",
+    );
+
+    expect(await h.runCli("export", "markdown", "--ids", pageId, "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("parent body");
+    expect(h.io.stdoutText).toContain("- child bullet body");
+  });
+
+  it("children render in child-position order from the local store (the bundle never rides a paged scan)", async () => {
+    // The plan-07 local-first architecture: the bundle reads the derived
+    // store's position-ordered children, recurses into discovered inline
+    // children, skips child pages — and by construction cannot touch a
+    // paged object scan (there is no server content read left). The fixture
+    // store is built with applied envelopes; the apply order deliberately
+    // disagrees with id order.
+    const pageId = "11111111-1111-4111-8111-111111111111";
+    const childA = "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa"; // id order: A, B, G
+    const childB = "bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb"; // store order: B, A
+    const grand = "cccccccc-3333-4ccc-8ccc-cccccccccccc";
+    const childPage = "dddddddd-4444-4ddd-8ddd-dddddddddddd";
+    const dir = mkdtempSync(join(tmpdir(), "notees-cli-export-test-"));
+    const store = Store.openFile(join(dir, "fixture.db"));
+    try {
+      const workspaceId = defaultWorkspaceId();
+      const clock = new Clock("export-test");
+      const stamp = (opType: string, payload: Record<string, unknown>): Envelope =>
+        newEnvelope({
+          workspaceId,
+          actorId: "99999999-8888-4777-8666-555555555555",
+          deviceId: "export-test",
+          hlc: clock.now(),
+          opType,
+          payload,
+        });
+      const create = (payload: Record<string, unknown>): void => {
+        store.apply(stamp("object.create", payload));
+      };
+      create({
+        objectId: pageId,
+        isEmbedded: false,
+        classIds: [],
+        contentAst: [{ type: "text", text: "fake page" }],
+      });
+      // Apply order IS the store's child position: B before A, ids ascending.
+      create({
+        objectId: childB,
+        isEmbedded: true,
+        parentId: pageId,
+        classIds: [],
+        contentAst: [{ type: "text", text: "beta body" }],
+      });
+      create({
+        objectId: childA,
+        isEmbedded: true,
+        parentId: pageId,
+        classIds: [],
+        contentAst: [{ type: "text", text: "alpha body" }],
+      });
+      create({
+        objectId: childPage,
+        isEmbedded: false,
+        parentId: pageId,
+        classIds: [],
+        contentAst: [{ type: "text", text: "child page body" }],
+      });
+      create({
+        objectId: grand,
+        isEmbedded: true,
+        parentId: childB,
+        classIds: [],
+        contentAst: [{ type: "text", text: "grand body" }],
+      });
+
+      const local = new LocalWorkspace(
+        { server: "http://unused.local", apiKey: "k", workspaceId, storeDir: dir },
+        store,
+        undefined as unknown as import("@notees/sync").HttpTransport,
+        clock,
+        undefined,
+      );
+      const bundle = await buildMarkdownBundle(local, new Map(), { ids: [pageId], depth: 0 });
+
+      const file = bundle.files.find((entry) => entry.path === `${pageId}.md`);
+      expect(file).toBeDefined();
+      // Store (child-position) order wins over id order.
+      expect(file!.content.indexOf("beta body")).toBeLessThan(file!.content.indexOf("alpha body"));
+      // The discovered inline child is itself read (nested bullets recurse).
+      expect(file!.content).toContain("grand body");
+      // A child page is never a nested bullet of the parent's file (it is
+      // not in the --ids seed set, so it is not exported at all).
+      expect(file!.content).not.toContain("child page body");
+      expect(bundle.files.some((entry) => entry.path === `${childPage}.md`)).toBe(false);
+    } finally {
+      store.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("children render in child-position order (endpoint order, not id order)", async () => {
+    const h = harness;
+    const pageId = await h.createPage("expm-order-parent", []);
+    const mkChild = async (text: string): Promise<string> => {
+      const code = await h.runCliWithStdin(
+        JSON.stringify({ isEmbedded: true, parentId: pageId, contentAst: [{ type: "text", text }] }),
+        "--json", "object", "create", "--stdin",
+      );
+      if (code !== EXIT.ok) throw new Error(`mkChild ${text} failed: ${h.io.stderrText}`);
+      return (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    };
+    const a = await mkChild("order-first");
+    const b = await mkChild("order-second");
+    const c = await mkChild("order-third");
+    // A main child: exported as its own file when selected, never a bullet.
+    await h.runCliWithStdin(
+      JSON.stringify({ isEmbedded: false, parentId: pageId, contentAst: [{ type: "text", text: "order-main-child-body" }] }),
+      "--json", "object", "create", "--stdin",
+    );
+
+    // Invert the position order through the relay write path (ids stay
+    // creation-ordered, so child order and id order genuinely differ). The
+    // crafted HLC runs ahead of the server-stamped creates.
+    const move = newEnvelope({
+      workspaceId: defaultWorkspaceId(),
+      actorId: "99999999-8888-4777-8666-555555555555",
+      deviceId: "test",
+      hlc: { physical: Date.now() + 1000, logical: 0 },
+      opType: "object.move",
+      payload: { objectId: c, parentId: pageId, beforeId: a },
+    });
+    const res = await fetch(`${h.baseUrl}/api/relay/v2/batch`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": API_KEY },
+      body: JSON.stringify({ envelopes: [move] }),
+    });
+    expect(res.status).toBe(200);
+
+    expect(await h.runCli("export", "markdown", "--ids", pageId, "--stdout")).toBe(EXIT.ok);
+    const first = h.io.stdoutText.indexOf("- order-first");
+    const second = h.io.stdoutText.indexOf("- order-second");
+    const third = h.io.stdoutText.indexOf("- order-third");
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(second).toBeGreaterThanOrEqual(0);
+    expect(third).toBeGreaterThanOrEqual(0);
+    expect(third).toBeLessThan(first);
+    expect(first).toBeLessThan(second);
+    expect(h.io.stdoutText).not.toContain("order-main-child-body");
+  });
+
+  it("--fixpoint expands until no new pages are found", async () => {
+    const h = harness;
+    // NB: a true mention cycle cannot be authored through the CLI (object
+    // update carries no content flag and ids are server-generated), so the
+    // fixpoint path is exercised with a referrer chain instead.
+    const a = await h.createPage("expm-fp-a", []);
+    const b = await h.createPage("expm-fp-b", [
+      { type: "mention", targetNodeId: a, text: "expm-fp-a" },
+    ]);
+    const c = await h.createPage("expm-fp-c", [
+      { type: "mention", targetNodeId: b, text: "expm-fp-b" },
+    ]);
+    expect(c).toBeDefined();
+
+    expect(await h.runCli("export", "markdown", "--linked-to", a, "--fixpoint", "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("# expm-fp-a");
+    expect(h.io.stdoutText).toContain("# expm-fp-b");
+    expect(h.io.stdoutText).toContain("# expm-fp-c");
+  });
+
+  it("usage errors exit 2 (missing selector, missing output)", async () => {
+    const h = harness;
+    expect(await h.runCli("export", "markdown", "--stdout")).toBe(EXIT.usage);
+    expect(await h.runCli("export", "markdown", "--ids", crypto.randomUUID())).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("--output-dir");
+  });
+});
+
+const BIB_FIXTURE = `% Round-trip fixture
+@book{cli-kuhn1962,
+  title     = {The {Structure} of {Scientific} {Revolutions}},
+  author    = {Kuhn, Thomas S.},
+  year      = 1962,
+  publisher = {University of Chicago Press},
+  isbn      = {9780226458120},
+}
+@article{cli-david1962,
+  title   = {Combinatorial Chance à la française},
+  author  = {David, F. N. and Barton, D. E.},
+  year    = {1962},
+  doi     = {10.2307/2333763},
+}`;
+
+describe("bibliography round-trip (bibtex)", () => {
+  it("import creates sources with classes/properties and text-only authors (no person nodes, no linked authors)", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-1.bib");
+    writeFileSync(file, BIB_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText);
+    // Bibliographic imports NEVER create person/org
+    // nodes and NEVER write Linked authors — creators ride the CSL text
+    // properties only. The counts keys stay (additive stability) at 0.
+    expect(counts).toMatchObject({ created: 2, updated: 0, persons: 0, personsCreated: 0 });
+
+    // The book source: class + title + citekey + bibliographic properties.
+    const bookId = counts.entries[0] as string;
+    expect(bookId).toMatch(/^[0-9a-f-]{36}$/);
+    await h.runCli("--json", "object", "get", bookId);
+    const book = JSON.parse(h.io.stdoutText).object;
+    expect(book.name).toBe("The Structure of Scientific Revolutions");
+    expect(book.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    const props = book.properties as { schemaId: string; value: unknown }[];
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey)?.value).toBe("cli-kuhn1962");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)?.value).toBe("9780226458120");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publisher)?.value).toBe(
+      "University of Chicago Press",
+    );
+    // publicationDate is a date-chain ref: a {nodeId} link
+    // to the content-addressed year node, which backlinks everything dated
+    // that year.
+    const pubRef = props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate)?.value as {
+      nodeId: string;
+    };
+    expect(pubRef.nodeId).toMatch(/^[0-9a-f-]{36}$/);
+    await h.runCli("--json", "object", "get", pubRef.nodeId);
+    expect(JSON.parse(h.io.stdoutText).object.classIds).toContain(SYSTEM_CLASS_UUIDS.year);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("1962");
+    // Authorship is the citation track only: the `authors` text row carries
+    // "Family, Given" — no linkedAuthors refs, no person nodes.
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)?.value).toBe("Kuhn, Thomas S.");
+    expect(props.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)).toHaveLength(0);
+
+    // The journal-article source maps @article → the journal_article class.
+    const paperId = counts.entries[1] as string;
+    await h.runCli("--json", "object", "get", paperId);
+    const paper = JSON.parse(h.io.stdoutText).object;
+    expect(paper.classIds).toContain(SYSTEM_CLASS_UUIDS.journal_article);
+    const paperProps = paper.properties as { schemaId: string; value: unknown }[];
+    expect(paperProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.doi)?.value).toBe("10.2307/2333763");
+    expect(paperProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)?.value).toBe("David, F. N.");
+    expect(paperProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)).toHaveLength(2);
+    expect(paperProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)).toHaveLength(0);
+
+    // No author person nodes exist (Kuhn, David, Barton all stay strings).
+    await h.runCli("--json", "class", "list");
+    const classes = JSON.parse(h.io.stdoutText).classes as { id: string; memberCount: number }[];
+    expect(classes.find((c) => c.id === SYSTEM_CLASS_UUIDS.person)?.memberCount ?? 0).toBe(0);
+  });
+
+  it("re-import dedupes by citekey (no duplicates, still no persons)", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-2.bib");
+    writeFileSync(file, BIB_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText);
+    expect(counts).toMatchObject({ created: 0, updated: 2, persons: 0, personsCreated: 0 });
+
+    // Exactly one object per citekey after the re-import.
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-kuhn1962`);
+    expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(1);
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-david1962`);
+    expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(1);
+    // Still zero person nodes.
+    await h.runCli("--json", "class", "list");
+    const classes = JSON.parse(h.io.stdoutText).classes as { id: string; memberCount: number }[];
+    expect(classes.find((c) => c.id === SYSTEM_CLASS_UUIDS.person)?.memberCount ?? 0).toBe(0);
+  });
+
+  it("citekey upsert updates the existing source instead of duplicating it", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-3.bib");
+    writeFileSync(
+      file,
+      `@book{cli-kuhn1962,
+  title = {The Structure of Scientific Revolutions, 2nd ed.},
+  author = {Kuhn, Thomas S.},
+  year = 1970,
+  isbn = {9780226458083},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText)).toMatchObject({ created: 0, updated: 1 });
+
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:cli-kuhn1962`);
+    const objects = JSON.parse(h.io.stdoutText).objects as { id: string }[];
+    expect(objects).toHaveLength(1);
+    await h.runCli("--json", "object", "get", objects[0]!.id);
+    const book = JSON.parse(h.io.stdoutText).object;
+    expect(book.name).toBe("The Structure of Scientific Revolutions, 2nd ed.");
+    const props = book.properties as { schemaId: string; value: unknown }[];
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)?.value).toBe("9780226458083");
+    const pubRef = props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate)?.value as {
+      nodeId: string;
+    };
+    expect(pubRef.nodeId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("export bibtex --ids renders entries; CSL round-trip keeps title/author/year/doi stable", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-4.bib");
+    writeFileSync(
+      file,
+      `@book{cli-exp-kuhn1962,
+  title   = {The {Structure} of {Scientific} {Revolutions}},
+  author  = {Kuhn, Thomas S.},
+  year    = 1962,
+  isbn    = {9780226458120},
+}
+@article{cli-exp-david1962,
+  title  = {Combinatorial Chance à la française},
+  author = {David, F. N. and Barton, D. E.},
+  year   = {1962},
+  doi    = {10.2307/2333763},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const { entries } = JSON.parse(h.io.stdoutText) as { entries: string[] };
+
+    // Human output is the .bib document itself.
+    expect(await h.runCli("export", "bibtex", "--ids", entries[0]!, entries[1]!)).toBe(EXIT.ok);
+    const bibText = h.io.stdoutText;
+    expect(bibText).toContain("@book{cli-exp-kuhn1962,");
+    expect(bibText).toContain("@article{cli-exp-david1962,");
+
+    // Round-trip: parse the exported document back and compare CSL fields.
+    const roundTripped = parseBibtex(bibText);
+    const byKey = new Map(roundTripped.map((entry) => [entry.citeKey, bibToCsl(entry)]));
+    const kuhn = byKey.get("cli-exp-kuhn1962")!;
+    expect(kuhn.type).toBe("book");
+    expect(kuhn.title).toBe("The Structure of Scientific Revolutions");
+    expect(kuhn.author).toEqual([{ family: "Kuhn", given: "Thomas S." }]);
+    expect(kuhn.issued).toEqual({ "date-parts": [[1962]] });
+    expect(kuhn.ISBN).toBe("9780226458120");
+    const david = byKey.get("cli-exp-david1962")!;
+    expect(david.type).toBe("article-journal"); // journal_article class → CSL article-journal
+    expect(david.author).toEqual([
+      { family: "David", given: "F. N." },
+      { family: "Barton", given: "D. E." },
+    ]);
+    expect(david.issued).toEqual({ "date-parts": [[1962]] });
+    expect(david.DOI).toBe("10.2307/2333763");
+  });
+
+  it("export bibtex --linked-to includes source referrers and skips non-source closure pages", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-5.bib");
+    writeFileSync(file, BIB_FIXTURE);
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const { entries } = JSON.parse(h.io.stdoutText) as { entries: string[] };
+
+    // A reading-notes page mentions the book; a bare page does not.
+    await h.createPage("bib-notes", [
+      { type: "mention", targetNodeId: entries[0], text: "bib-notes-target" },
+    ]);
+
+    expect(await h.runCli("--json", "export", "bibtex", "--linked-to", entries[0]!, "--depth", "0")).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText);
+    // The seed book renders; the non-source notes page is skipped.
+    expect(machine.entries).toBe(1);
+    expect(machine.skipped).toBe(1);
+    expect(machine.bib).toContain("@book{");
+    expect(machine.bib).not.toContain("bib-notes");
+  });
+
+  it("export reads the dual-track authorship contract (text authors win; linkedAuthors resolves live)", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-6.bib");
+    writeFileSync(
+      file,
+      `@book{cli-link-kuhn1962,
+  title  = {The {Structure} of {Scientific} Revolutions},
+  author = {Kuhn, Thomas S.},
+  year   = 1962,
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const { entries } = JSON.parse(h.io.stdoutText) as { entries: string[] };
+    const bookId = entries[0]!;
+
+    // The import writes the citation track only —
+    // no linkedAuthors refs, no person nodes.
+    await h.runCli("--json", "object", "get", bookId);
+    const book = JSON.parse(h.io.stdoutText).object;
+    const bookProps = book.properties as { schemaId: string; value: { nodeId?: string } }[];
+    expect(bookProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)).toHaveLength(0);
+
+    // A manual Linked authors pick (user-selected person) is the read
+    // contract's people-graph track: author it by hand.
+    expect(
+      await h.runCli("--json", "object", "create", "--name", "Sagan, Carl", "--class", SYSTEM_CLASS_UUIDS.person),
+    ).toBe(EXIT.ok);
+    const personId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(
+      await h.runCli(
+        "object",
+        "property",
+        "set",
+        bookId,
+        SYSTEM_PROPERTY_UUIDS.linkedAuthors,
+        JSON.stringify({ nodeId: personId }),
+      ),
+    ).toBe(EXIT.ok);
+
+    // The citation track (authors text) renders.
+    expect(await h.runCli("export", "bibtex", "--ids", bookId)).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("author = {Kuhn, Thomas S.}");
+
+    // Renaming the person moves the people-graph track but NOT the citation
+    // text — the authors rows are the source of truth.
+    expect(await h.runCli("object", "update", personId, "--name", "Sagan, Carl")).toBe(EXIT.ok);
+    expect(await h.runCli("export", "bibtex", "--ids", bookId)).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("author = {Kuhn, Thomas S.}");
+
+    // With the text rows cleared, export falls back to linkedAuthors and
+    // resolves the person's CURRENT display name.
+    expect(await h.runCli("object", "property", "delete", bookId, "authors")).toBe(EXIT.ok);
+    expect(await h.runCli("export", "bibtex", "--ids", bookId)).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("author = {Sagan, Carl}");
+    expect(h.io.stdoutText).not.toContain("Kuhn, Thomas S.");
+  });
+
+  it("usage errors exit 2 (missing file, no entries)", async () => {
+    const h = harness;
+    expect(await h.runCli("import", "bibtex", join(h.dataDir, "does-not-exist.bib"))).toBe(EXIT.usage);
+    const empty = join(h.dataDir, "bib-empty.bib");
+    writeFileSync(empty, "% only a comment\n");
+    expect(await h.runCli("import", "bibtex", empty)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("no importable entries");
+  });
+});
+
+describe("import adoption (title-is-content)", () => {
+  it("adopts a @citekey-titled node: renames it, sets Citekey, creates no duplicate", async () => {
+    const h = harness;
+    // The incident shape: a source-family node titled by its citekey, no
+    // Citekey property.
+    expect(
+      await h.runCli("--json", "object", "create", "--name", "@adoptkey1", "--class", SYSTEM_CLASS_UUIDS.book),
+    ).toBe(EXIT.ok);
+    const nodeId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+
+    const file = join(h.dataDir, "adopt-1.bib");
+    writeFileSync(
+      file,
+      `@book{adoptkey1,
+  title  = {Adopted Book Title},
+  author = {Doe, Jane},
+  year   = {2020},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText);
+    expect(counts).toMatchObject({ created: 0, updated: 0, adopted: 1, ambiguous: 0 });
+
+    await h.runCli("--json", "object", "get", nodeId);
+    const obj = JSON.parse(h.io.stdoutText).object;
+    expect(obj.name).toBe("Adopted Book Title");
+    expect(obj.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    const props = obj.properties as { schemaId: string; value: unknown }[];
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey)?.value).toBe("adoptkey1");
+
+    // No duplicate: exactly one object carries the citekey.
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:adoptkey1`);
+    expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(1);
+  });
+
+  it("adoption repairs eligibility: a Person-classed node gains the spec's source class", async () => {
+    const h = harness;
+    expect(
+      await h.runCli("--json", "object", "create", "--name", "@adoptkey2", "--class", SYSTEM_CLASS_UUIDS.person),
+    ).toBe(EXIT.ok);
+    const nodeId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+
+    const file = join(h.dataDir, "adopt-2.bib");
+    writeFileSync(
+      file,
+      `@book{adoptkey2,
+  title  = {Person Shaped Book},
+  author = {Doe, John},
+  year   = {2021},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText)).toMatchObject({ created: 0, adopted: 1 });
+
+    await h.runCli("--json", "object", "get", nodeId);
+    const obj = JSON.parse(h.io.stdoutText).object;
+    // The Person class stays; the spec's book class was assigned so the
+    // citekey write could land (the citekey scope is the source family).
+    expect(obj.classIds).toContain(SYSTEM_CLASS_UUIDS.person);
+    expect(obj.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    const props = obj.properties as { schemaId: string; value: unknown }[];
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey)?.value).toBe("adoptkey2");
+  });
+
+  it("--dry-run plans the adoption and writes nothing", async () => {
+    const h = harness;
+    expect(
+      await h.runCli("--json", "object", "create", "--name", "@adoptkey3", "--class", SYSTEM_CLASS_UUIDS.book),
+    ).toBe(EXIT.ok);
+    const nodeId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+
+    const file = join(h.dataDir, "adopt-3.bib");
+    writeFileSync(
+      file,
+      `@book{adoptkey3,
+  title  = {Dry Run Title},
+  author = {Doe, Jane},
+  year   = {2022},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file, "--dry-run")).toBe(EXIT.ok);
+    const plan = JSON.parse(h.io.stdoutText) as {
+      dryRun: boolean;
+      entries: Array<{ citekey: string; action: string; nodeId?: string; title: string }>;
+      counts: { adopted: number; created: number };
+    };
+    expect(plan.dryRun).toBe(true);
+    expect(plan.entries[0]).toMatchObject({ citekey: "adoptkey3", action: "adopt", nodeId, title: "Dry Run Title" });
+    expect(plan.counts).toMatchObject({ adopted: 1, created: 0 });
+
+    // Nothing was written: still titled by the citekey, no Citekey property.
+    await h.runCli("--json", "object", "get", nodeId);
+    const obj = JSON.parse(h.io.stdoutText).object;
+    expect(obj.name).toBe("@adoptkey3");
+    expect(
+      (obj.properties as { schemaId: string }[]).some((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey),
+    ).toBe(false);
+  });
+
+  it("--no-create updates matches and reports would-create entries as skipped", async () => {
+    const h = harness;
+    const seed = join(h.dataDir, "nocreate-seed.bib");
+    writeFileSync(
+      seed,
+      `@book{nc-existing,
+  title = {Existing Source},
+  year  = {1999},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", seed)).toBe(EXIT.ok);
+
+    const file = join(h.dataDir, "nocreate-run.bib");
+    writeFileSync(
+      file,
+      `@book{nc-existing,
+  title = {Existing Source, 2nd ed.},
+  year  = {2001},
+}
+@book{nc-missing,
+  title = {Not Imported},
+  year  = {2002},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file, "--no-create")).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      updated: number;
+      skipped: number;
+      skippedEntries: Array<{ citekey: string; title: string }>;
+    };
+    expect(counts).toMatchObject({ created: 0, updated: 1, skipped: 1 });
+    expect(counts.skippedEntries).toEqual([{ citekey: "nc-missing", title: "Not Imported" }]);
+
+    // The skipped source was not created (citekey-property lookup is exact —
+    // the full-text q= search is not).
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:nc-missing`);
+    expect(JSON.parse(h.io.stdoutText).objects).toHaveLength(0);
+    // The matched source took the update.
+    await h.runCli("--json", "object", "list", "--property", `${SYSTEM_PROPERTY_UUIDS.citekey}:nc-existing`);
+    const objects = JSON.parse(h.io.stdoutText).objects as { id: string }[];
+    expect(objects).toHaveLength(1);
+    await h.runCli("--json", "object", "get", objects[0]!.id);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("Existing Source, 2nd ed.");
+  });
+});
+
+describe("import csl-json", () => {
+  it("imports a 3-item CSL-JSON file with classes, citekeys, and text-only authors", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "csl-import-1.json");
+    writeFileSync(
+      file,
+      JSON.stringify({
+        items: [
+          {
+            id: "csl-book-1",
+            type: "book",
+            title: "CSL Book",
+            author: [{ family: "Curie", given: "Marie" }],
+            issued: { "date-parts": [[1903]] },
+            ISBN: "9781234567890",
+          },
+          {
+            id: "csl-article-1",
+            type: "article-journal",
+            title: "CSL Article",
+            author: [{ family: "Noether", given: "Emmy" }, { family: "Weil", given: "Simone" }],
+            issued: { "date-parts": [[1935]] },
+            DOI: "10.1234/csl",
+            "container-title": "Journal of CSL",
+          },
+          {
+            id: "csl-mag-1",
+            type: "article-magazine",
+            title: "CSL Magazine Piece",
+            issued: { "date-parts": [[1940]] },
+          },
+        ],
+      }),
+    );
+    expect(await h.runCli("--json", "import", "csl-json", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText) as { created: number; persons: number; personsCreated: number; entries: string[] };
+    // No person nodes, no linked authors — creators
+    // ride the text Authors rows only.
+    expect(counts).toMatchObject({ created: 3, persons: 0, personsCreated: 0 });
+
+    // Book → book class; citekey + ISBN landed.
+    await h.runCli("--json", "object", "get", counts.entries[0]!);
+    const book = JSON.parse(h.io.stdoutText).object;
+    expect(book.name).toBe("CSL Book");
+    expect(book.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    const bookProps = book.properties as { schemaId: string; value: unknown }[];
+    expect(bookProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey)?.value).toBe("csl-book-1");
+    expect(bookProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)?.value).toBe("9781234567890");
+    expect(bookProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)).toHaveLength(0);
+
+    // article-journal → the journal_article class (the roster naming);
+    // authorship is the text rows only — zero linkedAuthors refs.
+    await h.runCli("--json", "object", "get", counts.entries[1]!);
+    const paper = JSON.parse(h.io.stdoutText).object;
+    expect(paper.classIds).toContain(SYSTEM_CLASS_UUIDS.journal_article);
+    const paperProps = paper.properties as { schemaId: string; value: unknown }[];
+    expect(paperProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.doi)?.value).toBe("10.1234/csl");
+    const authorRows = paperProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors);
+    expect(authorRows.map((p) => p.value)).toEqual(["Noether, Emmy", "Weil, Simone"]);
+    expect(paperProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)).toHaveLength(0);
+
+    // article-magazine → the new magazine_article subtype.
+    await h.runCli("--json", "object", "get", counts.entries[2]!);
+    expect(JSON.parse(h.io.stdoutText).object.classIds).toContain(SYSTEM_CLASS_UUIDS.magazine_article);
+
+    // No author person nodes exist (Curie, Noether, Weil stay strings) —
+    // match by exact name; a seeded agent-family demo node exists in every
+    // workspace, and the sources' own author text rows also match a token
+    // search.
+    await h.runCli("--json", "object", "list", "--q", "Curie");
+    expect(
+      (JSON.parse(h.io.stdoutText).objects as Array<{ name: string | null; classIds: string[] }>).filter(
+        (o) =>
+          o.name === "Curie, Marie" &&
+          (o.classIds.includes(SYSTEM_CLASS_UUIDS.person) || o.classIds.includes(SYSTEM_CLASS_UUIDS.agent)),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("errors: missing file → 2, malformed JSON → 2, no items → 1", async () => {
+    const h = harness;
+    expect(await h.runCli("import", "csl-json", join(h.dataDir, "does-not-exist.json"))).toBe(EXIT.usage);
+
+    const malformed = join(h.dataDir, "csl-malformed.json");
+    writeFileSync(malformed, "{ not json");
+    expect(await h.runCli("import", "csl-json", malformed)).toBe(EXIT.usage);
+
+    const notItems = join(h.dataDir, "csl-not-items.json");
+    writeFileSync(notItems, JSON.stringify({ hello: "world" }));
+    expect(await h.runCli("import", "csl-json", notItems)).toBe(EXIT.usage);
+
+    const empty = join(h.dataDir, "csl-empty.json");
+    writeFileSync(empty, "[]");
+    expect(await h.runCli("import", "csl-json", empty)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("no importable entries");
+  });
+});
+
+const ZOTERO_RDF_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:foaf="http://xmlns.com/foaf/0.1/">
+  <bib:Article rdf:about="#item_article">
+    <z:citationKey>rdf-article-1</z:citationKey>
+    <z:itemType>journalArticle</z:itemType>
+    <dc:title>Article Title Wins</dc:title>
+    <dcterms:isPartOf>
+      <bib:Journal>
+        <dc:title>Some Journal With Its Own Title</dc:title>
+      </bib:Journal>
+    </dcterms:isPartOf>
+    <dc:date>2019-05-01</dc:date>
+  </bib:Article>
+  <bib:Book rdf:about="#item_book">
+    <z:citationKey>rdf-book-1</z:citationKey>
+    <z:itemType>book</z:itemType>
+    <dc:title>The RDF Book</dc:title>
+    <bib:Authors>
+      <rdf:Seq>
+        <rdf:li>
+          <foaf:Person>
+            <foaf:surname>Roe</foaf:surname>
+            <foaf:givenName>Richard</foaf:givenName>
+          </foaf:Person>
+        </rdf:li>
+      </rdf:Seq>
+    </bib:Authors>
+    <dc:date>2015</dc:date>
+    <dc:identifier>ISBN 9780123456789</dc:identifier>
+  </bib:Book>
+  <bib:Journal rdf:about="#item_journal">
+    <dc:title>Journal Without Key</dc:title>
+  </bib:Journal>
+  <z:Attachment rdf:about="#item_attachment">
+    <z:citationKey>attachment-key</z:citationKey>
+    <dc:title>file.pdf</dc:title>
+  </z:Attachment>
+</rdf:RDF>`;
+
+const ZOTERO_RDF_FULL_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:foaf="http://xmlns.com/foaf/0.1/"
+ xmlns:prism="http://prismstandard.org/namespaces/1.2/basic/"
+ xmlns:link="http://purl.org/rss/1.0/modules/link/">
+  <bib:Article rdf:about="#full_article">
+    <z:citationKey>rdf-full-1</z:citationKey>
+    <z:itemType>journalArticle</z:itemType>
+    <dc:title>The Full Article</dc:title>
+    <dcterms:abstract>The abstract of the full article.</dcterms:abstract>
+    <dc:publisher>
+      <foaf:Organization>
+        <foaf:name>Full Publishing House</foaf:name>
+      </foaf:Organization>
+    </dc:publisher>
+    <dc:date>2021-03-15</dc:date>
+    <prism:volume>7</prism:volume>
+    <prism:number>2</prism:number>
+    <bib:pages>101-115</bib:pages>
+    <dc:identifier>isbn:9780000000002</dc:identifier>
+    <dc:identifier>doi:10.5555/full.article</dc:identifier>
+    <dc:identifier>issn:1234-5678</dc:identifier>
+    <dc:identifier>pmid:12345678</dc:identifier>
+    <dcterms:URI>https://example.org/full-article</dcterms:URI>
+    <z:language>en</z:language>
+    <dcterms:alternative>Full Article Short</dcterms:alternative>
+    <dc:description>Handwritten extra note.</dc:description>
+    <dcterms:isPartOf>
+      <bib:Journal>
+        <dc:title>The Full Journal</dc:title>
+      </bib:Journal>
+    </dcterms:isPartOf>
+    <bib:Authors>
+      <rdf:Seq>
+        <rdf:li>
+          <foaf:Person>
+            <foaf:surname>Lovelace</foaf:surname>
+            <foaf:givenName>Ada</foaf:givenName>
+          </foaf:Person>
+        </rdf:li>
+        <rdf:li>
+          <foaf:Person>
+            <foaf:surname>Hopper</foaf:surname>
+            <foaf:givenName>Grace</foaf:givenName>
+          </foaf:Person>
+        </rdf:li>
+      </rdf:Seq>
+    </bib:Authors>
+    <bib:editors>
+      <rdf:Seq>
+        <rdf:li>
+          <foaf:Person>
+            <foaf:surname>Knuth</foaf:surname>
+            <foaf:givenName>Donald</foaf:givenName>
+          </foaf:Person>
+        </rdf:li>
+      </rdf:Seq>
+    </bib:editors>
+    <dc:subject>zotero-tag-one</dc:subject>
+    <dc:subject>zotero-tag-two</dc:subject>
+    <link:link rdf:resource="file:///full-article.pdf"/>
+  </bib:Article>
+  <bib:Book rdf:about="#keyless_book">
+    <z:itemType>book</z:itemType>
+    <dc:title>Keyless Book</dc:title>
+  </bib:Book>
+  <z:Attachment rdf:about="#full_attachment">
+    <z:citationKey>full-attachment-key</z:citationKey>
+    <dc:title>full.pdf</dc:title>
+  </z:Attachment>
+</rdf:RDF>`;
+
+const ZOTERO_RDF_IDEM_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:z="http://www.zotero.org/namespaces/export#">
+  <bib:Article rdf:about="#idem_article">
+    <z:citationKey>rdf-idem-1</z:citationKey>
+    <z:itemType>journalArticle</z:itemType>
+    <dc:title>The Idem Article</dc:title>
+    <dcterms:abstract>Idem abstract.</dcterms:abstract>
+    <prism:volume xmlns:prism="http://prismstandard.org/namespaces/1.2/basic/">3</prism:volume>
+  </bib:Article>
+</rdf:RDF>`;
+
+// The live-bug shape: the foaf:Organization carries a vcard:address whose
+// locality precedes the foaf:name in document order — the publisher must be
+// the NAME, never the address. Plus an organization with NO foaf:name at all
+// (address only): skipped, counted as publisherNameMissing.
+const ZOTERO_RDF_PUBLISHER_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:foaf="http://xmlns.com/foaf/0.1/"
+ xmlns:vcard="http://www.w3.org/2006/vcard/ns#">
+  <bib:Book rdf:about="#publisher_named">
+    <z:citationKey>rdf-pub-1</z:citationKey>
+    <z:itemType>book</z:itemType>
+    <dc:title>The Publisher Named Book</dc:title>
+    <dc:publisher>
+      <foaf:Organization>
+        <vcard:adr>
+          <vcard:Address>
+            <vcard:locality>London San Diego, CA Cambridge, MA Oxford</vcard:locality>
+          </vcard:Address>
+        </vcard:adr>
+        <foaf:name>Academic Press</foaf:name>
+      </foaf:Organization>
+    </dc:publisher>
+  </bib:Book>
+  <bib:Book rdf:about="#publisher_nameless">
+    <z:citationKey>rdf-pub-2</z:citationKey>
+    <z:itemType>book</z:itemType>
+    <dc:title>The Publisher Nameless Book</dc:title>
+    <dc:publisher>
+      <foaf:Organization>
+        <vcard:adr>
+          <vcard:Address>
+            <vcard:locality>Springfield</vcard:locality>
+          </vcard:Address>
+        </vcard:adr>
+      </foaf:Organization>
+    </dc:publisher>
+  </bib:Book>
+</rdf:RDF>`;
+
+const ZOTERO_RDF_MANUAL_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:foaf="http://xmlns.com/foaf/0.1/">
+  <bib:Article rdf:about="#manual_article">
+    <z:citationKey>rdf-manual-1</z:citationKey>
+    <z:itemType>journalArticle</z:itemType>
+    <dc:title>Manual Link Article</dc:title>
+    <bib:Authors>
+      <rdf:Seq>
+        <rdf:li>
+          <foaf:Person>
+            <foaf:surname>Noether</foaf:surname>
+            <foaf:givenName>Emmy</foaf:givenName>
+          </foaf:Person>
+        </rdf:li>
+      </rdf:Seq>
+    </bib:Authors>
+  </bib:Article>
+</rdf:RDF>`;
+
+const ZOTERO_RDF_CLASH_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:foaf="http://xmlns.com/foaf/0.1/">
+  <bib:Article rdf:about="#clash_article">
+    <z:citationKey>rdf-clash-1</z:citationKey>
+    <z:itemType>journalArticle</z:itemType>
+    <dc:title>Clash Article</dc:title>
+    <dcterms:abstract>Clash abstract</dcterms:abstract>
+    <dc:publisher>
+      <foaf:Organization>
+        <foaf:name>Clash Publisher</foaf:name>
+      </foaf:Organization>
+    </dc:publisher>
+    <dc:identifier>doi:10.9999/clash</dc:identifier>
+  </bib:Article>
+</rdf:RDF>`;
+
+// The full-alignment fixture: the complete Zotero vocabulary slice — the new
+// scalar terms (rights/PMID/PMCID/numPages/edition/libraryCatalog/accessDate),
+// z:shortTitle winning over dcterms:alternative, the LCC call-number subject
+// shape, dc:relation + the nested dcterms:URI identifier URL shapes, and a
+// container journal merging ISSN + volume (item-wins). numPages/edition are
+// NOT bound on journal_article — the class-binding gate must drop them.
+const ZOTERO_RDF_ALIGNMENT_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:z="http://www.zotero.org/namespaces/export#"
+ xmlns:prism="http://prismstandard.org/namespaces/1.2/basic/">
+  <bib:Article rdf:about="#align_article">
+    <z:citationKey>rdf-align-1</z:citationKey>
+    <z:itemType>journalArticle</z:itemType>
+    <dc:title>The Alignment Article</dc:title>
+    <dc:rights>© 2021 The Aligners</dc:rights>
+    <z:PMID>23456789</z:PMID>
+    <z:PMCID>PMC1234567</z:PMCID>
+    <z:numPages>42</z:numPages>
+    <prism:edition>2</prism:edition>
+    <z:libraryCatalog>align-catalog</z:libraryCatalog>
+    <dcterms:dateSubmitted>2021-04-05</dcterms:dateSubmitted>
+    <z:shortTitle>Align Short</z:shortTitle>
+    <dcterms:alternative>Wrong Alternative</dcterms:alternative>
+    <dc:relation rdf:resource="https://example.org/related-page"/>
+    <dc:identifier>
+      <dcterms:URI>
+        <rdf:value>https://example.org/nested-identifier-uri</rdf:value>
+      </dcterms:URI>
+    </dc:identifier>
+    <dc:subject>
+      <dcterms:LCC>
+        <rdf:value>QA76.5.A55</rdf:value>
+      </dcterms:LCC>
+    </dc:subject>
+    <dc:subject>a-plain-tag</dc:subject>
+    <dcterms:isPartOf>
+      <bib:Journal>
+        <dc:title>The Align Journal</dc:title>
+        <dc:identifier>ISSN 9999-8888</dc:identifier>
+        <prism:volume>9</prism:volume>
+      </bib:Journal>
+    </dcterms:isPartOf>
+  </bib:Article>
+  <bib:Document rdf:about="#align_case">
+    <z:citationKey>rdf-align-case</z:citationKey>
+    <z:itemType>case</z:itemType>
+    <dc:title>The Alignment Case</dc:title>
+    <z:authority>Align High Court</z:authority>
+    <z:code>align-code</z:code>
+    <z:type>legalRule</z:type>
+  </bib:Document>
+</rdf:RDF>`;
+
+// The doi/isbn adoption fixture: entries whose citationKey matches nothing
+// but whose DOI / ISBN identifies a pre-existing source — the match adopts
+// the node and the Zotero citationKey rides into the citekey fill.
+const ZOTERO_RDF_ADOPT_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+ xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+ xmlns:bib="http://purl.org/net/biblio#"
+ xmlns:dc="http://purl.org/dc/elements/1.1/"
+ xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:z="http://www.zotero.org/namespaces/export#">
+  <bib:Article rdf:about="#adopt_doi">
+    <z:citationKey>rdf-adopt-doi</z:citationKey>
+    <z:itemType>journalArticle</z:itemType>
+    <dc:title>The Adopted DOI Article</dc:title>
+    <dc:identifier>doi:10.1111/adopt.me</dc:identifier>
+    <dcterms:abstract>Adopted via DOI.</dcterms:abstract>
+  </bib:Article>
+  <bib:Book rdf:about="#adopt_isbn">
+    <z:citationKey>rdf-adopt-isbn</z:citationKey>
+    <z:itemType>book</z:itemType>
+    <dc:title>The Adopted ISBN Book</dc:title>
+    <dc:identifier>ISBN 9781111111111</dc:identifier>
+  </bib:Book>
+</rdf:RDF>`;
+
+describe("import zotero-rdf", () => {
+  it("imports keyed bib entries; the nested journal title never wins; unkeyed journals are skipped", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "zotero-import-1.rdf");
+    writeFileSync(file, ZOTERO_RDF_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      skipped: number;
+      entries: string[];
+    };
+    // Two keyed bib entries; the keyless top-level journal counts as skipped
+    // (the z:Attachment is not a bib entry and is never considered).
+    expect(counts).toMatchObject({ created: 2, skipped: 1 });
+    expect(counts.entries).toHaveLength(2);
+
+    // The article's real (direct-child) dc:title won over the nested
+    // bib:Journal's own title.
+    await h.runCli("--json", "object", "get", counts.entries[0]!);
+    const article = JSON.parse(h.io.stdoutText).object;
+    expect(article.name).toBe("Article Title Wins");
+    expect(article.name).not.toBe("Some Journal With Its Own Title");
+    // journalArticle → the journal_article class; the 2019 date landed on the chain.
+    expect(article.classIds).toContain(SYSTEM_CLASS_UUIDS.journal_article);
+    const articleProps = article.properties as { schemaId: string; value: unknown }[];
+    expect(articleProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.citekey)?.value).toBe("rdf-article-1");
+    const pubRef = articleProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationDate)?.value as {
+      nodeId: string;
+    };
+    await h.runCli("--json", "object", "get", pubRef.nodeId);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("2019");
+
+    // The book: author as the text citation track only (no person node, no linkedAuthors), year, ISBN.
+    await h.runCli("--json", "object", "get", counts.entries[1]!);
+    const book = JSON.parse(h.io.stdoutText).object;
+    expect(book.name).toBe("The RDF Book");
+    expect(book.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    const bookProps = book.properties as { schemaId: string; value: unknown }[];
+    expect(bookProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)?.value).toBe("Roe, Richard");
+    expect(bookProps.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)).toHaveLength(0);
+    expect(bookProps.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)?.value).toBe("9780123456789");
+    // No person/agent node named for the author was minted (a seeded
+    // agent-family demo node exists in every workspace — match by name).
+    await h.runCli("--json", "object", "list", "--q", "Roe");
+    expect(
+      (JSON.parse(h.io.stdoutText).objects as Array<{ name: string | null; classIds: string[] }>).filter(
+        (o) =>
+          o.name === "Roe, Richard" &&
+          (o.classIds.includes(SYSTEM_CLASS_UUIDS.person) || o.classIds.includes(SYSTEM_CLASS_UUIDS.agent)),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("errors: missing file → 2, malformed XML → 2, no entries → 1", async () => {
+    const h = harness;
+    expect(await h.runCli("import", "zotero-rdf", join(h.dataDir, "does-not-exist.rdf"))).toBe(EXIT.usage);
+
+    const malformed = join(h.dataDir, "zotero-malformed.rdf");
+    writeFileSync(malformed, "<rdf:RDF><bib:Book></rdf:RDF>");
+    expect(await h.runCli("import", "zotero-rdf", malformed)).toBe(EXIT.usage);
+
+    const empty = join(h.dataDir, "zotero-empty.rdf");
+    writeFileSync(empty, "<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'></rdf:RDF>");
+    expect(await h.runCli("import", "zotero-rdf", empty)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("no importable entries");
+  });
+
+  it("fills every mapped field on a full entry; tags/attachments/keyless counted and reported", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "zotero-import-full.rdf");
+    writeFileSync(file, ZOTERO_RDF_FULL_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      updated: number;
+      skipped: number;
+      tagsSkipped: number;
+      attachmentsSkipped: number;
+      keylessSkipped: Array<{ id: string; title: string }>;
+      entries: string[];
+      entryFills: Array<{
+        citekey: string;
+        nodeId: string;
+        action: string;
+        fills: Array<{ name: string; value: unknown }>;
+      }>;
+    };
+    // One keyed article; the keyless book counts as skipped AND is listed; the
+    // two dc:subject tags and the two attachment entries (one link:link, one
+    // top-level z:Attachment) are counted, never mapped.
+    expect(report).toMatchObject({ created: 1, updated: 0, skipped: 1, tagsSkipped: 2, attachmentsSkipped: 2 });
+    expect(report.keylessSkipped).toEqual([{ id: "#keyless_book", title: "Keyless Book" }]);
+    expect(report.entries).toHaveLength(1);
+
+    // The per-entry fills (the report shape) name every planned field.
+    expect(report.entryFills).toHaveLength(1);
+    expect(report.entryFills[0]).toMatchObject({ citekey: "rdf-full-1", action: "create" });
+    const fills = Object.fromEntries(report.entryFills[0]!.fills.map((f) => [f.name, f.value]));
+    expect(fills).toMatchObject({
+      abstract: "The abstract of the full article.",
+      publisher: "Full Publishing House",
+      volume: "7",
+      issue: "2",
+      pages: "101-115",
+      issn: "1234-5678",
+      pmid: "12345678",
+      language: "en",
+      shortTitle: "Full Article Short",
+      extra: "Handwritten extra note.",
+      publicationTitle: "The Full Journal",
+    });
+
+    // The values actually landed on the node (the standard CSL fields too).
+    await h.runCli("--json", "object", "get", report.entries[0]!);
+    const node = JSON.parse(h.io.stdoutText).object;
+    const props = node.properties as { schemaId: string; value: unknown }[];
+    const byName = (name: string) =>
+      props.find((p) => p.schemaId === (SYSTEM_PROPERTY_UUIDS as Record<string, string>)[name])?.value;
+    expect(byName("abstract")).toBe("The abstract of the full article.");
+    expect(byName("publisher")).toBe("Full Publishing House");
+    expect(byName("volume")).toBe("7");
+    expect(byName("issue")).toBe("2");
+    expect(byName("pages")).toBe("101-115");
+    expect(byName("isbn")).toBe("9780000000002");
+    expect(byName("doi")).toBe("10.5555/full.article");
+    expect(byName("issn")).toBe("1234-5678");
+    expect(byName("pmid")).toBe("12345678");
+    expect(byName("identifier")).toBeUndefined();
+    expect(byName("url")).toBe("https://example.org/full-article");
+    expect(byName("language")).toBe("en");
+    expect(byName("shortTitle")).toBe("Full Article Short");
+    expect(byName("extra")).toBe("Handwritten extra note.");
+    expect(byName("publicationTitle")).toBe("The Full Journal");
+    // Date handling follows the bibtex importer's date-else-year precedent:
+    // the year lands as a date-chain node ref.
+    const pubRef = byName("publicationDate") as { nodeId: string };
+    await h.runCli("--json", "object", "get", pubRef.nodeId);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("2021");
+    // Authorship is the citation track only: text
+    // literals idx-ordered, editors as "Last, First" text rows — zero
+    // linkedAuthors refs, zero person nodes.
+    expect(props.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors).map((p) => p.value)).toEqual([
+      "Lovelace, Ada",
+      "Hopper, Grace",
+    ]);
+    expect(props.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors)).toHaveLength(0);
+    expect(props.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.editors).map((p) => p.value)).toEqual([
+      "Knuth, Donald",
+    ]);
+    // The import minted no person nodes for the creators (match by exact
+    // name — a seeded agent-family demo node exists in every workspace).
+    for (const literal of ["Lovelace, Ada", "Hopper, Grace", "Knuth, Donald"]) {
+      await h.runCli("--json", "object", "list", "--q", literal);
+      expect(
+        (JSON.parse(h.io.stdoutText).objects as Array<{ name: string | null; classIds: string[] }>).filter(
+          (o) =>
+            o.name === literal &&
+            (o.classIds.includes(SYSTEM_CLASS_UUIDS.person) || o.classIds.includes(SYSTEM_CLASS_UUIDS.agent)),
+        ),
+      ).toHaveLength(0);
+    }
+  });
+
+  it("a hand-set Linked authors pick on an existing source survives the import untouched", async () => {
+    const h = harness;
+    // A manual person + a manual Linked authors pick (the user's own choice).
+    const manualId = await h.seedObject("Curie, Marie", [SYSTEM_CLASS_UUIDS.person]);
+    const sourceId = await h.seedObject("Manual Link Article", [SYSTEM_CLASS_UUIDS.journal_article]);
+    await h.seedProperty(sourceId, SYSTEM_PROPERTY_UUIDS.citekey, "rdf-manual-1");
+    await h.seedProperty(sourceId, SYSTEM_PROPERTY_UUIDS.linkedAuthors, { nodeId: manualId });
+
+    const file = join(h.dataDir, "zotero-import-manual.rdf");
+    writeFileSync(file, ZOTERO_RDF_MANUAL_FIXTURE);
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+
+    // The import filled the empty text Authors but left the manual pick alone.
+    await h.runCli("--json", "object", "get", sourceId);
+    const props = (JSON.parse(h.io.stdoutText).object.properties ?? []) as Array<{
+      schemaId: string;
+      value: unknown;
+    }>;
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.authors)?.value).toBe("Noether, Emmy");
+    const linked = props.filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.linkedAuthors);
+    expect(linked).toHaveLength(1);
+    expect(linked[0]!.value).toEqual({ nodeId: manualId });
+  });
+
+  it("matched node keeps its existing values; only empty fields fill (no clobber)", async () => {
+    const h = harness;
+    // A pre-existing source matched by citekey, with the owner's hand-fixed DOI.
+    const id = await h.seedObject("Clash Article", [SYSTEM_CLASS_UUIDS.journal_article]);
+    await h.seedProperty(id, SYSTEM_PROPERTY_UUIDS.citekey, "rdf-clash-1");
+    await h.seedProperty(id, SYSTEM_PROPERTY_UUIDS.doi, "10.0000/hand-fixed");
+
+    const file = join(h.dataDir, "zotero-import-clash.rdf");
+    writeFileSync(file, ZOTERO_RDF_CLASH_FIXTURE);
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+
+    await h.runCli("--json", "object", "get", id);
+    const node = JSON.parse(h.io.stdoutText).object;
+    const props = node.properties as { schemaId: string; value: unknown }[];
+    const byName = (name: string) =>
+      props.find((p) => p.schemaId === (SYSTEM_PROPERTY_UUIDS as Record<string, string>)[name])?.value;
+    expect(byName("doi")).toBe("10.0000/hand-fixed"); // NOT clobbered by doi:10.9999/clash
+    expect(byName("publisher")).toBe("Clash Publisher"); // the empty field filled
+    expect(byName("abstract")).toBe("Clash abstract");
+  });
+
+  it("the full aligned vocabulary fills, gated by the class bindings; accessDate rides the day chain", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "zotero-import-align.rdf");
+    writeFileSync(file, ZOTERO_RDF_ALIGNMENT_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      tagsSkipped: number;
+      entries: string[];
+      entryFills: Array<{ citekey: string; fills: Array<{ name: string; value: unknown }> }>;
+    };
+    expect(report.created).toBe(2);
+    // One plain-text tag; the LCC subject shape is mapped, never counted.
+    expect(report.tagsSkipped).toBe(1);
+
+    const fillsOf = (citekey: string) =>
+      Object.fromEntries(
+        report.entryFills.find((e) => e.citekey === citekey)!.fills.map((f) => [f.name, f.value]),
+      );
+    const articleFills = fillsOf("rdf-align-1");
+    expect(articleFills).toMatchObject({
+      rights: "© 2021 The Aligners",
+      pmid: "23456789",
+      pmcid: "PMC1234567",
+      libraryCatalog: "align-catalog",
+      accessDate: "2021-04-05",
+      shortTitle: "Align Short", // z:shortTitle wins over dcterms:alternative
+      callNumber: "QA76.5.A55",
+      issn: "9999-8888", // the container journal's ISSN merged (item held none)
+      volume: "9", // the container journal's volume merged
+      publicationTitle: "The Align Journal",
+      url: "https://example.org/nested-identifier-uri", // the nested URI beats the earlier dc:relation
+    });
+    // The class-binding gate: numPages/edition are not bound on journal_article.
+    const articleFillNames = Object.keys(articleFills);
+    expect(articleFillNames).not.toContain("numPages");
+    expect(articleFillNames).not.toContain("edition");
+
+    // The values landed on the node; accessDate is a day-precision chain ref.
+    const articleId = report.entries[report.entryFills.findIndex((e) => e.citekey === "rdf-align-1")]!;
+    await h.runCli("--json", "object", "get", articleId);
+    const props = (JSON.parse(h.io.stdoutText).object.properties ?? []) as Array<{
+      schemaId: string;
+      value: unknown;
+    }>;
+    const byName = (name: string) =>
+      props.find((p) => p.schemaId === (SYSTEM_PROPERTY_UUIDS as Record<string, string>)[name])?.value;
+    expect(byName("rights")).toBe("© 2021 The Aligners");
+    expect(byName("pmid")).toBe("23456789");
+    expect(byName("pmcid")).toBe("PMC1234567");
+    expect(byName("libraryCatalog")).toBe("align-catalog");
+    expect(byName("callNumber")).toBe("QA76.5.A55");
+    expect(byName("shortTitle")).toBe("Align Short");
+    expect(byName("issn")).toBe("9999-8888");
+    expect(byName("volume")).toBe("9");
+    expect(byName("publicationTitle")).toBe("The Align Journal");
+    expect(byName("url")).toBe("https://example.org/nested-identifier-uri");
+    expect(byName("numPages")).toBeUndefined();
+    expect(byName("edition")).toBeUndefined();
+    const accessRef = byName("accessDate") as { nodeId: string };
+    await h.runCli("--json", "object", "get", accessRef.nodeId);
+    // The day node is content-addressed; its display name is the canonical
+    // YYYY/MM/DD form.
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("2021/04/05");
+
+    // The case rides the document fallback class: court + workType fill,
+    // z:code is not bound on document — the gate drops it.
+    const caseFills = fillsOf("rdf-align-case");
+    expect(caseFills).toMatchObject({ court: "Align High Court", workType: "legalRule" });
+    expect(Object.keys(caseFills)).not.toContain("code");
+    const caseId = report.entries[report.entryFills.findIndex((e) => e.citekey === "rdf-align-case")]!;
+    await h.runCli("--json", "object", "get", caseId);
+    const caseObject = JSON.parse(h.io.stdoutText).object;
+    expect(caseObject.classIds).toContain(SYSTEM_CLASS_UUIDS.document);
+    const caseProps = caseObject.properties as Array<{ schemaId: string; value: unknown }>;
+    const caseByName = (name: string) =>
+      caseProps.find((p) => p.schemaId === (SYSTEM_PROPERTY_UUIDS as Record<string, string>)[name])?.value;
+    expect(caseByName("court")).toBe("Align High Court");
+    expect(caseByName("workType")).toBe("legalRule");
+    expect(caseByName("code")).toBeUndefined();
+
+    // Idempotent: a second run matches both and plans zero fills.
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    const second = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      updated: number;
+      entryFills: Array<{ fills: Array<{ name: string }> }>;
+    };
+    expect(second).toMatchObject({ created: 0, updated: 2 });
+    expect(second.entryFills.flatMap((e) => e.fills)).toEqual([]);
+  });
+
+  it("adopts a source matched by doi, then isbn (citekey → doi → isbn → title → create)", async () => {
+    const h = harness;
+    // Pre-existing sources carrying the owner's identifier, no citekey yet.
+    const doiNodeId = await h.seedObject("Preexisting DOI Article", [SYSTEM_CLASS_UUIDS.journal_article]);
+    const isbnNodeId = await h.seedObject("Preexisting ISBN Book", [SYSTEM_CLASS_UUIDS.book]);
+    await h.seedProperty(doiNodeId, SYSTEM_PROPERTY_UUIDS.doi, "10.1111/adopt.me");
+    await h.seedProperty(isbnNodeId, SYSTEM_PROPERTY_UUIDS.isbn, "9781111111111");
+
+    const file = join(h.dataDir, "zotero-import-adopt.rdf");
+    writeFileSync(file, ZOTERO_RDF_ADOPT_FIXTURE);
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      adopted: number;
+      entries: string[];
+    };
+    expect(report).toMatchObject({ created: 0, adopted: 2 });
+    expect(report.entries).toEqual([doiNodeId, isbnNodeId]);
+
+    // The Zotero citationKey rode into the citekey fill; the matched
+    // identifiers and their nodes are untouched (Notees-wins).
+    await h.runCli("--json", "object", "get", doiNodeId);
+    const doiProps = (JSON.parse(h.io.stdoutText).object.properties ?? []) as Array<{
+      schemaId: string;
+      value: unknown;
+    }>;
+    const doiByName = (name: string) =>
+      doiProps.find((p) => p.schemaId === (SYSTEM_PROPERTY_UUIDS as Record<string, string>)[name])?.value;
+    expect(doiByName("citekey")).toBe("rdf-adopt-doi");
+    expect(doiByName("doi")).toBe("10.1111/adopt.me");
+    expect(doiByName("abstract")).toBe("Adopted via DOI.");
+    await h.runCli("--json", "object", "get", isbnNodeId);
+    const isbnProps = (JSON.parse(h.io.stdoutText).object.properties ?? []) as Array<{
+      schemaId: string;
+      value: unknown;
+    }>;
+    const isbnByName = (name: string) =>
+      isbnProps.find((p) => p.schemaId === (SYSTEM_PROPERTY_UUIDS as Record<string, string>)[name])?.value;
+    expect(isbnByName("citekey")).toBe("rdf-adopt-isbn");
+    expect(isbnByName("isbn")).toBe("9781111111111");
+  });
+
+  it("dry-run plans per-field fills; a second run writes nothing (idempotent)", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "zotero-import-idem.rdf");
+    writeFileSync(file, ZOTERO_RDF_IDEM_FIXTURE);
+
+    // Dry-run first: the mapped fields are planned, nothing is written.
+    expect(await h.runCli("--json", "import", "zotero-rdf", file, "--dry-run")).toBe(EXIT.ok);
+    const plan = JSON.parse(h.io.stdoutText) as {
+      entries: Array<{ citekey: string; action: string; fills: Array<{ name: string }> }>;
+    };
+    const planned = plan.entries.find((e) => e.citekey === "rdf-idem-1")!;
+    expect(planned.action).toBe("create");
+    expect(planned.fills.map((f) => f.name)).toEqual(
+      expect.arrayContaining(["abstract", "volume"]),
+    );
+    await h.runCli("--json", "object", "list", "--q", "Idem Article");
+    const found = JSON.parse(h.io.stdoutText).objects as Array<{ name: string | null }>;
+    expect(found.filter((o) => o.name === "The Idem Article")).toHaveLength(0);
+
+    // Real import, then a second import: matched, zero fills.
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    const second = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      updated: number;
+      entryFills: Array<{ fills: Array<{ name: string; value: unknown }> }>;
+    };
+    expect(second).toMatchObject({ created: 0, updated: 1 });
+    expect(second.entryFills).toHaveLength(1);
+    expect(second.entryFills[0]!.fills).toEqual([]);
+
+    // And a dry-run after the import also plans zero fills.
+    expect(await h.runCli("--json", "import", "zotero-rdf", file, "--dry-run")).toBe(EXIT.ok);
+    const after = JSON.parse(h.io.stdoutText) as {
+      entries: Array<{ citekey: string; fills: Array<{ name: string }> }>;
+    };
+    expect(after.entries.find((e) => e.citekey === "rdf-idem-1")!.fills).toEqual([]);
+  });
+
+  it("publisher is the foaf:Organization's foaf:name — never the vcard locality; nameless orgs counted", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "zotero-import-publisher.rdf");
+    writeFileSync(file, ZOTERO_RDF_PUBLISHER_FIXTURE);
+
+    expect(await h.runCli("--json", "import", "zotero-rdf", file)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as {
+      created: number;
+      entries: string[];
+      entryFills: Array<{ citekey: string; fills: Array<{ name: string; value: unknown }> }>;
+      publisherNameMissing: number;
+    };
+    expect(report.created).toBe(2);
+    // The nameless organization is counted, not silently published-as-address.
+    expect(report.publisherNameMissing).toBe(1);
+
+    const fillsOf = (citekey: string) =>
+      Object.fromEntries(
+        report.entryFills.find((e) => e.citekey === citekey)!.fills.map((f) => [f.name, f.value]),
+      );
+    expect(fillsOf("rdf-pub-1")).toMatchObject({ publisher: "Academic Press" });
+
+    // The values actually landed: name wins over the document-order locality.
+    for (const [i, entry] of report.entryFills.entries()) {
+      await h.runCli("--json", "object", "get", report.entries[i]!);
+      const props = (JSON.parse(h.io.stdoutText).object.properties ?? []) as Array<{
+        schemaId: string;
+        value: unknown;
+      }>;
+      const publisher = props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publisher)?.value;
+      if (entry.citekey === "rdf-pub-1") {
+        expect(publisher).toBe("Academic Press");
+      } else {
+        // rdf-pub-2: the address must never become the publisher.
+        expect(publisher).toBeUndefined();
+      }
+    }
+  });
+});
+
+
+describe("search (query language)", () => {
+  let yearSchemaId = "";
+  async function makeJournalArticle(name: string, year?: number): Promise<string> {
+    const h = harness;
+    if (yearSchemaId === "") {
+      if (await h.runCli("--json", "property", "create", "year", "--type", "number") !== EXIT.ok) {
+        throw new Error(`property create year failed: ${h.io.stderrText}`);
+      }
+      yearSchemaId = (JSON.parse(h.io.stdoutText) as { propertySchema: { id: string } }).propertySchema.id;
+    }
+    // Title-is-content: the article's own content IS its title.
+    const id = await h.seedObject(name, [SYSTEM_CLASS_UUIDS.journal_article]);
+    const code = await h.runCliWithStdin(
+      JSON.stringify({
+        isEmbedded: true,
+        parentId: id,
+        contentAst: [{ type: "text", text: `${name} body text` }],
+      }),
+      "--json", "object", "create", "--stdin",
+    );
+    if (code !== EXIT.ok) throw new Error(`makeJournalArticle block ${name} failed: ${h.io.stderrText}`);
+    if (year !== undefined) {
+      await h.seedProperty(id, yearSchemaId, year);
+    }
+    return id;
+  }
+
+  it('class:"journal article" AND year:>2010 returns the right pages (DSL → AST → POST /query)', async () => {
+    const h = harness;
+    const old = await makeJournalArticle("dslpaper1901", 1901);
+    const modern = await makeJournalArticle("dslpaper2015", 2015);
+    await makeJournalArticle("dslplainpage");
+
+    expect(await h.runCli("--json", "search", 'class:"journal article" AND year:>2010')).toBe(EXIT.ok);
+    const body = JSON.parse(h.io.stdoutText) as { ids: string[]; rows: { id: string; name: string | null }[] };
+    expect(body.ids).toEqual([modern]);
+    expect(body.rows.map((row) => row.name)).toEqual(["dslpaper2015"]);
+    expect(body.ids).not.toContain(old);
+  });
+
+  it("prop: comparison operators and bare-schema shorthand select by year", async () => {
+    const h = harness;
+    const a = await makeJournalArticle("dslyear1937", 1937);
+    const b = await makeJournalArticle("dslyear2060", 2060);
+
+    // Earlier tests' journal articles share the workspace; assert containment.
+    expect(await h.runCli("--json", "search", "prop:year:>=1900")).toBe(EXIT.ok);
+    const all = JSON.parse(h.io.stdoutText).ids as string[];
+    expect(all).toContain(a);
+    expect(all).toContain(b);
+
+    expect(await h.runCli("--json", "search", "year:<1950")).toBe(EXIT.ok);
+    const below = JSON.parse(h.io.stdoutText).ids as string[];
+    expect(below).toContain(a);
+    expect(below).not.toContain(b);
+  });
+
+  it("text:, quoted phrases, boolean composition and linked:Name", async () => {
+    const h = harness;
+    const target = await makeJournalArticle("dsllinktarget");
+    // Title-is-content: page content IS the title, so the prose lives on a
+    // child block; the block is what text:/linked: match against.
+    const notes = await h.createPage("dsllinknotes", []);
+    const notesBlock = await h.runCliWithStdin(
+      JSON.stringify({
+        isEmbedded: true,
+        parentId: notes,
+        contentAst: [
+          { type: "mention", targetNodeId: target, text: "the linked paper" },
+          { type: "text", text: "revolutionary ideas" },
+        ],
+      }),
+      "--json", "object", "create", "--stdin",
+    );
+    expect(notesBlock).toBe(EXIT.ok);
+    const notesBlockId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    const other = await h.createPage("dsllinkother", []);
+    const otherBlock = await h.runCliWithStdin(
+      JSON.stringify({
+        isEmbedded: true,
+        parentId: other,
+        contentAst: [{ type: "text", text: "revolutionary manifesto" }],
+      }),
+      "--json", "object", "create", "--stdin",
+    );
+    expect(otherBlock).toBe(EXIT.ok);
+    const otherBlockId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+
+    // text: term + phrase both hit the notes block; NOT excludes it.
+    expect(await h.runCli("--json", "search", 'text:revolutionary AND "ideas"')).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).ids).toEqual([notesBlockId]);
+
+    expect(await h.runCli("--json", "search", "text:revolutionary NOT linked:dsllinktarget")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).ids).toEqual([otherBlockId]);
+
+    // linked:<name> resolves the node by name and matches its referrers.
+    expect(await h.runCli("--json", "search", "linked:dsllinktarget")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).ids).toEqual([notesBlockId]);
+  });
+
+  it("human mode lists result names; plain text still routes to FTS", async () => {
+    const h = harness;
+    await makeJournalArticle("dslhuman2015", 2015);
+    expect(await h.runCli("search", 'class:"journal article" AND year:>=2010')).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("dslhuman2015");
+    expect(h.io.stdoutText).not.toContain("{");
+
+    expect(await h.runCli("--json", "search", "dslhuman2015")).toBe(EXIT.ok);
+    const body = JSON.parse(h.io.stdoutText);
+    expect(body.results.map((r: { id: string }) => r.id).length).toBeGreaterThan(0);
+  });
+
+  it("unknown classes, schemas and bad syntax fail loud with exit 2", async () => {
+    const h = harness;
+    expect(await h.runCli("search", "class:nosuchclass AND year:>2010")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("invalid query");
+    expect(h.io.stderrText).toContain("unknown class 'nosuchclass'");
+
+    expect(await h.runCli("search", "wobble:42")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("unknown field 'wobble'");
+
+    expect(await h.runCli("search", "year:>")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("requires a value");
+  });
+});
+
+describe("daily notes", () => {
+  it("today ensures the local date chain + day page; --append blocks and reports the created block id; journal lists newest first", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "today")).toBe(EXIT.ok);
+    const day = JSON.parse(h.io.stdoutText) as { id: string; classIds: string[]; parentId: string | null };
+    expect(day.classIds).toContain(SYSTEM_CLASS_UUIDS.day);
+
+    // Append a block (human mode): the summary line names the created block.
+    expect(await h.runCli("today", "--append", "captured from the CLI")).toBe(EXIT.ok);
+    const humanMatch = h.io.stdoutText.match(/appended block ([0-9a-f-]{36}) to /);
+    expect(humanMatch).not.toBeNull();
+    const humanBlockId = humanMatch![1]!;
+
+    // Append a block (--json mode): the day-page fields are unchanged and
+    // the new `appendedBlock` field carries the created block's id.
+    expect(await h.runCli("--json", "today", "--append", "second capture")).toBe(EXIT.ok);
+    const appended = JSON.parse(h.io.stdoutText) as {
+      id: string;
+      classIds: string[];
+      appendedBlock: { id: string };
+    };
+    expect(appended.id).toBe(day.id);
+    expect(appended.classIds).toContain(SYSTEM_CLASS_UUIDS.day);
+    expect(appended.appendedBlock.id).toMatch(/^[0-9a-f-]{36}$/);
+    const jsonBlockId = appended.appendedBlock.id;
+    expect(jsonBlockId).not.toBe(humanBlockId);
+
+    // The day object carries both appended blocks as children.
+    expect(await h.runCli("--json", "object", "children", day.id)).toBe(EXIT.ok);
+    const children = JSON.parse(h.io.stdoutText) as { children: Array<{ id: string }> };
+    expect(children.children.map((c) => c.id)).toEqual(
+      expect.arrayContaining([humanBlockId, jsonBlockId]),
+    );
+
+    // Idempotent: a second append-less today returns the same day id.
+    expect(await h.runCli("--json", "today")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText) as { id: string }).id).toBe(day.id);
+
+    // journal lists the day newest-first.
+    expect(await h.runCli("--json", "journal")).toBe(EXIT.ok);
+    const journal = JSON.parse(h.io.stdoutText) as { days: Array<{ id: string }> };
+    expect(journal.days.map((d) => d.id)).toContain(day.id);
+  });
+});
+
+describe("date ensure", () => {
+  it("ensures an arbitrary date chain (deterministic ids), idempotent, --json shape", async () => {
+    const h = harness;
+    // A fixed past date: deterministic content-addressed ids from the domain.
+    const ids = chainNodeIds("2024-02-29");
+    expect(ids.year).toBe("00000000-0000-0000-00bb-202400000000");
+    expect(ids.month).toBe("00000000-0000-0000-00aa-202402000000");
+    expect(ids.day).toBe("00000000-0000-0000-00dd-202402290000");
+
+    // Human mode prints the day node id.
+    expect(await h.runCli("date", "ensure", "2024-02-29")).toBe(EXIT.ok);
+    expect(h.io.stdoutText.trim()).toBe(ids.day);
+
+    // --json prints the three chain ids.
+    expect(await h.runCli("--json", "date", "ensure", "2024-02-29")).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { yearId: string; monthId: string; dayId: string };
+    expect(machine).toEqual({ yearId: ids.year, monthId: ids.month, dayId: ids.day });
+
+    // The chain is real: the day sits under the month under the year, classed
+    // by the seeded system date classes.
+    expect(await h.runCli("--json", "object", "get", ids.day)).toBe(EXIT.ok);
+    const day = JSON.parse(h.io.stdoutText).object as { parentId: string; classIds: string[] };
+    expect(day.parentId).toBe(ids.month);
+    expect(day.classIds).toContain(SYSTEM_CLASS_UUIDS.day);
+
+    // Idempotent: re-running over the existing chain is still exit 0 (the
+    // already-exists 409 means "there").
+    expect(await h.runCli("date", "ensure", "2024-02-29")).toBe(EXIT.ok);
+    expect(h.io.stdoutText.trim()).toBe(ids.day);
+  });
+
+  it("rejects non-calendar dates with usage (exit 2)", async () => {
+    const h = harness;
+    expect(await h.runCli("date", "ensure", "2023-02-29")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("YYYY-MM-DD");
+    expect(await h.runCli("date", "ensure", "not-a-date")).toBe(EXIT.usage);
+    expect(await h.runCli("date", "ensure", "2024-13-01")).toBe(EXIT.usage);
+  });
+});
+
+describe("property schema verbs", () => {
+  it("create → list → get → rename → bind → unbind → delete", async () => {
+    const h = harness;
+
+    // create prints the bare new id (human mode), options get deterministic ids.
+    expect(await h.runCli("property", "create", "pg7-genre", "--type", "select", "--option", "Fiction", "--option", "Mystery")).toBe(EXIT.ok);
+    const schemaId = h.io.stdoutText.trim();
+    expect(schemaId).toMatch(/^[0-9a-f-]{36}$/);
+
+    // --json list round-trips the schema rows.
+    expect(await h.runCli("--json", "property", "list")).toBe(EXIT.ok);
+    const listed = JSON.parse(h.io.stdoutText) as { propertySchemas: Array<{ id: string; name: string; type: string }> };
+    expect(listed.propertySchemas).toContainEqual(expect.objectContaining({ id: schemaId, name: "pg7-genre", type: "select" }));
+
+    // get resolves by name.
+    expect(await h.runCli("--json", "property", "get", "pg7-genre")).toBe(EXIT.ok);
+    const got = JSON.parse(h.io.stdoutText) as { propertySchema: { id: string; options: Array<{ label: string }> } };
+    expect(got.propertySchema.id).toBe(schemaId);
+    expect(got.propertySchema.options.map((o) => o.label)).toEqual(["Fiction", "Mystery"]);
+
+    // rename (by name) → get by the new name resolves.
+    expect(await h.runCli("property", "rename", "pg7-genre", "pg7-style")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "property", "get", "pg7-style")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText) as { propertySchema: { id: string } }).propertySchema.id).toBe(schemaId);
+
+    // bind to a class by title; unbind by name. The binding is
+    // presence-only since the property-definition batch — sequence,
+    // required, and the binding-level default retired from the wire.
+    expect(await h.runCli("object", "create", "--isClass", "--name", "pg7-shelf")).toBe(EXIT.ok);
+    const classId = h.io.stdoutText.trim();
+    expect(
+      await h.runCli("--json", "property", "bind", "pg7-shelf", "pg7-style"),
+    ).toBe(EXIT.ok);
+    const bound = JSON.parse(h.io.stdoutText) as { classId: string; binding: { propertySchemaId: string; active: boolean } };
+    expect(bound.classId).toBe(classId);
+    expect(bound.binding).toMatchObject({ propertySchemaId: schemaId, active: true });
+
+    expect(await h.runCli("property", "unbind", "pg7-shelf", "pg7-style")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("unbound pg7-style from pg7-shelf");
+
+    // delete is preview-first; --yes soft-deletes. A uuid get then 404s
+    // (exit 1); a name get fails name-resolution (exit 2) — the CLI's
+    // schema-ref contract.
+    expect(await h.runCli("property", "delete", "pg7-style")).toBe(EXIT.usage);
+    expect(await h.runCli("property", "delete", "pg7-style", "--yes")).toBe(EXIT.ok);
+    expect(await h.runCli("property", "get", schemaId)).toBe(EXIT.domain);
+    expect(await h.runCli("property", "get", "pg7-style")).toBe(EXIT.usage);
+  });
+
+  it("get resolves eligible classes through the extends closure (citekey is scoped to Source)", async () => {
+    const h = harness;
+    // citekey seeds local to `source` + extensions (SYSTEM_PROPERTY specs);
+    // Document extends Source, Person extends Agent — a clean closure probe.
+    expect(await h.runCli("--json", "property", "get", SYSTEM_PROPERTY_UUIDS.citekey)).toBe(EXIT.ok);
+    const got = JSON.parse(h.io.stdoutText) as {
+      propertySchema: { id: string };
+      eligibleClasses: Array<{ id: string; name: string; via: string[] }>;
+    };
+    expect(got.propertySchema.id).toBe(SYSTEM_PROPERTY_UUIDS.citekey);
+    const source = got.eligibleClasses.find((entry) => entry.name === "Source");
+    expect(source?.via).toEqual(["(scoped directly)"]);
+    const document = got.eligibleClasses.find((entry) => entry.name === "Document");
+    expect(document).toBeDefined();
+    expect(document!.via.join(" → ")).toContain("Source");
+    // Person's closure (Agent) never reaches Source.
+    expect(got.eligibleClasses.some((entry) => entry.name === "Person")).toBe(false);
+
+    // Human mode prints the schema dump with the eligibleClasses section.
+    expect(await h.runCli("property", "get", "citekey")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain('"eligibleClasses"');
+  });
+
+  it("usage and domain failures fail loud", async () => {
+    const h = harness;
+    expect(await h.runCli("property", "create", "x", "--type", "bogus")).toBe(EXIT.usage);
+    // The retired url type fails loud client-side (the server's strict enum
+    // would 422 anyway — exit 2 first); the seeded url property survives as
+    // type text, so plain-string url values stay legal under text.
+    expect(await h.runCli("property", "create", "x-url", "--type", "url")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("unknown property type");
+    expect(await h.runCli("property", "get", "no-such-schema")).toBe(EXIT.usage);
+    expect(await h.runCli("property", "get", "10000000-0000-4000-8000-00000000dead")).toBe(EXIT.domain);
+    expect(await h.runCli("property", "rename", "citekey", "")).toBe(EXIT.usage);
+
+    // The default is the schema's ONE global default (moved off the binding): set at create, typed per the schema type. A
+    // wrong-typed default is a server-side 422 → exit 1.
+    expect(await h.runCli("property", "create", "pg7-num", "--type", "number", "--default", "7")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "property", "get", "pg7-num")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText).propertySchema as { defaultValue: unknown }).defaultValue).toBe(7);
+    expect(await h.runCli("object", "create", "--isClass", "--name", "pg7-shelf-2")).toBe(EXIT.ok);
+    expect(await h.runCli("property", "bind", "pg7-shelf-2", "pg7-num")).toBe(EXIT.ok);
+    // The server's ingest persists before it applies, so a payload-semantic
+    // reject still leaves the envelope in THAT workspace's relay log — every
+    // later re-sync of the workspace would re-hit the unappliable envelope.
+    // The bad-default probe therefore rides a throwaway workspace.
+    const poisonWs = crypto.randomUUID();
+    expect(
+      await h.runCli("--workspace", poisonWs, "property", "create", "pg7-num-bad", "--type", "number", "--default", '"not-a-number"'),
+    ).toBe(EXIT.domain);
+  });
+});
+
+describe("shell (scripted mode)", () => {
+  it("scripted create → get → search → effective → delete; stdout carries the ids", async () => {
+    const h = harness;
+    // Piped stdin runs as a script: helpers are globals, top-level await works.
+    const script = `
+      const p = await create({
+        isEmbedded: false,
+        contentAst: [{ type: "text", text: "shell-t1-page" }],
+      });
+      console.log("created " + p.id);
+      const got = await get(p.id);
+      console.log("got " + got.name);
+      const hits = await search("shell-t1-page");
+      console.log("hits " + hits.map((hit) => hit.id).join(","));
+      const eff = await effective(p.id);
+      console.log("effective-count " + eff.length);
+      const removed = await del(p.id, { permanent: true });
+      console.log("deleted " + removed.id);
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+
+    const createdLine = h.io.stdoutText.split("\n").find((line) => line.startsWith("created "));
+    expect(createdLine).toBeDefined();
+    const id = createdLine!.slice("created ".length).trim();
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(h.io.stdoutText).toContain(`got shell-t1-page`);
+    // The search hit echoes the created id on the hits line.
+    expect(h.io.stdoutText).toContain(`hits ${id}`);
+    expect(h.io.stdoutText).toContain("deleted " + id);
+
+    // The script really deleted the object.
+    expect(await h.runCli("--json", "object", "get", id)).toBe(EXIT.domain);
+  });
+
+  it("scripted update(id, {name}) rewrites the title (title-is-content)", async () => {
+    const h = harness;
+    const script = `
+      const p = await create({
+        isEmbedded: false,
+        contentAst: [{ type: "text", text: "shell-rename-page" }],
+      });
+      await update(p.id, { name: "shell-renamed-page" });
+      const got = await get(p.id);
+      console.log("name " + got.name);
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("name shell-renamed-page");
+  });
+
+  it("scripted update(id, {name, contentAst}) exits 2 (usage)", async () => {
+    const h = harness;
+    const script = `
+      const p = await create({
+        isEmbedded: false,
+        contentAst: [{ type: "text", text: "shell-mutex-page" }],
+      });
+      await update(p.id, { name: "x", contentAst: [] });
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("mutually exclusive");
+  });
+
+  it("scripted merge/mergePlan: the plan is dry, the merge lands, guards throw", async () => {
+    const h = harness;
+    const script = `
+      const source = await create({
+        isEmbedded: false,
+        contentAst: [{ type: "text", text: "shell-merge-src" }],
+        parentId: undefined,
+      });
+      const block = await create({
+        isEmbedded: true,
+        parentId: source.id,
+        contentAst: [{ type: "text", text: "shell-merge-block" }],
+      });
+      const target = await create({
+        isEmbedded: false,
+        contentAst: [{ type: "text", text: "shell-merge-tgt" }],
+      });
+      const plan = await mergePlan(source.id, target.id);
+      console.log("plan-dry " + plan.dryRun);
+      console.log("plan-moves " + plan.summary.childrenMoved);
+      const got = await get(source.id);
+      console.log("still-active " + got.isActive);
+      const res = await merge(source.id, target.id);
+      console.log("merged " + res.merged);
+      const trashed = await get(source.id);
+      console.log("trashed " + (trashed.isActive === false));
+      try {
+        await merge(target.id, target.id);
+        console.log("self-guard missing");
+      } catch (error) {
+        console.log("self-guard " + String(error.message).includes("different nodes"));
+      }
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("plan-dry true");
+    expect(h.io.stdoutText).toContain("plan-moves 1");
+    expect(h.io.stdoutText).toContain("still-active true");
+    expect(h.io.stdoutText).toContain("merged true");
+    expect(h.io.stdoutText).toContain("trashed true");
+    expect(h.io.stdoutText).toContain("self-guard true");
+  });
+
+  it("scripted helper sweep: list, classes, classInfo, backlinks, props, setProperty, upload, export", async () => {
+    const h = harness;
+    // The server sniffs the file type (jpeg/png/webp/pdf/epub/audio) — reuse
+    // the fake-PNG pattern from the asset round-trip test above.
+    const assetFile = join(h.dataDir, "shell-t2-upload.png");
+    writeFileSync(
+      assetFile,
+      Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.from("shell-upload"),
+      ]),
+    );
+
+    const script = `
+      const p = await create({
+        isEmbedded: false,
+        name: "shell-t2-src",
+        classIds: ["${SYSTEM_CLASS_UUIDS.book}"],
+      });
+      await setProperty(p.id, "${SYSTEM_PROPERTY_UUIDS.citekey}", "shellt2key");
+      const mine = await props(p.id);
+      console.log("citekey " + mine.find((x) => x.schemaName === "Citekey").value);
+      const found = await list({ property: "${SYSTEM_PROPERTY_UUIDS.citekey}:shellt2key" });
+      console.log("found " + found.map((o) => o.id).join(","));
+      const klasses = await classes();
+      const person = klasses.find((c) => c.name === "Person");
+      const info = await classInfo(person.id);
+      console.log("class " + info.name + " members=" + info.members.length);
+      console.log("backlinks " + (await backlinks(p.id)).length);
+      console.log("asset " + (await upload("${assetFile.replace(/\\/g, "\\\\")}")));
+      console.log("export " + (await exportMd([p.id])).includes("shell-t2-src"));
+      console.log("export-alias " + (await helpers.export([p.id])).includes("shell-t2-src"));
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("citekey shellt2key");
+    expect(h.io.stdoutText).toMatch(/found [0-9a-f-]{36}/);
+    // The person class already has members from the bibtex tests above.
+    expect(h.io.stdoutText).toMatch(/class Person members=\d+/);
+    expect(h.io.stdoutText).toContain("backlinks 0");
+    expect(h.io.stdoutText).toMatch(/asset [0-9a-f-]{36}/);
+    expect(h.io.stdoutText).toContain("export true");
+    expect(h.io.stdoutText).toContain("export-alias true");
+  });
+
+  it("scripted property helpers: schema CRUD, class bind/unbind, unsetProperty", async () => {
+    const h = harness;
+    const script = `
+      const schema = await createPropertySchema({
+        propertySchemaId: "20000000-0000-7000-8000-0000000000ab",
+        name: "shell-pg7-code",
+        type: "text",
+        multi: false,
+        defaultValue: "shell-def",
+      });
+      console.log("created " + schema.id);
+      const renamed = await updatePropertySchema(schema.id, { name: "shell-pg7-key" });
+      console.log("renamed " + renamed.name);
+      const all = await propertySchemas();
+      console.log("listed " + all.some((s) => s.id === schema.id));
+      const one = await propertySchema(schema.id);
+      console.log("got " + one.name);
+      const klasses = await classes();
+      const source = klasses.find((c) => c.name === "Source");
+      const binding = await setClassProperty(source.id, schema.id, { active: true });
+      console.log("bound " + binding.active);
+      const obj = await create({ isEmbedded: false, name: "shell-pg7-src", classIds: [source.id] });
+      await setProperty(obj.id, schema.id, "shell-authored");
+      const eff = await effective(obj.id);
+      console.log("shadowed " + eff.find((r) => r.schemaId === schema.id).value);
+      await unsetProperty(obj.id, schema.id);
+      const after = await effective(obj.id);
+      console.log("default-back " + after.find((r) => r.schemaId === schema.id).value);
+      await unsetClassProperty(source.id, schema.id);
+      await deletePropertySchema(schema.id);
+      try {
+        await propertySchema(schema.id);
+        console.log("deleted no");
+      } catch {
+        console.log("deleted yes");
+      }
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("created 20000000-0000-7000-8000-0000000000ab");
+    expect(h.io.stdoutText).toContain("renamed shell-pg7-key");
+    expect(h.io.stdoutText).toContain("listed true");
+    expect(h.io.stdoutText).toContain("got shell-pg7-key");
+    expect(h.io.stdoutText).toContain("bound true");
+    expect(h.io.stdoutText).toContain("shadowed shell-authored");
+    expect(h.io.stdoutText).toContain("default-back shell-def");
+    expect(h.io.stdoutText).toContain("deleted yes");
+  });
+
+  it("erroring script exits 1 with the failure on stderr", async () => {
+    const h = harness;
+    const missing = crypto.randomUUID();
+    const code = await h.runCliWithStdin(`await get("${missing}");`, "shell");
+    expect(code).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("script failed");
+    expect(h.io.stderrText).toContain("does not exist");
+  });
+
+  it("bad API key → 3 with a clear probe message", async () => {
+    const h = harness;
+    const io = new Capture();
+    io.stdin = Readable.from(["const x = 1;\n"]);
+    const code = await run(["--server", h.baseUrl, "--key", `nk_${"q".repeat(32)}`, "shell"], io);
+    expect(code).toBe(EXIT.auth);
+    expect(io.stderrText).toContain("authentication failed");
+    io.stdin = undefined;
+  });
+
+  it("pool() runs fn with N workers: per-item results in input order, failures captured not thrown", async () => {
+    const h = harness;
+    const script = `
+      const results = await pool(
+        Array.from({ length: 10 }, (_, i) => i),
+        3,
+        async (item) => {
+          if (item === 4) throw new Error("boom-" + item);
+          return item * 2;
+        },
+      );
+      console.log("ok " + results.filter((r) => r.ok).length + " failed " + results.filter((r) => !r.ok).length);
+      console.log("order " + results.map((r) => r.index).join(","));
+      console.log("failure " + results.find((r) => !r.ok).error);
+      console.log("value " + results[3].value);
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("ok 9 failed 1");
+    expect(h.io.stdoutText).toContain("order 0,1,2,3,4,5,6,7,8,9");
+    expect(h.io.stdoutText).toContain("failure boom-4");
+    expect(h.io.stdoutText).toContain("value 6");
+  });
+
+  it("pool() with a bad concurrency exits 2 (usage)", async () => {
+    const h = harness;
+    const code = await h.runCliWithStdin(`await pool([1], 0, async (x) => x);`, "shell");
+    expect(code).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("concurrency");
+  });
+});
+
+describe("workspace selection (--workspace)", () => {
+  it("--workspace <name> resolves via the account listing and addresses that workspace", async () => {
+    const h = harness;
+    // Name resolution is account-scoped: provision the first account, create
+    // a named workspace, and mint a user API key (the operator key cannot
+    // list workspaces).
+    const setup = await h.app.inject({
+      method: "POST",
+      url: "/api/setup",
+      headers: { "content-type": "application/json" },
+      payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+    });
+    expect(setup.statusCode).toBe(201);
+    const session = setup.json().token as string;
+    const authHeaders = { "x-api-key": session, "content-type": "application/json" };
+
+    const workspace = (
+      await h.app.inject({ method: "POST", url: "/api/workspaces", headers: authHeaders, payload: { name: "Notas-CLI-Test" } })
+    ).json();
+    const workspaceId = workspace.id as string;
+    const userKey = (
+      await h.app.inject({ method: "POST", url: "/api/api-keys", headers: authHeaders, payload: { name: "cli-test" } })
+    ).json().token as string;
+
+    const io = new Capture();
+    const code = await run(
+      ["--server", h.baseUrl, "--key", userKey, "--workspace", "Notas-CLI-Test", "--json", "object", "create", "--name", "ws-target"],
+      io,
+    );
+    expect(code).toBe(EXIT.ok);
+    const { id } = JSON.parse(io.stdoutText);
+
+    // The object lives in the named workspace, not the server default — the
+    // plan-07 truth is the relay log (the content reads retired).
+    const createsIn = async (ws: string): Promise<string[]> => {
+      const res = await h.app.inject({
+        method: "POST",
+        url: "/api/relay/v2/catch-up",
+        headers: { "content-type": "application/json", "x-api-key": API_KEY },
+        payload: { workspaceId: ws, afterSeq: 0, limit: 10000 },
+      });
+      const envelopes = res.json().envelopes as Array<{ opType: string; payload: { objectId?: string } }>;
+      return envelopes.filter((e) => e.opType === "object.create").map((e) => e.payload.objectId ?? "");
+    };
+    expect(await createsIn(workspaceId)).toContain(id);
+    expect(await createsIn(defaultWorkspaceId())).not.toContain(id);
+
+    // The name→id mapping is cached per profile in the CLI state file.
+    const state = JSON.parse(readFileSync(h.stateFile, "utf8")) as {
+      servers: Record<string, { workspaces?: Record<string, string> }>;
+    };
+    const cached = Object.values(state.servers).find((entry) => entry.workspaces?.["notas-cli-test"]);
+    expect(cached).toBeDefined();
+  });
+
+  it("operator key resolves names against the whole directory — an unknown name fails listing the available ones", async () => {
+    const h = harness;
+    const code = await h.runCli("--workspace", "whatever", "object", "list");
+    expect(code).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain('workspace "whatever" not found');
+  });
+
+  it("unknown workspace name fails with a usage error listing the available names", async () => {
+    const h = harness;
+    // The account from the first test exists now — log in for a session token.
+    const login = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+    });
+    expect(login.statusCode).toBe(200);
+    const session = login.json().token as string;
+
+    const io = new Capture();
+    const code = await run(["--server", h.baseUrl, "--key", session, "--workspace", "no-such-ws", "object", "list"], io);
+    expect(code).toBe(EXIT.usage);
+    expect(io.stderrText).toContain('workspace "no-such-ws" not found');
+  });
+});
+
+describe("class assign/unassign", () => {
+  it("assigns and unassigns by class title (idempotent ops)", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "genre-test")).toBe(EXIT.ok);
+    const classId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("--json", "object", "create", "--name", "member-candidate")).toBe(EXIT.ok);
+    const objectId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+
+    expect(await h.runCli("--json", "class", "assign", objectId, "genre-test")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText)).toMatchObject({ objectId, classId, className: "genre-test" });
+    expect((JSON.parse(h.io.stdoutText) as { classIds: string[] }).classIds).toEqual([classId]);
+
+    expect(await h.runCli("--json", "class", "unassign", objectId, "genre-test")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText) as { classIds: string[] }).classIds).toEqual([]);
+  });
+
+  it("unknown class title is a usage error", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--name", "whatever")).toBe(EXIT.ok);
+    const objectId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("class", "assign", objectId, "no-such-class")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain('no class named "no-such-class"');
+  });
+});
+
+describe("credential handling", () => {
+  it("non-nk-shaped credentials are sent verbatim (server 401 → exit 3, not a local usage error)", async () => {
+    const h = harness;
+    const io = new Capture();
+    const code = await run(["--server", h.baseUrl, "--key", "a-session-token-shape-value", "doctor"], io);
+    expect(code).toBe(EXIT.auth);
+    expect(io.stderrText).not.toContain("must match");
+  });
+});
+
+describe("shell op submission", () => {
+  it("submitOp sends an op through the relay batch path and it applies", async () => {
+    const h = harness;
+    const script = `
+      const p = await create({ isEmbedded: false, contentAst: [{ type: "text", text: "submitop-target" }] });
+      const res = await submitOp("object.update", { objectId: p.id, contentAst: [{ type: "text", text: "submitop-renamed" }] }, [p.id]);
+      console.log("saved " + res.savedCount);
+      const after = await get(p.id);
+      console.log("name " + after.name);
+    `;
+    const code = await h.runCliWithStdin(script, "shell");
+    expect(code).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("saved 1");
+    expect(h.io.stdoutText).toContain("name submitop-renamed");
+  });
+});
+
+describe("auth (stored credentials)", () => {
+  it("login stores a CLI API key; later commands use it without --key; logout revokes and clears", async () => {
+    const h = harness;
+    // The account from the workspace-selection describe exists; log in with it.
+    // (runCli always injects --key, so drive `run` directly for the no-flag cases.)
+    const loginIo = new Capture();
+    const loginCode = await run(
+      [
+        "--server", h.baseUrl,
+        "auth", "login",
+        "--email", "cli-ws@example.test",
+        "--password", "correct horse battery staple",
+      ],
+      loginIo,
+    );
+    expect(loginCode).toBe(EXIT.ok);
+    expect(loginIo.stdoutText).toContain("logged in as cli-ws@example.test");
+
+    // A command with no --key and no env falls back to the stored credential.
+    const createIo = new Capture();
+    const createCode = await run(["--server", h.baseUrl, "--json", "object", "create", "--name", "auth-stored-key"], createIo);
+    expect(createCode).toBe(EXIT.ok);
+    const created = JSON.parse(createIo.stdoutText) as { id: string };
+
+    const statusIo = new Capture();
+    expect(await run(["--server", h.baseUrl, "auth", "status"], statusIo)).toBe(EXIT.ok);
+    expect(statusIo.stdoutText).toContain("valid");
+
+    const logoutIo = new Capture();
+    expect(await run(["--server", h.baseUrl, "auth", "logout"], logoutIo)).toBe(EXIT.ok);
+
+    // After logout the stored credential is gone: commands fail as usage errors again.
+    const afterIo = new Capture();
+    expect(await run(["--server", h.baseUrl, "object", "get", created.id], afterIo)).toBe(EXIT.usage);
+    expect(afterIo.stderrText).toContain("auth login");
+  });
+});
+
+describe("config (per-profile defaults)", () => {
+  it("config set/get/list round-trip through the state file (no server needed)", async () => {
+    await withFreshStateFile(async (stateFile) => {
+      const setIo = new Capture();
+      expect(await run(["config", "set", "server", "https://notees.example.test"], setIo)).toBe(EXIT.ok);
+      expect(setIo.stdoutText).toContain("server default set to https://notees.example.test (profile default)");
+      expect(await run(["config", "set", "workspace", "main"], new Capture())).toBe(EXIT.ok);
+
+      const getIo = new Capture();
+      expect(await run(["--json", "config", "get", "server"], getIo)).toBe(EXIT.ok);
+      expect(JSON.parse(getIo.stdoutText)).toMatchObject({
+        key: "server",
+        value: "https://notees.example.test",
+        profile: "default",
+      });
+
+      const listIo = new Capture();
+      expect(await run(["--json", "config", "list"], listIo)).toBe(EXIT.ok);
+      expect(JSON.parse(listIo.stdoutText)).toMatchObject({
+        profile: "default",
+        server: "https://notees.example.test",
+        workspace: "main",
+      });
+
+      // On disk: a top-level `profiles` record keyed by profile name (the
+      // server default cannot live under `servers`, which is keyed profile:server).
+      const state = JSON.parse(readFileSync(stateFile, "utf8")) as {
+        profiles: Record<string, { server?: string; workspace?: string }>;
+      };
+      expect(state.profiles.default?.server).toBe("https://notees.example.test");
+      expect(state.profiles.default?.workspace).toBe("main");
+    });
+  });
+
+  it("config get/list on a fresh state file report unset values (exit 0); unknown keys exit 2", async () => {
+    await withFreshStateFile(async () => {
+      const getIo = new Capture();
+      expect(await run(["--json", "config", "get", "server"], getIo)).toBe(EXIT.ok);
+      expect(JSON.parse(getIo.stdoutText)).toMatchObject({ key: "server", value: null });
+      expect(getIo.stdoutText).not.toContain("https://");
+
+      const listIo = new Capture();
+      expect(await run(["--json", "config", "list"], listIo)).toBe(EXIT.ok);
+      expect(JSON.parse(listIo.stdoutText)).toMatchObject({ server: null, workspace: null });
+
+      const badIo = new Capture();
+      expect(await run(["config", "get", "bogus"], badIo)).toBe(EXIT.usage);
+      expect(badIo.stderrText).toContain("unknown config key bogus");
+      const badSetIo = new Capture();
+      expect(await run(["config", "set", "bogus", "x"], badSetIo)).toBe(EXIT.usage);
+    });
+  });
+
+  it("stored default server is picked up with no --server and no env", async () => {
+    await withFreshStateFile(async () => {
+      const h = harness;
+      expect(await run(["config", "set", "server", h.baseUrl], new Capture())).toBe(EXIT.ok);
+      // Bare `notees object list` — no flag, no env (beforeAll blanked them): the
+      // stored default carries it.
+      const io = new Capture();
+      expect(await run(["--key", API_KEY, "--json", "object", "list"], io)).toBe(EXIT.ok);
+    });
+  });
+
+  it("flag and env still beat the stored default server", async () => {
+    await withFreshStateFile(async () => {
+      const h = harness;
+      const unreachable = "http://127.0.0.1:1";
+      expect(await run(["config", "set", "server", unreachable], new Capture())).toBe(EXIT.ok);
+
+      // flag > stored
+      expect(await run(["--server", h.baseUrl, "--key", API_KEY, "doctor"], new Capture())).toBe(EXIT.ok);
+      // env > stored
+      process.env.NOTEES_SERVER = h.baseUrl;
+      try {
+        expect(await run(["--key", API_KEY, "doctor"], new Capture())).toBe(EXIT.ok);
+        // flag > env
+        process.env.NOTEES_SERVER = unreachable;
+        expect(await run(["--server", h.baseUrl, "--key", API_KEY, "doctor"], new Capture())).toBe(EXIT.ok);
+      } finally {
+        delete process.env.NOTEES_SERVER;
+      }
+    });
+  });
+
+  it("stored default workspace applies when --workspace and NOTEES_WORKSPACE are absent", async () => {
+    await withFreshStateFile(async () => {
+      const h = harness;
+      const defaultWsId = defaultWorkspaceId();
+      expect(await run(["config", "set", "server", h.baseUrl], new Capture())).toBe(EXIT.ok);
+      expect(await run(["config", "set", "workspace", "whatever"], new Capture())).toBe(EXIT.ok);
+      // An operator key resolves names against the whole directory — the
+      // stored default was applied iff resolution fails on the bogus NAME
+      // ("whatever" is not in the directory).
+      const io = new Capture();
+      expect(await run(["--key", API_KEY, "object", "list"], io)).toBe(EXIT.usage);
+      expect(io.stderrText).toContain('workspace "whatever" not found');
+      // flag > stored: an explicit id works.
+      expect(await run(["--workspace", defaultWsId, "--key", API_KEY, "object", "list"], new Capture())).toBe(
+        EXIT.ok,
+      );
+      // env > stored
+      process.env.NOTEES_WORKSPACE = defaultWsId;
+      try {
+        expect(await run(["--key", API_KEY, "object", "list"], new Capture())).toBe(EXIT.ok);
+      } finally {
+        delete process.env.NOTEES_WORKSPACE;
+      }
+    });
+  });
+});
+
+describe("doctor honors stored config and the stored credential", () => {
+  it("reads all-ok on a fully stored setup with a scrubbed env (no flags, no NOTEES_* vars)", async () => {
+    await withFreshStateFile(async () => {
+      const h = harness;
+      expect(await run(["config", "set", "server", h.baseUrl], new Capture())).toBe(EXIT.ok);
+      expect(await run(["config", "set", "workspace", defaultWorkspaceId()], new Capture())).toBe(EXIT.ok);
+      // `auth store` resolves the server from the stored default (no --server).
+      expect(await run(["--key", API_KEY, "auth", "store"], new Capture())).toBe(EXIT.ok);
+
+      const io = new Capture();
+      expect(await run(["doctor"], io)).toBe(EXIT.ok);
+      expect(io.stdoutText).toContain("ok  server configured");
+      expect(io.stdoutText).toContain("ok  credential configured: present (stored)");
+      expect(io.stdoutText).toContain("ok  server reachable");
+      expect(io.stdoutText).toContain("ok  authentication");
+
+      // --json keeps the additive-only { ok, checks } shape.
+      const jsonIo = new Capture();
+      expect(await run(["--json", "doctor"], jsonIo)).toBe(EXIT.ok);
+      const report = JSON.parse(jsonIo.stdoutText) as { ok: boolean; checks: { check: string; ok: boolean }[] };
+      expect(report.ok).toBe(true);
+      expect(report.checks.length).toBeGreaterThanOrEqual(5);
+      expect(report.checks.every((c) => c.ok)).toBe(true);
+    });
+  });
+
+  it("still FAILs when nothing is stored and the env is blank — with hints at the stored sources", async () => {
+    await withFreshStateFile(async () => {
+      const io = new Capture();
+      expect(await run(["doctor"], io)).toBe(EXIT.usage);
+      expect(io.stdoutText).toContain("FAIL  server configured");
+      expect(io.stdoutText).toContain("FAIL  credential configured");
+      expect(io.stdoutText).toContain("notees config set server");
+      expect(io.stdoutText).toContain("notees auth store");
+      // No probes ran — there is no server to reach.
+      expect(io.stdoutText).not.toContain("server reachable");
+    });
+  });
+
+  it("the authentication check exercises the stored credential (server by flag, credential by store)", async () => {
+    await withFreshStateFile(async (stateFile) => {
+      const h = harness;
+      expect(await run(["--server", h.baseUrl, "--key", API_KEY, "auth", "store"], new Capture())).toBe(EXIT.ok);
+
+      // --server only: the credential resolves from the store, and the probe uses it.
+      const io = new Capture();
+      expect(await run(["--server", h.baseUrl, "doctor"], io)).toBe(EXIT.ok);
+      expect(io.stdoutText).toContain("ok  credential configured: present (stored)");
+      expect(io.stdoutText).toContain("ok  authentication: credential accepted");
+
+      // A stored credential that the server rejects fails authentication (exit 3)…
+      updateServerState(stateFile, `default:${h.baseUrl}`, (current) => ({
+        ...current,
+        credential: { kind: "apiKey", token: `nk_${"y".repeat(32)}`, createdAt: new Date().toISOString() },
+      }));
+      const badIo = new Capture();
+      expect(await run(["--server", h.baseUrl, "doctor"], badIo)).toBe(EXIT.auth);
+      expect(badIo.stdoutText).toContain("FAIL  authentication");
+    });
+  });
+});
+
+describe("auth store (existing API keys)", () => {
+  // Mint a fresh user API key for the shared test account (the workspace-
+  // selection describe created it). Independent of any stored credential.
+  async function mintUserKey(): Promise<string> {
+    const h = harness;
+    const login = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+    });
+    expect(login.statusCode).toBe(200);
+    const session = login.json().token as string;
+    const minted = await h.app.inject({
+      method: "POST",
+      url: "/api/api-keys",
+      headers: { "x-api-key": session, "content-type": "application/json" },
+      payload: { name: "auth-store-test" },
+    });
+    expect(minted.statusCode).toBe(201);
+    return minted.json().token as string;
+  }
+
+  it("rejects an invalid key (exit 3) and writes nothing to the state file", async () => {
+    const h = harness;
+    const io = new Capture();
+    const code = await run(["--server", h.baseUrl, "auth", "store", "--key", `nk_${"q".repeat(32)}`], io);
+    expect(code).toBe(EXIT.auth);
+    expect(io.stderrText).toContain("a valid session or API key is required");
+    const state = JSON.parse(readFileSync(h.stateFile, "utf8")) as {
+      servers: Record<string, { credential?: unknown }>;
+    };
+    expect(state.servers[`default:${h.baseUrl}`]?.credential).toBeUndefined();
+  });
+
+  it("accepts a valid key: stores { kind: apiKey, token, createdAt } (no keyId) and later commands use it", async () => {
+    const h = harness;
+    const token = await mintUserKey();
+    const storeIo = new Capture();
+    const storeCode = await run(["--server", h.baseUrl, "auth", "store", "--key", token], storeIo);
+    expect(storeCode).toBe(EXIT.ok);
+    expect(storeIo.stdoutText).toContain("stored API key");
+    expect(storeIo.stdoutText).toContain("clears it locally");
+    // The key never lands on stdout/stderr.
+    expect(storeIo.stdoutText + storeIo.stderrText).not.toContain(token);
+
+    // The state file holds exactly the StoredCredential shape, without keyId.
+    const state = JSON.parse(readFileSync(h.stateFile, "utf8")) as {
+      servers: Record<string, { credential?: { kind: string; token: string; keyId?: string; createdAt: string } }>;
+    };
+    const credential = state.servers[`default:${h.baseUrl}`]?.credential;
+    expect(credential).toBeDefined();
+    expect(credential?.kind).toBe("apiKey");
+    expect(credential?.token).toBe(token);
+    expect(credential?.keyId).toBeUndefined();
+    expect(typeof credential?.createdAt).toBe("string");
+
+    // The stored key becomes the standing credential (no --key, no env)…
+    const createIo = new Capture();
+    expect(await run(["--server", h.baseUrl, "--json", "object", "create", "--name", "auth-store-obj"], createIo)).toBe(
+      EXIT.ok,
+    );
+    const created = JSON.parse(createIo.stdoutText) as { id: string };
+    // …a user key addresses the server default workspace — the create rode
+    // the relay log there (the content reads retired with plan 07).
+    const cup = await h.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/catch-up",
+      headers: { "content-type": "application/json", "x-api-key": API_KEY },
+      payload: { workspaceId: defaultWorkspaceId(), afterSeq: 0, limit: 10000 },
+    });
+    const creates = (cup.json().envelopes as Array<{ opType: string; payload: { objectId?: string } }>)
+      .filter((e) => e.opType === "object.create")
+      .map((e) => e.payload.objectId ?? "");
+    expect(creates).toContain(created.id);
+
+    const statusIo = new Capture();
+    expect(await run(["--server", h.baseUrl, "auth", "status"], statusIo)).toBe(EXIT.ok);
+    expect(statusIo.stdoutText).toContain("valid");
+  });
+
+  it("--key-stdin reads the key; --key with --key-stdin is a usage error", async () => {
+    const h = harness;
+    const token = await mintUserKey();
+
+    const io = new Capture();
+    io.stdin = Readable.from([`${token}\n`]);
+    const code = await run(["--server", h.baseUrl, "auth", "store", "--key-stdin"], io);
+    io.stdin = undefined;
+    expect(code).toBe(EXIT.ok);
+    expect(io.stdoutText).toContain("stored API key");
+
+    // --profile isolates the second store from the first.
+    const io2 = new Capture();
+    expect(
+      await run(["--server", h.baseUrl, "--profile", "second", "auth", "store", "--key", token, "--key-stdin"], io2),
+    ).toBe(EXIT.usage);
+    expect(io2.stderrText).toContain("not both");
+
+    const io3 = new Capture();
+    expect(await run(["--server", h.baseUrl, "auth", "store"], io3)).toBe(EXIT.usage);
+    expect(io3.stderrText).toContain("--key");
+  });
+
+  it("logout clears a stored key locally but does not revoke it server-side (no keyId)", async () => {
+    const h = harness;
+    const token = await mintUserKey();
+    expect(await run(["--server", h.baseUrl, "--profile", "revprobe", "auth", "store", "--key", token], new Capture())).toBe(
+      EXIT.ok,
+    );
+    const logoutIo = new Capture();
+    expect(await run(["--server", h.baseUrl, "--profile", "revprobe", "auth", "logout"], logoutIo)).toBe(EXIT.ok);
+    // Not CLI-minted: no server-side revocation — the key still authenticates.
+    const probe = await h.app.inject({ method: "GET", url: "/api/classes", headers: { "x-api-key": token } });
+    expect(probe.statusCode).toBe(200);
+    // …and locally it is gone.
+    const afterIo = new Capture();
+    expect(await run(["--server", h.baseUrl, "--profile", "revprobe", "auth", "status"], afterIo)).toBe(EXIT.ok);
+    expect(afterIo.stdoutText).toContain("not logged in");
+  });
+});
+
+describe("tabular human output", () => {
+  it("class list and object list render compact tables in human mode", async () => {
+    const h = harness;
+    expect(await h.runCli("class", "list")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("NAME");
+    expect(h.io.stdoutText).toContain("MEMBERS");
+    expect(h.io.stdoutText).toContain("Source");
+
+    expect(await h.runCli("object", "create", "--name", "table-output-probe")).toBe(EXIT.ok);
+    expect(await h.runCli("object", "list", "--q", "table-output-probe")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("KIND");
+    expect(h.io.stdoutText).toContain("table-output-probe");
+  });
+});
+
+describe("class list --tree", () => {
+  it("renders the extends hierarchy indented (Document under Source); --json carries classes + tree", async () => {
+    const h = harness;
+    // Seeded hierarchy (SYSTEM_CLASS_EXTENDS in @notees/domain): Document
+    // extends Source, so Source is a root and Document sits one level in.
+    expect(await h.runCli("class", "list", "--tree")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toMatch(/^Source \(\d+\)$/m);
+    expect(h.io.stdoutText).toMatch(/^ {2}Document \(\d+\)$/m);
+    // A root never carries an indent or an "also under" tag.
+    expect(h.io.stdoutText).not.toMatch(/^ {2}Source/);
+
+    // Machine surface: the flat body is unchanged, `tree` is additive.
+    expect(await h.runCli("--json", "class", "list", "--tree")).toBe(EXIT.ok);
+    const body = JSON.parse(h.io.stdoutText) as {
+      classes: Array<{ id: string; name: string }>;
+      tree: Array<{ id: string; name: string; memberCount: number; children: Array<{ id: string; name: string }> }>;
+    };
+    expect(Array.isArray(body.classes)).toBe(true);
+    const source = body.tree.find((node) => node.name === "Source");
+    expect(source).toBeDefined();
+    expect(source!.children).toContainEqual(expect.objectContaining({ name: "Document" }));
+  });
+
+  it("multi-parent classes render under each parent with an [also under:] tag", async () => {
+    const h = harness;
+    // Two user classes; the child extends both. Extends is op-level state —
+    // the class.setExtends op rides the shell's submitOp (the one write path).
+    const script = `
+      const a = await create({ isClass: true, name: "tree-mp-a" });
+      const b = await create({ isClass: true, name: "tree-mp-b" });
+      const child = await create({ isClass: true, name: "tree-mp-child" });
+      await submitOp("class.setExtends", { classId: child.id, parentClassIds: [a.id, b.id] }, [child.id]);
+    `;
+    expect(await h.runCliWithStdin(script, "shell")).toBe(EXIT.ok);
+    expect(await h.runCli("class", "list", "--tree")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toMatch(/^ {2}tree-mp-child \(\d+\) \[also under: tree-mp-(a|b)\]$/m);
+  });
+});
+
+describe("class remap", () => {
+  it("preview without --yes (exit 2), --dry-run changes nothing, --yes moves members and remaps extends", async () => {
+    const h = harness;
+    // from-class, to-class, two members, and an extender of from.
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "remap-from")).toBe(EXIT.ok);
+    const fromId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "remap-to")).toBe(EXIT.ok);
+    const toId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "remap-extender")).toBe(EXIT.ok);
+    const extenderId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    for (const name of ["remap-m1", "remap-m2"]) {
+      expect(await h.runCli("--json", "object", "create", "--name", name, "--class", fromId)).toBe(EXIT.ok);
+    }
+    const setExtends = newEnvelope({
+      workspaceId: defaultWorkspaceId(),
+      actorId: "99999999-8888-4777-8666-555555555555",
+      deviceId: "test",
+      hlc: { physical: Date.now() + 1000, logical: 0 },
+      opType: "class.setExtends",
+      payload: { classId: extenderId, parentClassIds: [fromId] },
+    });
+    const ingestRes = await h.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", "x-api-key": API_KEY },
+      payload: { envelopes: [setExtends] },
+    });
+    expect(ingestRes.statusCode).toBe(200);
+
+    // Preview: no --yes → exit 2 with the blast radius, nothing written.
+    const memberCount = async (title: string): Promise<number | undefined> => {
+      expect(await h.runCli("--json", "class", "list")).toBe(EXIT.ok);
+      const row = (JSON.parse(h.io.stdoutText).classes as Array<{ name: string; memberCount: number }>).find(
+        (c) => c.name === title,
+      );
+      return row?.memberCount;
+    };
+    expect(await h.runCli("class", "remap", "remap-from", "remap-to")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("2 members");
+    expect(await memberCount("remap-from")).toBe(2);
+
+    // --dry-run: exit 0, still nothing written.
+    expect(await h.runCli("class", "remap", "remap-from", "remap-to", "--dry-run")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("dry run");
+    expect(await memberCount("remap-from")).toBe(2);
+
+    // --yes: members move, the extender now extends to.
+    expect(await h.runCli("--json", "class", "remap", "remap-from", "remap-to", "--yes")).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { moved: number; extenders: number; extendsRemapped: number; failures: unknown[] };
+    expect(machine.moved).toBe(2);
+    expect(machine.failures).toEqual([]);
+    expect(machine.extendsRemapped).toBe(1);
+
+    expect(await memberCount("remap-from")).toBe(0);
+    expect(await memberCount("remap-to")).toBe(2);
+    expect(await h.runCli("--json", "class", "list")).toBe(EXIT.ok);
+    const extenderRow = (JSON.parse(h.io.stdoutText).classes as Array<{ name: string; parentClassIds: string[] }>)
+      .find((c) => c.name === "remap-extender");
+    expect(extenderRow?.parentClassIds).toEqual([toId]);
+  });
+});
+
+describe("class set-extends", () => {
+  it("preview without --yes (exit 2, shows the resulting parent set); --yes replaces the full set", async () => {
+    const h = harness;
+    for (const name of ["sx-child", "sx-a", "sx-b"]) {
+      expect(await h.runCli("--json", "object", "create", "--isClass", "--name", name)).toBe(EXIT.ok);
+    }
+    const parentsOf = async (title: string): Promise<string[]> => {
+      expect(await h.runCli("--json", "class", "list")).toBe(EXIT.ok);
+      const row = (JSON.parse(h.io.stdoutText).classes as Array<{ name: string; parentClassIds: string[] }>).find(
+        (c) => c.name === title,
+      );
+      return row?.parentClassIds ?? [];
+    };
+
+    // No --yes: exit 2 with the resulting parent set in the preview.
+    expect(await h.runCli("class", "set-extends", "sx-child", "sx-a", "sx-b")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("sx-a");
+    expect(h.io.stderrText).toContain("replaces the FULL parent set");
+    expect(await parentsOf("sx-child")).toEqual([]);
+
+    // --yes: both parents land (title refs resolve).
+    expect(await h.runCli("--json", "class", "set-extends", "sx-child", "sx-a", "sx-b", "--yes")).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { class: { name: string }; parentClassIds: string[] };
+    expect(machine.class.name).toBe("sx-child");
+    expect(machine.parentClassIds.length).toBe(2);
+
+    // REPLACE semantics: re-setting with only sx-a detaches sx-b.
+    expect(await h.runCli("class", "set-extends", "sx-child", "sx-a", "--yes")).toBe(EXIT.ok);
+    const listRes = await h.app.inject({
+      method: "GET",
+      url: "/api/classes",
+      headers: { "x-api-key": API_KEY },
+    });
+    const row = (listRes.json().classes as Array<{ name: string; parentClassIds: string[] }>).find(
+      (c) => c.name === "sx-child",
+    );
+    const aId = (listRes.json().classes as Array<{ name: string; id: string }>).find((c) => c.name === "sx-a")!.id;
+    expect(row?.parentClassIds).toEqual([aId]);
+  });
+
+  it("an empty parent list detaches all; a cycle guard fails loud server-side", async () => {
+    const h = harness;
+    for (const name of ["sx-detach", "sx-detach-parent"]) {
+      expect(await h.runCli("--json", "object", "create", "--isClass", "--name", name)).toBe(EXIT.ok);
+    }
+    expect(await h.runCli("class", "set-extends", "sx-detach", "sx-detach-parent", "--yes")).toBe(EXIT.ok);
+    expect(await h.runCli("class", "set-extends", "sx-detach", "--yes")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "class", "list")).toBe(EXIT.ok);
+    const row = (JSON.parse(h.io.stdoutText).classes as Array<{ name: string; parentClassIds: string[] }>).find(
+      (c) => c.name === "sx-detach",
+    );
+    expect(row?.parentClassIds).toEqual([]);
+
+    // Self-extends fails client-side (usage) before any write.
+    expect(await h.runCli("class", "set-extends", "sx-detach", "sx-detach", "--yes")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("cannot extend itself");
+  });
+});
+
+describe("class render-as", () => {
+  it("writes the parentlessRole render contract (client-side role validation; title + uuid refs; idempotent)", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "ra-probe")).toBe(EXIT.ok);
+
+    // Unknown role: usage error client-side, before any write.
+    expect(await h.runCli("class", "render-as", "ra-probe", "sideways")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("known roles: page, block");
+
+    // Happy path by title; the machine surface carries the written contract.
+    expect(await h.runCli("--json", "class", "render-as", "ra-probe", "block")).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { class: { id: string; name: string }; parentlessRole: string };
+    expect(machine.class.name).toBe("ra-probe");
+    expect(machine.parentlessRole).toBe("block");
+
+    // Idempotent re-issue converges to the same contract.
+    expect(await h.runCli("class", "render-as", "ra-probe", "block")).toBe(EXIT.ok);
+
+    // The class routes do not project the field — the effect assertion reads
+    // the derived store directly (store schema v32, class.parentless_role);
+    // the CLI's local store is the same projection, synced from the relay.
+    // Read-only: a read-write open of a WAL database checkpoints and removes
+    // the WAL at close, and a second such external open leaves the store in a
+    // state the next CLI open fails on (disk I/O error) under the v37 store —
+    // a read-only peek never checkpoints and cannot poison the live store.
+    const roleOf = (): string | null => {
+      const db = new Database(join(dirname(h.stateFile), "stores", `${defaultWorkspaceId()}.db`), {
+        readonly: true,
+      });
+
+      const row = db.prepare("SELECT parentless_role AS role FROM class WHERE id = ?").get(machine.class.id) as
+        | { role: string | null }
+        | undefined;
+      db.close();
+      return row?.role ?? null;
+    };
+    expect(roleOf()).toBe("block");
+
+    // Uuid ref + the page role writes the explicit default.
+    expect(await h.runCli("--json", "class", "render-as", machine.class.id, "page")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText) as { parentlessRole: string }).parentlessRole).toBe("page");
+    expect(roleOf()).toBe("page");
+  });
+});
+
+describe("search tier surface", () => {
+  it("annotates --json results with the ranking tier — direct hits vs the fuzzy rescue arm", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--name", "tierprobe-alphabet-soup")).toBe(EXIT.ok);
+    const id = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    // Direct literal hit: a direct tier (0–3).
+    expect(await h.runCli("--json", "search", "tierprobe-alphabet-soup")).toBe(EXIT.ok);
+    const direct = JSON.parse(h.io.stdoutText) as { results: Array<{ id: string; tier: number }> };
+    expect(direct.results[0]).toEqual(expect.objectContaining({ id }));
+    expect(direct.results[0]!.tier).toBeLessThanOrEqual(3);
+    // No direct match at all: the ordered-subsequence rescue arm still
+    // admits "tirpbet" (t→i→r→p→b→e→t in order) — annotated as the fuzzy
+    // tier, never silently a direct match.
+    expect(await h.runCli("--json", "search", "tirpbet")).toBe(EXIT.ok);
+    const fuzzy = JSON.parse(h.io.stdoutText) as { results: Array<{ id: string; tier: number }> };
+    const hit = fuzzy.results.find((r) => r.id === id);
+    expect(hit?.tier).toBe(6);
+    for (const r of fuzzy.results) expect(typeof r.tier).toBe("number");
+  });
+});
+
+describe("object list --all", () => {
+  it("follows the cursor to exhaustion", async () => {
+    const h = harness;
+    // Unique probe vocabulary: the list q-filter matches per term, so a
+    // shared word ("probe") would pick up other suites' rows on the shared
+    // test server.
+    for (let i = 1; i <= 3; i += 1) {
+      expect(await h.runCli("object", "create", "--name", `cursorq-${i}`)).toBe(EXIT.ok);
+    }
+    // Page size 2 < 3 results: without --all the first page stops early.
+    expect(await h.runCli("--json", "object", "list", "--q", "cursorq", "--limit", "2")).toBe(EXIT.ok);
+    const paged = JSON.parse(h.io.stdoutText) as { objects: unknown[]; nextCursor: string | null };
+    expect(paged.objects.length).toBe(2);
+    expect(paged.nextCursor).not.toBeNull();
+
+    expect(await h.runCli("--json", "object", "list", "--q", "cursorq", "--limit", "2", "--all")).toBe(EXIT.ok);
+    const all = JSON.parse(h.io.stdoutText) as { objects: unknown[]; nextCursor: string | null };
+    expect(all.objects.length).toBe(3);
+    expect(all.nextCursor).toBeNull();
+  });
+});
+
+describe("object list row visibility (--embedded / --inactive)", () => {
+  it("--embedded selects embedded blocks; --all alone still excludes nothing active; --inactive lists the trash", async () => {
+    const h = harness;
+    const page = await h.createPage("visib-page", [{ type: "text", text: "visib-block" }]);
+    // The embedded block created as the page's body child.
+    expect(await h.runCli("--json", "object", "children", page)).toBe(EXIT.ok);
+    const block = (JSON.parse(h.io.stdoutText).children as Array<{ id: string; isEmbedded: boolean }>).find(
+      (child) => child.isEmbedded === true,
+    )!;
+    expect(block).toBeDefined();
+
+    // --embedded: only the block, never the page.
+    expect(await h.runCli("--json", "object", "list", "--q", "visib", "--embedded")).toBe(EXIT.ok);
+    let listed = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(listed.map((o) => o.id)).toContain(block.id);
+    expect(listed.map((o) => o.id)).not.toContain(page);
+
+    // --all --embedded: same filter, cursor exhausted.
+    expect(await h.runCli("--json", "object", "list", "--q", "visib", "--embedded", "--all")).toBe(EXIT.ok);
+    listed = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(listed.map((o) => o.id)).toContain(block.id);
+
+    // The trap surfaced: a bare (active) listing CONTAINS embedded blocks —
+    // --no-isEmbedded is what excludes them.
+    expect(await h.runCli("--json", "object", "list", "--q", "visib", "--no-isEmbedded")).toBe(EXIT.ok);
+    listed = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(listed.map((o) => o.id)).not.toContain(block.id);
+
+    // --inactive: the trashed row shows up (no --q: the FTS index may not
+    // carry trashed rows), and every row is inactive.
+    expect(await h.runCli("--json", "object", "delete", page, "--yes")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "list", "--inactive")).toBe(EXIT.ok);
+    const inactive = JSON.parse(h.io.stdoutText).objects as Array<{ id: string; isActive: boolean }>;
+    expect(inactive.map((o) => o.id)).toContain(page);
+    expect(inactive.every((o) => o.isActive === false)).toBe(true);
+
+    // --all stays additive over the same trap: still no trashed rows.
+    expect(await h.runCli("--json", "object", "list", "--q", "visib", "--all")).toBe(EXIT.ok);
+    listed = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(listed.map((o) => o.id)).not.toContain(page);
+
+    // ...unless --inactive is combined in.
+    expect(await h.runCli("--json", "object", "list", "--all", "--inactive")).toBe(EXIT.ok);
+    listed = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(listed.map((o) => o.id)).toContain(page);
+  });
+});
+
+describe("ops catalog", () => {
+  it("notees ops lists the catalog; one op prints its entry", async () => {
+    const h = harness;
+    expect(await h.runCli("ops")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("object.create");
+    expect(h.io.stdoutText).toContain("class.unassign");
+
+    expect(await h.runCli("ops", "class.unassign")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("OR-Set remove");
+    expect(h.io.stdoutText).toContain("example");
+
+    expect(await h.runCli("ops", "no.such.op")).toBe(EXIT.usage);
+  });
+
+  it("shell opHelp returns the entry and ops() the full list", async () => {
+    const h = harness;
+    const script = `
+      const move = await opHelp("object.move");
+      console.log("affected " + move.affected);
+      console.log("count " + ops().length);
+    `;
+    expect(await h.runCliWithStdin(script, "shell")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("affected objectId");
+    expect(h.io.stdoutText).toMatch(/count 3[0-9]/);
+  });
+});
+
+describe("object children", () => {
+  it("lists direct children in child-position order with render kinds", async () => {
+    const h = harness;
+    const parent = await h.createPage("children-probe", []);
+    expect(await h.runCli("object", "create", "--name", "child-main", "--parent", parent, "--no-isEmbedded")).toBe(
+      EXIT.ok,
+    );
+    const mainId = h.io.stdoutText.trim();
+    expect(await h.runCli("object", "create", "--name", "child-block-1", "--parent", parent)).toBe(EXIT.ok);
+    const b1 = h.io.stdoutText.trim();
+    expect(await h.runCli("object", "create", "--name", "child-block-2", "--parent", parent)).toBe(EXIT.ok);
+    const b2 = h.io.stdoutText.trim();
+
+    expect(await h.runCli("--json", "object", "children", parent)).toBe(EXIT.ok);
+    const res = JSON.parse(h.io.stdoutText) as {
+      children: Array<{ id: string; name: string | null; isEmbedded: boolean }>;
+    };
+    expect(res.children.map((c) => c.id)).toEqual([mainId, b1, b2]);
+    expect(res.children.map((c) => c.name)).toEqual(["child-main", "child-block-1", "child-block-2"]);
+
+    // Human table: main-zone child reads as "page", inline body as "block".
+    expect(await h.runCli("object", "children", parent)).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toMatch(/child-main\s+page/);
+    expect(h.io.stdoutText).toMatch(/child-block-1\s+block/);
+  });
+
+  it("mention-only children render the target's current title, not (untitled)", async () => {
+    const h = harness;
+    const target = await h.createPage("children-mention-target", []);
+    const parent = await h.createPage("children-mention-parent", []);
+    // A block whose whole body is one mention: no text tokens, so the API
+    // name (a text-only flatten) is null — the wire stores no link text.
+    expect(
+      await h.runCliWithStdin(
+        JSON.stringify({ isEmbedded: true, parentId: parent, contentAst: [{ type: "mention", targetNodeId: target }] }),
+        "--json", "object", "create", "--stdin",
+      ),
+    ).toBe(EXIT.ok);
+
+    // The children table resolves the mention to the target's current title.
+    expect(await h.runCli("object", "children", parent)).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("children-mention-target");
+    expect(h.io.stdoutText).not.toContain("(untitled)");
+
+    // The list table resolves the same way — its rows carry no contentAst,
+    // so name-less rows are re-read to flatten their rich tokens.
+    expect(await h.runCli("object", "list", "--parent", parent)).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("children-mention-target");
+    expect(h.io.stdoutText).not.toContain("(untitled)");
+  });
+});
+
+describe("object create --batch", () => {
+  it("creates every entry, prints ids in input order, keeps per-parent order", async () => {
+    const h = harness;
+    expect(await h.runCli("object", "create", "--name", "batch-parent")).toBe(EXIT.ok);
+    const parentId = h.io.stdoutText.trim();
+    const entries = [
+      { name: "batch-root-1" },
+      { name: "batch-root-2" },
+      { name: "batch-b1", parentId },
+      { name: "batch-b2", parentId },
+      { name: "batch-b3", parentId },
+    ];
+    expect(await h.runCliWithStdin(JSON.stringify(entries), "--json", "object", "create", "--batch")).toBe(EXIT.ok);
+    const res = JSON.parse(h.io.stdoutText) as { created: number; ids: string[]; failures: unknown[] };
+    expect(res.created).toBe(5);
+    expect(res.failures).toEqual([]);
+    expect(res.ids).toHaveLength(5);
+
+    // The parent's children keep the array order (same-parent entries are sequential).
+    expect(await h.runCli("--json", "object", "children", parentId)).toBe(EXIT.ok);
+    const children = JSON.parse(h.io.stdoutText).children as Array<{ id: string; name: string | null }>;
+    expect(children.map((c) => c.id)).toEqual([res.ids[2], res.ids[3], res.ids[4]]);
+    expect(children.map((c) => c.name)).toEqual(["batch-b1", "batch-b2", "batch-b3"]);
+  });
+
+  it("collects failures (exit 1) and honors --stop-on-error", async () => {
+    const h = harness;
+    // isClass alongside a parent is rejected server-side — a reliable failure.
+    expect(await h.runCli("object", "create", "--name", "batch-parent-2")).toBe(EXIT.ok);
+    const parentId = h.io.stdoutText.trim();
+    const entries = [
+      { name: "batch-ok-1" },
+      { name: "batch-bad", isClass: true, parentId },
+      { name: "batch-ok-2" },
+    ];
+    expect(await h.runCliWithStdin(JSON.stringify(entries), "--json", "object", "create", "--batch")).toBe(EXIT.domain);
+    const res = JSON.parse(h.io.stdoutText) as { created: number; failures: Array<{ index: number }> };
+    expect(res.created).toBe(2);
+    expect(res.failures.map((f) => f.index)).toEqual([1]);
+
+    const failing = [
+      { name: "batch-bad-x", isClass: true, parentId },
+      { name: "batch-never" },
+    ];
+    expect(
+      await h.runCliWithStdin(JSON.stringify(failing), "--json", "object", "create", "--batch", "--stop-on-error", "--jobs", "1"),
+    ).toBe(EXIT.domain);
+    const res2 = JSON.parse(h.io.stdoutText) as { created: number; failures: Array<{ index: number; error: string }> };
+    expect(res2.created).toBe(0);
+    expect(res2.failures).toHaveLength(2);
+    expect(res2.failures[1]!.error).toContain("skipped");
+
+    // Usage: stdin must be a non-empty JSON array.
+    expect(await h.runCliWithStdin("{}", "--json", "object", "create", "--batch")).toBe(EXIT.usage);
+    expect(await h.runCliWithStdin("[]", "--json", "object", "create", "--batch")).toBe(EXIT.usage);
+  });
+});
+
+describe("object upsert", () => {
+  it("creates once, then returns the existing id without duplicating (case-insensitive title)", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "upsert-klass")).toBe(EXIT.ok);
+    const klassId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+
+    expect(await h.runCli("--json", "object", "upsert", "--name", "Upsert Target", "--class", klassId)).toBe(EXIT.ok);
+    const first = JSON.parse(h.io.stdoutText) as { id: string; created: boolean };
+    expect(first.created).toBe(true);
+
+    expect(await h.runCli("--json", "object", "upsert", "--name", "upsert target", "--class", klassId)).toBe(EXIT.ok);
+    const second = JSON.parse(h.io.stdoutText) as { id: string; created: boolean };
+    expect(second.created).toBe(false);
+    expect(second.id).toBe(first.id);
+
+    expect(await h.runCli("--json", "class", "list")).toBe(EXIT.ok);
+    const row = (JSON.parse(h.io.stdoutText).classes as Array<{ id: string; memberCount: number }>).find(
+      (c) => c.id === klassId,
+    );
+    expect(row?.memberCount).toBe(1);
+  });
+
+  it("ambiguity fails loud; --parent narrows the match", async () => {
+    const h = harness;
+    const p1 = await h.createPage("upsert-parent-1", []);
+    const p2 = await h.createPage("upsert-parent-2", []);
+    for (const p of [p1, p2]) {
+      expect(await h.runCli("object", "create", "--name", "Same Title", "--parent", p)).toBe(EXIT.ok);
+    }
+    expect(await h.runCli("object", "upsert", "--name", "Same Title")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("narrow with --class/--parent");
+
+    expect(await h.runCli("object", "upsert", "--name", "Same Title", "--parent", p2)).toBe(EXIT.ok);
+    expect(h.io.stdoutText.trim()).toBe(p2 === "" ? "" : h.io.stdoutText.trim());
+    expect(h.io.stdoutText.trim()).not.toBe(p1);
+  });
+});
+
+describe("class empty / delete-members", () => {
+  it("empty unassigns without confirmation; delete-members previews, dry-runs, then trashes with --yes", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "bulk-klass")).toBe(EXIT.ok);
+    const klassId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    const ids: string[] = [];
+    for (const name of ["bulk-m1", "bulk-m2", "bulk-m3"]) {
+      expect(await h.runCli("object", "create", "--name", name, "--class", klassId)).toBe(EXIT.ok);
+      ids.push(h.io.stdoutText.trim());
+    }
+
+    // empty: no confirmation, membership gone, the nodes themselves stay.
+    expect(await h.runCli("--json", "class", "empty", "bulk-klass")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText) as { done: number }).done).toBe(3);
+    expect(await h.runCli("--json", "object", "get", ids[0]!)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.classIds as string[]).not.toContain(klassId);
+
+    // Re-assign, then the destructive path: preview → dry-run → --yes.
+    for (const id of ids) {
+      expect(await h.runCli("class", "assign", id, "bulk-klass")).toBe(EXIT.ok);
+    }
+    expect(await h.runCli("class", "delete-members", "bulk-klass")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("3 member nodes");
+    expect(await h.runCli("class", "delete-members", "bulk-klass", "--dry-run")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", ids[0]!)).toBe(EXIT.ok);
+
+    expect(await h.runCli("--json", "class", "delete-members", "bulk-klass", "--yes")).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { done: number; failures: unknown[] };
+    expect(machine.done).toBe(3);
+    expect(machine.failures).toEqual([]);
+    // Trash is recoverable: the node is still fetchable, flagged inactive.
+    expect(await h.runCli("--json", "object", "get", ids[0]!)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.isActive).toBe(false);
+  });
+});
+
+describe("object move", () => {
+  it("moves a block under another parent and anchors next to a sibling", async () => {
+    const h = harness;
+    const pageA = await h.createPage("move-probe-a", []);
+    const pageB = await h.createPage("move-probe-b", []);
+    expect(await h.runCli("object", "create", "--name", "move-probe-block", "--parent", pageA)).toBe(EXIT.ok);
+    const blockId = h.io.stdoutText.trim();
+    expect(await h.runCli("object", "create", "--name", "move-probe-anchor", "--parent", pageB)).toBe(EXIT.ok);
+    const anchorId = h.io.stdoutText.trim();
+
+    expect(await h.runCli("--json", "object", "move", blockId, "--parent", pageB, "--after", anchorId)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).parent).toBe(pageB);
+
+    expect(await h.runCli("--json", "object", "children", pageB)).toBe(EXIT.ok);
+    const children = JSON.parse(h.io.stdoutText).children as Array<{ id: string }>;
+    expect(children.map((c) => c.id)).toEqual([anchorId, blockId]);
+    expect(await h.runCli("--json", "object", "children", pageA)).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText).children as Array<{ id: string }>).map((c) => c.id)).not.toContain(blockId);
+  });
+
+  it("requires --parent and rejects --after with --before", async () => {
+    const h = harness;
+    const page = await h.createPage("move-usage-probe", []);
+    expect(await h.runCli("object", "move", page)).toBe(EXIT.usage);
+    expect(await h.runCli("object", "move", page, "--parent", page, "--after", page, "--before", page)).toBe(EXIT.usage);
+  });
+});
+
+describe("object restore + trash listing", () => {
+  it("delete → list --trashed → restore brings the whole subtree back", async () => {
+    const h = harness;
+    const parent = await h.createPage("restore-probe-page", []);
+    expect(await h.runCli("object", "create", "--name", "restore-probe-block", "--parent", parent)).toBe(EXIT.ok);
+    const blockId = h.io.stdoutText.trim();
+
+    expect(await h.runCli("object", "delete", parent, "--yes")).toBe(EXIT.ok);
+    // Trashed: the trash listing shows both rows; the active listing does not.
+    expect(await h.runCli("--json", "object", "list", "--trashed")).toBe(EXIT.ok);
+    const trashed = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(trashed.map((o) => o.id)).toContain(parent);
+    expect(await h.runCli("--json", "object", "list", "--q", "restore-probe")).toBe(EXIT.ok);
+    const active = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(active.map((o) => o.id)).not.toContain(parent);
+
+    expect(await h.runCli("--json", "object", "restore", parent)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).restored).toEqual([parent]);
+    expect(await h.runCli("--json", "object", "get", parent)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.isActive).toBe(true);
+    // Whole-tree: the child block rides the restore.
+    expect(await h.runCli("--json", "object", "children", parent)).toBe(EXIT.ok);
+    const children = JSON.parse(h.io.stdoutText).children as Array<{ id: string }>;
+    expect(children.map((c) => c.id)).toContain(blockId);
+  });
+
+  it("restore of a node with no trash row still reactivates (idempotent read)", async () => {
+    const h = harness;
+    const page = await h.createPage("restore-noop", []);
+    expect(await h.runCli("--json", "object", "restore", page)).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", page)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.isActive).toBe(true);
+  });
+});
+
+describe("object property set/delete", () => {
+  it("sets a typed value by schema name, shows it, unsets it", async () => {
+    const h = harness;
+    const schemaId = "00000000-0000-0000-0001-0000000000f1";
+    const created = await h.app.inject({
+      method: "POST",
+      url: "/api/property-schemas",
+      headers: { "content-type": "application/json", "x-api-key": API_KEY },
+      payload: { propertySchemaId: schemaId, name: "cliProbeRating", type: "number", multi: false },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const page = await h.createPage("property-probe", []);
+    expect(await h.runCli("--json", "object", "property", "set", page, "cliProbeRating", "42")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", page)).toBe(EXIT.ok);
+    let props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    expect(props.map((p) => ({ schemaId: p.schemaId, value: p.value }))).toEqual([{ schemaId, value: 42 }]);
+
+    // String values stay strings; --idx addresses multi-valued slots.
+    expect(await h.runCli("--json", "object", "property", "set", page, "cliProbeRating", "42")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "property", "delete", page, "cliProbeRating")).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", page)).toBe(EXIT.ok);
+    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    expect(props).toEqual([]);
+  });
+
+  it("unknown schema name fails with usage", async () => {
+    const h = harness;
+    const page = await h.createPage("property-probe-2", []);
+    expect(await h.runCli("object", "property", "set", page, "no.such.schema", "1")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("no property schema named");
+  });
+});
+
+describe("object property set --batch --stdin", () => {
+  it("applies a JSON array with bounded concurrency; failures collected, exit 1", async () => {
+    const h = harness;
+    // Fresh schema (unique name — the shared server accumulates suites).
+    expect(await h.runCli("property", "create", "batchProbeScore", "--type", "number")).toBe(EXIT.ok);
+    const schemaId = h.io.stdoutText.trim();
+    const a = await h.createPage("batch-probe-a", []);
+    const b = await h.createPage("batch-probe-b", []);
+
+    const entries = JSON.stringify([
+      { objectId: a, schema: "batchProbeScore", value: 7 },
+      { objectId: b, schema: "batchProbeScore", value: 8, idx: 0 },
+      { objectId: "00000000-0000-0000-0000-00000000cafe", schema: "batchProbeScore", value: 9 },
+      { objectId: a, schema: "no.such.schema", value: 1 },
+    ]);
+    const code = await h.runCliWithStdin(entries, "--json", "object", "property", "set", "--batch", "--stdin", "--jobs", "2");
+    expect(code).toBe(EXIT.domain);
+    const machine = JSON.parse(h.io.stdoutText) as {
+      set: number;
+      objectIds: string[];
+      failures: Array<{ index: number; error: string }>;
+    };
+    expect(machine.set).toBe(2);
+    expect(machine.objectIds).toEqual([a, b]);
+    expect(machine.failures.map((f) => f.index)).toEqual([2, 3]);
+    expect(machine.failures[0]!.error).toContain("does not exist");
+    expect(machine.failures[1]!.error).toContain("no property schema named");
+
+    // The two good entries landed.
+    expect(await h.runCli("--json", "object", "get", a)).toBe(EXIT.ok);
+    let props = (JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>).map(
+      (p) => ({ schemaId: p.schemaId, value: p.value }),
+    );
+    expect(props).toContainEqual({ schemaId, value: 7 });
+    expect(await h.runCli("--json", "object", "get", b)).toBe(EXIT.ok);
+    props = (JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>).map(
+      (p) => ({ schemaId: p.schemaId, value: p.value }),
+    );
+    expect(props).toContainEqual({ schemaId, value: 8 });
+  });
+
+  it("--stop-on-error aborts the rest; clean input exits 0 with no failures key populated", async () => {
+    const h = harness;
+    const a = await h.createPage("batch-probe-c", []);
+    const stopped = JSON.stringify([
+      { objectId: a, schema: "batchProbeScore", value: 1 },
+      { objectId: "00000000-0000-0000-0000-00000000cafe", schema: "batchProbeScore", value: 2 },
+      { objectId: a, schema: "batchProbeScore", value: 3, idx: 1 },
+    ]);
+    const code = await h.runCliWithStdin(
+      stopped,
+      "--json", "object", "property", "set", "--batch", "--stdin", "--stop-on-error", "--jobs", "1",
+    );
+    expect(code).toBe(EXIT.domain);
+    const machine = JSON.parse(h.io.stdoutText) as { set: number; failures: Array<{ index: number; error: string }> };
+    expect(machine.set).toBe(1);
+    expect(machine.failures.map((f) => f.index)).toEqual([1, 2]);
+    expect(machine.failures[1]!.error).toContain("skipped");
+
+    const clean = JSON.stringify([{ objectId: a, schema: "batchProbeScore", value: 42 }]);
+    expect(await h.runCliWithStdin(clean, "--json", "object", "property", "set", "--batch", "--stdin")).toBe(EXIT.ok);
+    const okMachine = JSON.parse(h.io.stdoutText) as { set: number; failures: unknown[] };
+    expect(okMachine.set).toBe(1);
+    expect(okMachine.failures).toEqual([]);
+  });
+
+  it("batch mode validates its inputs (positional args, --stdin, entry shape)", async () => {
+    const h = harness;
+    const a = await h.createPage("batch-probe-d", []);
+    expect(await h.runCli("object", "property", "set", a, "batchProbeScore", "1", "--batch", "--stdin")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("no positional");
+    expect(await h.runCliWithStdin("[]", "object", "property", "set", "--batch")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("--stdin");
+    expect(await h.runCliWithStdin(JSON.stringify([{ objectId: a }]), "object", "property", "set", "--batch", "--stdin")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("schema");
+    expect(await h.runCliWithStdin("not json", "object", "property", "set", "--batch", "--stdin")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("JSON array");
+  });
+});
+
+describe("datetime properties (unified wire batch)", () => {
+  it("datetime schema creation, retired types rejected, point + range values round-trip", async () => {
+    const h = harness;
+
+    // Schema authoring routes the unified type; the retired ones fail loud
+    // client-side (the server's strict enum would 422 anyway — exit 2 first).
+    expect(await h.runCli("property", "create", "dt-when", "--type", "datetime")).toBe(EXIT.ok);
+    const dtSchemaId = h.io.stdoutText.trim();
+    expect(dtSchemaId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(await h.runCli("--json", "property", "list")).toBe(EXIT.ok);
+    const listed = JSON.parse(h.io.stdoutText) as { propertySchemas: Array<{ id: string; type: string }> };
+    expect(listed.propertySchemas).toContainEqual(expect.objectContaining({ id: dtSchemaId, type: "datetime" }));
+    expect(await h.runCli("property", "create", "dt-retired", "--type", "date")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("datetime");
+    expect(await h.runCli("property", "create", "dt-retired-2", "--type", "date_range")).toBe(EXIT.usage);
+
+    // The date chain: today's nodes exist via `today`; tomorrow's are injected
+    // directly with the same content-addressed ids (the ensureChainNode shape).
+    expect(await h.runCli("--json", "today")).toBe(EXIT.ok);
+    const todayId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    const pad2 = (n: number): string => String(n).padStart(2, "0");
+    const isoLocal = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowIso = isoLocal(tomorrow);
+    const tomorrowIds = chainNodeIds(tomorrowIso);
+    const tomorrowParts = parseIsoDate(tomorrowIso);
+    // Tomorrow's chain rides the CLI's own ensure path (the same
+    // content-addressed ids; idempotent re-runs).
+    expect(await h.runCli("--json", "date", "ensure", tomorrowIso)).toBe(EXIT.ok);
+
+    // Point value with a wall-clock time (full-day = the `time` key absent).
+    const pointPage = await h.createPage("dt-point-probe", []);
+    const point = { nodeId: todayId, time: "09:30" };
+    expect(
+      await h.runCli("--json", "object", "property", "set", pointPage, "dt-when", JSON.stringify(point)),
+    ).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", pointPage)).toBe(EXIT.ok);
+    let props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    expect(props.map((p) => ({ schemaId: p.schemaId, value: p.value }))).toEqual([{ schemaId: dtSchemaId, value: point }]);
+
+    // Range value: a timed start, a full-day end, and an open-ended variant.
+    const rangePage = await h.createPage("dt-range-probe", []);
+    const range = { start: { nodeId: todayId, time: "09:30" }, end: { nodeId: tomorrowIds.day } };
+    expect(
+      await h.runCli("--json", "object", "property", "set", rangePage, "dt-when", JSON.stringify(range)),
+    ).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", rangePage)).toBe(EXIT.ok);
+    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    expect(props.map((p) => ({ schemaId: p.schemaId, value: p.value }))).toEqual([{ schemaId: dtSchemaId, value: range }]);
+
+    const openPage = await h.createPage("dt-open-probe", []);
+    const open = { start: { nodeId: todayId }, end: null };
+    expect(
+      await h.runCli("--json", "object", "property", "set", openPage, "dt-when", JSON.stringify(open)),
+    ).toBe(EXIT.ok);
+
+    // The server is the strict shape gate: a malformed time 422s (exit 1) —
+    // the CLI sends values verbatim and maps the wire error.
+    expect(
+      await h.runCli("object", "property", "set", pointPage, "dt-when", JSON.stringify({ nodeId: todayId, time: "9:30 am" })),
+    ).toBe(EXIT.domain);
+
+    // Human display: the markdown frontmatter renders `<date> HH:MM` for the
+    // point and a start/end map for the range (open side `null`).
+    const todayParts = parseIsoDate(isoLocal(new Date()));
+    const todayDisplay = dateNodeDisplayLabel(todayParts, "day");
+    const tomorrowDisplay = dateNodeDisplayLabel(tomorrowParts, "day");
+    expect(await h.runCli("export", "markdown", "--ids", pointPage, "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain(`${todayDisplay} 09:30`);
+    expect(await h.runCli("export", "markdown", "--ids", rangePage, "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain(`start: "${todayDisplay} 09:30"`);
+    expect(h.io.stdoutText).toContain(`end: ${tomorrowDisplay}`);
+    expect(await h.runCli("export", "markdown", "--ids", openPage, "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("end: null");
+
+    // The json-archive surface carries the value union verbatim (additive-only).
+    expect(await h.runCli("export", "json", "--ids", rangePage)).toBe(EXIT.ok);
+    const archive = JSON.parse(h.io.stdoutText) as {
+      nodes: Array<{ properties: Array<{ schemaId: string; schemaType?: string; value: unknown }> }>;
+    };
+    expect(archive.nodes[0]!.properties).toEqual([
+      expect.objectContaining({ schemaId: dtSchemaId, schemaType: "datetime", value: range }),
+    ]);
+  });
+});
+
+describe("object list --parent", () => {
+  it("filters to direct children of one parent", async () => {
+    const h = harness;
+    const parent = await h.createPage("parent-filter-probe", []);
+    expect(await h.runCli("object", "create", "--name", "pf-child-1", "--parent", parent)).toBe(EXIT.ok);
+    expect(await h.runCli("object", "create", "--name", "pf-child-2", "--parent", parent)).toBe(EXIT.ok);
+    expect(await h.runCli("object", "create", "--name", "pf-other")).toBe(EXIT.ok);
+
+    expect(await h.runCli("--json", "object", "list", "--parent", parent)).toBe(EXIT.ok);
+    const names = (JSON.parse(h.io.stdoutText).objects as Array<{ name: string | null }>).map((o) => o.name);
+    expect(names.sort()).toEqual(["pf-child-1", "pf-child-2"]);
+  });
+});
+
+describe("export markdown --class", () => {
+  it("seeds the bundle with the class's members", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "exp-klass")).toBe(EXIT.ok);
+    const klassId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    for (const name of ["exp-member-a", "exp-member-b"]) {
+      expect(await h.runCli("object", "create", "--name", name, "--class", klassId)).toBe(EXIT.ok);
+    }
+    expect(await h.runCli("export", "markdown", "--class", "exp-klass", "--stdout")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("exp-member-a");
+    expect(h.io.stdoutText).toContain("exp-member-b");
+    // Mutually exclusive with the other selectors.
+    expect(await h.runCli("export", "markdown", "--class", "exp-klass", "--ids", klassId, "--stdout")).toBe(EXIT.usage);
+  });
+});
+
+describe("export json", () => {
+  interface ArchiveNode {
+    id: string;
+    isClass: boolean;
+    isEmbedded: boolean;
+    parentId: string | null;
+    displayName: string;
+    contentAst: unknown[];
+    classIds: string[];
+    properties: unknown[];
+    children: string[];
+    edges: Array<Record<string, unknown>>;
+  }
+  interface Archive {
+    format: string;
+    version: number;
+    generatedAt: string;
+    nodes: ArchiveNode[];
+  }
+
+  it("--ids --stdout emits the versioned envelope with verbatim payloads, child ids, and edges", async () => {
+    const h = harness;
+    const target = await h.createPage("expj-target", [{ type: "text", text: "target body" }]);
+    const referrer = await h.createPage("expj-referrer", [
+      { type: "mention", targetNodeId: target, text: "expj-target" },
+      { type: "text", text: " links out" },
+    ]);
+
+    expect(await h.runCli("export", "json", "--ids", referrer)).toBe(EXIT.ok);
+    const archive = JSON.parse(h.io.stdoutText) as Archive;
+    expect(archive.format).toBe("notees-json-archive");
+    expect(archive.version).toBe(2);
+    expect(typeof archive.generatedAt).toBe("string");
+    expect(archive.nodes).toHaveLength(1);
+    const node = archive.nodes[0]!;
+    expect(node.id).toBe(referrer);
+    expect(node.isClass).toBe(false);
+    expect(node.isEmbedded).toBe(false);
+    expect(node.parentId).toBeNull();
+    // Title-is-content: the page's own stream IS its title; the mention block
+    // created by the helper rides as a child id (blocks are not in an
+    // --ids slice, exactly like the markdown bundle).
+    expect(node.displayName).toContain("expj-referrer");
+    expect(node.contentAst).toEqual([{ type: "text", text: "expj-referrer" }]);
+    expect(node.children).toHaveLength(1);
+    expect(node.edges).toEqual([]);
+  });
+
+  it("records child ids (inline body + main zone) in position order", async () => {
+    const h = harness;
+    const pageId = await h.createPage("expj-parent", [{ type: "text", text: "inline block" }]);
+    await h.runCliWithStdin(
+      JSON.stringify({
+        isEmbedded: false,
+        parentId: pageId,
+        contentAst: [{ type: "text", text: "child page" }],
+      }),
+      "--json", "object", "create", "--stdin",
+    );
+    expect(await h.runCli("export", "json", "--ids", pageId)).toBe(EXIT.ok);
+    const archive = JSON.parse(h.io.stdoutText) as Archive;
+    // One inline block + one main child page: both child ids recorded.
+    expect(archive.nodes[0]!.children).toHaveLength(2);
+  });
+
+  it("--output writes the archive file; --json reports the machine summary", async () => {
+    const h = harness;
+    const a = await h.createPage("expj-file-a", []);
+    const b = await h.createPage("expj-file-b", []);
+    const file = join(h.dataDir, "expj-archive.json");
+
+    expect(await h.runCli("--json", "export", "json", "--ids", a, b, "--output", file)).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { format: string; version: number; nodes: number };
+    expect(machine).toEqual({ format: "notees-json-archive", version: 2, nodes: 2 });
+
+    const archive = JSON.parse(readFileSync(file, "utf8")) as Archive;
+    expect(archive.format).toBe("notees-json-archive");
+    expect(archive.version).toBe(2);
+    expect(archive.nodes.map((node) => node.id).sort()).toEqual([a, b].sort());
+  });
+
+  it("--class seeds the archive with the class's members; selectors stay mutually exclusive", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "expj-klass")).toBe(EXIT.ok);
+    const klassId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("object", "create", "--name", "expj-member", "--class", klassId)).toBe(EXIT.ok);
+
+    expect(await h.runCli("export", "json", "--class", "expj-klass")).toBe(EXIT.ok);
+    const archive = JSON.parse(h.io.stdoutText) as Archive;
+    expect(archive.nodes).toHaveLength(1);
+    expect(archive.nodes[0]!.displayName).toContain("expj-member");
+    // Membership rides the classIds field (verbatim); content chips would
+    // mine as edges — the member's title-only stream has none.
+    expect(archive.nodes[0]!.classIds).toContain(klassId);
+    expect(archive.nodes[0]!.edges).toEqual([]);
+
+    expect(await h.runCli("export", "json", "--class", "expj-klass", "--ids", klassId)).toBe(EXIT.usage);
+    expect(await h.runCli("export", "json")).toBe(EXIT.usage);
+  });
+});
+
+describe("object get --ids and create --icon/--color", () => {
+  it("multi-get returns objects in argument order", async () => {
+    const h = harness;
+    const a = await h.createPage("multi-get-a", []);
+    const b = await h.createPage("multi-get-b", []);
+    expect(await h.runCli("--json", "object", "get", "--ids", b, a)).toBe(EXIT.ok);
+    const objects = JSON.parse(h.io.stdoutText).objects as Array<{ id: string }>;
+    expect(objects.map((o) => o.id)).toEqual([b, a]);
+  });
+
+  it("multi-get tolerates missing ids: found objects + missing array, exit 0", async () => {
+    const h = harness;
+    const a = await h.createPage("multi-get-missing-a", []);
+    const gone = "00000000-0000-0000-0000-00000000beef";
+    expect(await h.runCli("--json", "object", "get", "--ids", a, gone)).toBe(EXIT.ok);
+    const body = JSON.parse(h.io.stdoutText) as { objects: Array<{ id: string }>; missing: string[] };
+    expect(body.objects.map((o) => o.id)).toEqual([a]);
+    expect(body.missing).toEqual([gone]);
+
+    // All-missing is still exit 0 with an empty objects list.
+    expect(await h.runCli("--json", "object", "get", "--ids", gone)).toBe(EXIT.ok);
+    const empty = JSON.parse(h.io.stdoutText) as { objects: unknown[]; missing: string[] };
+    expect(empty.objects).toEqual([]);
+    expect(empty.missing).toEqual([gone]);
+  });
+
+  it("create --icon/--color lands on the object", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--name", "styled-probe", "--icon", "star", "--color", "#ff0000")).toBe(EXIT.ok);
+    const id = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("--json", "object", "get", id)).toBe(EXIT.ok);
+    const object = JSON.parse(h.io.stdoutText).object as { icon: string | null; color: string | null };
+    expect(object.icon).toBe("star");
+    expect(object.color).toBe("#ff0000");
+  });
+
+  it("object update --color accepts preset tokens and 'none' clears", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--name", "color-probe")).toBe(EXIT.ok);
+    const id = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    // Preset token rides the wire as-is.
+    expect(await h.runCli("--json", "object", "update", id, "--color", "sky")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText).object as { color: string | null }).color).toBe("sky");
+    // 'none' clears (object.update color: null).
+    expect(await h.runCli("--json", "object", "update", id, "--color", "none")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText).object as { color: string | null }).color).toBeNull();
+    // Garbage is rejected server-side (strict color grammar) — 422 → domain exit.
+    expect(await h.runCli("--json", "object", "update", id, "--color", "var(--color-preset-red)")).toBe(EXIT.domain);
+  });
+});
+
+describe("covers (one-gesture cover)", () => {
+  // 1x1 transparent PNG — the server sniffs content, magic bytes suffice.
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const ASSET_CLASS = SYSTEM_CLASS_UUIDS.asset;
+
+  async function pngFile(h: Harness, name: string): Promise<string> {
+    const path = join(h.dataDir, name);
+    writeFileSync(path, PNG);
+    return path;
+  }
+  // The cover is the `coverAssetId` wire node field (object.update optional
+  // nullable; null = unset) — exposed on every object projection.
+  const coverOf = (object: { coverAssetId?: string | null }) => object.coverAssetId ?? null;
+
+  it("cover set <file> → get → skip-existing → replace → clear, with class hygiene", async () => {
+    const h = harness;
+    const page = await h.createPage("cover-probe", []);
+    const file = await pngFile(h, "cover.png");
+
+    // set from file: one call, asset node created + classed + attached.
+    expect(await h.runCli("--json", "cover", "set", page, file)).toBe(EXIT.ok);
+    const first = JSON.parse(h.io.stdoutText) as { assetId: string; replaced: string | null };
+    expect(first.replaced).toBeNull();
+    expect(await h.runCli("--json", "object", "get", first.assetId)).toBe(EXIT.ok);
+    const asset = JSON.parse(h.io.stdoutText).object as { classIds: string[] };
+    expect(asset.classIds).toContain(ASSET_CLASS);
+
+    // get resolves the same asset.
+    expect(await h.runCli("cover", "get", page)).toBe(EXIT.ok);
+    expect(h.io.stdoutText.trim()).toBe(first.assetId);
+
+    // skip-existing: same id, no writes.
+    expect(await h.runCli("--json", "cover", "set", page, file, "--skip-existing")).toBe(EXIT.ok);
+    const skipped = JSON.parse(h.io.stdoutText) as { assetId: string; created: boolean; replaced: string | null };
+    expect(skipped).toMatchObject({ assetId: first.assetId, created: false, replaced: false });
+
+    // replace: new asset, old one stays an asset, field repoints.
+    expect(await h.runCli("--json", "cover", "set", page, file)).toBe(EXIT.ok);
+    const second = JSON.parse(h.io.stdoutText) as { assetId: string; replaced: string | null };
+    expect(second.assetId).not.toBe(first.assetId);
+    expect(second.replaced).toBe(first.assetId);
+    expect(await h.runCli("--json", "object", "get", page)).toBe(EXIT.ok);
+    expect(coverOf(JSON.parse(h.io.stdoutText).object)).toBe(second.assetId);
+    expect(await h.runCli("--json", "object", "get", first.assetId)).toBe(EXIT.ok);
+    const stale = JSON.parse(h.io.stdoutText).object as { classIds: string[] };
+    expect(stale.classIds).toContain(ASSET_CLASS);
+
+    // clear: field back to null.
+    expect(await h.runCli("cover", "clear", page)).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", page)).toBe(EXIT.ok);
+    expect(coverOf(JSON.parse(h.io.stdoutText).object)).toBeNull();
+  });
+
+  it("cover set --asset reuses an existing asset node and classes it", async () => {
+    const h = harness;
+    const pageA = await h.createPage("cover-share-a", []);
+    const pageB = await h.createPage("cover-share-b", []);
+    const file = await pngFile(h, "shared.png");
+    expect(await h.runCli("cover", "set", pageA, file)).toBe(EXIT.ok);
+    const assetId = h.io.stdoutText.trim();
+
+    expect(await h.runCli("cover", "set", pageB, "--asset", assetId)).toBe(EXIT.ok);
+    expect(h.io.stdoutText.trim()).toBe(assetId);
+    expect(await h.runCli("--json", "object", "get", assetId)).toBe(EXIT.ok);
+    const shared = JSON.parse(h.io.stdoutText).object as { classIds: string[] };
+    expect(shared.classIds).toContain(ASSET_CLASS);
+
+    // Clearing A leaves the asset untouched (it stays an asset; B still covers with it).
+    expect(await h.runCli("cover", "clear", pageA)).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", assetId)).toBe(EXIT.ok);
+    const afterClear = JSON.parse(h.io.stdoutText).object as { classIds: string[] };
+    expect(afterClear.classIds).toContain(ASSET_CLASS);
+
+    // Usage errors: neither/both sources, get/clear on a coverless node.
+    expect(await h.runCli("cover", "set", pageB)).toBe(EXIT.usage);
+    expect(await h.runCli("cover", "set", pageB, file, "--asset", assetId)).toBe(EXIT.usage);
+    expect(await h.runCli("cover", "get", pageA)).toBe(EXIT.usage);
+  });
+
+  it("the coverAsset AST predicate counts nodes with a cover", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "cover-klass")).toBe(EXIT.ok);
+    const klassId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    const withCover = await h.createPage("cover-k-with", []);
+    const bare = await h.createPage("cover-k-bare", []);
+    for (const id of [withCover, bare]) {
+      expect(await h.runCli("class", "assign", id, klassId)).toBe(EXIT.ok);
+    }
+    expect(await h.runCli("cover", "set", withCover, await pngFile(h, "exists.png"))).toBe(EXIT.ok);
+
+    // The compiler and AST accept the coverAsset wire-field predicate, but
+    // the query-language GRAMMAR has no spelling for it yet — run the AST
+    // through the local store (plan 07 retired POST /api/query; execution
+    // is local since the rewrite).
+    const ast = {
+      version: 2,
+      scope: { type: "entire_workspace" },
+      root: {
+        type: "group",
+        logic: "and",
+        children: [
+          { type: "member", family: "class", op: "in", target: { mode: "ids", ids: [klassId] } },
+          { type: "nodeField", field: "coverAsset", op: "exists" },
+        ],
+      },
+    };
+    const session = await openLocalWorkspace({
+      server: h.baseUrl,
+      apiKey: API_KEY,
+      workspaceId: defaultWorkspaceId(),
+      storeDir: join(dirname(h.stateFile), "stores"),
+    });
+    try {
+      const res = session.runQueryAst(ast) as { ids: string[] };
+      expect(res.ids).toEqual([withCover]);
+    } finally {
+      session.close();
+    }
+  });
+
+  it("doctor reports the cli/server drift check", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "doctor")).toBe(EXIT.ok);
+    const checks = JSON.parse(h.io.stdoutText).checks as Array<{ check: string; ok: boolean; detail: string }>;
+    const drift = checks.find((c) => c.check === "cli/server version drift");
+    expect(drift).toBeDefined();
+    expect(drift!.ok).toBe(true); // test server builds from the same tree
+  });
+});
+
+describe("property number formats", () => {
+  it("create carries --pad/--decimals/--rounding; rejects them off-number", async () => {
+    const h = harness;
+    expect(
+      await h.runCli("--json", "property", "create", "fmt-probe", "--type", "number", "--pad", "4", "--decimals", "1", "--rounding", "floor"),
+    ).toBe(EXIT.ok);
+    const created = JSON.parse(h.io.stdoutText).propertySchema as {
+      id: string;
+      numberPad: number | null;
+      numberDecimals: number | null;
+      numberRounding: string | null;
+    };
+    expect(created.numberPad).toBe(4);
+    expect(created.numberDecimals).toBe(1);
+    expect(created.numberRounding).toBe("floor");
+    expect(await h.runCli("--json", "property", "get", created.id)).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText).propertySchema as { numberPad: number }).numberPad).toBe(4);
+
+    // Formatting flags on a non-number schema are a usage error.
+    expect(await h.runCli("property", "create", "bad-fmt", "--type", "text", "--pad", "4")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("require --type number");
+    // Bad rounding mode and out-of-range decimals fail loud.
+    expect(await h.runCli("property", "create", "bad-round", "--type", "number", "--rounding", "sideways")).toBe(EXIT.usage);
+    expect(await h.runCli("property", "create", "bad-dec", "--type", "number", "--decimals", "42")).toBe(EXIT.usage);
+  });
+});
+
+
+describe("object create/update --content", () => {
+  it("create --content stores a rich contentAst (mention + markdown link span in text)", async () => {
+    const h = harness;
+    const target = await h.createPage("content-target", []);
+    const holder = await h.createPage("content-holder", []);
+    // Rich tokens survive on parented blocks; a root's content flattens to
+    // text-only by the page/class invariant. Links are markdown
+    // `[label](href)` spans inside text tokens (the retired external_link
+    // token's replacement — SCHEMA.md render grammar).
+    const ast = JSON.stringify([
+      { type: "text", text: "See [the example](https://example.com) and " },
+      { type: "mention", targetNodeId: target, text: "content-target" },
+    ]);
+    expect(await h.runCli("--json", "object", "create", "--parent", holder, "--content", ast)).toBe(EXIT.ok);
+    const id = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+
+    expect(await h.runCli("--json", "object", "get", id)).toBe(EXIT.ok);
+    const got = JSON.parse(h.io.stdoutText).object as { contentAst: Array<Record<string, unknown>> };
+    expect(got.contentAst).toEqual([
+      { type: "text", text: "See [the example](https://example.com) and " },
+      { type: "mention", targetNodeId: target, text: "content-target" },
+    ]);
+  });
+
+  it("update --content replaces the content; --name and --content conflict (exit 2)", async () => {
+    const h = harness;
+    const page = await h.createPage("content-update-probe", []);
+    const ast = JSON.stringify([{ type: "text", text: "rewritten" }]);
+    expect(await h.runCli("--json", "object", "update", page, "--content", ast)).toBe(EXIT.ok);
+    expect(await h.runCli("--json", "object", "get", page)).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText).object as { contentAst: unknown[] }).contentAst).toEqual([
+      { type: "text", text: "rewritten" },
+    ]);
+
+    // Both flags write the same field — the combination is a usage error.
+    expect(await h.runCli("object", "update", page, "--name", "x", "--content", ast)).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("mutually exclusive");
+    expect(await h.runCli("object", "create", "--name", "x", "--content", ast)).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("mutually exclusive");
+
+    // Non-array content and unparseable JSON fail as usage, not wire errors.
+    expect(await h.runCli("object", "create", "--content", '{"type":"text"}')).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("JSON array");
+    expect(await h.runCli("object", "create", "--content", "not json")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("not valid JSON");
+  });
+});
+
+describe("object children windowing", () => {
+  it("--count, --offset/--limit windowing with totals, and --fields projection", async () => {
+    const h = harness;
+    const parent = await h.createPage("children-window-probe", []);
+    const ids: string[] = [];
+    for (const name of ["cw-1", "cw-2", "cw-3", "cw-4", "cw-5"]) {
+      expect(await h.runCli("object", "create", "--name", name, "--parent", parent)).toBe(EXIT.ok);
+      ids.push(h.io.stdoutText.trim());
+    }
+
+    expect(await h.runCli("--json", "object", "children", parent, "--count")).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText)).toEqual({ id: parent, count: 5 });
+
+    expect(await h.runCli("--json", "object", "children", parent, "--offset", "1", "--limit", "2")).toBe(EXIT.ok);
+    const window = JSON.parse(h.io.stdoutText) as {
+      children: Array<{ id: string }>;
+      total: number;
+      offset: number;
+      limit: number;
+    };
+    expect(window.children.map((c) => c.id)).toEqual([ids[1], ids[2]]);
+    expect(window.total).toBe(5);
+    expect(window.offset).toBe(1);
+    expect(window.limit).toBe(2);
+
+    // Human mode notes the window; --fields projects rows (id always kept).
+    expect(await h.runCli("object", "children", parent, "--limit", "2")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("showing 2 of 5 children");
+
+    expect(await h.runCli("--json", "object", "children", parent, "--fields", "name")).toBe(EXIT.ok);
+    const projected = JSON.parse(h.io.stdoutText).children as Array<Record<string, unknown>>;
+    expect(projected[0]).toEqual({ name: "cw-1", id: ids[0] });
+    expect(projected[0]!.contentAst).toBeUndefined();
+
+    // Bad window values fail loud.
+    expect(await h.runCli("object", "children", parent, "--offset", "-1")).toBe(EXIT.usage);
+    expect(await h.runCli("object", "children", parent, "--limit", "nope")).toBe(EXIT.usage);
+  });
+});
+
+describe("class remap --parent", () => {
+  it("scopes the move to members under one parent; --jobs stays correct", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "scoped-from")).toBe(EXIT.ok);
+    const fromId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "scoped-to")).toBe(EXIT.ok);
+    const toId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    const parentA = await h.createPage("scoped-parent-a", []);
+    const parentB = await h.createPage("scoped-parent-b", []);
+    for (const [parent, name] of [
+      [parentA, "scoped-a1"],
+      [parentA, "scoped-a2"],
+      [parentB, "scoped-b1"],
+    ] as const) {
+      expect(await h.runCli("object", "create", "--name", name, "--parent", parent, "--class", fromId)).toBe(EXIT.ok);
+    }
+
+    // Preview counts only the scoped members.
+    expect(await h.runCli("class", "remap", "scoped-from", "scoped-to", "--parent", parentA)).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("2 members");
+    expect(h.io.stderrText).toContain(parentA);
+
+    expect(await h.runCli("--json", "class", "remap", "scoped-from", "scoped-to", "--parent", parentA, "--yes", "--jobs", "4")).toBe(
+      EXIT.ok,
+    );
+    const machine = JSON.parse(h.io.stdoutText) as { moved: number; parent: string; failures: unknown[] };
+    expect(machine.moved).toBe(2);
+    expect(machine.parent).toBe(parentA);
+    expect(machine.failures).toEqual([]);
+
+    // Under parent A the membership moved; parent B's member stays put.
+    expect(await h.runCli("--json", "object", "list", "--parent", parentA)).toBe(EXIT.ok);
+    const aClasses = (JSON.parse(h.io.stdoutText).objects as Array<{ classIds: string[] }>).flatMap((o) => o.classIds);
+    expect(aClasses).toContain(toId);
+    expect(aClasses).not.toContain(fromId);
+    expect(await h.runCli("--json", "object", "list", "--parent", parentB)).toBe(EXIT.ok);
+    const bClasses = (JSON.parse(h.io.stdoutText).objects as Array<{ classIds: string[] }>).flatMap((o) => o.classIds);
+    expect(bClasses).toContain(fromId);
+    expect(bClasses).not.toContain(toId);
+
+    // --jobs out of range fails loud.
+    expect(await h.runCli("class", "remap", "scoped-from", "scoped-to", "--yes", "--jobs", "64")).toBe(EXIT.usage);
+  });
+});
+
+describe("class empty --parent", () => {
+  it("unassigns only the members under one parent", async () => {
+    const h = harness;
+    expect(await h.runCli("--json", "object", "create", "--isClass", "--name", "empty-scoped")).toBe(EXIT.ok);
+    const klassId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    const parentA = await h.createPage("empty-parent-a", []);
+    const parentB = await h.createPage("empty-parent-b", []);
+    expect(await h.runCli("object", "create", "--name", "es-a1", "--parent", parentA, "--class", klassId)).toBe(EXIT.ok);
+    expect(await h.runCli("object", "create", "--name", "es-b1", "--parent", parentB, "--class", klassId)).toBe(EXIT.ok);
+    const bId = h.io.stdoutText.trim();
+
+    expect(await h.runCli("--json", "class", "empty", "empty-scoped", "--parent", parentA)).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as { done: number; parent: string };
+    expect(machine.done).toBe(1);
+    expect(machine.parent).toBe(parentA);
+
+    // The scoped membership is gone; the other parent's member keeps it.
+    expect(await h.runCli("--json", "object", "get", bId)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).object.classIds as string[]).toContain(klassId);
+  });
+});
+
+describe("search by uuid", () => {
+  it("class:/prop:/linked: accept uuids verbatim, no name resolution needed", async () => {
+    const h = harness;
+    // Seeded system classes carry fixed uuids — query one by id.
+    const journalArticleId = SYSTEM_CLASS_UUIDS.journal_article;
+    expect(await h.runCli("--json", "search", `class:${journalArticleId}`)).toBe(EXIT.ok);
+    const byClassId = JSON.parse(h.io.stdoutText).ids as string[];
+    expect(byClassId.length).toBeGreaterThan(0);
+
+    // Schema by uuid: the description system property exists on every row
+    // only when set — assert the query compiles and runs, not the count.
+    expect(
+      await h.runCli("--json", "search", `class:${journalArticleId} AND prop:${SYSTEM_PROPERTY_UUIDS.description}:=x`),
+    ).toBe(EXIT.ok);
+
+    // linked:<uuid> matches the referring block without a name lookup (the
+    // mention rides on a child block, like every rich-content block).
+    const target = await h.createPage("uuid-link-target", []);
+    const notes = await h.createPage("uuid-link-notes", []);
+    expect(
+      await h.runCliWithStdin(
+        JSON.stringify({
+          isEmbedded: true,
+          parentId: notes,
+          contentAst: [{ type: "mention", targetNodeId: target, text: "uuid-link-target" }],
+        }),
+        "--json", "object", "create", "--stdin",
+      ),
+    ).toBe(EXIT.ok);
+    const notesBlock = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    expect(await h.runCli("--json", "search", `linked:${target}`)).toBe(EXIT.ok);
+    const referrers = JSON.parse(h.io.stdoutText).ids as string[];
+    expect(referrers).toContain(notesBlock);
+  });
+});
+
+describe("shell script file", () => {
+  it("runs a script file argument (exit 0); a missing file is a usage error", async () => {
+    const h = harness;
+    const scriptPath = join(h.dataDir, "shell-probe.js");
+    writeFileSync(
+      scriptPath,
+      'const page = await create({ isEmbedded: false, contentAst: [{ type: "text", text: "from-file" }] });\n'
+        + 'console.log("made " + page.id);\n',
+    );
+    expect(await h.runCli("shell", scriptPath)).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("made ");
+    const made = /made ([0-9a-f-]{36})/.exec(h.io.stdoutText);
+    expect(made).not.toBeNull();
+    expect(await h.runCli("--json", "object", "get", made![1]!)).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText).object as { name: string | null }).name).toBe("from-file");
+
+    expect(await h.runCli("shell", join(h.dataDir, "no-such-script.js"))).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("cannot read script");
+  });
+});
+
+describe("help command", () => {
+  it("prints the overview with every top-level command and exits 0 — no server needed", async () => {
+    const io = new Capture();
+    // Deliberately bare argv: help must resolve nothing (no --server, no
+    // credential) — the suite blanks the NOTEES_* env for exactly this.
+    const code = await run(["help"], io);
+    expect(code).toBe(EXIT.ok);
+    for (const name of [
+      "object", "cover", "property", "search", "today", "date", "journal",
+      "class", "tag", "auth", "config", "ops", "backlinks", "asset", "sync",
+      "doctor", "shell", "export", "import", "help",
+    ]) {
+      expect(io.stdoutText).toMatch(new RegExp(`^${name}\\s\\s`, "m"));
+    }
+    // Header contract: usage line, the global flags, the exit-code legend.
+    expect(io.stdoutText).toContain("notees help <command> [subcommand]");
+    expect(io.stdoutText).toContain("--json");
+    expect(io.stdoutText).toContain("0 ok");
+  });
+
+  it("delegates to the --help renderer for a subcommand path", async () => {
+    const io = new Capture();
+    const code = await run(["help", "object", "merge"], io);
+    expect(code).toBe(EXIT.ok);
+    // The same text `notees object merge --help` prints — the merge flags
+    // must come through, from the command's own help, not a copy.
+    expect(io.stdoutText).toContain("Usage:");
+    expect(io.stdoutText).toContain("--dry-run");
+    expect(io.stdoutText).toContain("--yes");
+
+    const top = new Capture();
+    expect(await run(["help", "object"], top)).toBe(EXIT.ok);
+    expect(top.stdoutText).toContain("merge");
+    expect(top.stdoutText).toContain("children");
+  });
+
+  it("unknown command path is a usage error (exit 2) naming the path", async () => {
+    const io = new Capture();
+    expect(await run(["help", "frobnicate"], io)).toBe(EXIT.usage);
+    expect(io.stderrText).toContain("frobnicate");
+    expect(io.stderrText).toContain("notees help");
+
+    const partial = new Capture();
+    expect(await run(["help", "object", "frobnicate"], partial)).toBe(EXIT.usage);
+    expect(partial.stderrText).toContain("object frobnicate");
+  });
+});
+
+describe("asset bulk add / attach / list", () => {
+  const PNG_A = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from("bulk-a"),
+  ]);
+  const PNG_B = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from("bulk-b"),
+  ]);
+  // No magic-byte signature — the server allowlist rejects it (per-item
+  // failure material for the batch tests).
+  const OPAQUE_BIN = Buffer.concat([Buffer.alloc(16, 0), Buffer.from("opaque")]);
+  // ADTS frame header + payload — accepted only once the server ships the
+  // audio extension fallback (see the pending test below).
+  const AAC = Buffer.concat([
+    Buffer.from([0xff, 0xf1, 0x50, 0x80, 0x00, 0x1f, 0xfc]),
+    Buffer.from("voice-memo"),
+  ]);
+
+  function writeFile(dir: string, name: string, bytes: Buffer): string {
+    const path = join(dir, name);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, bytes);
+    return path;
+  }
+
+  /** The derived node_asset rows for a node (the workspace derived SQLite). */
+  function attachedAssets(dataDir: string, nodeId: string): Array<{ asset_id: string }> {
+    // The server's own derived file is lazily hydrated since plan 07, so the
+    // assertion reads the CLI's local derived store (synced from the relay;
+    // the harness keeps its state file — and therefore its stores — in
+    // dataDir).
+    const db = new Database(join(dataDir, "stores", `${defaultWorkspaceId()}.db`), {
+      readonly: true,
+      fileMustExist: true,
+    });
+    try {
+      return db.prepare("SELECT asset_id FROM node_asset WHERE node_id = ?").all(nodeId) as Array<{ asset_id: string }>;
+    } finally {
+      db.close();
+    }
+  }
+
+  it("asset add accepts multiple files: one line per asset, counts, --json report", async () => {
+    const h = harness;
+    const a = writeFile(h.dataDir, "bulk/first.png", PNG_A);
+    const b = writeFile(h.dataDir, "bulk/second.png", PNG_B);
+    const c = writeFile(h.dataDir, "bulk/third.png", PNG_A);
+
+    expect(await h.runCli("--json", "asset", "add", a, b, c)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as {
+      added: number;
+      assets: Array<{ assetId: string; file: string }>;
+      failures: Array<{ file: string; error: string }>;
+      assetId?: string;
+    };
+    expect(report.added).toBe(3);
+    expect(report.failures).toEqual([]);
+    expect(report.assets.map((entry) => entry.file)).toEqual([a, b, c]);
+    expect(report.assets.every((entry) => /^[0-9a-f-]{36}$/.test(entry.assetId))).toBe(true);
+    // Additive-only: the single-file shape keeps its top-level assetId; a
+    // multi-file add does not fabricate one.
+    expect(report.assetId).toBeUndefined();
+
+    // Human output: one line per uploaded asset (id + filename), then counts.
+    expect(await h.runCli("asset", "add", a, b)).toBe(EXIT.ok);
+    const lines = h.io.stdoutText.trimEnd().split("\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatch(/^[0-9a-f-]{36}  first\.png$/);
+    expect(lines[1]).toMatch(/^[0-9a-f-]{36}  second\.png$/);
+    expect(lines[2]).toContain("added 2/2 files");
+  });
+
+  it("asset add expands directories recursively (regular files only)", async () => {
+    const h = harness;
+    const dir = join(h.dataDir, "bulk-dir");
+    writeFile(dir, "top.png", PNG_A);
+    writeFile(dir, "nested/deep.png", PNG_B);
+    writeFile(dir, "nested/deeper/leaf.png", PNG_A);
+
+    expect(await h.runCli("--json", "asset", "add", dir)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as { added: number; assets: Array<{ file: string }> };
+    expect(report.added).toBe(3);
+    expect(report.assets.map((entry) => basename(entry.file)).sort()).toEqual(["deep.png", "leaf.png", "top.png"]);
+  });
+
+  it("asset add collects per-item failures (exit 1); --stop-on-error skips the rest", async () => {
+    const h = harness;
+    const good1 = writeFile(h.dataDir, "bulk-mix/ok-1.png", PNG_A);
+    const bad = writeFile(h.dataDir, "bulk-mix/bad.bin", OPAQUE_BIN);
+    const good2 = writeFile(h.dataDir, "bulk-mix/ok-2.png", PNG_B);
+
+    expect(await h.runCli("--json", "asset", "add", good1, bad, good2)).toBe(EXIT.domain);
+    const report = JSON.parse(h.io.stdoutText) as {
+      added: number;
+      failures: Array<{ file: string; error: string }>;
+    };
+    expect(report.added).toBe(2);
+    expect(report.failures).toHaveLength(1);
+    expect(report.failures[0]!.file).toBe(bad);
+    expect(report.failures[0]!.error).toContain("unsupported file type");
+
+    // --stop-on-error --jobs 1: the bad item aborts the remaining ones.
+    expect(
+      await h.runCli("--json", "asset", "add", bad, good1, good2, "--stop-on-error", "--jobs", "1"),
+    ).toBe(EXIT.domain);
+    const stopped = JSON.parse(h.io.stdoutText) as {
+      added: number;
+      failures: Array<{ file: string; error: string }>;
+    };
+    expect(stopped.added).toBe(0);
+    expect(stopped.failures).toHaveLength(3);
+    expect(stopped.failures[0]!.error).toContain("unsupported file type");
+    expect(stopped.failures[1]!.error).toBe("skipped (--stop-on-error)");
+    expect(stopped.failures[2]!.error).toBe("skipped (--stop-on-error)");
+  });
+
+  it("asset add validates --jobs and requires at least one path", async () => {
+    const h = harness;
+    const good = writeFile(h.dataDir, "bulk-jobs/ok.png", PNG_A);
+    for (const jobs of ["0", "33", "x"]) {
+      expect(await h.runCli("asset", "add", good, "--jobs", jobs)).toBe(EXIT.usage);
+    }
+    expect(await h.runCli("asset", "add")).toBe(EXIT.usage);
+  });
+
+  it("asset add keeps the single-file --json shape (top-level assetId)", async () => {
+    const h = harness;
+    const good = writeFile(h.dataDir, "bulk-one/only.png", PNG_A);
+    expect(await h.runCli("--json", "asset", "add", good)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as { assetId: string; added: number };
+    expect(report.added).toBe(1);
+    expect(report.assetId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("asset add --object attaches every uploaded asset to the node", async () => {
+    const h = harness;
+    const page = await h.createPage("bulk-attach-host", []);
+    const a = writeFile(h.dataDir, "bulk-attach/a.png", PNG_A);
+    const b = writeFile(h.dataDir, "bulk-attach/b.png", PNG_B);
+
+    expect(await h.runCli("--json", "asset", "add", a, b, "--object", page)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as {
+      added: number;
+      objectId?: string;
+      assets: Array<{ assetId: string }>;
+    };
+    expect(report.added).toBe(2);
+    expect(report.objectId).toBe(page);
+
+    // The multipart uploads apply server-side AFTER this command's sync — one
+    // more cycle pulls the asset.attach envelopes into the local store.
+    expect(await h.runCli("--json", "sync")).toBe(EXIT.ok);
+    const rows = attachedAssets(h.dataDir, page);
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((row) => row.asset_id))).toEqual(
+      new Set(report.assets.map((entry) => entry.assetId)),
+    );
+  });
+
+  it("asset attach links an existing asset to a node; re-attach no-ops", async () => {
+    const h = harness;
+    const file = writeFile(h.dataDir, "attach/standalone.png", PNG_A);
+    expect(await h.runCli("--json", "asset", "add", file)).toBe(EXIT.ok);
+    const { assetId } = JSON.parse(h.io.stdoutText) as { assetId: string };
+    const page = await h.createPage("attach-host", []);
+
+    expect(await h.runCli("--json", "asset", "attach", assetId, "--object", page)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as { assetId: string; objectId: string; attached: boolean };
+    expect(report).toMatchObject({ assetId, objectId: page, attached: true });
+    expect(attachedAssets(h.dataDir, page).map((row) => row.asset_id)).toEqual([assetId]);
+
+    // Re-attach: exit 0, no duplicate node_asset row (the applier upserts on
+    // the (node_id, asset_id) key — re-attaching is a state no-op).
+    expect(await h.runCli("--json", "asset", "attach", assetId, "--object", page)).toBe(EXIT.ok);
+    expect(attachedAssets(h.dataDir, page)).toHaveLength(1);
+
+    // Usage + domain guards.
+    expect(await h.runCli("asset", "attach", assetId)).toBe(EXIT.usage);
+    expect(
+      await h.runCli("asset", "attach", "00000000-0000-0000-0000-00000000cafe", "--object", page),
+    ).toBe(EXIT.domain);
+    expect(
+      await h.runCli("asset", "attach", assetId, "--object", "00000000-0000-0000-0000-00000000cafe"),
+    ).toBe(EXIT.domain);
+  });
+
+  it("shell addAssets(pathOrPaths, objectId?) and attachAsset(assetId, objectId) mirror the commands", async () => {
+    const h = harness;
+    const a = writeFile(h.dataDir, "shell-assets/a.png", PNG_A);
+    const b = writeFile(h.dataDir, "shell-assets/b.png", PNG_B);
+    const dir = join(h.dataDir, "shell-assets");
+    const script = `
+      const host = await create({ isEmbedded: false, contentAst: [{ type: "text", text: "shell-assets-host" }] });
+      const res = await addAssets("${dir}", host.id);
+      console.log("added " + res.added + " failures " + res.failures.length);
+      const other = await create({ isEmbedded: false, contentAst: [{ type: "text", text: "shell-assets-other" }] });
+      const one = await addAssets("${a}");
+      console.log("single " + (one.assets.length === 1 && typeof one.assetId === "string"));
+      const attached = await attachAsset(one.assetId, other.id);
+      console.log("attached " + attached.attached);
+      const again = await attachAsset(one.assetId, other.id);
+      console.log("reattach " + again.attached);
+    `;
+    expect(await h.runCliWithStdin(script, "shell")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("added 2 failures 0");
+    expect(h.io.stdoutText).toContain("single true");
+    expect(h.io.stdoutText).toContain("attached true");
+    expect(h.io.stdoutText).toContain("reattach true");
+  });
+
+  // PENDING on the vendor bump: the pinned @notees/server predates the audio
+  // extension fallback (lands in the main repo's asset-upload slice — see the
+  // main-repo CHANGELOG), so the vendored server still rejects ADTS .aac.
+  // Enable this test once the vendor pin moves past that slice.
+  it("asset add accepts a real .aac (ADTS) voice memo", async () => {
+    const h = harness;
+    const memo = writeFile(h.dataDir, "bulk-aac/2024-11-08-10-47-00.aac", AAC);
+    expect(await h.runCli("--json", "asset", "add", memo)).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as { added: number };
+    expect(report.added).toBe(1);
+  });
+
+  // PENDING on the vendor bump: GET /api/assets (the workspace asset index)
+  // is added in the same main-repo slice; the vendored server 404s it today.
+  it("asset list reports workspace assets (--object filter, --limit)", async () => {
+    const h = harness;
+    const page = await h.createPage("list-host", []);
+    const a = writeFile(h.dataDir, "bulk-list/a.png", PNG_A);
+    const b = writeFile(h.dataDir, "bulk-list/b.png", PNG_B);
+    expect(await h.runCli("--json", "asset", "add", a, b, "--object", page)).toBe(EXIT.ok);
+
+    expect(await h.runCli("--json", "asset", "list")).toBe(EXIT.ok);
+    const listing = JSON.parse(h.io.stdoutText) as {
+      assets: Array<{ assetId: string; mimeType: string; originalName: string; objects: string[] }>;
+      total: number;
+    };
+    expect(listing.assets.length).toBeGreaterThanOrEqual(2);
+
+    expect(await h.runCli("--json", "asset", "list", "--object", page)).toBe(EXIT.ok);
+    const filtered = JSON.parse(h.io.stdoutText) as {
+      assets: Array<{ assetId: string; objects: string[] }>;
+      total: number;
+    };
+    expect(filtered.total).toBe(2);
+    expect(filtered.assets.every((entry) => entry.objects.includes(page))).toBe(true);
+
+    expect(await h.runCli("--json", "asset", "list", "--limit", "1")).toBe(EXIT.ok);
+    const limited = JSON.parse(h.io.stdoutText) as { assets: unknown[]; total: number };
+    expect(limited.assets).toHaveLength(1);
+  });
+});
+
+describe("auth unlock/lock (E2EE master-key cache)", () => {
+  it("auth lock with no cached key is a clean no-op", async () => {
+    const h = harness;
+    expect(await h.runCli("auth", "lock")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("nothing to clear");
+  });
+
+  it("auth unlock on a keyless workspace reports a no-op", async () => {
+    const h = harness;
+    expect(await h.runCli("auth", "unlock")).toBe(EXIT.ok);
+    expect(h.io.stdoutText).toContain("not encrypted");
+    expect(h.io.stdoutText).toContain("nothing to unlock");
+  });
+
+  it("keyed workspace: unlock caches the master key, later commands ride the cache, lock reverts", async () => {
+    const h = harness;
+    // The account provisioned in the workspace-selection describe; under a
+    // -t filter that describe may not have run — provision it ourselves
+    // (/api/setup is first-account-only, so try the login first).
+    let login = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+    });
+    if (login.statusCode === 401) {
+      login = await h.app.inject({
+        method: "POST",
+        url: "/api/setup",
+        headers: { "content-type": "application/json" },
+        payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+      });
+    }
+    expect([200, 201]).toContain(login.statusCode);
+    const session = login.json().token as string;
+    const authHeaders = { "x-api-key": session, "content-type": "application/json" };
+
+    const workspace = (
+      await h.app.inject({ method: "POST", url: "/api/workspaces", headers: authHeaders, payload: { name: "E2EE-CLI" } })
+    ).json();
+    const workspaceId = workspace.id as string;
+
+    // Client-side custody: re-derive the account master key (the same
+    // /auth/unlock round-trip the CLI rides), wrap a fresh workspace key
+    // with it, publish the wrapped key (first write wins server-side).
+    const unlock = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/unlock",
+      headers: authHeaders,
+      payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+    });
+    expect(unlock.statusCode).toBe(200);
+    const { key: masterKey, bytes: masterBytes } = await unwrapMasterKeyWithBytes(
+      "correct horse battery staple",
+      unlock.json().kdf,
+    );
+    const workspaceKey = await generateWorkspaceKey();
+    const wrappedKey = await wrapWorkspaceKey(masterKey, workspaceKey);
+    const putKey = await h.app.inject({
+      method: "PUT",
+      url: `/api/workspaces/${workspaceId}/key`,
+      headers: authHeaders,
+      payload: { wrappedKey },
+    });
+    expect(putKey.statusCode).toBe(204);
+
+    const userKey = (
+      await h.app.inject({ method: "POST", url: "/api/api-keys", headers: authHeaders, payload: { name: "e2ee-cli-test" } })
+    ).json().token as string;
+
+    const cli = async (...args: string[]): Promise<[number, Capture]> => {
+      const io = new Capture();
+      const code = await run(["--server", h.baseUrl, "--key", userKey, "--workspace", "E2EE-CLI", ...args], io);
+      return [code, io];
+    };
+
+    // 1. No password anywhere: refused loudly, pointing at the unlock path.
+    let [code, io] = await cli("object", "list");
+    expect(code).toBe(EXIT.auth);
+    expect(io.stderrText).toContain("NOTEES_EMAIL");
+
+    // 2. unlock with the password → the master key lands in the state file.
+    process.env.NOTEES_EMAIL = "cli-ws@example.test";
+    process.env.NOTEES_PASSWORD = "correct horse battery staple";
+    try {
+      [code, io] = await cli("--json", "auth", "unlock");
+      expect(code).toBe(EXIT.ok);
+      const unlocked = JSON.parse(io.stdoutText) as { encrypted: boolean; keySource: string };
+      expect(unlocked).toMatchObject({ encrypted: true, keySource: "password" });
+    } finally {
+      delete process.env.NOTEES_EMAIL;
+      delete process.env.NOTEES_PASSWORD;
+    }
+    const state = JSON.parse(readFileSync(h.stateFile, "utf8")) as {
+      servers: Record<string, { masterKey?: { bytes: string } }>;
+    };
+    const cached = state.servers[`default:${h.baseUrl}`]?.masterKey;
+    expect(cached).toBeDefined();
+    expect(masterKeyFp(b64uDecode(cached!.bytes))).toBe(masterKeyFp(masterBytes));
+
+    // 3. Later commands need NO password: the cached master key answers.
+    //    The write also exercises the sealed-wire round-trip (the relay
+    //    accepts sealed envelopes; the server's projection skips them until
+    //    payload-E2EE apply lands — the op log is the authority).
+    [code] = await cli("--json", "object", "create", "--name", "e2ee-sealed-write");
+    expect(code).toBe(EXIT.ok);
+    [code, io] = await cli("--json", "object", "list", "--q", "e2ee-sealed-write");
+    expect(code).toBe(EXIT.ok);
+    const listed = JSON.parse(io.stdoutText) as { objects: Array<{ name: string | null }> };
+    expect(listed.objects.map((o) => o.name)).toContain("e2ee-sealed-write");
+
+    // 4. lock drops the cache…
+    [code, io] = await cli("auth", "lock");
+    expect(code).toBe(EXIT.ok);
+    expect(io.stdoutText).toContain("cleared");
+    const afterLock = JSON.parse(readFileSync(h.stateFile, "utf8")) as {
+      servers: Record<string, { masterKey?: { bytes: string } }>;
+    };
+    expect(afterLock.servers[`default:${h.baseUrl}`]?.masterKey).toBeUndefined();
+
+    // 5. …and the next keyed command needs the password again.
+    [code, io] = await cli("object", "list");
+    expect(code).toBe(EXIT.auth);
+    expect(io.stderrText).toContain("NOTEES_EMAIL");
+  });
+
+  it("a machine key opens a keyed workspace with NO password and an empty cache", async () => {
+    const h = harness;
+    // Self-contained: provision the account (login, /api/setup fallback),
+    // create a fresh keyed workspace, mint a machine key through the
+    // two-phase custody flow — all through the server's real routes.
+    let login = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      headers: { "content-type": "application/json" },
+      payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+    });
+    if (login.statusCode === 401) {
+      login = await h.app.inject({
+        method: "POST",
+        url: "/api/setup",
+        headers: { "content-type": "application/json" },
+        payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+      });
+    }
+    expect([200, 201]).toContain(login.statusCode);
+    const session = login.json().token as string;
+    const authHeaders = { authorization: `Bearer ${session}`, "content-type": "application/json" };
+
+    const workspace = (
+      await h.app.inject({ method: "POST", url: "/api/workspaces", headers: authHeaders, payload: { name: "E2EE-Machine" } })
+    ).json();
+    const workspaceId = workspace.id as string;
+
+    const unlock = await h.app.inject({
+      method: "POST",
+      url: "/api/auth/unlock",
+      headers: authHeaders,
+      payload: { email: "cli-ws@example.test", password: "correct horse battery staple" },
+    });
+    expect(unlock.statusCode).toBe(200);
+    const { bytes: masterBytes } = await unwrapMasterKeyWithBytes(
+      "correct horse battery staple",
+      unlock.json().kdf,
+    );
+    // Extractable re-import: the custody install WRAPS the master (the
+    // unwrap path's handle is non-extractable by construction).
+    const masterKey = await importMasterKey(masterBytes, true);
+    const wsKey = await generateWorkspaceKey();
+    const putKey = await h.app.inject({
+      method: "PUT",
+      url: `/api/workspaces/${workspaceId}/key`,
+      headers: authHeaders,
+      payload: { wrappedKey: await wrapWorkspaceKey(masterKey, wsKey) },
+    });
+    expect(putKey.statusCode).toBe(204);
+
+    // Phase 1: mint. Phase 2: install custody (wrap the master under a key
+    // derived from the fresh token).
+    const minted = await h.app.inject({
+      method: "POST",
+      url: "/api/api-keys",
+      headers: authHeaders,
+      payload: { name: "machine-test" },
+    });
+    expect(minted.statusCode).toBe(201);
+    const { apiKey, token } = minted.json() as { apiKey: { id: string }; token: string };
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const machineKey = await importMasterKey(deriveMachineKey(token, salt));
+    const install = await h.app.inject({
+      method: "POST",
+      url: `/api/api-keys/${apiKey.id}/custody`,
+      headers: authHeaders,
+      payload: { salt: b64uEncode(salt), wrappedMaster: await wrapWorkspaceKey(machineKey, masterKey) },
+    });
+    expect(install.statusCode).toBe(204);
+
+    // The CLI with the machine key, NO password env, empty cache: custody answers.
+    const io = new Capture();
+    expect(
+      await run(
+        ["--server", h.baseUrl, "--key", token, "--workspace", "E2EE-Machine", "--json", "auth", "unlock"],
+        io,
+      ),
+    ).toBe(EXIT.ok);
+    expect(JSON.parse(io.stdoutText)).toMatchObject({ encrypted: true, keySource: "machine" });
+
+    const io2 = new Capture();
+    expect(
+      await run(
+        ["--server", h.baseUrl, "--key", token, "--workspace", "E2EE-Machine", "--json", "object", "create", "--name", "via-machine-key"],
+        io2,
+      ),
+    ).toBe(EXIT.ok);
+
+    // And the machine path persisted nothing to the state file.
+    const state = JSON.parse(readFileSync(h.stateFile, "utf8")) as {
+      servers: Record<string, { masterKey?: unknown }>;
+    };
+    expect(state.servers[`default:${h.baseUrl}`]?.masterKey).toBeUndefined();
+  });
+});

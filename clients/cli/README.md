@@ -1,0 +1,184 @@
+# Notees CLI
+
+The `notees` command-line client for [Notees](https://github.com/miquelrosell99/notees) — the object/property/search surface over the server's public API. Split out of the main monorepo (`apps/cli`) to live alongside the other first-class clients ([GTK](https://github.com/miquelrosell99/notees-gtk), [Flutter](https://github.com/miquelrosell99/notees-flutter)).
+
+The CLI is **local-first like the other clients**: it syncs a workspace through the relay wire protocol (the vendored `@notees/sync` engine) into a local derived SQLite store (the vendored `@notees/store`, better-sqlite3 backend, one file per workspace under `~/.notees/stores/`), and serves every content read — objects, children, backlinks, search/FTS, the query language — from that store. Writes author op envelopes (protocol v3), apply locally through the store appliers, and push through the engine's outbox; a write that can't push stays durable in the local op log and syncs on the next successful `notees sync`. The server retired its content REST API (plan 07), so no content command makes a server round-trip beyond the sync cycle itself. `notees help` prints the full command overview; `notees help <command> [subcommand]` prints the full help for one command — see Command reference below.
+
+Encrypted (keyed) workspaces: the CLI unwraps the workspace key like any other client — with a user credential (from `notees auth login`) plus `NOTEES_EMAIL` and `NOTEES_PASSWORD` set, the master key re-derives via `/auth/unlock` and the stored wrapped key unwraps. The first successful unlock CACHES the master key in the CLI state file (mode 0600 — the web client's persisted-custody parity), so later commands need no password until `notees auth lock` (or `notees auth logout`) clears it; `notees auth unlock` runs the unlock explicitly and doubles as a sync warm-up. A MACHINE key (minted with custody in the app's API-keys settings) needs none of this: the token itself unwraps the master key (`GET /api-keys/self/custody`), so every keyed command rides the key alone — no password, no cache. An operator credential can never read a workspace key (user custody by design), and a keyed workspace is refused loudly when no key is derivable.
+
+## Layout
+
+```
+notees-cli/
+├── src/                 # the CLI (commander; `notees` bin)
+├── test/                # vitest suite (boots a real server from @notees/server)
+├── scripts/install.sh   # release-bundle installer (curl | bash)
+├── packaging/arch/      # PKGBUILD for pacman (Arch; built from the release assets)
+├── vendor/notees/       # git submodule → miquelrosell99/notees (pinned commit)
+├── vendor/word/         # vendored Word add-in dist (built snapshot; see "Syncing")
+└── pnpm-workspace.yaml  # consumes @notees/* from the submodule checkout
+```
+
+The CLI imports the TypeScript protocol packages (`@notees/protocol`, `@notees/domain`, `@notees/store`, `@notees/sync`, `@notees/query`, `@notees/export`) and uses `@notees/server` in tests to boot a real server. They are consumed from the `vendor/notees` submodule as pnpm workspace packages — no npm publishing involved (the SDK-publish track is archived in the main repo).
+
+## Getting started
+
+```bash
+git clone --recurse-submodules git@github.com:miquelrosell99/notees-cli.git
+cd notees-cli
+corepack enable && corepack prepare pnpm@9.0.0 --activate
+pnpm install
+pnpm build        # tsup bundle → dist/cli.js (the `notees` bin)
+pnpm test         # vitest (189 tests)
+pnpm dev -- --help    # run from source via tsx
+```
+
+If you cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init
+```
+
+## Configuration
+
+Resolution order for both the server URL and the workspace is: flag (`--server` / `--workspace`) > environment (`NOTEES_SERVER` / `NOTEES_WORKSPACE`) > the stored per-profile default. Persist the defaults once and bare `notees <cmd>` works without any env plumbing:
+
+```bash
+notees config set server https://<host>     # stored default server (per --profile)
+notees config set workspace <name|id>       # stored default workspace
+notees config get server                    # print one stored default
+notees config list                          # print both
+```
+
+The defaults live in the CLI state file (`~/.notees/state.json`, mode 0600) under a top-level per-profile record — separate from the `servers` map, which is keyed `profile:server`. `notees config` itself needs no server, credential, or env: it only touches the local state file.
+## Authentication
+
+Every command takes a credential via `--key` / `NOTEES_API_KEY`, or falls back to the one stored per profile+server in `~/.notees/state.json` (mode 0600):
+
+- `notees auth login --email <email> --password-stdin` — email + password; mints a dedicated CLI API key (revocable from the app) and stores it.
+- `notees auth store --key <credential>` (or `--key-stdin`) — probe-verify an existing API key against the server, then store it as the standing credential. Stored keys are not CLI-minted, so `auth logout` clears them locally only — server-side revocation applies to login-minted keys.
+- `notees auth status` / `notees auth logout` — probe / clear the stored credential (logout also clears the cached master key).
+- `notees auth unlock` / `notees auth lock` — encrypted workspaces: derive the master key from `NOTEES_EMAIL` + `NOTEES_PASSWORD` once and cache it in the state file (later keyed commands need no password) / drop the cache so the password is required again.
+
+`notees doctor` exercises the same resolution chain: it resolves server, workspace, and credential flag > env > stored (a stored credential counts, and the `authentication:` probe sends it), reports every check as ok/FAIL — failing checks report FAILs, not a bare usage error — and exits non-zero when any check fails.
+
+## Command reference
+
+`notees help` prints the full overview — every top-level command with a one-line purpose and key flags. `notees help <command> [subcommand]` prints one command's complete help (the same text as `--help`, which stays the canonical source; this table is only the index). Every command also takes the global flags `--json`, `--server <url>`, `--key <credential>`, `--workspace <name|id>`, `--profile <name>`.
+
+| Command | Purpose | Common flags |
+|---|---|---|
+| `object` | create / read / update / move / merge / list objects | `create --batch`, `get --ids`, `merge --dry-run` |
+| `cover` | the one-gesture node cover (image) | `set --asset`, `clear` |
+| `property` | property schemas and class bindings | `create --type`, `bind`, `delete --yes` |
+| `search` | plain-text (FTS) or query-language search | (grammar in `search --help`) |
+| `today` | open today's daily note | `--append` |
+| `date` | the deterministic date chain | `ensure <YYYY-MM-DD>` |
+| `journal` | list daily notes, newest first | `--limit` |
+| `class` | class membership, extends, bulk remap, the parentless render contract | `list --tree`, `remap --dry-run`, `render-as` |
+| `tag` | tag membership (a tag is any page) | `assign`, `unassign` |
+| `workflow` | workflow vocabulary — opt-in materialized class families (install state derives from one anchor-page probe, never a ledger) | `list`, `enable <id>`, `disable <id>` |
+| `feature` | workspace feature toggles (the core class families + the journal surfaces) | `list`, `enable <feature>`, `disable <feature>` |
+| `auth` | sign in / store / probe the credential | `login`, `store --key-stdin`, `status` |
+| `config` | per-profile default server / workspace | `set`, `get`, `list` |
+| `ops` | the operation catalog (or one op's shape) | `[opType]` |
+| `backlinks` | list backlinks to an object | — |
+| `asset` | bulk upload / attach / list / download files | `add <path…> --object --jobs`, `attach --object`, `list --object --limit`, `get --output` |
+| `sync` | sync the local store with the relay (push the unpushed backlog, pull catch-up) | (bare), `status` |
+| `serve` | the localhost citation bridge for the Word add-in (127.0.0.1 only; search + CSL renders over the local store; apa / ieee / chicago-note-bibliography bundled, `--styles-dir` adds user .csl styles) | `--port`, `--origin`, `--token-file`, `--styles-dir` |
+| `doctor` | auth + reachability + version probe | (resolves flag > env > stored) |
+| `shell` | scripting REPL over the object API | `[script]` |
+| `export` | Markdown / JSON archive / BibTeX bundles | `markdown --ids`, `json --class` |
+| `import` | bibtex / csl-json / zotero-rdf (value-filling upsert over the full aligned Zotero vocabulary, gated by the item class's bound field roster; match citekey → doi → isbn → title → create) / logseq-db sources | `--dry-run` |
+
+Destructive commands refuse without `--yes`: they print a blast-radius preview and exit 2. Exit codes: 0 ok, 1 domain, 2 usage, 3 auth, 4 conflict, 5 network.
+
+Workflows and features: `workflow list` derives install state from ONE local-store probe of the workflow's anchor page per workflow (absent = available, present + active = installed, present + archived = disabled — no ledger); `workflow enable|disable <id>` executes `@notees/domain`'s pure `planWorkflowToggle` as ONE outbox batch, skipping steps that already converge (re-runs never overwrite user edits). `feature list` reads `GET /api/features` (a surviving coordination route) and defaults untoggled features to enabled; `feature enable|disable <feature>` writes one `workspace.feature.set` envelope, read-modify-merging an existing settings record forward (a plain toggle never wipes the Sources settings).
+
+The local store: one derived SQLite file per workspace at `~/.notees/stores/<workspace-id>.db` (beside the state file; `NOTEES_STATE_FILE` relocates both). It is a disposable projection — the relay log is the authority — so it can be deleted at any time; the next command re-syncs from scratch. `sync status` reports the persisted cursor against the relay stats without running a cycle; a bare `notees sync` runs the cycle (push, then pull) and prints the watermarks.
+
+Display names: the human tables of `object children` / `object list` render a row's NAME from its content (title-is-content). The API `name` flattens text tokens only, so a node whose content is rich tokens alone — a lone mention, a class chip, math — has no API name; the CLI then derives the display text from the content, resolving mentions to the target's *current* title (live, never stored — an unresolvable target reads as `(untitled)`, like the web mention chip).
+
+## `notees serve` — the localhost citation bridge
+
+`notees serve` runs a small HTTP server on `127.0.0.1` so the Notees Word add-in can search your synced store and render citations/bibliographies while you work — the Zotero connector architecture (Word add-in ↔ localhost bridge). The add-in never talks to the network; sync is the bridge's problem, and Word citations keep working with no connectivity.
+
+    notees serve [--port 8474] [--origin <add-in origin> …]
+                 [--token-file <path>] [--sync-interval 60] [--styles-dir <dir>]
+
+- **Loopback only.** The bind is `127.0.0.1`; there is no `--host` flag. The post-listen address check refuses to serve if the platform ever resolved anything else.
+- **Pairing.** The first connect needs a bearer token: a fresh one is printed at startup (or pin it with `NOTEES_SERVE_TOKEN`, or write it for the add-in with `--token-file`, mode 0600). The compare is constant-time (`crypto.timingSafeEqual`).
+- **Origin allowlist, fail-closed.** Browser requests must carry an `Origin` header matching a repeatable `--origin` value. Once one `--origin` exists, a missing or unlisted Origin is a 403 — never a pass.
+- **CORS.** The add-in pane is served from the Notees origin (`https://<host>/word/`) but fetches the loopback bridge, so every pane request is a cross-origin fetch: the browser sends an `OPTIONS` preflight before `POST /document` and blocks the response without `Access-Control-Allow-Origin`. The bridge answers the preflight (`204` + `Access-Control-Allow-Origin` / `-Methods` / `-Headers`) and echoes the matched origin on `POST` responses — the exact presented origin, never `*`. **Pairing therefore requires `--origin <add-in origin>`** — the origin `notees word serve` hosts the pane at (`http://localhost:8471` by default); without it the browser blocks the pane before any request reaches the bridge, and an unlisted origin gets a 403 with no ACAO headers at all.
+- **No arbitrary filesystem endpoints.** The bridge exposes exactly one endpoint — search and CSL renders over the local store. Nothing reads or writes your files in response to a request except the traversal-guarded `--styles-dir` (list-styles reads its file names per request; a render reads one `.csl` inside it, with the id checked against a strict file-name pattern first) and the workspace's own derived store; the `--token-file` write happens once, after the bridge is listening.
+- **Protocol.** `POST /document` with `{cmd: "search" | "render-citation" | "render-bibliography" | "list-styles", …}` — see the Word add-in docs. Every failure answers the `{ok: false, error: {code, message}}` envelope (unknown_cmd / not_found / render_failed / bad_request).
+- **One bridge per store.** A second `notees serve` on the same workspace store exits 4 (conflict) — the derived store is single-writer. The lock records the holder pid; a stale lock from a dead process is stolen on the next start.
+- **Offline-first.** One `LocalWorkspace` stays open for the server's lifetime with a background sync every `--sync-interval` seconds (≥ 5, default 60). A failed initial sync still serves the last synced store; a store that has never synced fails loudly instead of serving an empty projection. Request handling performs no network I/O.
+- **Styles.** APA, IEEE, and Chicago (notes & bibliography) are bundled; drop additional `.csl` files in a `--styles-dir`.
+
+## `notees word serve` — the Word add-in's local gateway
+
+The Notees-for-Word task pane is no longer served by the Notees sync server; `notees word serve` is its local gateway on the machine running Word — statics, sideload manifest, and the pane's only path to the sync server:
+
+    notees word serve [--port 8471] [--restart]
+
+- **Statics: dist → embedded fallback.** It serves the `notees-word` localhost flavor read-only at the root of `http://localhost:<port>`, bound to `127.0.0.1` only (post-listen address check, like the bridge). `GET /` is the pane, `GET /manifest.xml` is the sideload manifest re-rendered for the actual port. The statics come from, in order: `NOTEES_WORD_DIST` (explicit override), a `vendor/word/dist` found walking up from the CLI (the repo checkout), or — the release bundle's case — the copy **embedded in `cli.mjs` itself** at build time (`scripts/gen-word-embedded.mjs` generates `src/word/embedded.generated.ts` from `vendor/word`, including the raw manifest template; the build/typecheck/test/dev scripts regenerate it, and it is gitignored so a bundle can never embed a stale snapshot). The embedded fallback needs no on-disk files at all.
+- **Same-origin API gateway.** Every `/api/*` request (any method) relays to the configured sync server — the same `--server` / `NOTEES_SERVER` / `notees config set server` resolution every command uses (`NOTEES_WORD_UPSTREAM` overrides the base URL). The credential comes only from the CLI config (`--key` / `NOTEES_API_KEY` / stored credential) and is injected server-side as `x-api-key`; the configured workspace becomes a default `x-workspace-id` when the pane does not send one. Client-supplied auth headers (`x-api-key`, `authorization`, `cookie`) are dropped, never forwarded — the pane holds nothing and cannot retarget the proxy: one fixed origin, `/api/*` paths only. The relay WebSocket (`/api/relay/v2/ws/:workspaceId`) is tunneled at the upgrade layer with the same injection. No CORS headers anywhere: the pane is same-origin.
+- **Streaming, not buffering.** Request and response bodies relay chunk-for-chunk (relay snapshots, any future SSE-style feed); long-lived responses get no client-side cutoff.
+- **Sideload manifest.** The manifest is written to the per-user cache dir — `~/.cache/notees/word/manifest.xml` on Linux/macOS (`$XDG_CACHE_HOME` respected), `%LOCALAPPDATA%\notees\word\manifest.xml` on Windows. Point Word's shared-folder catalog at that folder (Windows trusted-catalog registry value; Word for Mac copies it into the wef folder).
+- **One serve per cache dir.** A second `notees word serve` exits 4 (conflict) with a `--restart` hint; `--restart` SIGTERMs the live holder and waits it out. The lock records the holder pid; a stale lock from a dead process is stolen.
+- **Port.** `--port` > `NOTEES_WORD_PORT` > 8471.
+- **Server + credential required.** Unlike the statics-only early shape, the gateway resolves the sync server and credential at startup (the standard global options) — without them there is nothing to proxy to. For citation pairing, run `notees serve --origin http://localhost:<port>` so the pane's cross-origin bridge fetches are allowed.
+- **Release bundles.** The single-file `cli.mjs` is fully self-contained: the word statics ride inside it (embedded fallback above), so `word serve` works from an installed bundle with nothing beside the binary. To refresh what future bundles embed, update `vendor/word` (`node scripts/sync-word-dist.mjs`) and rebuild.
+
+## Installing
+
+Every `v*` tag carries a prebuilt bundle (`cli.mjs`, ESM with a `node` shebang, sha256 sidecar) on its GitHub Release, built by `.github/workflows/release.yml`. The install script fetches it, verifies the checksum, and links `notees` into `~/.local/bin` (override with `NOTEES_INSTALL_DIR`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash -s -- v3.2.1   # pin a version
+```
+
+Requirements: bash, curl, node ≥ 22. The bundle is standalone — no pnpm toolchain, no `vendor/` checkout. Installing from source (above) is the other supported path; there is no npm or docker distribution.
+
+**On Windows:** the installer also writes a `notees.cmd` shim next to the installed files, so cmd/PowerShell can run `notees` directly (Git Bash/MSYS executes the extensionless `notees` via its shebang either way).
+
+**On Arch (pacman):** `packaging/arch/PKGBUILD` builds an installable package from the same release assets — checksum-verified by pacman itself:
+
+```bash
+git clone --depth 1 --branch v3.2.3 https://github.com/miquelrosell99/notees-cli.git
+cd notees-cli/packaging/arch
+makepkg -si        # installs notees-cli + its nodejs>=22 dependency
+```
+
+Every tag's `pacman-smoke` CI job build-installs this exact PKGBUILD on Arch before the release is trusted. AUR publication is deliberately deferred — the in-repo PKGBUILD is the supported way to build the package.
+
+## Syncing the vendored packages
+
+The submodule pin is the lockstep boundary: bump it after the main repo ships protocol/store changes the CLI needs.
+
+Bumps normally arrive as **automated PRs**: `.github/workflows/vendor-bump.yml` runs every hour, pins `vendor/notees` at the core repo's (`miquelrosell99/notees`) newest main, and opens the bump PR (gate green → squash-merge). The manual recipe below remains for exceptional pins.
+
+```bash
+cd vendor/notees && git fetch origin && git checkout origin/main && cd ../..
+pnpm install
+pnpm -r --filter "@notees/*" build   # rebuild the vendored packages' dists
+pnpm build && pnpm test
+```
+
+Commit the submodule bump — CI installs with `--frozen-lockfile`, so run `pnpm install` once locally to refresh `pnpm-lock.yaml` and commit that too.
+
+### Refreshing the vendored Word add-in (`vendor/word`)
+
+`vendor/word` is a built snapshot of the `notees-word` repo's `pnpm build:localhost` output (statics + the raw manifest template + `PROVENANCE.json` recording the source commit). Refresh it from a notees-word checkout — never edit it by hand:
+
+```bash
+node scripts/sync-word-dist.mjs [--from <notees-word checkout>] [--no-build]
+```
+
+Unlike the `vendor/notees` submodule there is no lockstep law — the snapshot moves when the add-in ships, not on the core repo's fixture gate.
+
+## Versioning
+
+`CLI_VERSION` (in `src/cli.ts`) rides the server's release train — the `doctor` command warns when the server is ahead of the CLI. There is no separate npm/docker distribution; install from a release bundle or from source (see "Installing").

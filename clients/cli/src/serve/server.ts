@@ -1,0 +1,194 @@
+import { timingSafeEqual } from "node:crypto";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+
+import { CliError, EXIT } from "../exit-codes.js";
+import { parseServeRequest, serveError, type ServeRequest, type ServeResponse } from "./protocol.js";
+import type { ServeConfig } from "./config.js";
+
+const MAX_BODY_BYTES = 1_048_576; // 1 MB — request bodies are tiny command envelopes
+
+export interface Bridge {
+  /** The ACTUAL bound port (config.port may be 0 = OS-assigned). */
+  readonly port: number;
+  /** The ACTUAL bound address — the loopback proof (config.host is 127.0.0.1). */
+  readonly address: string;
+  readonly token: string;
+  /** Stops accepting, lets in-flight requests finish, frees the port. */
+  close(): Promise<void>;
+}
+
+export interface BridgeHandlers {
+  /** Executes one parsed command against the local store. Must never throw. */
+  dispatch(request: ServeRequest): Promise<ServeResponse>;
+}
+
+/** Signals the body cap; handled as 413, not the catch-all 400. */
+class BodyTooLargeError extends Error {}
+
+function statusFor(response: ServeResponse): number {
+  if (response.ok) return 200;
+  // Transport semantics in the HTTP status; the wire code stays in the
+  // four-value vocabulary (bad_request / unknown_cmd / not_found /
+  // render_failed).
+  if (response.error.code === "not_found") return 404;
+  if (response.error.code === "render_failed") return 422;
+  return 400;
+}
+
+async function readBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buf = chunk as Buffer;
+    size += buf.length;
+    if (size > MAX_BODY_BYTES) {
+      throw new BodyTooLargeError("request body too large (max 1 MB)");
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * Start the localhost bridge. The loopback bind is non-negotiable: the
+ * config carries `host: "127.0.0.1"` as a literal type and the post-listen
+ * address check fails the start (rather than serving) if the platform ever
+ * resolved anything else.
+ */
+export async function startBridge(config: ServeConfig, handlers: BridgeHandlers): Promise<Bridge> {
+  const server: Server = createServer((req, res) => {
+    void handleRequest(req, res, config, handlers);
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(config.port, config.host, resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string" || address.address !== config.host) {
+    server.close();
+    throw new CliError(EXIT.domain, `refusing to serve: bound address is not ${config.host}`);
+  }
+  return {
+    port: address.port,
+    address: address.address,
+    token: config.token,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        // fetch/undici keeps idle keep-alive sockets open; close() waits on
+        // them forever without this. In-flight requests are untouched —
+        // close() only resolves after they drain.
+        server.closeIdleConnections();
+      }),
+  };
+}
+
+/**
+ * Bearer compare. `timingSafeEqual` needs equal-length buffers (it throws
+ * otherwise), so the length check stays a plain early exit — the standard
+ * caveat. On the loopback threat model the constant-time compare is
+ * defense-in-depth; it is the rigorous form for a pairing-token compare
+ * regardless.
+ */
+function bearerMatches(header: string | undefined, token: string): boolean {
+  if (header === undefined || !header.startsWith("Bearer ")) return false;
+  const presented = Buffer.from(header.slice("Bearer ".length), "utf8");
+  const expected = Buffer.from(token, "utf8");
+  return presented.length === expected.length && timingSafeEqual(presented, expected);
+}
+
+/**
+ * Exact-match allowlist lookup. Returns the presented origin only when it is
+ * one of the configured values — never "*" and never a substring/regex match —
+ * so the caller can echo it as Access-Control-Allow-Origin.
+ */
+function matchedOrigin(origin: string | undefined, config: ServeConfig): string | undefined {
+  return typeof origin === "string" && config.origins.includes(origin) ? origin : undefined;
+}
+
+async function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  config: ServeConfig,
+  handlers: BridgeHandlers,
+): Promise<void> {
+  let answered = false;
+  const baseHeaders = {
+    // Loopback pairing bridge: a fresh socket per request keeps close()
+    // drain prompt instead of waiting out client keep-alive timeouts.
+    connection: "close" as const,
+    "cache-control": "no-store",
+  };
+  const respond = (status: number, body: ServeResponse, extraHeaders: Record<string, string> = {}): void => {
+    if (answered) return;
+    answered = true;
+    res.writeHead(status, {
+      "content-type": "application/json",
+      ...baseHeaders,
+      ...extraHeaders,
+    });
+    res.end(JSON.stringify(body));
+  };
+  const origin = req.headers.origin;
+  const allowed = matchedOrigin(origin, config);
+  const corsHeaders = allowed === undefined ? {} : { "access-control-allow-origin": allowed };
+  try {    // The Word add-in pane is served cross-origin, so its fetch is a non-simple
+    // CORS request: the browser OPTIONS-preflights /document and blocks the
+    // actual response without an echoed Access-Control-Allow-Origin. Fail-closed
+    // like the origin gate below: only a listed origin gets ACAO, anything else
+    // (including no allowlist at all) is a 403 with no ACAO headers.
+    if (req.method === "OPTIONS") {
+      if (allowed === undefined) {
+        respond(403, serveError("bad_request", "origin is not allowed"));
+        return;
+      }
+      answered = true;
+      res.writeHead(204, {
+        ...baseHeaders,
+        "access-control-allow-origin": allowed,
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": "authorization, content-type",
+      });
+      res.end();
+      return;
+    }
+
+    if (req.method !== "POST" || req.url !== "/document") {
+      respond(404, serveError("bad_request", "POST /document only"));
+      return;
+    }
+    // Exact-match allowlist: once one exists, every request needs an Origin
+    // header carrying a listed value — a missing header is not a pass.
+    if (config.origins.length > 0 && allowed === undefined) {
+      respond(403, serveError("bad_request", "origin is not allowed"));
+      return;
+    }
+    if (!bearerMatches(req.headers.authorization, config.token)) {
+      respond(401, serveError("bad_request", "missing or invalid bearer token"), corsHeaders);
+      return;
+    }
+    const raw = await readBody(req);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      respond(400, serveError("bad_request", "body is not valid JSON"), corsHeaders);
+      return;
+    }
+    const request = parseServeRequest(parsed);
+    if (!request.ok) {
+      respond(400, request.response, corsHeaders);
+      return;
+    }
+    const response = await handlers.dispatch(request.request);
+    respond(statusFor(response), response, corsHeaders);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      respond(413, serveError("bad_request", error.message), corsHeaders);
+      return;
+    }
+    // A dispatch (or plumbing) exception is a 500 with a generic body: the
+    // server never crashes and never leaks internals through the wire.
+    respond(500, serveError("bad_request", "internal error"), corsHeaders);
+  }
+}

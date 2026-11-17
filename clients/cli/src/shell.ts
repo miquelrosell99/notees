@@ -1,0 +1,726 @@
+/**
+ * `notees shell` — the Odoo-shell equivalent for Notees: a Node REPL with
+ * the object API preloaded for arbitrary graph scripting.
+ *
+ * Two modes, chosen by stdin:
+ * - TTY: interactive REPL (`notees> ` prompt, top-level await, `.help` banner).
+ * - piped: stdin is read as one script, executed with the helpers in scope,
+ *   then the process exits — 0 on success, 1 on script error. This is the
+ *   agent/script path: `echo 'const p = await create({…}); console.log(p.id)' |
+ *   notees shell --server … --key …`.
+ *
+ * Startup probes the server doctor-style: reachability (`GET /api/version`,
+ * public) then key validity (an authenticated read). Failure prints a clear
+ * message and exits with the mapped code (network → 5, auth → 3), matching
+ * the CLI's exit-code contract. `--json` switches the REPL's result writer to
+ * single-line JSON instead of the inspect pretty-printer.
+ */
+
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
+import repl from "node:repl";
+import { format } from "node:util";
+import vm from "node:vm";
+
+import { concatBundleMarkdown } from "@notees/export";
+import { describeOp, OP_CATALOG, type Envelope } from "@notees/protocol";
+
+import type { ApiClient } from "./client.js";
+import { expandAssetInputs, uploadAssetFile, assertObjectExists } from "./assets-lib.js";
+import { CliError, EXIT } from "./exit-codes.js";
+import type { LocalWorkspace } from "./local-workspace.js";
+import { buildMarkdownBundle, fetchSchemaIndex } from "./markdown-export.js";
+import { readStdin } from "./util.js";
+
+export interface ShellIo {
+  stdout: { write(chunk: string): unknown };
+  stderr: { write(chunk: string): unknown };
+}
+
+export interface ShellOptions {
+  client: ApiClient;
+  /** Opens the local-first content session (derived store + sync engine) —
+   * lazy so the startup probe reports auth/reachability failures first, one
+   * session for the whole shell run. */
+  openLocal: () => Promise<LocalWorkspace>;
+  io: ShellIo;
+  json: boolean;
+  stdin?: NodeJS.ReadableStream | undefined;
+  /** Run this file as a one-shot script instead of reading stdin (the REPL stays TTY-only). */
+  scriptFile?: string | undefined;
+}
+
+export interface ListOptions {
+  isClass?: boolean;
+  isEmbedded?: boolean;
+  class?: string;
+  q?: string;
+  property?: string;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface SearchOptions {
+  isClass?: boolean;
+  isEmbedded?: boolean;
+  limit?: number;
+}
+
+export interface DeleteOptions {
+  permanent?: boolean;
+}
+
+export interface SetPropertyOptions {
+  idx?: number;
+  metadata?: Record<string, unknown>;
+}
+
+/** The preloaded shell surface (also the script-mode global scope). */
+export interface ShellHelpers {
+  /** The raw typed HTTP client — the full API surface for anything the helpers don't wrap. */
+  api: ApiClient;
+  get(id: string): Promise<unknown>;
+  list(opts?: ListOptions): Promise<unknown>;
+  search(q: string, opts?: SearchOptions): Promise<unknown>;
+  classes(): Promise<unknown>;
+  classInfo(id: string): Promise<unknown>;
+  backlinks(id: string): Promise<unknown>;
+  props(id: string): Promise<unknown>;
+  effective(id: string): Promise<unknown>;
+  create(partial: Record<string, unknown>): Promise<unknown>;
+  /**
+   * PATCH fields (isEmbedded, icon, color, contentAst). `name` is accepted as
+   * the title-is-content shorthand: it becomes a single text token
+   * (`contentAst: [{type:"text",text: name}]`), so it is mutually exclusive
+   * with an explicit `contentAst` in the same call.
+   */
+  update(id: string, fields: Record<string, unknown>): Promise<unknown>;
+  del(id: string, opts?: DeleteOptions): Promise<unknown>;
+  /** POST /objects/:sourceId/merge — merge source into target (the source
+   * trashes; the server's planner guards fail loud, 422 → CliError exit 1). */
+  merge(sourceId: string, targetId: string): Promise<unknown>;
+  /** POST /objects/:sourceId/merge?dryRun=true — the plan summary only, nothing written. */
+  mergePlan(sourceId: string, targetId: string): Promise<unknown>;
+  setProperty(id: string, schemaId: string, value: unknown, opts?: SetPropertyOptions): Promise<unknown>;
+  /** Unset one property slot (the missing partner of setProperty; idx defaults 0). */
+  unsetProperty(id: string, schemaId: string, idx?: number): Promise<unknown>;
+  /** Active property schemas (GET /property-schemas). */
+  propertySchemas(): Promise<unknown>;
+  /** One active property schema (404s on unknown/inactive ids). */
+  propertySchema(id: string): Promise<unknown>;
+  /** propertySchema.create — the payload must carry a caller-chosen schema uuid. */
+  createPropertySchema(input: Record<string, unknown>): Promise<unknown>;
+  /** propertySchema.update — patch fields only (name/options/datePrecision/dateQualified). */
+  updatePropertySchema(id: string, fields: Record<string, unknown>): Promise<unknown>;
+  /** propertySchema.delete — soft-delete (authored values survive). */
+  deletePropertySchema(id: string): Promise<unknown>;
+  /** class.property.set — the binding upsert (presence-only since the sequence/required/defaultValue retirement; the global default lives on the schema). */
+  setClassProperty(classId: string, propertySchemaId: string, fields: Record<string, unknown>): Promise<unknown>;
+  /** class.property.unset — remove the binding (authored values survive). */
+  unsetClassProperty(classId: string, propertySchemaId: string): Promise<unknown>;
+  upload(filePath: string): Promise<string>;
+  /**
+   * `notees asset add` as a helper: one path or an array (files and/or
+   * directories — a directory adds every regular file in it, recursively).
+   * Per-item failures land in `failures`; never throws on item failure.
+   * `objectId` attaches every uploaded asset to that node.
+   */
+  addAssets(
+    pathOrPaths: string | string[],
+    objectId?: string,
+  ): Promise<{
+    added: number;
+    assets: Array<{ file: string; assetId: string }>;
+    failures: Array<{ file: string; error: string }>;
+    assetId?: string;
+    objectId?: string;
+  }>;
+  /** `notees asset attach` as a helper: link an EXISTING asset to a node (idempotent — the node_asset row upserts). */
+  attachAsset(assetId: string, objectId: string): Promise<{ assetId: string; objectId: string; attached: boolean }>;
+  /** Markdown bundle text for the given object ids. `export` is a reserved
+   * word in JS, so the callable alias is `exportMd`; the spec-named property
+   * stays reachable as `helpers.export(ids)` in scripts / `globalThis.export`
+   * in the REPL. */
+  export(ids: string[]): Promise<string>;
+  exportMd(ids: string[]): Promise<string>;
+  /** Build one envelope-v3 op (HLC-stamped, uuidv7 id, workspace + actor
+   * derived from the client's --workspace/--key). Not submitted. */
+  makeOp(opType: string, payload: Record<string, unknown>, affectedNodeIds?: string[]): Promise<Envelope>;
+  /** Submit one op through the relay batch endpoint (the one write path). */
+  submitOp(opType: string, payload: Record<string, unknown>, affectedNodeIds?: string[]): Promise<{ savedCount: number; savedIds: string[] }>;
+  /** Submit prebuilt envelopes (from makeOp) through the relay batch endpoint. */
+  submitOps(envelopes: Envelope[]): Promise<{ savedCount: number; savedIds: string[] }>;
+  /** The op catalog: opType + one-line description per registered op (the submitOp discovery layer). */
+  ops(): Array<{ opType: string; description: string }>;
+  /** One catalog entry (description, example payload, affected-node shape); throws on unknown op types. */
+  opHelp(opType: string): { opType: string; description: string; example: Record<string, unknown>; affected: string };
+  /**
+   * Run `fn` over `items` with N workers (concurrency 1–32, validated — bad
+   * args throw a usage error). NEVER throws on item failure: resolves to
+   * per-item results in INPUT ORDER. `fn` may console.log its own JSONL
+   * progress per item — log lines interleave across workers, which is fine.
+   */
+  pool<I, T>(
+    items: I[],
+    concurrency: number,
+    fn: (item: I, index: number) => Promise<T>,
+  ): Promise<Array<{ index: number; item: I; ok: true; value: T } | { index: number; item: I; ok: false; error: string }>>;
+}
+
+const HELP_TEXT = `notees shell helpers (object API, top-level await works; scripts run in a
+vm without require/fs — feed ids inline, and prefer a script file over a
+giant heredoc):
+  api                                        raw ApiClient: the surviving server routes (auth, assets, property-schema CRUD, coordination reads)
+  get(id)                                    fetch an object (contentAst + authored properties) — the local derived store
+  list(opts?)                                list objects -> array (opts: isClass, isEmbedded, class, q, property, limit, cursor)
+  search(q, opts?)                           full-text search -> results array (opts: isClass, isEmbedded, limit)
+  classes()                                  list classes
+  classInfo(id)                              one class (with members) merged into a single object
+  backlinks(id)                              edges pointing at id
+  props(id)                                  authored properties of an object
+  effective(id)                              authored + class-default effective properties
+  create(partial)                            create an object (fields: isClass, isEmbedded, name, contentAst, classIds, parentId) -> created object
+  update(id, fields)                         update fields (isEmbedded, icon, color, contentAst; name becomes a single text token) -> updated object
+  del(id, opts?)                             delete; opts.permanent = true for a hard delete (auto-confirms the id)
+  merge(sourceId, targetId)                  merge source into target (source trashes; the store planner's guards fail loud)
+  mergePlan(sourceId, targetId)              the merge plan only — summary, nothing written
+  setProperty(id, schemaId, value, opts?)    set a property (opts: idx, metadata) -> updated object
+  unsetProperty(id, schemaId, idx?)          unset a property slot (idx defaults 0) -> updated object
+  propertySchemas()                          list active property schemas (coordination route)
+  propertySchema(id)                         one active property schema (coordination route)
+  createPropertySchema(input)                propertySchema.create (input carries the schema uuid) -> schema
+  updatePropertySchema(id, fields)           propertySchema.update (name/options/datePrecision/dateQualified) -> schema
+  deletePropertySchema(id)                   propertySchema.delete (soft-delete; authored values survive)
+  setClassProperty(classId, schemaId, fields)  class.property.set (presence-only binding upsert) -> binding
+  unsetClassProperty(classId, schemaId)      class.property.unset (authored values survive)
+  upload(filePath)                           upload a file from disk -> asset id
+  addAssets(pathOrPaths, objectId?)          bulk upload: files and/or directories (recursive) -> {added, assets, failures}; objectId attaches each upload
+  attachAsset(assetId, objectId)             link an EXISTING asset to a node (idempotent — re-attach is a no-op)
+  exportMd(ids) (alias: export)              markdown bundle text for the given object ids
+  makeOp(opType, payload, affected?)         build an envelope-v3 op (HLC-stamped; NOT submitted)
+  submitOp(opType, payload, affected?)       apply one op locally + push it through the outbox -> {savedCount, savedIds}
+  submitOps(envelopes)                       apply makeOp-built envelopes locally + push them
+  ops()                                      the op catalog: opType + one-liner per registered op
+  opHelp(opType)                             one op's description, example payload, affected-node shape
+  pool(items, concurrency, fn)               run fn over items with N workers (1-32) -> per-item results in input order; failures are {ok:false,error}, never thrown
+Type .help to see this again, .exit (or Ctrl-D) to quit.`;
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function buildHelpers(client: ApiClient, local: LocalWorkspace): ShellHelpers {
+  // `export` is a reserved word — not callable from plain script/REPL syntax,
+  // so the ergonomic entry point is the exportMd alias (same function). The
+  // content reads ride the local derived store (the server retired its
+  // content API in plan 07); the schema index is a surviving coordination read.
+  const exportMarkdown = async (ids: string[]): Promise<string> => {
+    const schemaIndex = await fetchSchemaIndex(client);
+    const bundle = await buildMarkdownBundle(local, schemaIndex, { ids, depth: 3 });
+    return concatBundleMarkdown(bundle);
+  };
+  // Envelope stamping for the op-submission helpers rides the local session
+  // (one monotonic HLC per shell run, workspace + actor from the session).
+  const makeOp: ShellHelpers["makeOp"] = async (opType, payload, affectedNodeIds) =>
+    local.makeEnvelope(opType, payload, affectedNodeIds ?? []);
+  const submitOps: ShellHelpers["submitOps"] = async (envelopes) => {
+    for (const envelope of envelopes) {
+      await local.submitEnvelope(envelope, { push: false });
+    }
+    await local.push();
+    return { savedCount: envelopes.length, savedIds: envelopes.map((envelope) => envelope.id) };
+  };
+  return {
+    api: client,
+    get: async (id) => (await local.getObject(id)).object,
+    list: async (opts = {}) => {
+      const body = await local.listObjects({
+        ...(opts.isClass !== undefined ? { isClass: opts.isClass } : {}),
+        ...(opts.isEmbedded !== undefined ? { isEmbedded: opts.isEmbedded } : {}),
+        ...(opts.class !== undefined ? { class: opts.class } : {}),
+        ...(opts.q !== undefined ? { q: opts.q } : {}),
+        ...(opts.property !== undefined ? { property: opts.property } : {}),
+        ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+        ...(opts.cursor !== undefined ? { cursor: opts.cursor } : {}),
+      });
+      return body.objects;
+    },
+    search: async (q, opts = {}) => {
+      const body = await local.searchObjects({
+        q,
+        ...(opts.isClass !== undefined ? { isClass: opts.isClass } : {}),
+        ...(opts.isEmbedded !== undefined ? { isEmbedded: opts.isEmbedded } : {}),
+        ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
+      });
+      return body.results;
+    },
+    classes: async () => (await local.listClasses()).classes,
+    classInfo: async (id) => {
+      const body = await local.getClass(id);
+      return { ...body.class, members: body.members };
+    },
+    backlinks: async (id) => (await local.backlinks(id)).backlinks,
+    props: async (id) => {
+      const body = await local.getObject(id);
+      return (body.object as { properties?: unknown[] }).properties ?? [];
+    },
+    effective: async (id) => (await local.effectiveProperties(id)).properties,
+    create: async (partial) => (await local.createObject(partial)).object,
+    update: async (id, fields) => {
+      const body = { ...fields };
+      // Title-is-content: `name` rewrites the node's text content (its title),
+      // mirroring `object update --name` (cli.ts) — a bare `name` key is
+      // rejected by the op payload schema.
+      if (body.name !== undefined) {
+        if (body.contentAst !== undefined) {
+          throw new CliError(
+            EXIT.usage,
+            "update: name and contentAst are mutually exclusive (name becomes one text token; contentAst carries the whole content)",
+          );
+        }
+        body.contentAst = [{ type: "text", text: String(body.name) }];
+        delete body.name;
+      }
+      return (await local.updateObject(id, body)).object;
+    },
+    del: async (id, opts = {}) => {
+      const permanent = opts.permanent === true;
+      return local.deleteObject(id, { permanent });
+    },
+    merge: async (sourceId, targetId) => local.mergeObjects(sourceId, targetId, { dryRun: false }),
+    mergePlan: async (sourceId, targetId) => local.mergeObjects(sourceId, targetId, { dryRun: true }),
+    setProperty: async (id, schemaId, value, opts = {}) =>
+      (
+        await local.setProperty(id, {
+          propertySchemaId: schemaId,
+          value,
+          idx: opts.idx ?? 0,
+          ...(opts.metadata !== undefined ? { metadata: opts.metadata } : {}),
+        })
+      ).object,
+    unsetProperty: async (id, schemaId, idx = 0) =>
+      (await local.unsetProperty(id, schemaId, idx)).object,
+    // Property-schema CRUD and class binding ride the surviving coordination
+    // routes (server-side writes); each helper refreshes the local store
+    // afterwards so a later helper in the same session observes the write.
+    propertySchemas: async () =>
+      (await client.getJson<{ propertySchemas: unknown[] }>("/api/property-schemas")).propertySchemas,
+    propertySchema: async (id) =>
+      (
+        await client.getJson<{ propertySchema: unknown }>(
+          `/api/property-schemas/${encodeURIComponent(id)}`,
+        )
+      ).propertySchema,
+    createPropertySchema: async (input) => {
+      const schema = (await client.postJson<{ propertySchema: unknown }>("/api/property-schemas", input)).propertySchema;
+      await local.refresh();
+      return schema;
+    },
+    updatePropertySchema: async (id, fields) => {
+      const schema = (
+        await client.patchJson<{ propertySchema: unknown }>(
+          `/api/property-schemas/${encodeURIComponent(id)}`,
+          fields,
+        )
+      ).propertySchema;
+      await local.refresh();
+      return schema;
+    },
+    deletePropertySchema: async (id) => {
+      const result = await client.deleteJson<{ id: string; deleted: boolean }>(
+        `/api/property-schemas/${encodeURIComponent(id)}`,
+      );
+      await local.refresh();
+      return result;
+    },
+    setClassProperty: async (classId, propertySchemaId, fields) => {
+      const binding = (
+        await client.postJson<{ binding: unknown }>(
+          `/api/classes/${encodeURIComponent(classId)}/properties`,
+          { propertySchemaId, ...fields },
+        )
+      ).binding;
+      await local.refresh();
+      return binding;
+    },
+    unsetClassProperty: async (classId, propertySchemaId) => {
+      const result = await client.deleteJson<{ classId: string; propertySchemaId: string; unbound: boolean }>(
+        `/api/classes/${encodeURIComponent(classId)}/properties/${encodeURIComponent(propertySchemaId)}`,
+      );
+      await local.refresh();
+      return result;
+    },
+    upload: async (filePath) => {
+      const bytes = readFileSync(filePath);
+      const form = new FormData();
+      form.append("file", new Blob([bytes]), basename(filePath));
+      const body = await client.postMultipart<{ assetId: string }>("/api/assets", form);
+      return body.assetId;
+    },
+    // Mirrors `notees asset add` / `notees asset attach` — same shapes, same
+    // idempotency story (see the command docs in cli.ts). Sequential by
+    // design: scripts that need concurrency use pool() over upload().
+    addAssets: async (pathOrPaths, objectId) => {
+      const inputs = Array.isArray(pathOrPaths) ? pathOrPaths : [pathOrPaths];
+      if (inputs.length === 0 || inputs.some((input) => typeof input !== "string" || input.length === 0)) {
+        throw new CliError(EXIT.usage, "addAssets: pass one path or a non-empty array of paths");
+      }
+      const { files, failures } = expandAssetInputs(inputs);
+      if (objectId !== undefined) await assertObjectExists(local, objectId);
+      const uploaded: Array<{ file: string; assetId: string }> = [];
+      for (const file of files) {
+        try {
+          uploaded.push({ file, assetId: await uploadAssetFile(client, file, objectId) });
+        } catch (error) {
+          failures.push({ file, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+      return {
+        added: uploaded.length,
+        assets: uploaded,
+        failures,
+        ...(uploaded.length === 1 ? { assetId: uploaded[0]!.assetId } : {}),
+        ...(objectId !== undefined ? { objectId } : {}),
+      };
+    },
+    attachAsset: async (assetId, objectId) => {
+      await assertObjectExists(local, objectId);
+      const info = await client.getJson<{
+        assetId: string;
+        hash: string;
+        mimeType: string;
+        size: number;
+        originalName: string;
+      }>(`/api/assets/${encodeURIComponent(assetId)}/info`);
+      await submitOps([
+        await makeOp(
+          "asset.attach",
+          {
+            objectId,
+            assetId: info.assetId,
+            hash: info.hash,
+            mimeType: info.mimeType,
+            size: info.size,
+            originalName: info.originalName,
+          },
+          [objectId, info.assetId],
+        ),
+      ]);
+      return { assetId: info.assetId, objectId, attached: true };
+    },
+    export: exportMarkdown,
+    exportMd: exportMarkdown,
+    makeOp,
+    submitOp: async (opType, payload, affectedNodeIds) =>
+      submitOps([await makeOp(opType, payload, affectedNodeIds)]),
+    submitOps,
+    pool: async (items, concurrency, fn) => {
+      if (!Array.isArray(items)) {
+        throw new CliError(EXIT.usage, "pool: items must be an array");
+      }
+      if (typeof fn !== "function") {
+        throw new CliError(EXIT.usage, "pool: fn must be an async function");
+      }
+      if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 32) {
+        throw new CliError(EXIT.usage, "pool: concurrency must be an integer between 1 and 32");
+      }
+      // Worker-pool over a shared cursor; results land by index, so the
+      // resolution order matches the input order regardless of completion
+      // order. Item failures are captured, never thrown.
+      const results = new Array(items.length);
+      let cursor = 0;
+      const worker = async (): Promise<void> => {
+        while (cursor < items.length) {
+          const index = cursor;
+          cursor += 1;
+          const item = items[index]!;
+          try {
+            results[index] = { index, item, ok: true as const, value: await fn(item, index) };
+          } catch (error) {
+            results[index] = { index, item, ok: false as const, error: errorMessage(error) };
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+      return results;
+    },
+    ops: () => OP_CATALOG.map((entry) => ({ opType: entry.opType, description: entry.description })),
+    opHelp: (opType) => {
+      const entry = describeOp(opType);
+      if (entry === null) {
+        throw new CliError(
+          EXIT.usage,
+          `unknown op type "${opType}" — catalogued: ${OP_CATALOG.map((e) => e.opType).join(", ")}`,
+        );
+      }
+      return entry;
+    },
+  };
+}
+
+/** Doctor-style startup probe: reachability first (the public server-info
+ * route — /api/version retired with the content API), then key validity
+ * against a surviving coordination read (the property-schema listing). */
+async function probe(client: ApiClient): Promise<void> {
+  try {
+    await client.getJson<{ name: string; version: string }>("/api/server-info");
+  } catch (error) {
+    throw new CliError(
+      error instanceof CliError ? error.exitCode : EXIT.network,
+      `shell: server at ${client.server} unreachable (${errorMessage(error)})`,
+    );
+  }
+  try {
+    await client.getJson<unknown>("/api/property-schemas");
+  } catch (error) {
+    throw new CliError(
+      error instanceof CliError ? error.exitCode : EXIT.auth,
+      `shell: authentication failed (${errorMessage(error)})`,
+    );
+  }
+}
+
+// --- async eval (top-level await) ------------------------------------------------
+
+const DECLARATION_LINE = /^\s*(?:const|let|var)\s+([^\n=]+?)\s*(?:=|$)/;
+const FUNCTION_LINE = /^\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/;
+const CLASS_LINE = /^\s*class\s+([A-Za-z_$][\w$]*)/;
+
+function identifiersOf(pattern: string): string[] {
+  return pattern
+    .replace(/[{}[\]]/g, " ")
+    .split(",")
+    .map((part) => part.trim().split("=")[0]!.trim())
+    .filter((name) => /^[A-Za-z_$][\w$]*$/.test(name));
+}
+
+function braceDelta(line: string): number {
+  let delta = 0;
+  for (const char of line) {
+    if (char === "{") delta += 1;
+    else if (char === "}") delta -= 1;
+  }
+  return delta;
+}
+
+/** Naive delimiter balance (REPL-grade; string literals with brackets can fool it). */
+function delimitersBalanced(code: string): boolean {
+  let parens = 0;
+  let brackets = 0;
+  let braces = 0;
+  for (const char of code) {
+    if (char === "(") parens += 1;
+    else if (char === ")") parens -= 1;
+    else if (char === "[") brackets += 1;
+    else if (char === "]") brackets -= 1;
+    else if (char === "{") braces += 1;
+    else if (char === "}") braces -= 1;
+    if (parens < 0 || brackets < 0 || braces < 0) return false;
+  }
+  return parens === 0 && brackets === 0 && braces === 0;
+}
+
+/**
+ * Find top-level (brace-depth 0) declarations and return the same code plus
+ * the declared names, so the eval wrapper can copy them onto the context —
+ * stock-REPL semantics for `const p = await create(…)` followed by `p.id` on
+ * the next line. Naive by design (REPL-grade): string literals containing
+ * braces can confuse depth, and block-scoped declarations inside a line-0
+ * block are not hoisted.
+ */
+function topLevelDeclarations(code: string): { code: string; names: string[] } {
+  const names: string[] = [];
+  let depth = 0;
+  for (const line of code.split("\n")) {
+    if (depth === 0) {
+      const decl = DECLARATION_LINE.exec(line);
+      if (decl !== null) {
+        names.push(...identifiersOf(decl[1]!));
+      } else {
+        const fn = FUNCTION_LINE.exec(line);
+        const cls = CLASS_LINE.exec(line);
+        const named = fn ?? cls;
+        if (named !== null) names.push(named[1]!);
+      }
+    }
+    depth += braceDelta(line);
+  }
+  return { code, names };
+}
+
+function runAsyncWrapper(source: string, context: vm.Context, filename: string): Promise<unknown> {
+  const script = new vm.Script(source, { filename });
+  const result: unknown = script.runInContext(context, { breakOnSigint: true });
+  return Promise.resolve(result);
+}
+
+/**
+ * REPL eval with top-level await. Two attempts per line: an expression wrap
+ * (value echoed, nothing to persist) and a statement wrap with top-level
+ * declaration hoisting. Incomplete input errors with repl.Recoverable so the
+ * prompt continues on the next line, like the stock evaluator.
+ */
+const RECOVERABLE_SYNTAX =
+  /unexpected end of input|missing \) after argument list|unterminated (?:string|template)|unexpected token '\)'/i;
+
+function toReplError(error: unknown): Error {
+  if (error instanceof SyntaxError && RECOVERABLE_SYNTAX.test(error.message)) {
+    return new repl.Recoverable(error);
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function failLine(callback: (err: Error | null, result?: unknown) => void, error: unknown): void {
+  callback(toReplError(error), undefined);
+}
+
+function makeAsyncEval(): repl.REPLEval {
+  return (cmd, context, filename, callback) => {
+    const trimmed = cmd.trim();
+    if (trimmed.length === 0) {
+      callback(null, undefined);
+      return;
+    }
+    if (delimitersBalanced(trimmed)) {
+      try {
+        // Expression fast path: `await get(id)`, `api.server`, `1 + 1`, …
+        const expression = runAsyncWrapper(`(async () => (${trimmed}))()`, context, filename);
+        expression.then(
+          (value) => callback(null, value),
+          (error: unknown) => failLine(callback, error),
+        );
+        return;
+      } catch {
+        // Not an expression (declarations, statements, loops) — fall through.
+      }
+    }
+    const { code, names } = topLevelDeclarations(cmd);
+    const hoist = names.map((name) => `globalThis[${JSON.stringify(name)}] = ${name};`).join("\n");
+    try {
+      const statement = runAsyncWrapper(
+        `(async () => {\n${code}\n${hoist}\n})()`,
+        context,
+        filename,
+      );
+      statement.then(
+        () => callback(null, undefined),
+        (error: unknown) => failLine(callback, error),
+      );
+    } catch (error) {
+      failLine(callback, error);
+    }
+  };
+}
+
+// --- modes ----------------------------------------------------------------------
+
+/** Run one script (piped stdin or a file). Throws CliError(EXIT.domain) on script failure — a CliError thrown by a helper keeps its own exit code (e.g. a usage error exits 2). */
+async function runScript(helpers: ShellHelpers, options: ShellOptions, source: string, filename: string): Promise<void> {
+  // runInThisContext keeps the real Node globals (Buffer, process, …) but sees
+  // only globals, so the helpers (and a console bound to the injected io, so
+  // script output respects --json-style capture) are anchored on globalThis
+  // for the wrapper to pick up. `export` is a JS reserved word and cannot be
+  // a parameter, so it is excluded and the whole helpers object is passed as
+  // `helpers` — the script calls it as `helpers.export(…)` (or `exportMd(…)`).
+  const { stdout, stderr } = options.io;
+  const scriptConsole = {
+    log: (...args: unknown[]) => stdout.write(`${format(...args)}\n`),
+    info: (...args: unknown[]) => stdout.write(`${format(...args)}\n`),
+    debug: (...args: unknown[]) => stdout.write(`${format(...args)}\n`),
+    warn: (...args: unknown[]) => stderr.write(`${format(...args)}\n`),
+    error: (...args: unknown[]) => stderr.write(`${format(...args)}\n`),
+  };
+  const slot = "__noteesShellGlobals";
+  const globals = globalThis as Record<string, unknown>;
+  globals[slot] = { helpers, console: scriptConsole };
+  try {
+    const names = Object.keys(helpers).filter((name) => name !== "export");
+    const params = [...names, "helpers", "console"].join(", ");
+    const args = [
+      ...names.map((name) => `${slot}.helpers[${JSON.stringify(name)}]`),
+      `${slot}.helpers`,
+      `${slot}.console`,
+    ].join(", ");
+    const wrapper = `((${params}) => (async () => {\n${source}\n})())(${args})`;
+    const script = new vm.Script(wrapper, { filename });
+    await script.runInThisContext({ breakOnSigint: true });
+  } catch (error) {
+    throw new CliError(
+      error instanceof CliError ? error.exitCode : EXIT.domain,
+      `shell: script failed: ${errorMessage(error)}`,
+    );
+  } finally {
+    delete globals[slot];
+  }
+}
+
+function startRepl(
+  helpers: ShellHelpers,
+  client: ApiClient,
+  options: ShellOptions,
+  stdin: NodeJS.ReadableStream,
+): Promise<number> {
+  return new Promise((resolve) => {
+    const server = repl.start({
+      prompt: "notees> ",
+      input: stdin,
+      output: options.io.stdout as unknown as NodeJS.WritableStream,
+      terminal: true,
+      eval: makeAsyncEval(),
+      ignoreUndefined: true,
+      // Human mode keeps the stock inspect writer; --json switches to
+      // single-line JSON so results stay machine-shaped.
+      ...(options.json
+        ? { writer: (value: unknown) => (value === undefined ? "undefined" : JSON.stringify(value)) }
+        : {}),
+    });
+    Object.assign(server.context, helpers);
+    server.defineCommand("help", {
+      help: "list the notees shell helpers",
+      action() {
+        this.output.write(`${HELP_TEXT}\n`);
+        this.displayPrompt();
+      },
+    });
+    server.on("exit", () => resolve(EXIT.ok));
+    options.io.stdout.write(
+      `notees shell — connected to ${client.server}. Top-level await works; .help lists the helpers, .exit quits.\n`,
+    );
+  });
+}
+
+/**
+ * Entry point for the `shell` command: probe, then REPL (TTY) or script
+ * (a file argument wins over piped stdin). Resolves EXIT.ok on clean exit
+ * (script success or REPL quit); throws CliError on probe or script failure —
+ * the CliError exitCode is the process exit code.
+ */
+export async function runShell(options: ShellOptions): Promise<number> {
+  await probe(options.client);
+  const local = await options.openLocal();
+  try {
+    return await runShellWith(options, local);
+  } finally {
+    local.close();
+  }
+}
+
+async function runShellWith(options: ShellOptions, local: LocalWorkspace): Promise<number> {
+  const helpers = buildHelpers(options.client, local);
+  if (options.scriptFile !== undefined) {
+    let source: string;
+    try {
+      source = readFileSync(options.scriptFile, "utf8");
+    } catch (error) {
+      throw new CliError(EXIT.usage, `shell: cannot read script ${options.scriptFile}: ${errorMessage(error)}`);
+    }
+    await runScript(helpers, options, source, options.scriptFile);
+    return EXIT.ok;
+  }
+  const stdin = options.stdin ?? process.stdin;
+  if ((stdin as { isTTY?: boolean }).isTTY === true) {
+    return startRepl(helpers, options.client, options, stdin);
+  }
+  await runScript(helpers, options, await readStdin({ stdin }), "<stdin>");
+  return EXIT.ok;
+}

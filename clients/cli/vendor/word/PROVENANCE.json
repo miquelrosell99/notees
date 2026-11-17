@@ -1,0 +1,6 @@
+{
+  "source": "miquelrosell99/notees-word",
+  "commit": "ae1811edd3f2dd52e853a3df7e3f66ec7baaf048",
+  "build": "pnpm build:localhost",
+  "syncedAt": "2026-11-16T10:25:01.010Z"
+}
