@@ -28,6 +28,11 @@ const badgeVariants = cva(
         secondary: 'badge--secondary bg-secondary-container text-on-secondary-container',
         warning: 'badge--warning bg-warning text-on-warning',
         neutral: 'badge--neutral bg-surface-variant text-on-surface-variant',
+        /* The Pill fill register (kit Pill.css): the chip that must READ on a
+           dark content surface — secondary-container is a flat near-surface
+           grey there (no accent wash), so a secondary badge visually
+           disappears against the tinted night surfaces. */
+        chip: 'badge--chip bg-surface-container-high text-on-surface',
       },
       size: {
         xs: 'badge--xs h-xs min-w-xs px-1 text-xs',
@@ -42,7 +47,7 @@ const badgeVariants = cva(
   },
 );
 
-export type BadgeVariant = 'primary' | 'secondary' | 'warning' | 'neutral';
+export type BadgeVariant = 'primary' | 'secondary' | 'warning' | 'neutral' | 'chip';
 export type BadgeSize = 'xs' | 'sm' | 'md';
 
 export interface BadgeProps {

@@ -993,7 +993,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             className="nt-block-collapsed-count"
             title={`${collapsedDescendantCount} block${collapsedDescendantCount === 1 ? "" : "s"} inside`}
           >
-            <Badge size="xs" variant="secondary">
+            <Badge size="xs" variant="chip">
               +{collapsedDescendantCount}
             </Badge>
           </span>

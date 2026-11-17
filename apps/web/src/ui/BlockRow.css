@@ -240,10 +240,13 @@
    The badge's own min-width would defeat the clip from the inside, so
    the wrapper — not the Badge — carries the animation. The row rides
    align-items: baseline, which bottoms-out a fixed-height icon box, so
-   the pill opts out with align-self: center and then takes the grip
-   register's -2px optical lift (measured: the 24px badge centered reads
-   ~3px low against the 16px text baseline — the lift lands it on the
-   bullet dot's center). The reduced-motion snap rides the global
+   the pill opts out with align-self: center and then takes an optical
+   lift: centered, the 24px dark slab reads LOW against the 16px text —
+   a solid block's perceived center sits below its geometric center, and
+   the -2px grip register lift still read low. The lift is -4px (measured
+   on the throwaway stack against the Newsreader row text: the badge's
+   center lands ~2px above the line-box middle, which reads as the
+   text's visual center). The reduced-motion snap rides the global
    app.css media query. */
 .nt-block-collapsed-count {
   display: inline-flex;
@@ -257,7 +260,7 @@
      own --nt-row-gap so the two sides can never drift apart. */
   margin-inline-end: calc(-1 * var(--nt-row-gap, var(--spacing-2)));
   opacity: 0;
-  transform: translateX(calc(-1 * var(--spacing-1))) translateY(calc(-1 * var(--spacing-micro)));
+  transform: translateX(calc(-1 * var(--spacing-1))) translateY(calc(-1 * var(--spacing-1)));
   transition:
     max-inline-size var(--motion-duration-short) var(--motion-easing-standard),
     opacity var(--motion-duration-short) var(--motion-easing-standard),
@@ -267,7 +270,7 @@
 .nt-block-row:hover .nt-block-collapsed-count {
   max-inline-size: 6ch;
   opacity: 1;
-  transform: translateX(0) translateY(calc(-1 * var(--spacing-micro)));
+  transform: translateX(0) translateY(calc(-1 * var(--spacing-1)));
 }
 
 /* Class-icon bullets mirror the dot feedback. */
