@@ -461,6 +461,115 @@ describe("query node (nodecollection surface below the content row)", () => {
     expect(section.querySelectorAll(".nt-query-invalid").length).toBe(0);
   });
 
+  it("a childless query block carries the fold chevron — collapsing hides the results section", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    const plainLeaf = await client.createObject({ parentId: host, contentAst: text("plain leaf") });
+    const queryBlock = await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    expect(await within(querySection(container)).findByText("Paris")).not.toBeNull();
+
+    // The register: chevron ⇔ children OR a query results surface. The
+    // plain leaf carries neither (pinned per-row in the view-transforms
+    // and collapsed-count suites too); the childless query block folds.
+    // The chevron assertions scope to the block's OWN row chrome — a
+    // result row below can wear a chevron of its own (a result with
+    // children), but that belongs to the result row.
+    const leafRow = container.querySelector(`[data-block-id="${plainLeaf}"]`) as HTMLElement;
+    expect(
+      within(leafRow).queryByRole("button", { name: /collapse block|expand block/i }),
+    ).toBeNull();
+    const rowChrome = () =>
+      (container.querySelector(`[data-block-id="${queryBlock}"]`) as HTMLElement)
+        .querySelector(":scope > .nt-block-row") as HTMLElement;
+
+    // The fold hides the results with the row's body — the whole section
+    // unmounts (the lazy contract: a folded query runs nothing).
+    fireEvent.click(within(rowChrome()).getByRole("button", { name: "Collapse block" }));
+    expect(container.querySelector(".nt-query-node")).toBeNull();
+    expect(screen.queryByText("Paris")).toBeNull();
+    expect(
+      within(rowChrome()).getByRole("button", { name: "Expand block" }),
+    ).not.toBeNull();
+    // The sibling row is untouched.
+    expect(screen.getByText("plain leaf")).not.toBeNull();
+
+    // Expanding remounts the section and re-runs the query.
+    fireEvent.click(within(rowChrome()).getByRole("button", { name: "Expand block" }));
+    expect(await within(querySection(container)).findByText("Paris")).not.toBeNull();
+  });
+
+  it("a query block with children folds both: children and results hide together; the pill counts the children", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    const queryBlock = await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
+    });
+    await client.createObject({ parentId: queryBlock, contentAst: text("child under query") });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    expect(await within(querySection(container)).findByText("Paris")).not.toBeNull();
+    expect(screen.getByText("child under query")).not.toBeNull();
+
+    // The fold rides the query block's OWN row chevron (the child is a
+    // plain leaf; a result row's chevron below belongs to that row).
+    const rowChrome = () =>
+      (container.querySelector(`[data-block-id="${queryBlock}"]`) as HTMLElement)
+        .querySelector(":scope > .nt-block-row") as HTMLElement;
+    fireEvent.click(within(rowChrome()).getByRole("button", { name: "Collapse block" }));
+
+    expect(container.querySelector(".nt-query-node")).toBeNull();
+    expect(screen.queryByText("child under query")).toBeNull();
+    expect(screen.queryByText("Paris")).toBeNull();
+    // The descendant pill still counts the hidden CHILD blocks — query
+    // results are not descendants and never join the count.
+    const pill = container.querySelector(".nt-block-collapsed-count");
+    expect(pill).not.toBeNull();
+    expect(pill!.textContent).toBe("+1");
+    // The fold is display state: the block itself never leaves the graph.
+    expect(client.getNode(queryBlock)).not.toBeUndefined();
+
+    fireEvent.click(within(rowChrome()).getByRole("button", { name: "Expand block" }));
+    expect(screen.getByText("child under query")).not.toBeNull();
+    expect(await within(querySection(container)).findByText("Paris")).not.toBeNull();
+  });
+
+  it("the Ctrl+. fold chord folds a childless query block from its editor", async () => {
+    const client = await seedClient();
+    const { city } = await seedWorld(client);
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    await client.createObject({
+      parentId: host,
+      classIds: [QUERY_CLASS_ID],
+      contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "member", family: "class", op: "in", target: { mode: "ids", ids: [city] } }])),
+    });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    expect(await within(querySection(container)).findByText("Paris")).not.toBeNull();
+
+    // Click the content row: edit mode mounts the editor and lands the
+    // caret — the fold chord rides the FOCUSED block.
+    const content = container.querySelector<HTMLElement>(".nt-block-content");
+    if (content === null) throw new Error("no .nt-block-content");
+    fireEvent.click(content);
+    expect(content.querySelector(".nt-block-text")).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: ".", ctrlKey: true });
+
+    expect(container.querySelector(".nt-query-node")).toBeNull();
+    expect(screen.queryByText("Paris")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
+  });
+
 
   it("pivot mode groups the full result set by two transient dimensions (count cells)", async () => {
     const client = await seedClient();

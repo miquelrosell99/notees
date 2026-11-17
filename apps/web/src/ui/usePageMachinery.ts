@@ -24,6 +24,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientWriteOp, WorkspaceClient } from "@/core/workspace-client/index.js";
 import { proseFromAst } from "@/editor/prose.js";
@@ -183,7 +185,13 @@ export function usePageMachinery({
       if (root === null || !(active instanceof Element) || !root.contains(active)) return;
       const blockId = active.closest("[data-block-id]")?.getAttribute("data-block-id");
       if (blockId === null || blockId === undefined) return;
-      if (outlinerRef.current.client.getChildren(blockId).length === 0) return;
+      // Query blocks fold too: their results surface renders below the row
+      // even with zero children (BlockRow's collapsible gate), so "childless"
+      // is not "nothing to fold" for them.
+      const block = outlinerRef.current.client.getNode(blockId);
+      const childless = outlinerRef.current.client.getChildren(blockId).length === 0;
+      if (childless && (block === undefined || !block.classIds.includes(SYSTEM_CLASS_UUIDS.query)))
+        return;
       event.preventDefault();
       const collapsed = outlinerRef.current.collapsed.has(blockId);
       if (fold) {

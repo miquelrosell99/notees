@@ -51,7 +51,10 @@
  *   hover/active bullet highlight until the menu closes (*   the menu floats free at the pointer; the lit bullet names its block).
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
- * its entire subtree — the children container is not rendered. The chevron
+ * its entire subtree — the children container is not rendered. A query-classed
+ * block is collapsible even with ZERO children: its results surface
+ * (QueryNodeSection) renders below the row and the fold hides it with the
+ * children — the childless query's only hideable body. The chevron
  * toggles collapse without entering edit mode (stopPropagation). Collapse
  * is honored in EVERY view mode: in prose view
  * (`proseMode`) the chevron start-anchors the row — hover-revealed like the
@@ -568,6 +571,17 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // (the whiteboard pattern) — the same branch covers read-only projections.
   const isTableContainer = !tableRow && node.classIds.includes(tableClassIdOf(outlinerClient));
 
+  // The query class marks a block whose live results surface renders BELOW
+  // the row (QueryNodeSection) even with zero child blocks — such a block
+  // stays collapsible, so the fold hides the results with the (possibly
+  // empty) children: the childless query's only hideable body. The gate
+  // mirrors the section's own render gate exactly, so the chevron never
+  // promises a hide the row cannot deliver (focus mode and the
+  // widget-suppressed projections render no section, so no chevron either).
+  const isQuery =
+    !focusMode && !suppressWidgets && node.classIds.includes(SYSTEM_CLASS_UUIDS.query);
+  const collapsible = children.length > 0 || isQuery;
+
   // Table-row projection: the root is the subgrid row; only the cell blocks
   // render, each through the ordinary BlockRow path (a cell IS a block — the
   // existing editor machinery applies). All hooks ran above, so the early
@@ -899,7 +913,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${gripMenu !== null ? " nt-block--menu-open" : ""}${isCollapsed && children.length > 0 ? " nt-block--collapsed" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${gripMenu !== null ? " nt-block--menu-open" : ""}${isCollapsed && collapsible ? " nt-block--collapsed" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
       ref={(el) => {
         blockRef.current = el;
         setNodeRef(el);
@@ -919,7 +933,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             setGripMenu({ x: event.clientX, y: event.clientY });
           }}
         >
-          {children.length > 0 && !ruleDisplay && (
+          {collapsible && !ruleDisplay && (
             <button
               type="button"
               className="nt-block-chevron"
@@ -939,7 +953,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             </button>
           )}
           <span
-            className={`nt-bullet${isCollapsed && children.length > 0 ? " nt-bullet--collapsed" : ""}`}
+            className={`nt-bullet${isCollapsed && collapsible ? " nt-bullet--collapsed" : ""}`}
             title="Zoom in (Shift+click: open in sidebar)"
             onClick={(event) => {
               event.stopPropagation();
@@ -952,7 +966,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
               }
             }}
           >
-            {!ruleDisplay && children.length > 0 && (
+            {!ruleDisplay && collapsible && (
               <span className="nt-bullet-ring" aria-hidden="true" />
             )}
             {ruleDisplay ? null : !focusMode && gripIcon !== null ? (
@@ -1198,15 +1212,15 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
           renders nothing in the stream. Below the content row the block
           renders the nodecollection chrome (tabs + buttons row, the
           toggleable full-grammar builder, the results), like the backlink
-          panel and the tags row. Suppressed with the other widgets
-          (query-result rows, read-only projections) — a live section
-          inside a query result would recurse when the result contains its
-          own owner. */}
-      {!focusMode &&
-        !suppressWidgets &&
-        node.classIds.includes(SYSTEM_CLASS_UUIDS.query) && (
-          <QueryNodeSection client={client} nodeId={node.id} onOpenNode={openNode} />
-        )}
+          panel and the tags row. A COLLAPSED query block unmounts the
+          section with the children — the fold hides the results, which is
+          exactly why a childless query block still carries the chevron.
+          Suppressed with the other widgets (query-result rows, read-only
+          projections) — a live section inside a query result would recurse
+          when the result contains its own owner. */}
+      {!isCollapsed && isQuery && (
+        <QueryNodeSection client={client} nodeId={node.id} onOpenNode={openNode} />
+      )}
       {/* Tags: dedicated row below the block row, only when set (assignment
           rides the `#` trigger). Read-only projections render the same row
           with static pills (edit/read alignment). Focus mode (#12) hides
