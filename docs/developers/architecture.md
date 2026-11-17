@@ -689,12 +689,15 @@ count post-refinement and hands it to NodeCollectionTabs;, replacing the "N of M
 `notees-cli` repo split from `apps/cli` 2026-10-05; a root pnpm workspace
 project consuming this repo's packages directly — the `vendor/notees`
 submodule is retired).
-**Plan-07 debt:** the CLI drives the retired content API (object/search/query/
-backlinks/merge) — it is broken against a post-plan-07 server until its
-relay+local-store rewrite (its own plan); until then CLI releases pin a
-pre-plan-07 server. The plan-07 key-gate ruling keeps the three keyless
-content reads (`/resolve?name=`, `/classes`, `/properties/:id/values`)
-alive exactly for it (and legacy agents). Commander-based (`src/cli.ts`,
+**Local-first since the plan-07 rewrite (shipped):** the CLI syncs a
+workspace through the `@notees/sync` engine into a per-workspace derived
+SQLite store (better-sqlite3 backend), serves every content read from that
+store, and pushes writes as protocol-v3 envelopes through the engine's
+outbox — the retired content-API debt this paragraph once tracked is gone,
+and CLI releases no longer pin a server generation. The server's keyless
+reads (`/resolve?name=`, `/classes`, …) remain for legacy agents only; the
+CLI authenticates as a user (`notees auth login`) and does not depend on
+them. Commander-based (`src/cli.ts`,
 exported `run()` for tests). Commands:
 `object get|create|update|delete|restore|list|children|upsert|search` (`create --batch`
 takes a JSON array of bodies on stdin and creates them with per-parent ordering
