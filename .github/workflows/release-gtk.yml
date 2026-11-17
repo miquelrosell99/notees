@@ -1,21 +1,25 @@
-name: Release
+name: release-gtk
 
-# GitHub Releases come ONLY from pushing a `v*` tag. This workflow also runs
-# on manual dispatch: a dispatch builds the python-dist + archpkg artifacts
-# only (the `release` job is tag-gated and stays skipped), optionally from an
-# explicit `git-ref`. The `guard` job enforces the dispatch semantics: a
-# branch/SHA dispatch is legitimate but warned as artifacts-only, while a
-# git-ref that looks like a release tag fails loudly — a dispatch runs with
-# ref_type=branch, so it can never publish what the operator expected; the
-# tag itself must be pushed instead.
+# GitHub Releases of the GTK client come ONLY from pushing a `gtk-v*` tag.
+# This workflow also runs on manual dispatch: a dispatch builds the
+# python-dist + archpkg artifacts only (the `release` job is tag-gated and
+# stays skipped), optionally from an explicit `git-ref`. The `guard` job
+# enforces the dispatch semantics: a branch/SHA dispatch is legitimate but
+# warned as artifacts-only, while a git-ref that looks like a release tag
+# fails loudly — a dispatch runs with ref_type=branch, so it can never
+# publish what the operator expected; the tag itself must be pushed instead.
+# The guard also fails a tag push whose commit touches no clients/gtk/ file —
+# a component-prefixed tag must point at a GTK-client commit.
+# Moved to the monorepo root (ADR-002).
+# (History: clients/gtk/.github/workflows/release.yml.)
 
 on:
   push:
-    tags: ['v*']
+    tags: ['gtk-v*']
   workflow_dispatch:
     inputs:
       git-ref:
-        description: 'Git ref to build from (artifacts only — releases come from v* tags)'
+        description: 'Git ref to build from (artifacts only — releases come from gtk-v* tags)'
         required: true
         default: 'main'
 
@@ -30,6 +34,10 @@ jobs:
   guard:
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.git-ref || github.ref }}
+
       - name: Enforce dispatch semantics
         run: |
           set -euo pipefail
@@ -39,18 +47,31 @@ jobs:
           fi
           ref="${{ inputs.git-ref }}"
           case "$ref" in
-            refs/tags/v* | v*)
+            refs/tags/gtk-v* | gtk-v*)
               echo "::error::git-ref '$ref' looks like a release tag, but a workflow_dispatch run has ref_type=branch and can never publish a Release. Push the tag instead (git push origin $ref) and let the tag trigger build and publish it."
               exit 1
               ;;
             *)
-              echo "::warning::Manual dispatch from '$ref': this run produces python-dist + archpkg artifacts only. GitHub Releases come from pushing a v* tag."
+              echo "::warning::Manual dispatch from '$ref': this run produces python-dist + archpkg artifacts only. GitHub Releases come from pushing a gtk-v* tag."
               ;;
           esac
+
+      - name: Enforce clients/gtk scope on tag pushes
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          set -euo pipefail
+          if ! git show --name-only --format= HEAD | grep -q '^clients/gtk/'; then
+            echo "::error::Tag '${{ github.ref_name }}' touches no files under clients/gtk/. gtk-v* tags must point at GTK-client commits — re-tag a commit that changes clients/gtk/."
+            exit 1
+          fi
+          echo "Tag '${{ github.ref_name }}' touches clients/gtk/ — release proceeds."
 
   python-dist:
     runs-on: ubuntu-22.04
     needs: guard
+    defaults:
+      run:
+        working-directory: clients/gtk
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -72,12 +93,17 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: python-dist
-          path: dist/
+          # upload-artifact resolves relative paths against the workspace
+          # root (JS actions ignore defaults.run.working-directory).
+          path: clients/gtk/dist/
 
   archpkg:
     runs-on: ubuntu-22.04
     container: archlinux:latest
     needs: guard
+    defaults:
+      run:
+        working-directory: clients/gtk
     steps:
       - name: Prepare build environment
         run: |
@@ -99,10 +125,12 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: archpkg
-          path: notees-gtk-*.pkg.tar.zst
+          # upload-artifact resolves relative paths against the workspace
+          # root (JS actions ignore defaults.run.working-directory).
+          path: clients/gtk/notees-gtk-*.pkg.tar.zst
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/gtk-v')
     needs: [python-dist, archpkg]
     runs-on: ubuntu-22.04
     permissions:

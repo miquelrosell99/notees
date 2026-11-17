@@ -1,0 +1,53 @@
+name: fixture-drift
+
+# The protocol fixture corpus is byte-pinned across every copy in this repo:
+# a fixture change must land in ALL copies in the SAME commit. This gate
+# sha256-compares the canonical corpus (packages/protocol/fixtures/) against
+# the GTK vendored copy (clients/gtk/tests/fixtures/wire/) and the Flutter
+# vendored copy (clients/flutter/test/fixtures/wire/) on every push/PR that
+# touches the canonical corpus or either copy (Flutter's whole client tree is
+# in the filter — it carries the corpus at test/fixtures/wire/).
+
+on:
+  push:
+    paths:
+      - 'packages/protocol/**'
+      - 'clients/gtk/tests/fixtures/**'
+      - 'clients/flutter/**'
+  pull_request:
+    paths:
+      - 'packages/protocol/**'
+      - 'clients/gtk/tests/fixtures/**'
+      - 'clients/flutter/**'
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Fixture corpus sha256 drift check
+        run: |
+          set -euo pipefail
+
+          canon() {
+            (cd packages/protocol/fixtures && find . -type f -exec sha256sum {} + | sort -k2)
+          }
+
+          fail=0
+          if ! diff -u <(canon) <(cd clients/gtk/tests/fixtures/wire && find . -type f -exec sha256sum {} + | sort -k2); then
+            echo "::error::clients/gtk/tests/fixtures/wire/ drifts from packages/protocol/fixtures/ (sha256/path diff above)."
+            fail=1
+          fi
+          if ! diff -u <(canon) <(cd clients/flutter/test/fixtures/wire && find . -type f -exec sha256sum {} + | sort -k2); then
+            echo "::error::clients/flutter/test/fixtures/wire/ drifts from packages/protocol/fixtures/ (sha256/path diff above)."
+            fail=1
+          fi
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Fixture corpus drift — update every vendored copy in the same commit."
+            exit 1
+          fi
+          echo "Fixture corpora are sha256-identical: packages/protocol/fixtures == clients/gtk/tests/fixtures/wire == clients/flutter/test/fixtures/wire."

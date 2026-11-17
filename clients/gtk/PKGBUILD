@@ -5,33 +5,35 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc="First-class GTK4/libadwaita desktop client for Notees (self-hosted, offline-first notes)"
 arch=(any)
-url="https://github.com/miquelrosell99/notees-gtk"
+url="https://github.com/miquelrosell99/notees"
 license=('AGPL-3.0-only')
 depends=(python python-httpx python-pydantic python-gobject gtk4 libadwaita)
 makedepends=(git python-build python-installer python-wheel python-hatchling)
 provides=(notees-gtk)
 conflicts=(notees-gtk)
 options=('!debug')
-source=("$pkgname::git+https://github.com/miquelrosell99/notees-gtk.git")
+source=("$pkgname::git+https://github.com/miquelrosell99/notees.git")
 sha256sums=('SKIP')
 
 pkgver() {
   cd "$pkgname"
-  desc="$(git describe --long --tags --abbrev=7 2>/dev/null)" || true
+  # gtk-v* releases only — the monorepo carries every component's tags, and
+  # an unanchored describe could pick up a core or Flutter tag.
+  desc="$(git describe --long --tags --match 'gtk-v*' --abbrev=7 2>/dev/null)" || true
   if [ -n "$desc" ]; then
-    printf '%s\n' "$desc" | sed 's/^v//;s/-g/.g/;s/-/./g'
+    printf '%s\n' "$desc" | sed 's/^gtk-v//;s/^v//;s/-g/.g/;s/-/./g'
   else
     printf "0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
   fi
 }
 
 build() {
-  cd "$pkgname"
+  cd "$pkgname/clients/gtk"
   python -m build --wheel --no-isolation
 }
 
 package() {
-  cd "$pkgname"
+  cd "$pkgname/clients/gtk"
   python -m installer --destdir="$pkgdir" dist/*.whl
 
   # Desktop entry — the launcher's apps-menu source. Icon name matches the

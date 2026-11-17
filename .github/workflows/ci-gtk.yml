@@ -1,7 +1,15 @@
-name: CI
+name: ci-gtk
+
+# Gating: PRs touching the GTK client + a nightly run of main's head. Moved to
+# the monorepo root (ADR-002): the pull_request trigger is path-filtered to the
+# GTK client + the shared packages — the suite consumes the vendored wire
+# fixtures, so a package/fixture-corpus change re-runs this gate (lockstep).
+# All run steps execute under clients/gtk/ (defaults.run.working-directory).
+# (History: clients/gtk/.github/workflows/ci.yml.)
 
 on:
   pull_request:
+    paths: ["clients/gtk/**", "packages/**"]
   schedule:
     - cron: '23 3 * * *'
   workflow_dispatch:
@@ -21,6 +29,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: clients/gtk
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

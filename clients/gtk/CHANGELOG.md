@@ -6,6 +6,32 @@ goes; those stay static guidance. Before implementing a change, skim this
 file for recent related work. Anything before 2026-10-06 lives in git
 history.
 
+## 2026-11-17
+
+- **chore(release,ci): monorepo reunification (ADR-002) — release tags are now
+  `gtk-v*`, the workflows live at the repo root, and the fixture-drift gate
+  enforces one-commit corpus updates.** The five Notees client repos merged
+  into `miquelrosell99/notees` under `clients/`; the core keeps plain `v*`
+  tags and each client prefixes its own. Concretely:
+  `.github/workflows/ci.yml` → `.github/workflows/ci-gtk.yml` and
+  `.github/workflows/release.yml` → `.github/workflows/release-gtk.yml` at the
+  monorepo root — the CI gate is path-filtered to `clients/gtk/**` +
+  `packages/**` (the suite consumes the vendored wire fixtures, so a package or
+  fixture-corpus change re-runs it), and the release pipeline keeps its
+  dispatch-semantics guard (a dispatch whose git-ref looks like a `gtk-v*`
+  tag still fails loud — push the tag instead) plus a new guard step that
+  fails a `gtk-v*` tag whose commit touches no `clients/gtk/` file; the
+  python-dist + archpkg jobs and the softprops publish are unchanged. The
+  `PKGBUILD` builds from the monorepo: `url` → `miquelrosell99/notees`, the
+  `-git` source clones the monorepo, `pkgver()` describes `gtk-v*` tags only
+  (an unanchored describe could pick up another component's tag), and
+  `build()`/`package()` enter `clients/gtk/`. The new root
+  `fixture-drift.yml` gate sha256-compares the now in-repo-canonical corpus
+  (`packages/protocol/fixtures/`) against `tests/fixtures/wire/` and the
+  Flutter copy on every corpus-touching push/PR. The lockstep-debt framing
+  (per-repo vendor pins of a separate sync repo) is superseded by the
+  monorepo. No code, wire, or fixture change.
+
 ## 2026-11-09
 
 - **feat(protocol,store): the readItLater feature id + the binding row's `showInNodeRows` flag — two lockstep debts close (sync main @ 4eaa14c).** The fixture corpus re-vendors three files from the notees-sync repo (`packages/protocol/fixtures/`, sha256-verified byte-identical): `workspace-feature-readitlater.json` and `class-property-node-rows.json` (the two slices below) plus `recurrence-property.json` (the recurrence slice's fixture — its changelog entry records no fixture-lockstep PR owed; the byte-pin procedure re-vendors on any drift). All three join `WIRE_ENVELOPE_LIST_FIXTURES`, the auto-glob replay, and the idempotence gate. **(1) `workspace.feature.set` gains `readItLater`** (sync 064b7a4): the strict feature enum grows the seventh member — a SURFACE toggle like `journal` (the read-it-later capture surface; the server capture route answers 403 `feature_disabled` on a disabled row), NOT a class family: no classes derive from it and disabling archives nothing. The applier already handled non-family features generically (`is_family_feature` → no archival derivation, just the LWW row), so the enum + payload literal + docs are the whole port; the retired pre-reshape ids (journals/library/people/collections) stay rejected outright, and the payload test's rejected-list loses `readItLater` while `read_it_later` stays rejected. **(2) `class.property.set` gains the optional additive `showInNodeRows`** (sync 4eaa14c): the binding row's binary node-row preview flag — a flagged binding's property value renders in the node's row (the outliner line/chrome preview), not only in the properties panel. The strict payload schema accepts the key with the `active` patch semantics (omitted keeps the stored flag; explicit JSON null rejected; `StrictBool` mirrors the zod `z.boolean()` — a string/int does not coerce). `SCHEMA_VERSION` 28 → 29: `class_property` gains `show_in_node_rows INTEGER NOT NULL DEFAULT 0` (web schema v36→v37 parity — the canonical aux DDL carries the column and `_migrate_v29` is the guarded no-op ALTER, the v24 precedent); the applier COALESCE-patches it like `active` (absent on the FIRST bind = false, the column default — no log rewrite). The unset payload is unchanged — a plain DELETE ignoring preview state. **Still pending (separately recorded debt, untouched here):** the `pinned` binding flag and the `property.assign/unassign/empty` op family stay lockstep-pending (`REPLAY_EXCLUDED`, their xfail pins ride). Verification: +2 fixture replay classes (`TestWorkspaceFeatureReadItLaterFixture` — the LWW row only, no family derivation, both delivery orders; `TestClassPropertyNodeRowsFixture` — the interleaved lower-HLC phone flag loses the row LWW race, the active-only patch keeps the stored flag, the unset deletes outright), +1 store unit pin (absent = false on the first bind, explicit false is a real write, omitted patch keeps), +4 payload pins (accepted / explicit-null rejected / non-boolean rejected / model_fields_set presence), the enum and feature-map test updates, and the two edge-backfill `user_version` pins at 29 — full gate green (`uv run pytest` 1766 passed / 5 skipped / 2 xfailed, `ruff check`, `mypy src`), live-e2e green against the built reference server.
