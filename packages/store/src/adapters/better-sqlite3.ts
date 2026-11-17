@@ -6,14 +6,41 @@
  */
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import nodeModule from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 
 import type { SqliteDB, SqliteStatement, StoreBackend } from "../db.js";
 
-type RawDatabase = InstanceType<typeof Database>;
+type DatabaseClass = typeof Database;
+type RawDatabase = InstanceType<DatabaseClass>;
+
+/**
+ * The native module loads LAZILY at first open: a top-level import would put
+ * better-sqlite3 in the static module graph of every consumer bundle —
+ * breaking standalone CLI commands (`notees --version`, `--help`) wherever
+ * the native module is not provisioned beside the bundle, and breaking the
+ * web worker's browser build (vite externalizes node:module: a named import
+ * from that stub is a build error, while a default import is tolerated
+ * because the browser never reaches this loader — the web store runs on the
+ * sqlitewasm adapter). Store commands still require the native module
+ * (install.sh and the pacman package provision it into the node_modules
+ * beside the bundle). createRequire resolves from this module — or, once
+ * inlined into a consumer bundle, from that bundle's own location, exactly
+ * like the import did.
+ */
+let cachedDatabaseClass: DatabaseClass | undefined;
+function databaseClass(): DatabaseClass {
+  if (cachedDatabaseClass === undefined) {
+    const mod = nodeModule.createRequire(import.meta.url)("better-sqlite3") as
+      | DatabaseClass
+      | { default: DatabaseClass };
+    cachedDatabaseClass = "default" in mod ? mod.default : mod;
+  }
+  return cachedDatabaseClass;
+}
 
 /** Structural slice of better-sqlite3's Statement (its generic BindParameters spread does not accept unknown[]). */
 interface RawStatement {
@@ -109,6 +136,7 @@ function applyConnectionPragmas(db: RawDatabase): void {
 /** StoreBackend over better-sqlite3 at ``path`` (":memory:" for tests). */
 export function betterSqlite3Backend(path = ":memory:"): StoreBackend {
   const open = (): BetterSqlite3DB => {
+    const Database = databaseClass();
     const db = new BetterSqlite3DB(new Database(path));
     applyConnectionPragmas(db.raw);
     return db;
@@ -120,7 +148,7 @@ export function betterSqlite3Backend(path = ":memory:"): StoreBackend {
       const dir = mkdtempSync(join(tmpdir(), "notees-store-"));
       const file = join(dir, "restored.db");
       writeFileSync(file, bytes);
-      const db = new BetterSqlite3DB(new Database(file), dir);
+      const db = new BetterSqlite3DB(new (databaseClass())(file), dir);
       // The serialized bytes carry their own user_version; just re-apply
       // the connection pragmas for the new connection.
       applyConnectionPragmas(db.raw);
