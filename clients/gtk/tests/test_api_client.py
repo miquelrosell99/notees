@@ -1,0 +1,1138 @@
+"""Tests for the Notees REST API client (relay protocol v2).
+
+All HTTP traffic is faked with ``httpx.MockTransport``: handlers assert the
+exact request path, headers, and body (per ``packages/protocol/WIRE.md``
+for the relay and the Notees auth router for login) and never touch the
+network.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+from conftest import normalize_json
+
+from notees_gtk.core.api import (
+    MAX_BATCH_SIZE,
+    RELAY_V2_BASE,
+    AuthenticationError,
+    AuthResult,
+    ForbiddenError,
+    NetworkError,
+    NoteesClient,
+    QuarantinedError,
+    RateLimitedError,
+    RelayStats,
+    ServerError,
+    SnapshotMeta,
+    SnapshotUploadResult,
+    WorkspaceRef,
+    classify_response,
+)
+from notees_gtk.core.api.errors import ApiError
+from notees_gtk.core.protocol.clock import Hlc
+from notees_gtk.core.protocol.models import (
+    MAX_ENVELOPE_SIZE_BYTES,
+    BatchRequest,
+    CatchUpPaginatedResponse,
+    RelayEnvelope,
+)
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+BASE_URL = "https://notees.test"
+WORKSPACE_ID = "0192a000-0000-7000-8000-000000000001"
+ACTOR_ID = "0192a000-0000-7000-8000-000000000002"
+
+LOGIN_OK: dict[str, Any] = {
+    "token": "nt-1",
+    "expiresAt": 1735689600000,
+    "user": {"id": "u1", "email": "ada@example.com", "displayName": "Ada"},
+    "kdf": {"salt": "s", "ops": 1},
+}
+
+Handler = Callable[[httpx.Request], httpx.Response]
+
+
+def _router(routes: dict[tuple[str, str], Handler]) -> Handler:
+    """Dispatch MockTransport requests by (method, path), failing on the unexpected."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = (request.method, request.url.path)
+        if key not in routes:
+            raise AssertionError(f"unexpected request: {request.method} {request.url}")
+        return routes[key](request)
+
+    return handler
+
+
+def _make_client(handler: Handler, **kwargs: Any) -> tuple[NoteesClient, list[httpx.Request]]:
+    """Build a client over MockTransport, recording every request sent."""
+    requests: list[httpx.Request] = []
+
+    def recording(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return handler(request)
+
+    return NoteesClient(BASE_URL, transport=httpx.MockTransport(recording), **kwargs), requests
+
+
+def _batch_envelopes() -> list[RelayEnvelope]:
+    raw = json.loads((FIXTURES / "batch-request.json").read_text())
+    return BatchRequest.model_validate(raw).envelopes
+
+
+def _json_body(request: httpx.Request) -> Any:
+    return json.loads(request.content)
+
+
+class TestBaseUrl:
+    def test_trailing_slash_is_stripped(self) -> None:
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(str(request.url))
+            return httpx.Response(200, json={"workspaces": []})
+
+        client = NoteesClient(f"{BASE_URL}/", transport=httpx.MockTransport(handler))
+        client.list_workspaces()
+        assert seen == [f"{BASE_URL}/api/workspaces"]
+
+    def test_token_sets_bearer_header_upfront(self) -> None:
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("Authorization", ""))
+            return httpx.Response(200, json={"workspaces": []})
+
+        client = NoteesClient(BASE_URL, token="tok", transport=httpx.MockTransport(handler))
+        client.list_workspaces()
+        assert seen == ["Bearer tok"]
+
+
+class TestApiKeyAuth:
+    def test_api_key_sets_x_api_key_header(self) -> None:
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("X-API-Key", ""))
+            return httpx.Response(
+                200,
+                json={
+                    "envelopeCount": 0,
+                    "snapshotCount": 0,
+                    "compactedOperationCount": 0,
+                    "maxHlc": {"physical": 0, "logical": 0},
+                    "restoreEpoch": 0,
+                    "latestSnapshotHlc": None,
+                },
+            )
+
+        client = NoteesClient(BASE_URL, api_key="secret-key", transport=httpx.MockTransport(handler))
+        client.stats(WORKSPACE_ID)
+        assert seen == ["secret-key"]
+
+    def test_api_key_header_present_without_login(self) -> None:
+        """The v2 relay is key-only: no login round-trip happens."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers["X-API-Key"] == "secret-key"
+            assert "Authorization" not in request.headers
+            return httpx.Response(200, json={"savedCount": 0, "savedIds": []})
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/batch"): handler}), api_key="secret-key")
+        assert client.submit_batch([]) == []
+
+    def test_ws_token_prefers_api_key_then_bearer(self) -> None:
+        assert NoteesClient(BASE_URL, transport=httpx.MockTransport(_no_http), api_key="k", token="t").ws_token() == "k"
+        assert NoteesClient(BASE_URL, transport=httpx.MockTransport(_no_http), token="t").ws_token() == "t"
+        assert NoteesClient(BASE_URL, transport=httpx.MockTransport(_no_http)).ws_token() is None
+
+    def test_login_replaces_bearer_and_keeps_api_key(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=LOGIN_OK)
+
+        client, _ = _make_client(_router({("POST", "/api/auth/login"): handler}), api_key="k")
+        client.login("ada@example.com", "hunter2")
+        assert client._client.headers["Authorization"] == "Bearer nt-1"
+        assert client._client.headers["X-API-Key"] == "k"
+
+
+class TestLogin:
+    def test_success_returns_auth_result_and_stores_bearer(self) -> None:
+        def login_handler(request: httpx.Request) -> httpx.Response:
+            # The server schema is strict {email, password} — extra keys 422
+            # (the old remember_me field blocked login until it was dropped).
+            assert _json_body(request) == {
+                "email": "ada@example.com",
+                "password": "hunter2",
+            }
+            return httpx.Response(200, json=LOGIN_OK)
+
+        def workspaces_handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers["Authorization"] == "Bearer nt-1"
+            return httpx.Response(200, json={"workspaces": []})
+
+        client, requests = _make_client(
+            _router({("POST", "/api/auth/login"): login_handler, ("GET", "/api/workspaces"): workspaces_handler})
+        )
+        result = client.login("ada@example.com", "hunter2")
+
+        assert isinstance(result, AuthResult)
+        assert result.token == "nt-1"
+        assert result.user == LOGIN_OK["user"]
+
+        client.list_workspaces()
+        assert len(requests) == 2
+
+    def test_login_body_is_strict_email_password(self) -> None:
+        """No extra keys ride the login body — the server rejects them with 422."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = _json_body(request)
+            assert set(body) == {"email", "password"}
+            return httpx.Response(200, json=LOGIN_OK)
+
+        client, _ = _make_client(_router({("POST", "/api/auth/login"): handler}))
+        client.login("ada@example.com", "hunter2")
+
+    def test_wrong_password_raises_authentication_error(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(401, json={"detail": "Invalid email or password"})
+
+        client, _ = _make_client(_router({("POST", "/api/auth/login"): handler}))
+        with pytest.raises(AuthenticationError) as exc_info:
+            client.login("ada@example.com", "wrong")
+
+        assert exc_info.value.status == 401
+        assert exc_info.value.detail == "Invalid email or password"
+
+
+class TestUnlock:
+    """POST /api/auth/unlock — the in-session unlock re-prompt (W2 port).
+    Session-less: {kdf} only, no token minted; the login lockout applies."""
+
+    KDF_BODY: dict[str, Any] = {
+        "algorithm": "scrypt",
+        "N": 131072,
+        "r": 8,
+        "p": 1,
+        "salt": "s",
+        "wrappedMasterKey": "w",
+        "keyVerifier": "v",
+    }
+
+    def test_unlock_returns_the_kdf_record_only(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert _json_body(request) == {"email": "ada@example.com", "password": "hunter2"}
+            return httpx.Response(200, json={"kdf": self.KDF_BODY})
+
+        client, requests = _make_client(_router({("POST", "/api/auth/unlock"): handler}))
+        kdf = client.unlock("ada@example.com", "hunter2")
+
+        assert kdf == self.KDF_BODY
+        # No session minted: the Authorization header is untouched.
+        assert "Authorization" not in requests[0].headers
+
+    def test_unlock_wrong_password_is_401(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                401, json={"error": {"code": "invalid_credentials", "message": "invalid email or password", "status": 401}}
+            )
+
+        client, _ = _make_client(_router({("POST", "/api/auth/unlock"): handler}))
+        with pytest.raises(AuthenticationError) as exc_info:
+            client.unlock("ada@example.com", "wrong")
+        assert exc_info.value.status == 401
+
+    def test_unlock_account_lockout_surfaces_the_retry(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                429,
+                json={
+                    "error": {"code": "account_locked", "message": "too many failed attempts — try again in 5 minutes", "status": 429},
+                },
+            )
+
+        client, _ = _make_client(_router({("POST", "/api/auth/unlock"): handler}))
+        with pytest.raises(RateLimitedError) as exc_info:
+            client.unlock("ada@example.com", "hunter2")
+        assert exc_info.value.status == 429
+        assert "5 minutes" in exc_info.value.detail
+
+    def test_unlock_malformed_body_fails_loud(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"unexpected": True})
+
+        client, _ = _make_client(_router({("POST", "/api/auth/unlock"): handler}))
+        with pytest.raises(ValueError, match="malformed unlock body"):
+            client.unlock("ada@example.com", "hunter2")
+
+
+class TestWorkspaces:
+    def test_plain_path_and_workspaces_unwrap(self) -> None:
+        """The route is exactly /api/workspaces (no trailing slash) — the Fastify
+        route does not redirect, and the envelope is {workspaces: [...]}."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/api/workspaces"
+            return httpx.Response(
+                200,
+                json={
+                    "workspaces": [
+                        {"id": "w1", "name": "Personal", "role": "owner", "createdAt": 1, "envelopeCount": 10, "latestSeq": 42},
+                        {"id": "w2", "name": None, "role": "member", "createdAt": 2, "envelopeCount": 0, "latestSeq": 0},
+                    ]
+                },
+            )
+
+        client, requests = _make_client(_router({("GET", "/api/workspaces"): handler}))
+        workspaces = client.list_workspaces()
+
+        assert workspaces == [WorkspaceRef(id="w1", name="Personal"), WorkspaceRef(id="w2", name=None)]
+        assert len(requests) == 1
+
+    def test_empty_workspaces(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"workspaces": []})
+
+        client, _ = _make_client(_router({("GET", "/api/workspaces"): handler}))
+        assert client.list_workspaces() == []
+
+
+class TestWorkspaceKey:
+    """The E2EE custody surface (GET/PUT /api/workspaces/:id/key — the server
+    contract: GET → {wrappedKey}|404; PUT → 204|409(first-write-wins)|403)."""
+
+    KEY_PATH = f"/api/workspaces/{WORKSPACE_ID}/key"
+    WRAPPED = "b64u-iv-tag-ct-record"
+
+    def test_get_returns_the_wrapped_key(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == self.KEY_PATH
+            return httpx.Response(200, json={"wrappedKey": self.WRAPPED})
+
+        client, requests = _make_client(_router({("GET", self.KEY_PATH): handler}))
+        assert client.fetch_workspace_key(WORKSPACE_ID) == self.WRAPPED
+        assert len(requests) == 1
+
+    def test_get_404_means_no_key_stored(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(404, json={"error": {"code": "not_found", "message": "no workspace key stored", "status": 404}})
+
+        client, _ = _make_client(_router({("GET", self.KEY_PATH): handler}))
+        assert client.fetch_workspace_key(WORKSPACE_ID) is None
+
+    def test_get_403_forbidden_is_loud(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(403, json={"error": {"code": "forbidden", "message": "operator", "status": 403}})
+
+        client, _ = _make_client(_router({("GET", self.KEY_PATH): handler}))
+        with pytest.raises(ForbiddenError):
+            client.fetch_workspace_key(WORKSPACE_ID)
+
+    def test_get_malformed_body_fails_loud(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"unexpected": True})
+
+        client, _ = _make_client(_router({("GET", self.KEY_PATH): handler}))
+        with pytest.raises(ValueError, match="malformed workspace key body"):
+            client.fetch_workspace_key(WORKSPACE_ID)
+
+    def test_put_first_write_returns_the_sent_key(self) -> None:
+        seen: list[dict[str, Any]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(_json_body(request))
+            assert request.url.path == self.KEY_PATH
+            return httpx.Response(204)
+
+        client, requests = _make_client(_router({("PUT", self.KEY_PATH): handler}))
+        assert client.store_workspace_key(WORKSPACE_ID, self.WRAPPED) == self.WRAPPED
+        assert seen == [{"wrappedKey": self.WRAPPED}]
+        assert len(requests) == 1
+
+    def test_put_409_adopts_the_winners_key(self) -> None:
+        """First-write-wins: a lost race re-GETs and returns the stored key —
+        never a split-key blind upsert."""
+
+        def conflict(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(409, json={"error": {"code": "conflict", "message": "already exists", "status": 409}})
+
+        def winner(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"wrappedKey": "winners-record"})
+
+        routes = {
+            ("PUT", self.KEY_PATH): conflict,
+            ("GET", self.KEY_PATH): winner,
+        }
+        client, requests = _make_client(_router(routes))
+        assert client.store_workspace_key(WORKSPACE_ID, self.WRAPPED) == "winners-record"
+        assert [(request.method, request.url.path) for request in requests] == [
+            ("PUT", self.KEY_PATH),
+            ("GET", self.KEY_PATH),
+        ]
+
+    def test_put_other_4xx_is_loud(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(422, json={"error": {"code": "validation_failed", "message": "bad", "status": 422}})
+
+        client, _ = _make_client(_router({("PUT", self.KEY_PATH): handler}))
+        with pytest.raises(QuarantinedError):
+            client.store_workspace_key(WORKSPACE_ID, self.WRAPPED)
+
+
+class TestSubmitBatch:
+    def test_body_matches_fixture_shape_and_returns_saved_ids(self) -> None:
+        fixture = json.loads((FIXTURES / "batch-request.json").read_text())
+        saved_ids = [envelope["id"] for envelope in fixture["envelopes"]]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == f"{RELAY_V2_BASE}/batch"
+            assert normalize_json(_json_body(request)) == normalize_json(fixture)
+            return httpx.Response(200, json={"savedCount": len(saved_ids), "savedIds": saved_ids})
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/batch"): handler}))
+        result = client.submit_batch(_batch_envelopes())
+        assert result == saved_ids
+
+    def test_duplicate_ids_may_be_omitted_from_saved_ids(self) -> None:
+        first_id = "0192a000-0000-7000-8000-0000000000f2"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"savedCount": 1, "savedIds": [first_id]})
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/batch"): handler}))
+        result = client.submit_batch(_batch_envelopes())
+        assert result == [first_id]
+
+    def test_more_than_max_batch_size_rejected_before_wire(self) -> None:
+        env = _batch_envelopes()[0]
+        envelopes = [
+            env.model_copy(update={"id": f"0192a000-0000-7000-8000-{i:012d}"}) for i in range(MAX_BATCH_SIZE + 1)
+        ]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise AssertionError("request must not hit the transport")
+
+        client, requests = _make_client(handler)
+        with pytest.raises(ValueError, match="exceeds"):
+            client.submit_batch(envelopes)
+        assert requests == []
+
+    def test_oversized_envelope_rejected_before_wire(self) -> None:
+        env = RelayEnvelope(
+            protocolVersion=3,
+            workspaceId=WORKSPACE_ID,
+            actorId=ACTOR_ID,
+            deviceId="api-test-device",
+            hlc={"physical": 0, "logical": 0},
+            opType="object.create",
+            payload={"blob": "x" * (MAX_ENVELOPE_SIZE_BYTES + 1)},
+            timestamp="2026-01-01T00:00:00Z",
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise AssertionError("request must not hit the transport")
+
+        client, requests = _make_client(handler)
+        with pytest.raises(ValueError, match="exceeds maximum payload size"):
+            client.submit_batch([env])
+        assert requests == []
+
+
+class TestCatchUp:
+    def test_parses_fixture_response(self) -> None:
+        fixture_request = json.loads((FIXTURES / "catch-up-request.json").read_text())
+        fixture_response = json.loads((FIXTURES / "catch-up-response.json").read_text())
+        workspace_id = fixture_request["workspaceId"]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == f"{RELAY_V2_BASE}/catch-up"
+            assert _json_body(request) == fixture_request
+            return httpx.Response(200, json=fixture_response)
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/catch-up"): handler}))
+        page = client.catch_up(workspace_id, after_seq=42, limit=1000)
+
+        assert isinstance(page, CatchUpPaginatedResponse)
+        assert [envelope.id for envelope in page.envelopes] == ["0192a000-0000-7000-8000-000000000101"]
+        assert page.next_after_seq is None
+        assert page.has_more is False
+        assert page.restore_epoch == 0
+        assert page.total_remaining == 1
+
+    def test_defaults_to_cold_start_cursor(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert _json_body(request) == {"workspaceId": WORKSPACE_ID, "afterSeq": 0, "limit": 1000}
+            return httpx.Response(
+                200,
+                json={
+                    "envelopes": [],
+                    "nextAfterSeq": None,
+                    "hasMore": False,
+                    "restoreEpoch": 0,
+                    "totalRemaining": 0,
+                },
+            )
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/catch-up"): handler}))
+        page = client.catch_up(WORKSPACE_ID)
+        assert page.envelopes == []
+        assert page.has_more is False
+
+
+class TestSnapshots:
+    def test_probe_maps_v2_snapshot_meta(self) -> None:
+        probe: dict[str, Any] = {
+            "snapshotId": "0192a000-0000-7000-8000-0000000000e1",
+            "hlc": {"physical": 1767225600000, "logical": 7},
+            "hasSnapshot": True,
+            "restoreEpoch": 3,
+            "upToSeq": 77,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == f"{RELAY_V2_BASE}/snapshot"
+            assert request.url.params["workspaceId"] == WORKSPACE_ID
+            return httpx.Response(200, json=probe)
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/snapshot"): handler}))
+        meta = client.snapshot_probe(WORKSPACE_ID)
+
+        assert isinstance(meta, SnapshotMeta)
+        assert meta.snapshot_id == "0192a000-0000-7000-8000-0000000000e1"
+        assert meta.hlc.physical == 1767225600000
+        assert meta.hlc.logical == 7
+        assert meta.has_snapshot is True
+        assert meta.restore_epoch == 3
+        assert meta.up_to_seq == 77
+
+    def test_probe_without_snapshot_allows_null_up_to_seq(self) -> None:
+        probe: dict[str, Any] = {
+            "snapshotId": "",
+            "hlc": {"physical": 0, "logical": 0},
+            "hasSnapshot": False,
+            "restoreEpoch": 0,
+            "upToSeq": None,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=probe)
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/snapshot"): handler}))
+        meta = client.snapshot_probe(WORKSPACE_ID)
+        assert meta.has_snapshot is False
+        assert meta.up_to_seq is None
+
+    def test_snapshot_data_returns_raw_bytes(self) -> None:
+        blob = b"SQLite format 3\x00fake-snapshot"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == f"{RELAY_V2_BASE}/snapshot/data"
+            assert request.url.params["workspaceId"] == WORKSPACE_ID
+            return httpx.Response(200, content=blob, headers={"Content-Type": "application/octet-stream"})
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/snapshot/data"): handler}))
+        assert client.snapshot_data(WORKSPACE_ID) == blob
+
+    def test_upload_snapshot_puts_raw_bytes(self) -> None:
+        blob = b"SQLite format 3\x00client-snapshot"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "PUT"
+            assert request.url.path == f"{RELAY_V2_BASE}/snapshot/data"
+            assert request.url.params["workspaceId"] == WORKSPACE_ID
+            assert request.url.params["physical"] == "1767225600000"
+            assert request.url.params["logical"] == "7"
+            assert request.content == blob
+            return httpx.Response(
+                201,
+                json={
+                    "snapshotId": "0192a000-0000-7000-8000-0000000000e2",
+                    "workspaceId": WORKSPACE_ID,
+                    "upToHlc": {"physical": 1767225600000, "logical": 7},
+                    "upToSeq": 99,
+                },
+            )
+
+        client, _ = _make_client(_router({("PUT", f"{RELAY_V2_BASE}/snapshot/data"): handler}))
+        result = client.upload_snapshot(WORKSPACE_ID, blob, hlc=Hlc(physical=1767225600000, logical=7))
+
+        assert isinstance(result, SnapshotUploadResult)
+        assert result.snapshot_id == "0192a000-0000-7000-8000-0000000000e2"
+        assert result.workspace_id == WORKSPACE_ID
+        assert result.up_to_hlc == Hlc(physical=1767225600000, logical=7)
+        assert result.up_to_seq == 99
+
+    def test_probe_maps_the_sealed_declaration(self) -> None:
+        """`sealed` declares what the blob IS — the restore contract keys off it."""
+        probe: dict[str, Any] = {
+            "snapshotId": "0192a000-0000-7000-8000-0000000000e1",
+            "hlc": {"physical": 1767225600000, "logical": 7},
+            "hasSnapshot": True,
+            "restoreEpoch": 3,
+            "upToSeq": 77,
+            "sealed": True,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=probe)
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/snapshot"): handler}))
+        assert client.snapshot_probe(WORKSPACE_ID).sealed is True
+
+    def test_probe_sealed_defaults_false_for_plaintext_meta(self) -> None:
+        """Pre-sealed servers and plaintext images: the flag defaults off."""
+        probe: dict[str, Any] = {
+            "snapshotId": "",
+            "hlc": {"physical": 0, "logical": 0},
+            "hasSnapshot": False,
+            "restoreEpoch": 0,
+            "upToSeq": None,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=probe)
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/snapshot"): handler}))
+        assert client.snapshot_probe(WORKSPACE_ID).sealed is False
+
+    def test_upload_snapshot_declares_sealed(self) -> None:
+        """Sealed uploads send sealed=1 — and skip the server's sanity gate
+        (ciphertext is opaque), so a sealed image is accepted, never 422-gated."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["sealed"] == "1"
+            return httpx.Response(
+                201,
+                json={
+                    "snapshotId": "0192a000-0000-7000-8000-0000000000e3",
+                    "workspaceId": WORKSPACE_ID,
+                    "upToHlc": {"physical": 1767225600000, "logical": 7},
+                    "upToSeq": 99,
+                },
+            )
+
+        client, _ = _make_client(_router({("PUT", f"{RELAY_V2_BASE}/snapshot/data"): handler}))
+        result = client.upload_snapshot(WORKSPACE_ID, b"opaque-sealed-image", hlc=Hlc(physical=1767225600000, logical=7), sealed=True)
+        assert result.snapshot_id == "0192a000-0000-7000-8000-0000000000e3"
+
+    def test_upload_snapshot_omits_sealed_by_default(self) -> None:
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url.params.get("sealed", ""))
+            return httpx.Response(
+                201,
+                json={
+                    "snapshotId": "0192a000-0000-7000-8000-0000000000e4",
+                    "workspaceId": WORKSPACE_ID,
+                    "upToHlc": {"physical": 0, "logical": 0},
+                    "upToSeq": 0,
+                },
+            )
+
+        client, _ = _make_client(_router({("PUT", f"{RELAY_V2_BASE}/snapshot/data"): handler}))
+        client.upload_snapshot(WORKSPACE_ID, b"plaintext-image", hlc=Hlc(physical=0, logical=0))
+        assert seen == [""]  # absent — a plaintext derived store
+
+    def test_upload_snapshot_part_stages_one_chunk(self) -> None:
+        blob = b"part-bytes"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "PUT"
+            assert request.url.path == f"{RELAY_V2_BASE}/snapshot/data/part"
+            assert request.url.params["workspaceId"] == WORKSPACE_ID
+            assert request.url.params["upload"] == "0192a000-0000-7000-8000-0000000000aa"
+            assert request.url.params["index"] == "3"
+            assert request.content == blob
+            return httpx.Response(201, json={"upload": "0192a000-0000-7000-8000-0000000000aa", "index": 3})
+
+        client, _ = _make_client(_router({("PUT", f"{RELAY_V2_BASE}/snapshot/data/part"): handler}))
+        client.upload_snapshot_part(WORKSPACE_ID, "0192a000-0000-7000-8000-0000000000aa", 3, blob)
+
+    def test_upload_snapshot_part_rejects_duplicate_index(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(422, json={"error": {"code": "validation_failed", "message": "duplicate", "status": 422}})
+
+        client, _ = _make_client(_router({("PUT", f"{RELAY_V2_BASE}/snapshot/data/part"): handler}))
+        with pytest.raises(QuarantinedError):
+            client.upload_snapshot_part(WORKSPACE_ID, "0192a000-0000-7000-8000-0000000000aa", 0, b"again")
+
+    def test_upload_snapshot_part_validates_before_wire(self) -> None:
+        client, requests = _make_client(lambda request: httpx.Response(500))
+        with pytest.raises(ValueError, match="non-negative"):
+            client.upload_snapshot_part(WORKSPACE_ID, "u", -1, b"x")
+        with pytest.raises(ValueError, match="non-empty"):
+            client.upload_snapshot_part(WORKSPACE_ID, "u", 0, b"")
+        assert requests == []
+
+    def test_commit_snapshot_concatenates_and_mirrors_the_single_put(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "POST"
+            assert request.url.path == f"{RELAY_V2_BASE}/snapshot/data/commit"
+            assert request.url.params["workspaceId"] == WORKSPACE_ID
+            assert request.url.params["upload"] == "0192a000-0000-7000-8000-0000000000aa"
+            assert request.url.params["parts"] == "2"
+            assert request.url.params["physical"] == "1767225600000"
+            assert request.url.params["logical"] == "7"
+            assert request.url.params["sealed"] == "1"
+            return httpx.Response(
+                201,
+                json={
+                    "snapshotId": "0192a000-0000-7000-8000-0000000000e5",
+                    "workspaceId": WORKSPACE_ID,
+                    "upToHlc": {"physical": 1767225600000, "logical": 7},
+                    "upToSeq": 99,
+                },
+            )
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/snapshot/data/commit"): handler}))
+        result = client.commit_snapshot(
+            WORKSPACE_ID,
+            "0192a000-0000-7000-8000-0000000000aa",
+            parts=2,
+            hlc=Hlc(physical=1767225600000, logical=7),
+            sealed=True,
+        )
+        assert isinstance(result, SnapshotUploadResult)
+        assert result.up_to_seq == 99
+
+    def test_commit_snapshot_unknown_upload_is_404(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(404, json={"error": {"code": "not_found", "message": "no parts staged", "status": 404}})
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/snapshot/data/commit"): handler}))
+        with pytest.raises(QuarantinedError):
+            client.commit_snapshot(WORKSPACE_ID, "0192a000-0000-7000-8000-0000000000aa", parts=1, hlc=Hlc(physical=0, logical=0))
+
+    def test_commit_snapshot_parts_mismatch_is_422(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(422, json={"error": {"code": "validation_failed", "message": "parts mismatch", "status": 422}})
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/snapshot/data/commit"): handler}))
+        with pytest.raises(QuarantinedError):
+            client.commit_snapshot(WORKSPACE_ID, "0192a000-0000-7000-8000-0000000000aa", parts=3, hlc=Hlc(physical=0, logical=0))
+
+    def test_stats_maps_v2_shape(self) -> None:
+        stats: dict[str, Any] = {
+            "envelopeCount": 42,
+            "snapshotCount": 1,
+            "compactedOperationCount": 5,
+            "maxHlc": {"physical": 1767225600000, "logical": 9},
+            "restoreEpoch": 3,
+            "latestSnapshotHlc": {"physical": 1767225600000, "logical": 7},
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == f"{RELAY_V2_BASE}/stats"
+            assert request.url.params["workspaceId"] == WORKSPACE_ID
+            return httpx.Response(200, json=stats)
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/stats"): handler}))
+        result = client.stats(WORKSPACE_ID)
+
+        assert isinstance(result, RelayStats)
+        assert result.envelope_count == 42
+        assert result.snapshot_count == 1
+        assert result.compacted_operation_count == 5
+        assert result.max_hlc == Hlc(physical=1767225600000, logical=9)
+        assert result.restore_epoch == 3
+        assert result.latest_snapshot_hlc == Hlc(physical=1767225600000, logical=7)
+
+    def test_stats_without_snapshot_has_null_latest_hlc(self) -> None:
+        stats: dict[str, Any] = {
+            "envelopeCount": 0,
+            "snapshotCount": 0,
+            "compactedOperationCount": 0,
+            "maxHlc": {"physical": 0, "logical": 0},
+            "restoreEpoch": 0,
+            "latestSnapshotHlc": None,
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=stats)
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/stats"): handler}))
+        assert client.stats(WORKSPACE_ID).latest_snapshot_hlc is None
+
+
+def _no_http(request: httpx.Request) -> httpx.Response:
+    raise AssertionError(f"unexpected HTTP request: {request.url}")
+
+
+class TestErrorTaxonomy:
+    @pytest.mark.parametrize(
+        ("status", "expected"),
+        [
+            (403, ForbiddenError),
+            (422, QuarantinedError),
+            (500, ServerError),
+        ],
+    )
+    def test_status_maps_to_subclass(self, status: int, expected: type[ApiError]) -> None:
+        detail = "nope"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(status, json={"detail": detail})
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/catch-up"): handler}))
+        with pytest.raises(expected) as exc_info:
+            client.catch_up(WORKSPACE_ID)
+
+        assert exc_info.value.status == status
+        assert exc_info.value.detail == detail
+
+    @pytest.mark.parametrize(
+        ("code", "status", "expected"),
+        [
+            ("unauthenticated", 401, AuthenticationError),
+            ("forbidden", 403, ForbiddenError),
+            ("validation_failed", 422, QuarantinedError),
+            ("not_found", 404, QuarantinedError),
+            ("conflict", 409, QuarantinedError),
+            ("rate_limited", 429, RateLimitedError),
+            ("idempotency_replay", 409, ServerError),
+        ],
+    )
+    def test_v2_error_envelope_codes_map_to_taxonomy(self, code: str, status: int, expected: type[ApiError]) -> None:
+        """WIRE.md stable codes take priority over status heuristics."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status, json={"error": {"code": code, "message": f"machine {code}", "status": status}}
+            )
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/batch"): handler}))
+        with pytest.raises(expected) as exc_info:
+            client.submit_batch(_batch_envelopes())
+
+        assert exc_info.value.code == code
+        assert exc_info.value.detail == f"machine {code}"
+        assert exc_info.value.status == status
+
+    def test_idempotency_replay_is_retryable_server_error(self) -> None:
+        """The engine retries ServerError; envelope-id dedupe makes the retry harmless."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                409, json={"error": {"code": "idempotency_replay", "message": "original in flight", "status": 409}}
+            )
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/batch"): handler}))
+        with pytest.raises(ServerError) as exc_info:
+            client.submit_batch(_batch_envelopes())
+        assert exc_info.value.code == "idempotency_replay"
+
+    def test_unknown_code_falls_back_to_status(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(418, json={"error": {"code": "teapot", "message": "short and stout", "status": 418}})
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/stats"): handler}))
+        with pytest.raises(QuarantinedError) as exc_info:
+            client.stats(WORKSPACE_ID)
+        assert exc_info.value.code == "teapot"
+        assert exc_info.value.status == 418
+
+    def test_rate_limited_parses_retry_after(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                429,
+                json={"error": {"code": "rate_limited", "message": "Too many requests", "status": 429}},
+                headers={"Retry-After": "2.5"},
+            )
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/batch"): handler}))
+        with pytest.raises(RateLimitedError) as exc_info:
+            client.submit_batch(_batch_envelopes())
+
+        assert exc_info.value.status == 429
+        assert exc_info.value.retry_after == 2.5
+        assert exc_info.value.code == "rate_limited"
+
+    def test_rate_limited_without_retry_after(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(429, json={"detail": "slow down"})
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/stats"): handler}))
+        with pytest.raises(RateLimitedError) as exc_info:
+            client.stats(WORKSPACE_ID)
+        assert exc_info.value.retry_after is None
+
+    def test_transport_error_becomes_network_error(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused")
+
+        client, _ = _make_client(handler)
+        with pytest.raises(NetworkError) as exc_info:
+            client.list_workspaces()
+
+        assert exc_info.value.status is None
+        assert isinstance(exc_info.value.__cause__, httpx.ConnectError)
+
+    def test_422_list_detail_is_serialized(self) -> None:
+        fastapi_422 = {"detail": [{"loc": ["body", "envelopes"], "msg": "field required", "type": "value_error"}]}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(422, json=fastapi_422)
+
+        client, _ = _make_client(_router({("POST", f"{RELAY_V2_BASE}/batch"): handler}))
+        with pytest.raises(QuarantinedError) as exc_info:
+            client.submit_batch(_batch_envelopes())
+        assert "envelopes" in exc_info.value.detail
+
+    def test_detail_falls_back_to_raw_body(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(500, text="boom")
+
+        client, _ = _make_client(_router({("GET", f"{RELAY_V2_BASE}/stats"): handler}))
+        with pytest.raises(ServerError) as exc_info:
+            client.stats(WORKSPACE_ID)
+        assert exc_info.value.detail == "boom"
+
+
+class TestClassifyResponse:
+    def test_success_returns_none(self) -> None:
+        assert classify_response(httpx.Response(200, json={})) is None
+        assert classify_response(httpx.Response(204)) is None
+
+    def test_retry_after_non_numeric_becomes_none(self) -> None:
+        response = httpx.Response(429, json={"detail": "slow"}, headers={"Retry-After": "soon"})
+        with pytest.raises(RateLimitedError) as exc_info:
+            classify_response(response)
+        assert exc_info.value.retry_after is None
+
+    def test_subclass_default_statuses(self) -> None:
+        assert AuthenticationError("x").status == 401
+        assert ForbiddenError("x").status == 403
+        assert RateLimitedError("x", retry_after=1.0).status == 429
+        assert NetworkError("x").status is None
+
+
+class TestPrefs:
+    """The /api/me/prefs read/write seam (client-server.ts getPrefs/patchPrefs ports)."""
+
+    def test_get_prefs_normalizes_the_server_body(self) -> None:
+        body = {
+            "favorites": ["a", 7, "b"],
+            "recents": ["r1"],
+            "cardsAlgorithm": "sm2",
+        }
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers.get("Authorization") == "Bearer tok"
+            return httpx.Response(200, json=body)
+
+        client, requests = _make_client(
+            _router({("GET", "/api/me/prefs"): handler}), token="tok"
+        )
+        prefs = client.get_prefs()
+        assert prefs.favorites == ("a", "b")
+        assert prefs.recents == ("r1",)
+        assert prefs.cards_algorithm == "sm2"
+        assert len(requests) == 1
+
+    def test_get_prefs_unknown_algorithm_falls_back_to_fsrs(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"cardsAlgorithm": "supermemo"})
+
+        client, _ = _make_client(_router({("GET", "/api/me/prefs"): handler}))
+        assert client.get_prefs().cards_algorithm == "fsrs"
+
+    def test_get_prefs_missing_fields_default(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={})
+
+        client, _ = _make_client(_router({("GET", "/api/me/prefs"): handler}))
+        prefs = client.get_prefs()
+        assert prefs.favorites == ()
+        assert prefs.recents == ()
+        assert prefs.cards_algorithm == "fsrs"
+
+    @pytest.mark.parametrize("body", [[], "nope", 42, None])
+    def test_get_prefs_malformed_body_fails_loud(self, body: object) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=body)
+
+        client, _ = _make_client(_router({("GET", "/api/me/prefs"): handler}))
+        # ``None`` serializes as an empty body, so the JSON parse itself
+        # raises — a ValueError either way, never a half-read default.
+        with pytest.raises(ValueError):
+            client.get_prefs()
+
+    def test_get_prefs_non_object_body_fails_loud_with_the_normalize_message(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json=["a", "b"])
+
+        client, _ = _make_client(_router({("GET", "/api/me/prefs"): handler}))
+        with pytest.raises(ValueError, match="malformed prefs body"):
+            client.get_prefs()
+
+    def test_patch_prefs_puts_the_scalar_and_normalizes_the_answer(self) -> None:
+        seen: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["body"] = _json_body(request)
+            return httpx.Response(200, json={"favorites": [], "recents": [], "cardsAlgorithm": "sm2"})
+
+        client, requests = _make_client(_router({("PUT", "/api/me/prefs"): handler}))
+        prefs = client.patch_prefs(cards_algorithm="sm2")
+        assert seen["body"] == {"cardsAlgorithm": "sm2"}
+        assert prefs.cards_algorithm == "sm2"
+        assert requests[0].method == "PUT"
+
+    def test_patch_prefs_rejects_a_non_grammar_value_before_any_request(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise AssertionError("no request expected")
+
+        client, requests = _make_client(httpx.MockTransport(handler))
+        with pytest.raises(ValueError, match="cards_algorithm"):
+            client.patch_prefs(cards_algorithm="leitner")  # type: ignore[arg-type]
+        assert requests == []
+
+
+class TestAssets:
+    """The CAS asset channel (``/api/assets``) with the plan-05 encrypted-upload fields.
+
+    Plaintext uploads keep today's shape (file part only; the server sniffs).
+    Encrypted uploads declare themselves (``encrypted``/``mimeType``/``iv``
+    multipart fields) and skip sniffing; the iv answers on the upload
+    response and on ``GET /assets/:id/info``. Downloaded bytes are whatever
+    CAS stores — openness is the crypto boundary's job, not the client's.
+    """
+
+    UPLOAD_OK: dict[str, Any] = {
+        "assetId": "0193b000-0000-7000-8000-0000000000a1",
+        "hash": "ab" * 32,
+        "mimeType": "image/png",
+        "size": 4,
+        "originalName": "cover.png",
+        "refs": 1,
+    }
+
+    def _multipart_fields(self, request: httpx.Request) -> dict[str, bool]:
+        """Field-presence probe over the multipart body (name= headers)."""
+        body = request.content
+        assert request.headers["content-type"].startswith("multipart/form-data")
+        return {
+            field: f'name="{field}"'.encode() in body
+            for field in ("encrypted", "mimeType", "iv", "objectId", "file")
+        }
+
+    def test_plaintext_upload_sends_the_file_part_only(self) -> None:
+        seen: dict[str, bool] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.update(self._multipart_fields(request))
+            return httpx.Response(201, json=self.UPLOAD_OK)
+
+        client, requests = _make_client(_router({("POST", "/api/assets"): handler}))
+        result = client.post_asset(b"\x89PNG", filename="cover.png")
+        assert seen == {"encrypted": False, "mimeType": False, "iv": False, "objectId": False, "file": True}
+        assert result.asset_id == self.UPLOAD_OK["assetId"]
+        assert result.iv is None
+        assert requests[0].method == "POST"
+
+    def test_encrypted_upload_declares_itself(self) -> None:
+        seen: dict[str, bool] = {}
+        sealed_ok = {**self.UPLOAD_OK, "iv": "b64u-nonce"}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.update(self._multipart_fields(request))
+            assert b"image/png" in request.content
+            assert b"b64u-nonce" in request.content
+            return httpx.Response(201, json=sealed_ok)
+
+        client, _ = _make_client(_router({("POST", "/api/assets"): handler}))
+        result = client.post_asset(
+            b"tag-first blob", filename="cover.png", mime_type="image/png", iv="b64u-nonce"
+        )
+        assert seen == {"encrypted": True, "mimeType": True, "iv": True, "objectId": False, "file": True}
+        assert result.iv == "b64u-nonce"
+
+    def test_encrypted_upload_requires_a_declared_mime_before_any_request(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise AssertionError("no request expected")
+
+        client, requests = _make_client(httpx.MockTransport(handler))
+        with pytest.raises(ValueError, match="mime_type"):
+            client.post_asset(b"blob", filename="cover.png", iv="b64u-nonce")
+        assert requests == []
+
+    def test_object_id_and_workspace_header_pass_through(self) -> None:
+        seen: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["fields"] = self._multipart_fields(request)
+            seen["workspace"] = request.headers.get("X-Workspace-Id")
+            return httpx.Response(201, json={**self.UPLOAD_OK, "objectId": ACTOR_ID})
+
+        client, _ = _make_client(_router({("POST", "/api/assets"): handler}))
+        result = client.post_asset(b"\x89PNG", filename="cover.png", object_id=ACTOR_ID, workspace_id=WORKSPACE_ID)
+        assert seen["fields"]["objectId"] is True
+        assert seen["workspace"] == WORKSPACE_ID
+        assert result.object_id == ACTOR_ID
+
+    def test_get_asset_returns_the_raw_stored_bytes(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"tag-first blob")
+
+        client, requests = _make_client(_router({("GET", f"/api/assets/{ACTOR_ID}"): handler}))
+        assert client.get_asset(ACTOR_ID) == b"tag-first blob"
+        assert requests[0].url.path == f"/api/assets/{ACTOR_ID}"
+
+    def test_get_asset_info_carries_the_iv(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={**self.UPLOAD_OK, "iv": "b64u-nonce"})
+
+        client, _ = _make_client(_router({("GET", f"/api/assets/{ACTOR_ID}/info"): handler}))
+        info = client.get_asset_info(ACTOR_ID)
+        assert info.iv == "b64u-nonce"
+        assert info.mime_type == "image/png"
+
+    def test_sealed_upload_download_round_trip_through_the_crypto_boundary(self) -> None:
+        """The plan-05 flow end to end: seal → declare → store → info(iv) → bytes → open."""
+        from notees_gtk.core.protocol.crypto import (
+            generate_workspace_key,
+            open_asset_if_sealed,
+            seal_asset_if_keyed,
+        )
+
+        workspace_key = generate_workspace_key()
+        plaintext = b"\xff\xd8\xff\xe0 a jpeg"
+        blob, iv = seal_asset_if_keyed(workspace_key, plaintext)
+        assert iv is not None
+
+        def upload(request: httpx.Request) -> httpx.Response:
+            fields = self._multipart_fields(request)
+            assert fields["encrypted"] and fields["mimeType"] and fields["iv"]
+            return httpx.Response(201, json={**self.UPLOAD_OK, "iv": iv})
+
+        def info(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={**self.UPLOAD_OK, "iv": iv})
+
+        def download(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=blob)
+
+        client, _ = _make_client(
+            _router(
+                {
+                    ("POST", "/api/assets"): upload,
+                    ("GET", f"/api/assets/{ACTOR_ID}/info"): info,
+                    ("GET", f"/api/assets/{ACTOR_ID}"): download,
+                }
+            )
+        )
+        uploaded = client.post_asset(blob, filename="cover.jpg", mime_type="image/jpeg", iv=iv)
+        assert uploaded.iv == iv
+        meta = client.get_asset_info(ACTOR_ID)
+        assert meta.iv == iv
+        opened = open_asset_if_sealed(workspace_key, meta.iv, client.get_asset(ACTOR_ID))
+        assert opened == plaintext
+        # Keyless download of a sealed asset: the honest-fallback signal (None), never a throw.
+        assert open_asset_if_sealed(None, meta.iv, blob) is None

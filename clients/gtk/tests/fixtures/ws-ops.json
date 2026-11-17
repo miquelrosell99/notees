@@ -1,0 +1,35 @@
+{
+  "type": "ops",
+  "wsProtocolVersion": 2,
+  "envelopes": [
+    {
+      "id": "0192a000-0000-7000-8000-0000000000f1",
+      "protocolVersion": 3,
+      "workspaceId": "0192a000-0000-7000-8000-000000000001",
+      "actorId": "0192a000-0000-7000-8000-000000000002",
+      "deviceId": "test-device-phone",
+      "client": "web",
+      "hlc": {
+        "physical": 1727200003000,
+        "logical": 1
+      },
+      "affectedNodeIds": [
+        "0192a000-0000-7000-8000-000000000010"
+      ],
+      "opType": "object.update",
+      "timestamp": "2026-09-24T12:00:03.000Z",
+      "payload": {
+        "objectId": "0192a000-0000-7000-8000-000000000010",
+        "contentAst": [
+          {
+            "type": "text",
+            "text": "Kuhn cites earlier work."
+          }
+        ]
+      }
+    }
+  ],
+  "seqs": {
+    "0192a000-0000-7000-8000-0000000000f1": 4127
+  }
+}

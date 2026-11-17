@@ -1,0 +1,55 @@
+"""Known operation types for the relay sync protocol (v2).
+
+Mirrors ``packages/protocol/src/op-types.ts`` (the op registry): exactly
+these 25 op types have payload schemas server-side. The envelope schema itself
+accepts any non-empty ``opType`` string (see ``envelope.ts``); unknown op types
+— the retired ``class.delete`` included, rejected outright per the no-wire-compat
+law — are rejected at relay ingest with ``validation_failed`` (422). Producers
+should stick to this registry — that 422 maps to the quarantine path.
+"""
+
+from __future__ import annotations
+
+__all__ = ["KNOWN_OP_TYPES"]
+
+KNOWN_OP_TYPES: frozenset[str] = frozenset(
+    [
+        # Objects
+        "object.create",
+        "object.update",
+        "object.delete",
+        "object.restore",
+        "object.move",
+        # Trash
+        "trash.empty",
+        # Classes
+        "class.create",
+        "class.update",
+        "class.unassign",
+        "class.reorder",
+        "tag.unassign",
+        "class.setExtends",
+        "class.property.set",
+        "class.property.unset",
+        # Property schemas
+        "propertySchema.create",
+        "propertySchema.update",
+        "propertySchema.delete",
+        # Properties
+        "property.set",
+        "property.unset",
+        # Assets
+        "asset.attach",
+        "asset.detach",
+        # Collections (membership only — collections are nodes)
+        "collection.member.add",
+        "collection.member.remove",
+        # Workspace (per-workspace feature toggles)
+        "workspace.feature.set",
+        # External-id mappings (importer/sync plugin substrate)
+        "external_ref.set",
+        "external_ref.delete",
+        # Memorization-card reviews (SRS history — SCHEMA.md "Memorization cards")
+        "card.review",
+    ]
+)

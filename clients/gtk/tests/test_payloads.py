@@ -1,0 +1,1270 @@
+"""Tests for the strict op payload schemas and builders (op-types.ts parity).
+
+This is the GTK client's half of the relay's 422 ``validation_failed`` gate:
+every known op type validates against a pydantic model with ``extra="forbid"``
+(a retired or renamed wire key fails loudly), uuid fields are format-checked,
+and the ``object.update`` refines ride along. The builders are the
+write-side conveniences (web ``WorkspaceClient`` parity): the ``name``
+parameter wraps into a single text token unless an explicit ``content_ast``
+wins — title-is-content means no op payload carries a ``name`` key.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+from pydantic import ValidationError
+
+from notees_gtk.core.protocol.clock import Clock
+from notees_gtk.core.protocol.colors import COLOR_PRESET_TOKENS
+from notees_gtk.core.protocol.crypto import b64u_decode, decrypt_envelope
+from notees_gtk.core.protocol.models import RelayEnvelope, new_envelope
+from notees_gtk.core.protocol.op_types import KNOWN_OP_TYPES
+from notees_gtk.core.protocol.payloads import (
+    PAYLOAD_SCHEMAS,
+    build_class_create,
+    build_class_reorder,
+    build_class_unassign,
+    build_class_update,
+    build_external_ref_delete,
+    build_external_ref_set,
+    build_object_create,
+    build_object_move,
+    build_object_update,
+    build_tag_unassign,
+    build_trash_empty,
+    build_workspace_feature_set,
+    payload_schema_for,
+    validate_payload,
+)
+
+UUID_1 = "11111111-1111-7111-8111-111111111111"
+UUID_2 = "22222222-2222-7222-8222-222222222222"
+UUID_3 = "33333333-3333-7333-8333-333333333333"
+
+
+class TestRegistry:
+    def test_every_known_op_type_has_a_strict_schema(self) -> None:
+        assert set(PAYLOAD_SCHEMAS) == set(KNOWN_OP_TYPES)
+        for schema in PAYLOAD_SCHEMAS.values():
+            assert schema.model_config.get("extra") == "forbid"
+
+    def test_unknown_op_type_rejected(self) -> None:
+        with pytest.raises(ValueError, match="unknown opType"):
+            validate_payload("legacy.nodeCreate", {"objectId": UUID_1})
+
+    def test_retired_class_delete_rejected_outright(self) -> None:
+        """The retired ``class.delete`` op carries no schema in the strict
+        registry (the no-wire-compat law): it is
+        rejected like any unknown op type, and it is no longer a known op."""
+        assert "class.delete" not in KNOWN_OP_TYPES
+        with pytest.raises(ValueError, match="unknown opType"):
+            validate_payload("class.delete", {"classId": UUID_1})
+
+    def test_schema_lookup(self) -> None:
+        assert payload_schema_for("tag.unassign") is PAYLOAD_SCHEMAS["tag.unassign"]
+        assert payload_schema_for("nope") is None
+
+
+class TestTrashEmptyPayload:
+    """The ``trash.empty`` payload is a strict empty object: the apply-time
+    trash table is the target set, so nothing rides the wire and any key is
+    rejected outright (zod ``z.object({}).strict()`` parity)."""
+
+    def test_empty_object_validates(self) -> None:
+        validate_payload("trash.empty", {})
+
+    @pytest.mark.parametrize("key", ["objectId", "permanent", "hlc", "name"])
+    def test_any_key_is_rejected(self, key: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("trash.empty", {key: "x"})
+
+    def test_builder_sends_the_strict_empty_object(self) -> None:
+        assert build_trash_empty() == {}
+
+
+class TestTitleIsContentStrictness:
+    """B.1/B.2: object.create/update and class.create/update payloads do NOT
+    accept ``name`` — strict validation rejects it like the server's zod
+    ``.strict()`` schemas."""
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update"])
+    def test_object_payloads_reject_name(self, op_type: str) -> None:
+        payload: dict[str, Any] = {"objectId": UUID_1, "name": "Legacy"}
+        if op_type == "object.update":
+            payload["icon"] = "📄"  # satisfy the at-least-one-field refine
+        with pytest.raises(ValidationError) as excinfo:
+            validate_payload(op_type, payload)
+        assert "name" in str(excinfo.value)
+
+    def test_object_create_accepts_content_ast_and_tag_ids(self) -> None:
+        validate_payload(
+            "object.create",
+            {"objectId": UUID_1, "contentAst": [{"type": "text", "text": "Hi"}], "tagIds": [UUID_2]},
+        )
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_class_payloads_reject_name_accept_content_ast(self, op_type: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {"classId": UUID_1, "name": "Legacy"})
+        validate_payload(op_type, {"classId": UUID_1, "contentAst": [{"type": "text", "text": "Task"}]})
+
+    def test_extra_keys_rejected_for_the_new_ops(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("class.reorder", {"objectId": UUID_1, "classIds": [UUID_2], "sequence": 1})
+        with pytest.raises(ValidationError):
+            validate_payload("tag.unassign", {"objectId": UUID_1, "tagId": UUID_2, "hlc": 5})
+
+    def test_uuid_fields_are_format_checked(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("class.reorder", {"objectId": "not-a-uuid", "classIds": [UUID_2]})
+        with pytest.raises(ValidationError):
+            validate_payload("class.reorder", {"objectId": UUID_1, "classIds": ["also-not"]})
+        with pytest.raises(ValidationError):
+            validate_payload("tag.unassign", {"objectId": UUID_1, "tagId": "nope"})
+
+
+class TestObjectUpdateRefines:
+    def test_requires_at_least_one_field(self) -> None:
+        with pytest.raises(ValidationError, match="at least one field"):
+            validate_payload("object.update", {"objectId": UUID_1})
+
+    def test_exactly_one_content_carrier(self) -> None:
+        with pytest.raises(ValidationError, match="exactly one content carrier"):
+            validate_payload(
+                "object.update",
+                {"objectId": UUID_1, "contentAst": [], "contentDeltaB64": "AAAA"},
+            )
+
+    def test_single_carrier_accepted(self) -> None:
+        validate_payload("object.update", {"objectId": UUID_1, "contentDeltaB64": "AAAA"})
+
+
+class TestObjectUpdateActivePayload:
+    """The archival ``active`` bit (the
+    classes-gallery batch): ``object.update`` accepts the optional boolean —
+    presence writes, an explicit null is rejected outright (zod
+    ``z.boolean().optional()`` parity) — and ``object.create`` carries no
+    appearance/fundamental fields (the wire-fields precedent)."""
+
+    def test_active_boolean_accepted(self) -> None:
+        validate_payload("object.update", {"objectId": UUID_1, "active": False})
+        validate_payload("object.update", {"objectId": UUID_1, "active": True})
+
+    def test_active_null_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="active"):
+            validate_payload("object.update", {"objectId": UUID_1, "active": None})
+
+    @pytest.mark.parametrize("bad", ["yes", 1, 0, []])
+    def test_non_boolean_active_rejected(self, bad: Any) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("object.update", {"objectId": UUID_1, "active": bad})
+
+    def test_object_create_rejects_active(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("object.create", {"objectId": UUID_1, "active": False})
+
+    def test_builder_emits_active_only_when_set(self) -> None:
+        assert build_object_update(UUID_1, active=False) == {"objectId": UUID_1, "active": False}
+        assert build_object_update(UUID_1, active=True) == {"objectId": UUID_1, "active": True}
+        assert "active" not in build_object_update(UUID_1, icon="mdiStar")
+
+
+class TestColorGrammar:
+    """node/class ``color`` is a preset token or a
+    custom ``#RRGGBB`` hex (colors.py grammar), or ``null`` to clear. The
+    retired ``var(--color-preset-*)`` encoding and freeform strings are
+    rejected outright by the strict schemas — no wire compat."""
+
+    @pytest.mark.parametrize("op_type", ["object.update", "class.create", "class.update"])
+    @pytest.mark.parametrize("token", COLOR_PRESET_TOKENS)
+    def test_every_preset_token_accepted(self, op_type: str, token: str) -> None:
+        key = "objectId" if op_type == "object.update" else "classId"
+        validate_payload(op_type, {key: UUID_1, "color": token})
+
+    @pytest.mark.parametrize("op_type", ["object.update", "class.create", "class.update"])
+    @pytest.mark.parametrize("hex_color", ["#abcdef", "#ABCDEF", "#123abc", "#0f9D8e"])
+    def test_six_digit_hex_accepted(self, op_type: str, hex_color: str) -> None:
+        key = "objectId" if op_type == "object.update" else "classId"
+        validate_payload(op_type, {key: UUID_1, "color": hex_color})
+
+    @pytest.mark.parametrize("op_type", ["object.update", "class.create", "class.update"])
+    def test_retired_css_variable_encoding_rejected(self, op_type: str) -> None:
+        key = "objectId" if op_type == "object.update" else "classId"
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {key: UUID_1, "color": "var(--color-preset-red)"})
+
+    @pytest.mark.parametrize("op_type", ["object.update", "class.create", "class.update"])
+    @pytest.mark.parametrize("bad", ["#12345", "#1234567", "red ", " not-a-color", "not-a-color", ""])
+    def test_garbage_rejected(self, op_type: str, bad: str) -> None:
+        key = "objectId" if op_type == "object.update" else "classId"
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {key: UUID_1, "color": bad})
+
+    def test_null_clear_accepted_on_object_update(self) -> None:
+        """NEW capability: an explicit null on the wire must parse, and it
+        still satisfies the at-least-one-writable-field refine."""
+        validate_payload("object.update", {"objectId": UUID_1, "color": None})
+
+    def test_null_clear_accepted_on_class_update(self) -> None:
+        validate_payload("class.update", {"classId": UUID_1, "color": None})
+
+    def test_absent_color_still_validates(self) -> None:
+        validate_payload("object.update", {"objectId": UUID_1, "icon": "📄"})
+        validate_payload("class.update", {"classId": UUID_1, "description": "d"})
+
+    def test_builder_sends_null_clear_only_when_asked(self) -> None:
+        """``color=None`` emits an explicit null (the UI's "No color");
+        omitting the parameter leaves the key off the wire entirely."""
+        assert build_object_update(UUID_1, color=None) == {"objectId": UUID_1, "color": None}
+        assert build_class_update(UUID_1, color=None) == {"classId": UUID_1, "color": None}
+        assert "color" not in build_object_update(UUID_1, icon="📄")
+        assert "color" not in build_class_update(UUID_1)
+        assert build_object_update(UUID_1, color="sky") == {"objectId": UUID_1, "color": "sky"}
+        assert build_class_update(UUID_1, color="#123abc") == {"classId": UUID_1, "color": "#123abc"}
+
+    def test_builder_rejects_out_of_grammar_colors(self) -> None:
+        with pytest.raises(ValidationError):
+            build_object_update(UUID_1, color="var(--color-preset-red)")
+        with pytest.raises(ValidationError):
+            build_class_update(UUID_1, color="not-a-color")
+
+
+class TestClassParentlessRole:
+    """The class-level parentlessRole render contract:
+    ``class.create``/``class.update`` carry the optional nullable
+    ``parentlessRole`` — "page" | "block"; absent/null = "page", the
+    zero-migration default. Presence writes, present-null clears, exactly
+    like ``color`` (the zod ``z.enum(["page", "block"]).nullish()``
+    parity — the lockstep payload acceptance; pre-change clients reject the
+    key, which gates mixed writers)."""
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    @pytest.mark.parametrize("role", ["page", "block"])
+    def test_every_enum_value_accepted(self, op_type: str, role: str) -> None:
+        validate_payload(op_type, {"classId": UUID_1, "parentlessRole": role})
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_null_clears(self, op_type: str) -> None:
+        validate_payload(op_type, {"classId": UUID_1, "parentlessRole": None})
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_absent_still_validates(self, op_type: str) -> None:
+        validate_payload(op_type, {"classId": UUID_1, "icon": "📄"})
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    @pytest.mark.parametrize("bad", ["Block", "BLOCK", "widget", "", "page "])
+    def test_garbage_rejected(self, op_type: str, bad: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {"classId": UUID_1, "parentlessRole": bad})
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update", "object.move"])
+    def test_object_ops_reject_the_key_outright(self, op_type: str) -> None:
+        """Strict-schema parity: the flag is a class-only field (the
+        ``extra="forbid"`` law — pre-change clients reject it too)."""
+        key = "objectId"
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {key: UUID_1, "parentlessRole": "block"})
+
+    def test_builder_emits_the_flag_only_when_set(self) -> None:
+        assert build_class_create(UUID_1, name="Task", parentless_role="block") == {
+            "classId": UUID_1,
+            "contentAst": [{"type": "text", "text": "Task"}],
+            "parentlessRole": "block",
+        }
+        assert "parentlessRole" not in build_class_create(UUID_1, name="Task")
+        # Update: keep-vs-clear — explicit None sends the clear, omitting keeps.
+        assert build_class_update(UUID_1, parentless_role=None) == {"classId": UUID_1, "parentlessRole": None}
+        assert "parentlessRole" not in build_class_update(UUID_1, icon="📄")
+        assert build_class_update(UUID_1, parentless_role="block") == {"classId": UUID_1, "parentlessRole": "block"}
+
+
+class TestClassDisplayTemplate:
+    """The class-level displayTemplate contract (SCHEMA.md): both
+    ``class.create``/``class.update`` carry the optional nullable
+    ``displayTemplate`` — a format string render surfaces apply to the
+    derived titles of the class's members. Tri-state, exactly like ``color``:
+    absent = inherit, a non-empty string = the template, "" = an explicit
+    opt-out (round-trips as '' and stops extends-inheritance), present null =
+    clear back to NULL/inherit (the zod ``z.string().max(1024).nullish()``
+    parity — the lockstep payload acceptance; pre-change clients reject the
+    key, which gates mixed writers)."""
+
+    TEMPLATE = "@{{citekey}}"
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_string_accepted(self, op_type: str) -> None:
+        validate_payload(op_type, {"classId": UUID_1, "displayTemplate": self.TEMPLATE})
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_empty_string_accepted_as_the_opt_out(self, op_type: str) -> None:
+        validate_payload(op_type, {"classId": UUID_1, "displayTemplate": ""})
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_null_clears(self, op_type: str) -> None:
+        validate_payload(op_type, {"classId": UUID_1, "displayTemplate": None})
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_absent_still_validates(self, op_type: str) -> None:
+        validate_payload(op_type, {"classId": UUID_1, "icon": "📄"})
+
+    @pytest.mark.parametrize("op_type", ["class.create", "class.update"])
+    def test_overlong_rejected(self, op_type: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {"classId": UUID_1, "displayTemplate": "x" * 1025})
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update", "object.move"])
+    def test_object_ops_reject_the_key_outright(self, op_type: str) -> None:
+        """Strict-schema parity: the key is a class-only field (the
+        ``extra="forbid"`` law — pre-change clients reject it too)."""
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {"objectId": UUID_1, "displayTemplate": self.TEMPLATE})
+
+    def test_builder_emits_the_key_only_when_set(self) -> None:
+        # Create: omitted = inherit (a re-issued create PRESERVES the stored
+        # value via the applier's COALESCE arm).
+        assert build_class_create(UUID_1, name="Source", display_template=self.TEMPLATE) == {
+            "classId": UUID_1,
+            "contentAst": [{"type": "text", "text": "Source"}],
+            "displayTemplate": self.TEMPLATE,
+        }
+        assert "displayTemplate" not in build_class_create(UUID_1, name="Source")
+        # Update: keep-vs-clear — explicit None sends the clear, "" the
+        # opt-out, omitting keeps.
+        assert build_class_update(UUID_1, display_template=None) == {"classId": UUID_1, "displayTemplate": None}
+        assert build_class_update(UUID_1, display_template="") == {"classId": UUID_1, "displayTemplate": ""}
+        assert "displayTemplate" not in build_class_update(UUID_1, icon="📄")
+
+
+class TestWireNodeFields:
+    """M27: ``object.update`` carries the optional nullable ``coverAssetId``
+    / ``bannerAssetId`` / ``aliasedNodeId`` node fields — presence writes,
+    present-null clears (the zod ``uuid.nullish()`` parity). The 2026-10-09
+    batch adds ``description`` — the page subtitle, a plain string max 512
+    chars with the same nullish semantics (zod ``z.string().max(512).nullish()``
+    parity). ``object.create`` carries none of them (the strict schema
+    rejects the keys outright, no wire compat)."""
+
+    @pytest.mark.parametrize(
+        "key", ["coverAssetId", "bannerAssetId", "aliasedNodeId"]
+    )
+    def test_object_update_accepts_the_field_and_its_null_clear(self, key: str) -> None:
+        validate_payload("object.update", {"objectId": UUID_1, key: UUID_2})
+        # A null-only update still satisfies the at-least-one-field refine
+        # (key presence, the zod ``Object.keys(p).length > 1`` parity).
+        validate_payload("object.update", {"objectId": UUID_1, key: None})
+
+    @pytest.mark.parametrize(
+        "key", ["coverAssetId", "bannerAssetId", "aliasedNodeId"]
+    )
+    def test_the_fields_are_uuid_format_checked(self, key: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("object.update", {"objectId": UUID_1, key: "not-a-uuid"})
+
+    @pytest.mark.parametrize(
+        "key", ["coverAssetId", "bannerAssetId", "aliasedNodeId"]
+    )
+    def test_object_create_rejects_the_update_only_fields(self, key: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("object.create", {"objectId": UUID_1, key: UUID_2})
+
+    def test_description_accepts_text_and_its_null_clear(self) -> None:
+        validate_payload("object.update", {"objectId": UUID_1, "description": "Subtitle text"})
+        # A null-only update still satisfies the at-least-one-field refine
+        # (key presence, the zod ``Object.keys(p).length > 1`` parity).
+        validate_payload("object.update", {"objectId": UUID_1, "description": None})
+
+    def test_description_is_max_512_chars(self) -> None:
+        validate_payload("object.update", {"objectId": UUID_1, "description": "x" * 512})
+        with pytest.raises(ValidationError):
+            validate_payload("object.update", {"objectId": UUID_1, "description": "x" * 513})
+
+    def test_object_create_rejects_description(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("object.create", {"objectId": UUID_1, "description": "Subtitle text"})
+
+    def test_builder_sends_clears_only_when_asked(self) -> None:
+        """``None`` emits an explicit null (the clear); omitting the
+        parameter leaves the key off the wire entirely (absence = no write)."""
+        assert build_object_update(UUID_1, aliased_node_id=None) == {"objectId": UUID_1, "aliasedNodeId": None}
+        assert build_object_update(UUID_1, cover_asset_id=UUID_2, banner_asset_id=UUID_3) == {
+            "objectId": UUID_1,
+            "coverAssetId": UUID_2,
+            "bannerAssetId": UUID_3,
+        }
+        payload = build_object_update(UUID_1, icon="📄")
+        for key in ("coverAssetId", "bannerAssetId", "aliasedNodeId"):
+            assert key not in payload
+        assert build_object_update(UUID_1, description=None) == {"objectId": UUID_1, "description": None}
+        assert build_object_update(UUID_1, description="Subtitle text") == {
+            "objectId": UUID_1,
+            "description": "Subtitle text",
+        }
+        assert "description" not in build_object_update(UUID_1, icon="📄")
+
+
+class TestAssetPropertyType:
+    """M38: the property-schema type enum gains ``asset`` (node-typed values
+    whose target must carry the asset class — the filter is implicit in the
+    type)."""
+
+    def test_property_schema_create_accepts_asset(self) -> None:
+        validate_payload(
+            "propertySchema.create",
+            {
+                "propertySchemaId": UUID_1,
+                "name": "Attachment",
+                "type": "asset",
+                "multi": True,
+                "scopeClassIds": [UUID_2],
+            },
+        )
+
+    def test_property_schema_create_rejects_unknown_types(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(
+                "propertySchema.create",
+                {"propertySchemaId": UUID_1, "name": "X", "type": "asset_node"},
+            )
+
+
+class TestUnifiedDatetimePropertyType:
+    """The unified datetime property type (SCHEMA.md
+    "Datetime"): the ``propertySchema.create`` type enum retires
+    ``date``/``date_range`` and adds ``datetime`` — strict, the retired
+    values are rejected outright (the zod enum parity). The dedicated
+    ``url`` type joins the retired list 2026-10-28 (the seeded `url`
+    property survives retyped to ``text`` — op-types.ts
+    ``PROPERTY_TYPES``)."""
+
+    def test_property_schema_create_accepts_datetime(self) -> None:
+        validate_payload(
+            "propertySchema.create",
+            {"propertySchemaId": UUID_1, "name": "When", "type": "datetime"},
+        )
+        # datePrecision/dateQualified ride the datetime schema (the TS parity).
+        validate_payload(
+            "propertySchema.create",
+            {
+                "propertySchemaId": UUID_1,
+                "name": "When",
+                "type": "datetime",
+                "datePrecision": "year",
+                "dateQualified": True,
+            },
+        )
+
+    @pytest.mark.parametrize("retired", ["date", "date_range", "url"])
+    def test_property_schema_create_rejects_the_retired_types(self, retired: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(
+                "propertySchema.create",
+                {"propertySchemaId": UUID_1, "name": "x", "type": retired},
+            )
+
+    def test_property_schema_update_keeps_patchable_date_fields(self) -> None:
+        validate_payload("propertySchema.update", {"propertySchemaId": UUID_1, "datePrecision": "month"})
+        validate_payload("propertySchema.update", {"propertySchemaId": UUID_1, "datePrecision": None})
+
+
+class TestRenderStateModelStrictness:
+    """Revision 11: object.create/update dropped the ``nodeType`` enumeration
+    and gained the optional ``presentAsMain`` render bit — the retired key is
+    rejected outright (``extra="forbid"``), no wire compat of any kind."""
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update"])
+    def test_node_type_key_rejected(self, op_type: str) -> None:
+        payload: dict[str, Any] = {"objectId": UUID_1, "nodeType": "page"}
+        if op_type == "object.update":
+            payload["icon"] = "📄"  # satisfy the at-least-one-field refine
+        with pytest.raises(ValidationError) as excinfo:
+            validate_payload(op_type, payload)
+        assert "nodeType" in str(excinfo.value)
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update"])
+    def test_present_as_main_accepted(self, op_type: str) -> None:
+        payload: dict[str, Any] = {"objectId": UUID_1, "isEmbedded": False}
+        if op_type == "object.update":
+            validate_payload(op_type, payload)
+        else:
+            validate_payload(op_type, {**payload, "parentId": UUID_2})
+
+
+class TestSiblingAnchorFields:
+    """object.create/object.move sibling placement anchors: ``afterId`` and
+    ``beforeId`` are accepted by the strict schemas (uuid-checked) on both
+    payloads — placement itself lives in the appliers' fractional allocator."""
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.move"])
+    def test_after_id_and_before_id_accepted(self, op_type: str) -> None:
+        validate_payload(
+            op_type,
+            {"objectId": UUID_1, "parentId": UUID_2, "afterId": UUID_3, "beforeId": UUID_2},
+        )
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.move"])
+    def test_anchor_fields_are_uuid_checked(self, op_type: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {"objectId": UUID_1, "parentId": UUID_2, "beforeId": "not-a-uuid"})
+        with pytest.raises(ValidationError):
+            validate_payload(op_type, {"objectId": UUID_1, "parentId": UUID_2, "afterId": "not-a-uuid"})
+
+
+class TestBuilders:
+    """Builder parity with WorkspaceClient.createObject/createClass/
+    reorderClasses: ``name`` is a convenience that becomes a single text
+    token; an explicit contentAst wins and name is dropped."""
+
+    def test_object_create_name_becomes_content_ast(self) -> None:
+        assert build_object_create(UUID_1, name="My Page") == {
+            "objectId": UUID_1,
+            "contentAst": [{"type": "text", "text": "My Page"}],
+        }
+
+    def test_object_create_content_ast_wins_over_name(self) -> None:
+        payload = build_object_create(UUID_1, name="Dropped", content_ast=[{"type": "text", "text": "Winner"}])
+        assert payload == {"objectId": UUID_1, "contentAst": [{"type": "text", "text": "Winner"}]}
+
+    def test_object_create_full_shape(self) -> None:
+        payload = build_object_create(
+            UUID_1,
+            is_embedded=True,
+            class_ids=[UUID_2],
+            tag_ids=[UUID_3],
+            content_ast=[{"type": "text", "text": "hi"}],
+            parent_id=UUID_2,
+        )
+        assert payload == {
+            "objectId": UUID_1,
+            "isEmbedded": True,
+            "classIds": [UUID_2],
+            "tagIds": [UUID_3],
+            "contentAst": [{"type": "text", "text": "hi"}],
+            "parentId": UUID_2,
+        }
+
+    def test_object_create_root_page_sends_null_parent(self) -> None:
+        payload = build_object_create(UUID_1, parent_id=None)
+        assert payload["parentId"] is None
+
+    def test_object_update_builder(self) -> None:
+        payload = build_object_update(UUID_1, content_ast=[{"type": "text", "text": "new"}], icon="📄")
+        assert payload == {"objectId": UUID_1, "contentAst": [{"type": "text", "text": "new"}], "icon": "📄"}
+        with pytest.raises(ValidationError):
+            build_object_update(UUID_1)
+
+    def test_class_create_name_convenience(self) -> None:
+        assert build_class_create(UUID_1, name="Task", icon="✅") == {
+            "classId": UUID_1,
+            "contentAst": [{"type": "text", "text": "Task"}],
+            "icon": "✅",
+        }
+
+    def test_class_create_content_ast_wins_over_name(self) -> None:
+        payload = build_class_create(UUID_1, name="Dropped", content_ast=[{"type": "text", "text": "Winner"}])
+        assert payload == {"classId": UUID_1, "contentAst": [{"type": "text", "text": "Winner"}]}
+
+    def test_class_update_name_convenience(self) -> None:
+        assert build_class_update(UUID_1, name="Novel") == {
+            "classId": UUID_1,
+            "contentAst": [{"type": "text", "text": "Novel"}],
+        }
+
+    def test_reorder_classes_convenience(self) -> None:
+        """Mirrors WorkspaceClient.reorderClasses: the full ordered list."""
+        assert build_class_reorder(UUID_1, [UUID_3, UUID_2]) == {
+            "objectId": UUID_1,
+            "classIds": [UUID_3, UUID_2],
+        }
+
+    def test_unassign_builders(self) -> None:
+        assert build_class_unassign(UUID_1, UUID_2) == {"objectId": UUID_1, "classId": UUID_2}
+        assert build_tag_unassign(UUID_1, UUID_2) == {"objectId": UUID_1, "tagId": UUID_2}
+
+    def test_move_and_delete_builders(self) -> None:
+        assert build_object_move(UUID_1, UUID_2, after_id=UUID_3) == {
+            "objectId": UUID_1,
+            "parentId": UUID_2,
+            "afterId": UUID_3,
+        }
+        assert build_object_move(UUID_1, None) == {"objectId": UUID_1, "parentId": None}
+        assert build_object_create(UUID_1)  # minimal create: id only
+
+    def test_sibling_anchor_builders(self) -> None:
+        """beforeId rides both payloads; the anchor keys stay absent when unset."""
+        assert build_object_move(UUID_1, UUID_2, before_id=UUID_3) == {
+            "objectId": UUID_1,
+            "parentId": UUID_2,
+            "beforeId": UUID_3,
+        }
+        assert build_object_move(UUID_1, UUID_2, after_id=UUID_3, before_id=UUID_2) == {
+            "objectId": UUID_1,
+            "parentId": UUID_2,
+            "afterId": UUID_3,
+            "beforeId": UUID_2,
+        }
+        assert "beforeId" not in build_object_move(UUID_1, UUID_2)
+        assert build_object_create(UUID_1, parent_id=UUID_2, after_id=UUID_3, before_id=UUID_2) == {
+            "objectId": UUID_1,
+            "parentId": UUID_2,
+            "afterId": UUID_3,
+            "beforeId": UUID_2,
+        }
+        assert "afterId" not in build_object_create(UUID_1)
+        assert "beforeId" not in build_object_create(UUID_1)
+
+
+class TestWorkspaceFeatureSet:
+    """The workspace.feature.set payload — the strict enum of the five core
+    class families (tasks|events|meetings|sources|persons) plus the two
+    surfaces-only toggles: ``journal`` (the journal nav view + Today-page
+    management; the date classes stay always-on) and ``readItLater`` (the
+    read-it-later capture surface gating; no classes derive from it). The
+    plural ``journals`` and the other retired pre-reshape ids stay rejected
+    outright, no wire compat."""
+
+    def test_builder_emits_the_toggle(self) -> None:
+        assert build_workspace_feature_set("tasks", True) == {"feature": "tasks", "enabled": True}
+        assert build_workspace_feature_set("events", False) == {"feature": "events", "enabled": False}
+
+    @pytest.mark.parametrize(
+        "feature", ["tasks", "events", "meetings", "sources", "persons", "journal", "readItLater"]
+    )
+    def test_every_feature_id_accepted(self, feature: str) -> None:
+        validate_payload("workspace.feature.set", {"feature": feature, "enabled": True})
+
+    @pytest.mark.parametrize(
+        "feature",
+        [
+            "journals",
+            "read_it_later",
+            "library",
+            "people",
+            "collections",
+            "tasks ",
+            "TASKS",
+            "whiteboard",
+        ],
+    )
+    def test_retired_and_unknown_feature_ids_rejected(self, feature: str) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("workspace.feature.set", {"feature": feature, "enabled": True})
+
+    def test_extra_keys_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("workspace.feature.set", {"feature": "tasks", "enabled": True, "workspaceId": UUID_1})
+
+    def test_enabled_is_required_and_typed(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("workspace.feature.set", {"feature": "tasks"})
+        with pytest.raises(ValidationError):
+            validate_payload("workspace.feature.set", {"feature": "tasks", "enabled": []})
+
+    def test_settings_record_accepted_and_optional(self) -> None:
+        """The optional per-feature configuration record (the Sources citekey config et al.): any JSON object rides, absent
+        stays valid, an explicit null is rejected (zod ``optional()`` parity)."""
+        validate_payload("workspace.feature.set", {"feature": "sources", "enabled": True})
+        validate_payload(
+            "workspace.feature.set",
+            {"feature": "sources", "enabled": True, "settings": {"citekeyPattern": "[auth:lower][year]"}},
+        )
+        validate_payload("workspace.feature.set", {"feature": "sources", "enabled": True, "settings": {}})
+        with pytest.raises(ValidationError):
+            validate_payload("workspace.feature.set", {"feature": "sources", "enabled": True, "settings": None})
+
+    @pytest.mark.parametrize("settings", ["[auth]", ["a"], 42, True])
+    def test_settings_must_be_a_record(self, settings: Any) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("workspace.feature.set", {"feature": "sources", "enabled": True, "settings": settings})
+
+
+class TestPropertyWirePayloads:
+    """The property-wire batch: the optional PG5 elementId (UUID, explicit
+    null rejected — zod ``optional()`` parity) and the PC4 binding active
+    flag (omitted = keep; explicit null rejected)."""
+
+    def test_property_set_element_id_accepted(self) -> None:
+        validate_payload(
+            "property.set",
+            {"objectId": UUID_1, "propertySchemaId": UUID_2, "value": "x", "elementId": UUID_3, "idx": 1},
+        )
+
+    def test_property_set_element_id_must_be_uuid(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(
+                "property.set",
+                {"objectId": UUID_1, "propertySchemaId": UUID_2, "value": "x", "elementId": "not-a-uuid"},
+            )
+
+    def test_property_set_explicit_null_element_id_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="elementId"):
+            validate_payload(
+                "property.set",
+                {"objectId": UUID_1, "propertySchemaId": UUID_2, "value": "x", "elementId": None},
+            )
+
+    def test_property_unset_element_id_accepted_absent_default(self) -> None:
+        validate_payload("property.unset", {"objectId": UUID_1, "propertySchemaId": UUID_2})
+        validate_payload("property.unset", {"objectId": UUID_1, "propertySchemaId": UUID_2, "elementId": UUID_3})
+
+    def test_property_unset_explicit_null_element_id_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="elementId"):
+            validate_payload(
+                "property.unset",
+                {"objectId": UUID_1, "propertySchemaId": UUID_2, "elementId": None},
+            )
+
+    def test_class_property_set_active_accepted(self) -> None:
+        validate_payload(
+            "class.property.set",
+            {"classId": UUID_1, "propertySchemaId": UUID_2, "active": False},
+        )
+
+    def test_class_property_set_explicit_null_active_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="active"):
+            validate_payload(
+                "class.property.set",
+                {"classId": UUID_1, "propertySchemaId": UUID_2, "active": None},
+            )
+
+    def test_class_property_set_active_false_is_a_real_write_shape(self) -> None:
+        """Omitted keeps the stored flag; the payload layer must not collapse
+        an explicit False into 'absent' (model_fields_set is the guard)."""
+        payload = PAYLOAD_SCHEMAS["class.property.set"].model_validate(
+            {"classId": UUID_1, "propertySchemaId": UUID_2, "active": False}
+        )
+        assert payload.active is False
+        assert "active" in payload.model_fields_set
+        kept = PAYLOAD_SCHEMAS["class.property.set"].model_validate({"classId": UUID_1, "propertySchemaId": UUID_2})
+        assert kept.active is None
+        assert "active" not in kept.model_fields_set
+
+    def test_class_property_set_show_in_node_rows_accepted(self) -> None:
+        """The additive node-row preview flag (2026-11-08): accepted like
+        ``active``, omitted = keep the stored flag, absent on the first bind
+        = false (the store column default)."""
+        validate_payload(
+            "class.property.set",
+            {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": True},
+        )
+        payload = PAYLOAD_SCHEMAS["class.property.set"].model_validate(
+            {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": False}
+        )
+        assert payload.show_in_node_rows is False
+        assert "show_in_node_rows" in payload.model_fields_set
+        kept = PAYLOAD_SCHEMAS["class.property.set"].model_validate({"classId": UUID_1, "propertySchemaId": UUID_2})
+        assert kept.show_in_node_rows is None
+        assert "show_in_node_rows" not in kept.model_fields_set
+
+    def test_class_property_set_explicit_null_show_in_node_rows_rejected(self) -> None:
+        """zod parity: an explicit null is NOT ``undefined`` — the strict
+        schema rejects it like the ``active`` precedent."""
+        with pytest.raises(ValidationError, match="showInNodeRows"):
+            validate_payload(
+                "class.property.set",
+                {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": None},
+            )
+
+    @pytest.mark.parametrize("value", ["yes", 1, ["true"]])
+    def test_class_property_set_non_boolean_show_in_node_rows_rejected(self, value: Any) -> None:
+        """The flag is strictly boolean (the TS protocol test's safeParse pin)."""
+        with pytest.raises(ValidationError, match="showInNodeRows"):
+            validate_payload(
+                "class.property.set",
+                {"classId": UUID_1, "propertySchemaId": UUID_2, "showInNodeRows": value},
+            )
+
+
+class TestListStylePayload:
+    """The per-block list style wire node field (web
+    schema v22→v23 parity): object.create/update accept the optional
+    nullable ``listStyle`` ("numbered"|"alpha"|"roman" — the strict enum);
+    absent/null = bullet, a present null on update CLEARS (the
+    icon/color precedent)."""
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update"])
+    @pytest.mark.parametrize("style", ["numbered", "alpha", "roman"])
+    def test_the_enum_values_parse(self, op_type: str, style: str) -> None:
+        payload: dict[str, Any] = {"objectId": UUID_1, "listStyle": style}
+        if op_type == "object.create":
+            payload = {"objectId": UUID_1, "listStyle": style}
+        validate_payload(op_type, payload)
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update"])
+    def test_null_and_absence_parse(self, op_type: str) -> None:
+        schema = PAYLOAD_SCHEMAS[op_type]
+        base = {"objectId": UUID_1} if op_type == "object.create" else {"objectId": UUID_1, "icon": "mdiStar"}
+        nulled = schema.model_validate({**base, "listStyle": None})
+        assert nulled.list_style is None
+        assert "list_style" in nulled.model_fields_set
+        absent = schema.model_validate(base)
+        assert absent.list_style is None
+        assert "list_style" not in absent.model_fields_set
+
+    @pytest.mark.parametrize("op_type", ["object.create", "object.update"])
+    def test_unknown_styles_rejected(self, op_type: str) -> None:
+        payload: dict[str, Any] = {"objectId": UUID_1, "listStyle": "bullet"}
+        if op_type == "object.update":
+            payload["icon"] = "mdiStar"  # satisfy the at-least-one-field refine
+        with pytest.raises(ValidationError, match="listStyle"):
+            validate_payload(op_type, payload)
+
+    def test_update_list_style_alone_is_a_writable_field(self) -> None:
+        assert build_object_update(UUID_1, list_style="roman") == {"objectId": UUID_1, "listStyle": "roman"}
+        assert build_object_update(UUID_1, list_style=None) == {"objectId": UUID_1, "listStyle": None}
+        assert "listStyle" not in build_object_update(UUID_1, icon="mdiStar")
+        assert build_object_create(UUID_1, list_style="alpha") == {"objectId": UUID_1, "listStyle": "alpha"}
+
+
+class TestPropertySchemaScopePayload:
+    """The property-scope batch: the display-only
+    ``scope`` enum is RETIRED — the strict schemas reject it outright (the
+    zod ``.strict()`` parity, verified here explicitly) — and
+    ``scopeClassIds`` (the sole locality authority; absent/null = global,
+    the empty array rejected) plus ``icon`` ride the create payload; the
+    update payload gains the keep-vs-clear nullable ``icon`` /
+    ``scopeClassIds`` / ``targetClassFilter`` / ``multi`` /
+    ``validationRules``."""
+
+    def test_create_rejects_the_retired_scope_enum_outright(self) -> None:
+        for scope in ("global", "class", "object"):
+            with pytest.raises(ValidationError) as excinfo:
+                validate_payload(
+                    "propertySchema.create",
+                    {"propertySchemaId": UUID_1, "name": "x", "type": "text", "scope": scope},
+                )
+            assert "scope" in str(excinfo.value)
+
+    def test_update_rejects_the_retired_scope_enum_outright(self) -> None:
+        with pytest.raises(ValidationError) as excinfo:
+            validate_payload("propertySchema.update", {"propertySchemaId": UUID_1, "scope": "global"})
+        assert "scope" in str(excinfo.value)
+
+    def test_create_scope_class_ids_and_icon(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.create"]
+        payload = schema.model_validate(
+            {
+                "propertySchemaId": UUID_1,
+                "name": "Genre",
+                "type": "text",
+                "icon": "mdiTagOutline",
+                "scopeClassIds": [UUID_2],
+            }
+        )
+        assert payload.icon == "mdiTagOutline"
+        assert [str(class_id) for class_id in payload.scope_class_ids or ()] == [UUID_2]
+        # Absent/null = global (no icon, no list).
+        minimal = schema.model_validate({"propertySchemaId": UUID_1, "name": "x", "type": "text"})
+        assert minimal.icon is None and minimal.scope_class_ids is None
+
+    @pytest.mark.parametrize("op_type", ["propertySchema.create", "propertySchema.update"])
+    def test_the_empty_scope_class_ids_is_rejected(self, op_type: str) -> None:
+        payload: dict[str, Any] = {"propertySchemaId": UUID_1, "scopeClassIds": []}
+        if op_type == "propertySchema.create":
+            payload.update({"name": "x", "type": "text"})
+        with pytest.raises(ValidationError, match="scopeClassIds"):
+            validate_payload(op_type, payload)
+
+    def test_update_new_fields_keep_vs_clear_via_fields_set(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.update"]
+        base = {"propertySchemaId": UUID_1, "icon": "mdiStar", "scopeClassIds": [UUID_2]}
+        kept = schema.model_validate(base)
+        for field in ("icon", "scope_class_ids", "target_class_filter", "multi", "validation_rules"):
+            assert field not in kept.model_fields_set or getattr(kept, field) is not None
+        cleared = schema.model_validate(
+            {
+                "propertySchemaId": UUID_1,
+                "icon": None,
+                "scopeClassIds": None,
+                "targetClassFilter": None,
+                "multi": None,
+                "validationRules": None,
+            }
+        )
+        assert cleared.icon is None
+        assert cleared.scope_class_ids is None
+        assert cleared.target_class_filter is None
+        assert cleared.multi is None
+        assert cleared.validation_rules is None
+        for field in ("icon", "scope_class_ids", "target_class_filter", "multi", "validation_rules"):
+            assert field in cleared.model_fields_set
+
+    def test_update_target_class_filter_accepts_a_list(self) -> None:
+        payload = PAYLOAD_SCHEMAS["propertySchema.update"].model_validate(
+            {"propertySchemaId": UUID_1, "targetClassFilter": [UUID_2]}
+        )
+        assert [str(class_id) for class_id in payload.target_class_filter or ()] == [UUID_2]
+
+
+class TestValidationRulesPayload:
+    """``validationRules`` ({min?, max?, pattern?} strict, nullable) rides
+    the propertySchema.update payload: min <= max is a parse-time rule, the
+    strict record rejects unknown keys, and the applicability (min/max on
+    number schemas, pattern on text/email) is enforced at APPLY time
+    against the stored type — not here."""
+
+    def test_min_max_pattern_parse(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.update"]
+        rules = schema.model_validate(
+            {"propertySchemaId": UUID_1, "validationRules": {"min": 0, "max": 10, "pattern": "^#"}}
+        )
+        assert rules.validation_rules is not None
+        assert rules.validation_rules.min == 0
+        assert rules.validation_rules.max == 10
+        assert rules.validation_rules.pattern == "^#"
+        # An empty rule object parses (a no-op write).
+        empty = schema.model_validate({"propertySchemaId": UUID_1, "validationRules": {}})
+        assert empty.validation_rules is not None
+
+    def test_min_greater_than_max_rejected_parse_time(self) -> None:
+        with pytest.raises(ValidationError, match="min must be <= max"):
+            validate_payload(
+                "propertySchema.update",
+                {"propertySchemaId": UUID_1, "validationRules": {"min": 5, "max": 1}},
+            )
+        # min == max is legal (a single-point bound).
+        validate_payload(
+            "propertySchema.update",
+            {"propertySchemaId": UUID_1, "validationRules": {"min": 3, "max": 3}},
+        )
+
+    def test_unknown_rule_keys_rejected_by_the_strict_record(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload(
+                "propertySchema.update",
+                {"propertySchemaId": UUID_1, "validationRules": {"bogus": 1}},
+            )
+
+    def test_null_clears_absent_keeps(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.update"]
+        cleared = schema.model_validate({"propertySchemaId": UUID_1, "validationRules": None})
+        assert cleared.validation_rules is None
+        assert "validation_rules" in cleared.model_fields_set
+        kept = schema.model_validate({"propertySchemaId": UUID_1})
+        assert "validation_rules" not in kept.model_fields_set
+
+
+class TestPropertySchemaNumberFormats:
+    """numberPad/numberDecimals/numberRounding ride the
+    propertySchema payloads (additive-optional, nullable); the keep-vs-clear
+    contract distinguishes absent from explicit null via model_fields_set."""
+
+    def test_create_accepts_and_validates_the_format_fields(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.create"]
+        payload = schema.model_validate(
+            {
+                "propertySchemaId": UUID_1,
+                "name": "Dex number",
+                "type": "number",
+                "numberPad": 4,
+                "numberDecimals": 1,
+                "numberRounding": "floor",
+            }
+        )
+        assert payload.number_pad == 4
+        assert payload.number_decimals == 1
+        assert payload.number_rounding == "floor"
+        minimal = schema.model_validate({"propertySchemaId": UUID_1, "name": "x", "type": "number"})
+        assert minimal.number_pad is None
+        # Range + enum enforcement mirrors the TS reference.
+        with pytest.raises(ValidationError):
+            schema.model_validate({"propertySchemaId": UUID_1, "name": "x", "type": "number", "numberPad": 0})
+        with pytest.raises(ValidationError):
+            schema.model_validate({"propertySchemaId": UUID_1, "name": "x", "type": "number", "numberDecimals": 11})
+        with pytest.raises(ValidationError):
+            schema.model_validate(
+                {"propertySchemaId": UUID_1, "name": "x", "type": "number", "numberRounding": "sideways"}
+            )
+
+    def test_update_keep_vs_clear_via_fields_set(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.update"]
+        kept = schema.model_validate({"propertySchemaId": UUID_1})
+        assert "number_pad" not in kept.model_fields_set
+        cleared = schema.model_validate({"propertySchemaId": UUID_1, "numberPad": None})
+        assert "number_pad" in cleared.model_fields_set
+        assert cleared.number_pad is None
+
+
+class TestPropertySchemaDefaultValue:
+    """The property's ONE GLOBAL default (moved
+    from the class binding to the schema, the Logseq shape) rides
+    ``propertySchema.create/update`` as any JSON value, nullable-optional;
+    the update-side keep-vs-clear contract distinguishes absent (keeps the
+    stored value) from an explicit null (clears) via model_fields_set. The
+    PC2 type check itself is apply-time, against the payload type at create
+    and the schema's stored type at update (store tests)."""
+
+    def test_create_accepts_any_json_value(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.create"]
+        for value in ("low", 7, True, ["a", "b"], None):
+            payload = schema.model_validate(
+                {"propertySchemaId": UUID_1, "name": "slot", "type": "select", "defaultValue": value}
+            )
+            assert payload.default_value == value
+            assert "default_value" in payload.model_fields_set
+        minimal = schema.model_validate({"propertySchemaId": UUID_1, "name": "x", "type": "text"})
+        assert minimal.default_value is None
+        assert "default_value" not in minimal.model_fields_set
+
+    def test_update_keep_vs_clear_via_fields_set(self) -> None:
+        schema = PAYLOAD_SCHEMAS["propertySchema.update"]
+        kept = schema.model_validate({"propertySchemaId": UUID_1})
+        assert "default_value" not in kept.model_fields_set
+        cleared = schema.model_validate({"propertySchemaId": UUID_1, "defaultValue": None})
+        assert "default_value" in cleared.model_fields_set
+        assert cleared.default_value is None
+
+
+class TestPropertyDisplayPositions:
+    """The render contracts ``display``/``readonly``/``hideWhenEmpty`` are
+    PROPERTY-level —
+    they live on ``propertySchema.create/update``
+    (nullable-optional; update-side absent keeps, null clears), and the
+    strict ``class.property.set`` schema rejects all three like any retired
+    key — as it does ``required`` and ``defaultValue`` (``required`` retired outright, the default moved to the
+    schema). The select option ``icon`` (MDI camelCase, max 64) stays on
+    the deliberately NON-strict option record: unknown keys inside an option
+    STRIP instead of rejecting, so icon-carrying envelopes sync through
+    pre-batch parsers."""
+
+    def test_display_valid_positions_parse_on_the_schema_payloads(self) -> None:
+        for op_type in ("propertySchema.create", "propertySchema.update"):
+            schema = PAYLOAD_SCHEMAS[op_type]
+            base = {"propertySchemaId": UUID_1}
+            if op_type == "propertySchema.create":
+                base["name"] = "stage"
+                base["type"] = "select"
+            for position in ("panel", "bullet", "inline"):
+                payload = schema.model_validate({**base, "display": position})
+                assert payload.display == position
+                assert "display" in payload.model_fields_set
+            # Nullable — an explicit null parses (the update-side
+            # applier clears the stored value).
+            nulled = schema.model_validate({**base, "display": None})
+            assert nulled.display is None
+            assert "display" in nulled.model_fields_set
+            minimal = schema.model_validate(base)
+            assert minimal.display is None
+            assert "display" not in minimal.model_fields_set
+
+    def test_display_unknown_position_rejected_on_the_schema_payloads(self) -> None:
+        with pytest.raises(ValidationError, match="display"):
+            validate_payload(
+                "propertySchema.create",
+                {"propertySchemaId": UUID_1, "name": "stage", "type": "select", "display": "sideways"},
+            )
+        with pytest.raises(ValidationError, match="display"):
+            validate_payload("propertySchema.update", {"propertySchemaId": UUID_1, "display": "sideways"})
+
+    @pytest.mark.parametrize("key", ["display", "readonly", "hideWhenEmpty", "required", "defaultValue", "sequence"])
+    def test_class_property_set_render_contract_keys_rejected(self, key: str) -> None:
+        """The binding payload carries ONLY the genuinely per-class
+        mechanic (active) — display/readonly/hideWhenEmpty, required/
+        defaultValue and sequence are all retired keys there, rejected
+        outright by the strict schema."""
+        with pytest.raises(ValidationError, match=key):
+            validate_payload(
+                "class.property.set",
+                {
+                    "classId": UUID_1,
+                    "propertySchemaId": UUID_2,
+                    key: ("bullet" if key == "display" else 1 if key == "sequence" else True),
+                },
+            )
+
+    def test_schema_render_contract_flags_parse_on_create_and_update(self) -> None:
+        # ``readonly`` retired outright (derived
+        # from the system list, not stored): the strict schemas reject it
+        # on both payloads like any retired key.
+        for op_type, base in (
+            ("propertySchema.create", {"propertySchemaId": UUID_1, "name": "stage", "type": "select"}),
+            ("propertySchema.update", {"propertySchemaId": UUID_1}),
+        ):
+            with pytest.raises(ValidationError, match="readonly"):
+                validate_payload(op_type, {**base, "readonly": True})
+        create = PAYLOAD_SCHEMAS["propertySchema.create"].model_validate(
+            {
+                "propertySchemaId": UUID_1,
+                "name": "stage",
+                "type": "select",
+                "hideWhenEmpty": False,
+            }
+        )
+        assert create.hide_when_empty is False
+        update = PAYLOAD_SCHEMAS["propertySchema.update"].model_validate(
+            {"propertySchemaId": UUID_1, "hideWhenEmpty": True}
+        )
+        assert update.hide_when_empty is True
+
+    def test_option_icon_parses_on_create_and_update(self) -> None:
+        create = PAYLOAD_SCHEMAS["propertySchema.create"].model_validate(
+            {
+                "propertySchemaId": UUID_1,
+                "name": "stage",
+                "type": "select",
+                "options": [{"id": "a", "label": "A", "icon": "mdiCircle"}],
+            }
+        )
+        assert create.options is not None
+        assert create.options[0].icon == "mdiCircle"
+        update = PAYLOAD_SCHEMAS["propertySchema.update"].model_validate(
+            {"propertySchemaId": UUID_1, "options": [{"id": "a", "label": "A", "icon": "mdiCircle"}]}
+        )
+        assert update.options is not None
+        assert update.options[0].icon == "mdiCircle"
+        with pytest.raises(ValidationError):
+            PAYLOAD_SCHEMAS["propertySchema.create"].model_validate(
+                {
+                    "propertySchemaId": UUID_1,
+                    "name": "x",
+                    "type": "select",
+                    "options": [{"id": "a", "label": "A", "icon": "x" * 65}],
+                }
+            )
+
+    def test_option_record_is_non_strict_unknown_keys_strip(self) -> None:
+        """The convergence contract: an option carrying keys a
+        pre-batch parser does not know (the color grammar, a future
+        decoration) validates — the parsed model DROPS the unknown keys
+        instead of rejecting the envelope."""
+        payload = PAYLOAD_SCHEMAS["propertySchema.create"].model_validate(
+            {
+                "propertySchemaId": UUID_1,
+                "name": "stage",
+                "type": "select",
+                "options": [{"id": "a", "label": "A", "icon": "mdiCircle", "color": "yellow", "futureKey": 1}],
+            }
+        )
+        option = payload.options[0]
+        assert option.icon == "mdiCircle"
+        assert set(option.model_dump()) == {"id", "label", "icon"}  # stripped, never rejected
+
+
+class TestExternalRefPayloads:
+    """The external_ref.* payloads (the
+    importer/sync-plugin mapping substrate): the caller-namespaced ``ref``
+    key is opaque to the protocol but length-capped (1..512 — the
+    ``EXTERNAL_REF_MAX_LENGTH`` op-types.ts parity), ``nodeId`` is a bare
+    uuid with no referential integrity, and both schemas are strict — extra
+    keys fail loud like any retired key."""
+
+    REF = "gcal:event:abc123@google.com"
+
+    def test_builders_emit_the_mapping_ops(self) -> None:
+        assert build_external_ref_set(self.REF, UUID_1) == {"ref": self.REF, "nodeId": UUID_1}
+        assert build_external_ref_delete(self.REF) == {"ref": self.REF}
+
+    def test_ref_length_bounds_enforced(self) -> None:
+        validate_payload("external_ref.set", {"ref": "x", "nodeId": UUID_1})
+        validate_payload("external_ref.set", {"ref": "x" * 512, "nodeId": UUID_1})
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.set", {"ref": "", "nodeId": UUID_1})
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.set", {"ref": "x" * 513, "nodeId": UUID_1})
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.delete", {"ref": ""})
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.delete", {"ref": "x" * 513})
+
+    def test_node_id_must_be_a_uuid(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.set", {"ref": self.REF, "nodeId": "not-a-uuid"})
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.set", {"ref": self.REF})
+
+    def test_extra_keys_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.set", {"ref": self.REF, "nodeId": UUID_1, "kind": "event"})
+        with pytest.raises(ValidationError):
+            validate_payload("external_ref.delete", {"ref": self.REF, "nodeId": UUID_1})
+
+
+class TestCardReviewPayloads:
+    """The ``card.review`` payload (the SRS review journal, SCHEMA.md
+    "Memorization cards"): strict, grade/algorithm fixed enums, and the two
+    state snapshots are strict records themselves — null ease/difficulty/
+    stability (uninitialized) are real values, a null due is the unseen
+    marker, but null reps/interval are rejected (zod ``z.number()``
+    parity)."""
+
+    UNSEEN = {"due": None, "reps": 0, "interval": 0, "ease": None, "difficulty": None, "stability": None}
+    SEEN = {"due": "2026-10-29", "reps": 1, "interval": 1, "ease": 2.5, "difficulty": 0.4, "stability": 3.2}
+
+    def _payload(self, **overrides: Any) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "cardId": UUID_1,
+            "grade": "good",
+            "algorithm": "sm2",
+            "stateBefore": dict(self.UNSEEN),
+            "stateAfter": dict(self.SEEN),
+            "reviewedAt": "2026-10-28T09:05:00.000Z",
+            "sessionId": UUID_2,
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_is_in_the_registry_and_strict(self) -> None:
+        assert "card.review" in KNOWN_OP_TYPES
+        validate_payload("card.review", self._payload())
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(grade="perfect"))
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(algorithm="anki"))
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(note="extra key"))
+
+    def test_state_snapshots_are_strict_records(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(stateBefore={**self.UNSEEN, "lapses": 0}))
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(stateAfter={**self.SEEN, "reps": None}))
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(stateAfter={k: v for k, v in self.SEEN.items() if k != "ease"}))
+        # The unseen state is all-null ease/difficulty/stability with a null due.
+        validate_payload(
+            "card.review",
+            self._payload(
+                grade="again",
+                stateAfter={"due": None, "reps": 0, "interval": 0, "ease": None, "difficulty": None, "stability": None},
+            ),
+        )
+
+    def test_ids_and_reviewed_at_shapes(self) -> None:
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(cardId="not-a-uuid"))
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(sessionId="not-a-uuid"))
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(reviewedAt=""))
+        with pytest.raises(ValidationError):
+            validate_payload("card.review", self._payload(reviewedAt=None))
+
+
+def test_encrypted_slot_skips_strict_schema_but_opened_payload_must_validate() -> None:
+    """The $e producer gate (models.py): a raw encrypted slot is shape-checked
+    only — it bypasses the strict payload schema (the slot would fail it,
+    ``extra="forbid"``) — while the OPENED payload is held to the strict
+    schema, pinned by the encrypted fixture's first envelope."""
+    clock = Clock("test-device")
+    slot = {"iv": "bnVjZS1pdi0xMg", "ct": "dGFnLWFuZC1jaXBoZXJ0ZXh0"}
+    envelope = new_envelope(
+        workspace_id=UUID_1,
+        actor_id=UUID_2,
+        device_id="test-device",
+        op_type="object.create",
+        payload={"$e": slot},
+        clock=clock,
+    )
+    assert envelope.payload == {"$e": slot}
+    with pytest.raises(ValueError, match="extra"):
+        validate_payload("object.create", envelope.payload)
+
+    fixture = json.loads(
+        (Path(__file__).resolve().parent / "fixtures" / "wire" / "envelope-encrypted.json").read_text()
+    )
+    key = b64u_decode(fixture["crypto"]["workspaceKey"])
+    opened = decrypt_envelope(key, RelayEnvelope.model_validate(fixture["envelopes"][0]))
+    validate_payload("object.create", opened.payload)

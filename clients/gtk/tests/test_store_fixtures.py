@@ -1,0 +1,2246 @@
+"""Acceptance suite: replay the vendored protocol fixtures through the store.
+
+This is the GTK client's half of the cross-implementation fixture gate: the
+same envelopes the monorepo's store tests replay (``packages/store/test/
+store.test.ts``) must converge to the same derived state here. The cycle
+fixture is deliberately excluded from the all-fixtures replay — its final two
+envelopes close cycles and MUST throw CycleError on apply (see
+``TestCycleFixture``).
+
+Expected outcomes mirror the monorepo assertions: fixture LWW winner, move
+positions, closure rows, idempotent replay.
+"""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from notees_gtk.core.protocol.clock import Hlc
+from notees_gtk.core.protocol.content import validate_content_ast
+from notees_gtk.core.protocol.crypto import b64u_decode, decrypt_envelope
+from notees_gtk.core.protocol.models import RelayEnvelope
+from notees_gtk.core.protocol.payloads import validate_payload
+from notees_gtk.data.errors import (
+    CycleError,
+    LockedSystemClassError,
+    MoveGuardError,
+    NotFoundError,
+    PropertyValueShapeError,
+    SystemExtendsLockError,
+)
+from notees_gtk.data.store import (
+    EffectiveProperty,
+    EffectivePropertySchema,
+    LocalStore,
+)
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "wire"
+
+#: Fixtures whose application must THROW — never part of the replay/determinism
+#: sets (class-extends-cycle closes a cycle; class-extends-system-lock
+#: deviates a system class's frozen seeded extends mapping;
+#: is-embedded-parent-page claims the standalone role under an embedded
+#: block, the parent-page condition;
+#: is-embedded-date-chain writes the render bit on a date-chain node (demote
+#: and promote directions) and fails loud by design — the journal chain's
+#: role is platform-fixed;
+#: property-validation-rules pins its reject tail — below-min/above-max,
+#: pattern rejects, one bad multi element, one uncompilable pattern — after
+#: an accepting prefix, all applied deliberately in their own tests;
+#: object-delete-class-routing pins the locked-system-class delete arm
+#: (LockedSystemClassError) after its accepting prefix — the arms are
+#: asserted deliberately in the routing suite below — the
+#: store.test.ts REPLAY_EXCLUDED_FIXTURES parity;
+#: object-delete-date-chain.json deletes date-chain nodes (the soft and the
+#: permanent arms — the fourth lock, delete-locked) and fails loud by design —
+#: applied deliberately in its own test below.
+#: GTK-main lockstep-pending additions (the TS reference parses and replays
+#: both; this client's wire models do not yet — remove from this set when the
+#: wire lands): class-property-pinned.json's class.property.set carries the
+#: `pinned` key, rejected outright by the strict payload schema on main
+#: (EnvelopeValidationError mid-replay); property-assign.json's
+#: property.assign/unassign/empty are unknown op types here (skipped
+#: unrecorded, which would also break the relay_operations idempotence
+#: count) — both are replayed deliberately in their own suites below.
+REPLAY_EXCLUDED = {
+    "class-extends-cycle.json",
+    "class-extends-system-lock.json",
+    "class-property-pinned.json",
+    "is-embedded-date-chain.json",
+    "is-embedded-parent-page.json",
+    "object-delete-class-routing.json",
+    "object-delete-date-chain.json",
+    "property-assign.json",
+    "property-validation-rules.json",
+}
+
+WS = "0192a000-0000-7000-8000-000000000001"
+NODE_PAGE = "0192a000-0000-7000-8000-000000000010"
+NODE_BOOK = "0192a000-0000-7000-8000-000000000011"
+NODE_BLOCK = "0192a000-0000-7000-8000-000000000020"  # block under NODE_PAGE (typed-link fixtures)
+PROP_SCHEMA = "0192a000-0000-7000-8000-0000000000a1"
+BOOK_CLASS = "00000000-0000-0000-0001-000000000025"
+
+#: object-move.json ids.
+MOVE_P = "0192a000-0000-7000-8000-000000000020"
+MOVE_A = "0192a000-0000-7000-8000-000000000021"
+MOVE_B = "0192a000-0000-7000-8000-000000000022"
+MOVE_C = "0192a000-0000-7000-8000-000000000023"
+
+#: object-move-before.json ids (mirrors the monorepo store test).
+MOVE_BEFORE_P = "0192a000-0000-7000-8000-000000000140"
+MOVE_BEFORE_A = "0192a000-0000-7000-8000-000000000141"
+MOVE_BEFORE_B = "0192a000-0000-7000-8000-000000000142"
+MOVE_BEFORE_C = "0192a000-0000-7000-8000-000000000143"
+MOVE_BEFORE_D = "0192a000-0000-7000-8000-000000000144"
+
+#: class-extends-cycle.json ids.
+CYCLE_ROOT = "0192a000-0000-7000-8000-0000000000d1"
+CYCLE_LEAF = "0192a000-0000-7000-8000-0000000000d2"
+
+
+def load_fixture(name: str) -> list[dict[str, Any]]:
+    """Load a wire fixture's envelopes, opening encrypted ones.
+
+    A fixture carrying a ``crypto`` block (the E2EE lockstep fixture) has
+    ``{"$e": {iv, ct}}`` payloads that are decrypted with its published test
+    workspace key BEFORE replay — the apply-time ``$e`` rejection stays, and a
+    raw encrypted envelope must never reach an applier (auto-glob suites
+    replay the opened payloads).
+    """
+    raw = json.loads((FIXTURES_DIR / name).read_text())
+    envelopes = raw.get("envelopes") if isinstance(raw, dict) else None
+    docs: list[dict[str, Any]] = envelopes if isinstance(envelopes, list) else [raw]
+    crypto = raw.get("crypto") if isinstance(raw, dict) else None
+    if isinstance(crypto, dict) and isinstance(crypto.get("workspaceKey"), str):
+        key = b64u_decode(crypto["workspaceKey"])
+        docs = [
+            decrypt_envelope(key, RelayEnvelope.model_validate(item)).model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
+            for item in docs
+        ]
+    return docs
+
+
+def all_fixture_envelopes() -> list[dict[str, Any]]:
+    names = sorted(path.name for path in FIXTURES_DIR.glob("*.json") if path.name not in REPLAY_EXCLUDED)
+    return [envelope for name in names for envelope in load_fixture(name)]
+
+
+@pytest.fixture
+def store(tmp_path: Path) -> LocalStore:
+    instance = LocalStore(tmp_path / "store.db")
+    yield instance
+    instance.close()
+
+
+def raw(store: LocalStore, sql: str, params: tuple[Any, ...] = ()) -> list[tuple[Any, ...]]:
+    with sqlite3.connect(store._conn.execute("PRAGMA database_list").fetchone()[2]) as conn:  # noqa: SLF001
+        return conn.execute(sql, params).fetchall()
+
+
+#: Derived tables racing-toggle convergence compares (the GTK dumpDb
+#: analogue): everything the feature/property appliers write.
+_CONVERGENCE_TABLES = (
+    "nodes",
+    "class",
+    "class_member_set",
+    "class_property",
+    "class_hierarchy",
+    "property_schema",
+    "property_value",
+    "property_value_tombstone",
+    "property_value_element_tombstone",
+    "workspace_feature",
+    "external_ref",
+    "external_ref_tombstone",
+    "card_review",
+)
+
+
+def _dump_convergence_tables(store: LocalStore) -> list[tuple[str, list[tuple[Any, ...]]]]:
+    """The derived-state dump the both-orders convergence tests compare —
+    every table the feature/property appliers write, each SELECT ordered by
+    all its columns so the comparison is byte-deterministic."""
+    dumps: list[tuple[str, list[tuple[Any, ...]]]] = []
+    for table in _CONVERGENCE_TABLES:
+        columns = [row[1] for row in raw(store, f"PRAGMA table_info({table})")]
+        order = ", ".join(str(index + 1) for index in range(len(columns)))
+        dumps.append((table, raw(store, f"SELECT * FROM {table} ORDER BY {order}")))
+    return dumps
+
+
+def base_store(tmp_path: Path) -> LocalStore:
+    """The monorepo tests seed two pages (plus the typed-link block) before
+    replaying most fixtures."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    instance = LocalStore(tmp_path / "base.db")
+    seeds = [
+        ({"objectId": NODE_PAGE, "classIds": []}, 1727200000000),
+        ({"objectId": NODE_BOOK, "classIds": []}, 1727200001000),
+        ({"objectId": NODE_BLOCK, "parentId": NODE_PAGE}, 1727200000500),
+    ]
+    for payload, physical in seeds:
+        envelope = RelayEnvelope.model_validate(
+            {
+                "protocolVersion": 3,
+                "workspaceId": WS,
+                "actorId": "0192a000-0000-7000-8000-000000000002",
+                "deviceId": "fixture-test-device",
+                "hlc": {"physical": physical, "logical": 0},
+                "opType": "object.create",
+                "timestamp": "2026-09-24T12:00:00.000Z",
+                "payload": payload,
+            }
+        )
+        assert instance.apply_remote(envelope) is True
+    return instance
+
+
+class TestObjectCreateFixtures:
+    def test_pages_land_with_content_and_or_set_class_ids(self, store: LocalStore) -> None:
+        for envelope in load_fixture("envelope-minimal.json") + load_fixture("object-create.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        page = store.node(WS, NODE_PAGE)
+        book = store.node(WS, NODE_BOOK)
+        assert page is not None and (page.is_class, page.is_embedded) == (False, False)
+        assert book is not None and (book.is_class, book.is_embedded) == (False, False)
+        # Title-is-content: the fixture's title rides as a text token of the
+        # node's content (no name field on the wire).
+        assert book.content == json.dumps([{"type": "text", "text": "The Structure of Scientific Revolutions"}])
+        assert book.content_plain == "The Structure of Scientific Revolutions"
+        # classIds seed the OR-Set membership, projected into node.class_ids.
+        assert book.class_ids == (BOOK_CLASS,)
+
+
+class TestPropertyLwwFixture:
+    def test_converges_to_the_higher_hlc_phone_value(self, tmp_path: Path) -> None:
+        laptop, phone = (RelayEnvelope.model_validate(item) for item in load_fixture("property-set-lww.json"))
+        expected = (
+            json.dumps({"nodeId": "0192a000-0000-7000-8000-000000000031"}),
+            json.dumps({"since": "1963"}),
+            "0192a000-0000-7000-8000-000000000003",
+        )
+
+        forward = base_store(tmp_path)
+        forward.apply_remote(laptop)
+        forward.apply_remote(phone)
+        backward = base_store(tmp_path / "backward")
+        backward.apply_remote(phone)
+        backward.apply_remote(laptop)
+
+        for instance in (forward, backward):
+            assert raw(
+                instance,
+                "SELECT value, metadata, actor_id FROM property_value"
+                " WHERE node_id = ? AND property_schema_id = ? AND idx = 0",
+                (NODE_BOOK, PROP_SCHEMA),
+            ) == [expected]
+            instance.close()
+
+
+class TestTypedLinkFixtures:
+    def test_mark_then_deleted_lands_the_final_content(self, tmp_path: Path) -> None:
+        instance = base_store(tmp_path)
+        for name in ("typed-link-mark.json", "typed-link-mark-deleted.json"):
+            for envelope in load_fixture(name):
+                assert instance.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        content = json.loads(instance.node(WS, NODE_BLOCK).content or "[]")
+        assert content == [{"type": "text", "text": "Kuhn cites earlier work."}]
+        assert instance.node(WS, NODE_BLOCK).content_plain == "Kuhn cites earlier work."
+        instance.close()
+
+    def test_content_updates_converge_regardless_of_order(self, tmp_path: Path) -> None:
+        mark = RelayEnvelope.model_validate(load_fixture("typed-link-mark.json")[0])
+        deleted = RelayEnvelope.model_validate(load_fixture("typed-link-mark-deleted.json")[0])
+        first = base_store(tmp_path)
+        first.apply_remote(mark)
+        first.apply_remote(deleted)
+        second = base_store(tmp_path / "second")
+        second.apply_remote(deleted)
+        second.apply_remote(mark)
+        assert first.node(WS, NODE_BLOCK).content == second.node(WS, NODE_BLOCK).content
+        assert json.loads(first.node(WS, NODE_BLOCK).content or "[]") == [
+            {"type": "text", "text": "Kuhn cites earlier work."}
+        ]
+        first.close()
+        second.close()
+
+
+class TestObjectMoveFixture:
+    def test_replay_lands_c_under_a_with_expected_positions(self, store: LocalStore) -> None:
+        for envelope in load_fixture("object-move.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        assert store.node(WS, MOVE_C).parent_id == MOVE_A
+        assert [row.id for row in store.children(WS, MOVE_P)] == [MOVE_A, MOVE_B]
+        assert [row.id for row in store.children(WS, MOVE_A)] == [MOVE_C]
+        # Exactly one child_order row per node — no dual-parent residue.
+        assert raw(
+            store,
+            "SELECT child_id, position FROM node_child_order WHERE parent_id = ? ORDER BY position",
+            (MOVE_P,),
+        ) == [(MOVE_A, "a"), (MOVE_B, "aa")]
+        assert raw(store, "SELECT COUNT(*) FROM node_child_order WHERE child_id = ?", (MOVE_C,)) == [(1,)]
+
+
+class TestObjectMoveBeforeFixture:
+    def test_replay_lands_b_c_d_a_with_one_child_order_row_each(self, store: LocalStore) -> None:
+        for envelope in load_fixture("object-move-before.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        assert [row.id for row in store.children(WS, MOVE_BEFORE_P)] == [
+            MOVE_BEFORE_B,
+            MOVE_BEFORE_C,
+            MOVE_BEFORE_D,
+            MOVE_BEFORE_A,
+        ]
+        # Exactly one child_order row per node — no dual-parent residue.
+        for child in (MOVE_BEFORE_A, MOVE_BEFORE_B, MOVE_BEFORE_C, MOVE_BEFORE_D):
+            assert raw(store, "SELECT COUNT(*) FROM node_child_order WHERE child_id = ?", (child,)) == [(1,)]
+
+
+class TestClassExtendsFixture:
+    def test_m2m_lands_the_child_under_both_ancestors(self, store: LocalStore) -> None:
+        for envelope in load_fixture("class-extends-m2m.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        a = "0192a000-0000-7000-8000-0000000000c5"
+        b = "0192a000-0000-7000-8000-0000000000c6"
+        c = "0192a000-0000-7000-8000-0000000000c7"
+        edges = raw(
+            store, "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id", (c,)
+        )
+        assert edges == [(a,), (b,)]
+        ancestors = raw(store, "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? ORDER BY ancestor_id", (c,))
+        assert ancestors == [(a,), (b,), (c,)]
+        for parent in (a, b):
+            descendants = raw(
+                store, "SELECT class_id FROM class_hierarchy WHERE ancestor_id = ? ORDER BY class_id", (parent,)
+            )
+            assert (c,) in descendants
+
+
+class TestClassPropertyDefaultsFixture:
+    """Replay of class-property-defaults.json with intermediate states
+    (mirrors the monorepo store test): the schema's ONE GLOBAL default
+    applies → a second binding adds presence, not
+    a competing default → unsetting both bindings removes the property."""
+
+    PRIORITY = "0192a000-0000-7000-8000-000000000301"
+    TASK = "0192a000-0000-7000-8000-000000000302"
+    PROJECT = "0192a000-0000-7000-8000-000000000303"
+    ITEM = "0192a000-0000-7000-8000-000000000304"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("class-property-defaults.json")]
+
+    def test_prefix_5_node_reads_task_default(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:5]:
+            assert store.apply_remote(env) is True
+        effective = store.get_effective_properties(self.ITEM)
+        assert effective == [
+            EffectiveProperty(
+                property_schema_id=self.PRIORITY,
+                idx=0,
+                element_id=f"default:{self.PRIORITY}:0",
+                schema=EffectivePropertySchema(id=self.PRIORITY, name="priority", type="select", multi=False),
+                value="medium",
+                metadata=None,
+                source="default",
+                bound_by=self.TASK,
+                hide_when_empty=None,
+            )
+        ]
+        # The default is DERIVED: no property_value row was ever written.
+        assert raw(store, "SELECT COUNT(*) FROM property_value WHERE node_id = ?", (self.ITEM,)) == [(0,)]
+
+    def test_prefix_7_first_applied_class_wins_the_binding(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:7]:
+            store.apply_remote(env)  # envelope 6 is a re-create: tree no-op by design
+        # The default is the SCHEMA's single global value — Project's binding
+        # adds presence (Task still wins boundBy, earliest assignment HLC),
+        # not a competing default.
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.value, row.source, row.bound_by) for row in effective] == [("medium", "default", self.TASK)]
+
+    def test_unset_task_project_still_binds_the_same_global_default(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:8]:
+            store.apply_remote(env)
+        store.apply_remote(envelopes[7])  # unset Task's binding — Project still binds
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.value, row.source, row.bound_by) for row in effective] == [("medium", "default", self.PROJECT)]
+
+    def test_full_replay_unsets_both_bindings_no_binding_no_default(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes:
+            store.apply_remote(env)
+        assert store.get_effective_properties(self.ITEM) == []
+
+
+class TestClassUnassignFixture:
+    """Replay of class-unassign.json with intermediate states (mirrors the
+    monorepo store test): unassign drops the derived default and empties
+    class_ids, the authored value survives unbound, and the re-issued
+    object.create re-assigns (add-wins, newer HLC) restoring both."""
+
+    EFFORT = "0192a000-0000-7000-8000-000000000410"
+    IMPACT = "0192a000-0000-7000-8000-000000000411"
+    TASK = "0192a000-0000-7000-8000-000000000412"
+    ITEM = "0192a000-0000-7000-8000-000000000413"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("class-unassign.json")]
+
+    def test_prefix_7_derived_default_plus_authored_shadow(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:7]:
+            store.apply_remote(env)
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.property_schema_id, row.value, row.source, row.bound_by) for row in effective] == [
+            (self.EFFORT, "xs", "default", self.TASK),
+            (self.IMPACT, "authored", "authored", self.TASK),
+        ]
+
+    def test_unassign_drops_default_and_empties_class_ids_authored_survives_unbound(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:8]:
+            store.apply_remote(env)
+        row = store.node(WS, self.ITEM)
+        assert row is not None and row.class_ids == ()
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.property_schema_id, row.value, row.source, row.bound_by) for row in effective] == [
+            (self.IMPACT, "authored", "authored", None),
+        ]
+
+    def test_reassign_restores_default_and_binding(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes:
+            store.apply_remote(env)
+        row = store.node(WS, self.ITEM)
+        assert row is not None and row.class_ids == (self.TASK,)
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.property_schema_id, row.value, row.source, row.bound_by) for row in effective] == [
+            (self.EFFORT, "xs", "default", self.TASK),
+            (self.IMPACT, "authored", "authored", self.TASK),
+        ]
+
+
+class TestObjectWireFieldsFixture:
+    """Replay of object-wire-fields.json (M27 + the 2026-10-09 page-subtitle
+    batch): the wire node fields land set-then-clear through object.update —
+    presence writes, present-null clears — and an absent field is never a
+    write (mirrors the monorepo store test's fixture replay)."""
+
+    PAGE = "0192a000-0000-7000-8000-00000000052a"
+    ASSET = "0192a000-0000-7000-8000-00000000052b"
+    MAIN = "0192a000-0000-7000-8000-00000000052c"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("object-wire-fields.json")]
+
+    def test_the_fixture_lands_set_then_clear_through_object_update(self, store: LocalStore) -> None:
+        create_page, create_asset, create_main, *updates = self._load()
+        assert store.apply_remote(create_page) is True
+        assert store.apply_remote(create_asset) is True
+        assert store.apply_remote(create_main) is True
+        row = store.node(WS, self.PAGE)
+        assert row is not None
+        assert (row.cover_asset_id, row.banner_asset_id, row.aliased_node_id) == (None, None, None)
+        assert row.description is None
+        assert store.apply_remote(updates[0]) is True  # coverAssetId = ASSET
+        assert store.node(WS, self.PAGE).cover_asset_id == self.ASSET
+        assert store.apply_remote(updates[1]) is True  # bannerAssetId = ASSET, aliasedNodeId = MAIN
+        row = store.node(WS, self.PAGE)
+        assert (row.banner_asset_id, row.aliased_node_id) == (self.ASSET, self.MAIN)
+        assert store.apply_remote(updates[2]) is True  # aliasedNodeId = null (clear)
+        row = store.node(WS, self.PAGE)
+        assert row.aliased_node_id is None and row.cover_asset_id == self.ASSET
+        assert store.apply_remote(updates[3]) is True  # coverAssetId = null
+        row = store.node(WS, self.PAGE)
+        assert (row.cover_asset_id, row.banner_asset_id) == (None, self.ASSET)
+        assert store.apply_remote(updates[4]) is True  # bannerAssetId = null
+        row = store.node(WS, self.PAGE)
+        assert (row.cover_asset_id, row.banner_asset_id, row.aliased_node_id) == (None, None, None)
+        assert store.apply_remote(updates[5]) is True  # description = "Subtitle text"
+        assert store.node(WS, self.PAGE).description == "Subtitle text"
+        assert store.apply_remote(updates[6]) is True  # description = null (clear)
+        assert store.node(WS, self.PAGE).description is None
+
+    def test_the_fields_are_columns_on_the_derived_node_table(self, store: LocalStore) -> None:
+        """The wire fields project as derived node columns (store schema
+        v14, web v18 parity) — the NodeRow read surfaces them."""
+        for envelope in self._load():
+            store.apply_remote(envelope)
+        columns = {row[1] for row in raw(store, "PRAGMA table_info(nodes)")}
+        assert {"cover_asset_id", "banner_asset_id", "aliased_node_id", "description"} <= columns
+
+
+class TestClassConvertFixture:
+    """Replay of class-convert.json (M47): class.create on an EXISTING node
+    DECLARES it a class — the identity bit flips, a parented node is cut to
+    a root (parent edge + child-order row drop), the render bit clears, the
+    registry adopts the existing title, re-declaration is a replace no-op,
+    and a fresh id still declares a brand-new class (mirrors the monorepo
+    store test)."""
+
+    PAGE = "0192a000-0000-7000-8000-00000000053a"
+    RACK = "0192a000-0000-7000-8000-00000000053b"
+    SHELF = "0192a000-0000-7000-8000-00000000053c"
+    FRESH = "0192a000-0000-7000-8000-00000000053d"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("class-convert.json")]
+
+    def test_declares_an_existing_parentless_page_a_class_the_title_rides(self, store: LocalStore) -> None:
+        page_create, _rack, _shelf, convert_page = self._load()[:4]
+        assert store.apply_remote(page_create) is True
+        assert store.apply_remote(convert_page) is True
+        row = store.node(WS, self.PAGE)
+        assert row is not None
+        assert (row.is_class, row.is_embedded, row.parent_id) == (True, False, None)
+        # Title-is-content: the node's existing text content is the class
+        # title (the conversion payload carried no contentAst).
+        assert json.loads(row.content or "[]") == [{"type": "text", "text": "Genre collection"}]
+        # The registry row adopted the title + the hierarchy self-row landed.
+        assert raw(store, "SELECT name, active FROM class WHERE id = ?", (self.PAGE,)) == [
+            ("Genre collection", 1)
+        ]
+        assert raw(
+            store, "SELECT 1 FROM class_hierarchy WHERE class_id = ? AND ancestor_id = ?", (self.PAGE, self.PAGE)
+        ) == [(1,)]
+
+    def test_converting_a_parented_node_cuts_it_to_a_root(self, store: LocalStore) -> None:
+        _page, rack_create, shelf_create, _convert_page, convert_shelf = self._load()[:5]
+        assert store.apply_remote(rack_create) is True
+        assert store.apply_remote(shelf_create) is True
+        assert [row.id for row in store.children(WS, self.RACK)] == [self.SHELF]
+        assert store.apply_remote(convert_shelf) is True
+        row = store.node(WS, self.SHELF)
+        assert row is not None and (row.is_class, row.parent_id) == (True, None)
+        assert store.children(WS, self.RACK) == []
+        assert raw(store, "SELECT COUNT(*) FROM node_child_order WHERE child_id = ?", (self.SHELF,)) == [(0,)]
+
+    def test_redeclaration_is_a_replace_noop_and_fresh_declaration_keeps_working(self, store: LocalStore) -> None:
+        page_create, _rack, _shelf, convert_page, _convert_shelf, redeclare, fresh_create = self._load()
+        assert store.apply_remote(page_create) is True
+        assert store.apply_remote(convert_page) is True
+        content_before = store.node(WS, self.PAGE).content
+        assert store.apply_remote(redeclare) is True
+        # Absent fields preserve on re-declaration: the content rides untouched.
+        assert store.node(WS, self.PAGE).content == content_before
+        assert store.apply_remote(fresh_create) is True
+        fresh = store.node(WS, self.FRESH)
+        assert fresh is not None and fresh.is_class is True
+        assert json.loads(fresh.content or "[]") == [{"type": "text", "text": "Fresh genre"}]
+
+
+class TestPropertyAssetTypeFixture:
+    """Replay of property-asset-type.json (M38): asset-typed schemas land
+    (multi scoped to the source class + single global) and a name-only
+    update coexists on the single-value schema (mirrors the monorepo store
+    test)."""
+
+    def test_the_fixture_lands_asset_typed_schemas_and_the_update_coexists(self, store: LocalStore) -> None:
+        for envelope in load_fixture("property-asset-type.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        assert raw(
+            store,
+            "SELECT id, type, multi, scope_class_ids, name FROM property_schema ORDER BY id",
+        ) == [
+            # Scoped to the source class (the sole locality authority) — the retired "class" scope's one-element case.
+            (
+                "0192a000-0000-7000-8000-000000000541",
+                "asset",
+                1,
+                json.dumps(["00000000-0000-0000-0001-000000000023"]),
+                "Attachment",
+            ),
+            # The retired "object" scope had no consumer — it converges to global.
+            ("0192a000-0000-7000-8000-000000000542", "asset", 0, None, "Cover file (renamed)"),
+        ]
+
+
+class TestObjectColorFixture:
+    """Replay of object-color.json (token | #hex | null-clear):
+    object.update applies the preset token, then the custom hex, then null
+    as a clear; class.create carries a token color onto BOTH the node row
+    and the registry row, and class.update null clears both."""
+
+    PAGE = "0192a000-0000-7000-8000-000000000510"
+    CLASS = "0192a000-0000-7000-8000-000000000511"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("object-color.json")]
+
+    def test_object_update_applies_token_hex_then_null_clear(self, store: LocalStore) -> None:
+        create, token_update, hex_update, clear_update, *_ = self._load()
+        assert store.apply_remote(create) is True
+        assert store.apply_remote(token_update) is True
+        assert store.node(WS, self.PAGE).color == "sky"
+        assert store.apply_remote(hex_update) is True
+        assert store.node(WS, self.PAGE).color == "#123abc"
+        assert store.apply_remote(clear_update) is True
+        assert store.node(WS, self.PAGE).color is None
+
+    def test_class_create_token_lands_on_both_rows_update_null_clears_both(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        create, class_create, class_update = envelopes[0], envelopes[4], envelopes[5]
+        assert store.apply_remote(create) is True
+        assert store.apply_remote(class_create) is True
+        assert store.node(WS, self.CLASS).color == "pink"
+        assert raw(store, "SELECT color FROM class WHERE id = ?", (self.CLASS,)) == [("pink",)]
+        assert store.apply_remote(class_update) is True
+        assert store.node(WS, self.CLASS).color is None
+        assert raw(store, "SELECT color FROM class WHERE id = ?", (self.CLASS,)) == [(None,)]
+
+
+class TestWorkspaceFeatureSetFixture:
+    """Replay of workspace-feature-set.json: the racing
+    tasks toggles resolve LWW to the higher-HLC phone disable, events
+    disables, sources re-enables — and the LOSING laptop enable still ran the
+    task-family ensure on every enable payload, so both delivery orders
+    converge byte-identical (the archival bits normalize to the current row
+    state on every path). The journal pair rides
+    the same LWW row — surfaces-only, no class bits derived. The settings
+    tail: the intermediate old-shape re-enable clears the
+    sources settings to NULL under the same whole-row LWW comparator and the
+    final envelope's record wins — identically under the reversed replay."""
+
+    TASKS_DISABLE = "0192a000-0000-7000-8000-000000000602"
+    TASK_CLASS = "00000000-0000-0000-0001-000000000012"
+    SOURCES_SETTINGS = {"citekeyPattern": "[auth:lower][year]", "autoCitekey": True}
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("workspace-feature-set.json")]
+
+    def test_racing_toggles_resolve_lww_and_the_family_ensure_rides_every_enable(self, tmp_path: Path) -> None:
+        forward = LocalStore(tmp_path / "forward.db")
+        backward = LocalStore(tmp_path / "backward.db")
+        envelopes = self._load()
+        for env in envelopes:
+            assert forward.apply_remote(env) is True
+        for env in reversed(envelopes):
+            # Reversed delivery drops the lower-HLC racing toggles by LWW —
+            # convergence, not a bug.
+            backward.apply_remote(env)
+
+        for instance in (forward, backward):
+            assert instance.is_feature_enabled(WS, "tasks") is False
+            assert instance.is_feature_enabled(WS, "events") is False
+            assert instance.is_feature_enabled(WS, "sources") is True
+            # The journal off→on pair: the re-enable wins.
+            assert instance.is_feature_enabled(WS, "journal") is True
+            # Absent rows read enabled (F2).
+            assert instance.is_feature_enabled(WS, "meetings") is True
+            assert instance.is_feature_enabled(WS, "persons") is True
+            # The winning rows carry the higher-HLC causality.
+            assert raw(
+                instance,
+                "SELECT feature, enabled FROM workspace_feature ORDER BY feature",
+            ) == [("events", 0), ("journal", 1), ("sources", 1), ("tasks", 0)]
+            # The settings tail converges on the final sources winner's
+            # record; the tasks winner's old-shape payload stored NULL.
+            assert raw(
+                instance,
+                "SELECT settings FROM workspace_feature WHERE feature = 'sources'",
+            ) == [(json.dumps(self.SOURCES_SETTINGS, ensure_ascii=False, separators=(",", ":")),)]
+            assert raw(
+                instance,
+                "SELECT settings FROM workspace_feature WHERE feature = 'tasks'",
+            ) == [(None,)]
+            assert instance.feature_rows(WS)[2][0:2] == ("sources", True)
+            assert instance.feature_rows(WS)[2][5] == self.SOURCES_SETTINGS
+            # The losing enable still authored the family: the task class and
+            # its seven schemas (six select/datetime + the object-typed
+            # project relation) exist, archived per the winning disable.
+            assert raw(instance, "SELECT active FROM class WHERE id = ?", (self.TASK_CLASS,)) == [(0,)]
+            assert raw(
+                instance,
+                "SELECT is_active FROM nodes WHERE id = ? AND is_class = 1",
+                (self.TASK_CLASS,),
+            ) == [(0,)]
+            assert raw(instance, "SELECT COUNT(*) FROM property_schema WHERE type IN ('select', 'datetime')") == [(6,)]
+            assert raw(instance, "SELECT COUNT(*) FROM property_schema WHERE type = 'object'") == [(1,)]
+            assert raw(instance, "SELECT COUNT(*) FROM class_property WHERE class_id = ?", (self.TASK_CLASS,)) == [(7,)]
+
+        # The flips are pure active-bit projections: both orders converge
+        # byte-identical on every derived table the toggles touch.
+        assert _dump_convergence_tables(forward) == _dump_convergence_tables(backward)
+        forward.close()
+        backward.close()
+
+
+class TestWorkspaceFeatureReadItLaterFixture:
+    """Replay of workspace-feature-readitlater.json (the readItLater surface
+    toggle): a SURFACE gate like ``journal``, NOT a class family — the applier
+    writes the plain LWW feature row and derives no class archival bits. The
+    racing web enable / phone disable resolve LWW to the later phone disable,
+    identically under the reversed replay."""
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("workspace-feature-readitlater.json")]
+
+    def test_fixture_shape_surface_toggle_pair(self) -> None:
+        """The wire-shape pins (mirroring the monorepo protocol test): both
+        envelopes are ``workspace.feature.set`` on the ``readItLater`` id with
+        exactly {feature, enabled} payloads, and the pair is an off-boundary
+        race — the second (phone) envelope carries the disable and a
+        strictly-higher HLC."""
+        envelopes = self._load()
+        assert len(envelopes) == 2
+        for env in envelopes:
+            assert env.op_type == "workspace.feature.set"
+            assert sorted(env.payload) == ["enabled", "feature"]
+            assert env.payload["feature"] == "readItLater"
+        first, second = envelopes
+        assert first.payload["enabled"] is True
+        assert second.payload["enabled"] is False
+        assert (first.hlc.physical, first.hlc.logical) < (second.hlc.physical, second.hlc.logical)
+
+    def test_replay_lands_the_lww_row_only_no_family_derivation(self, tmp_path: Path) -> None:
+        """The LWW winner is the later phone disable; a surfaces-only toggle
+        archives nothing — no class rows, no membership, just the one
+        ``workspace_feature`` row (the journal precedent)."""
+        forward = LocalStore(tmp_path / "forward.db")
+        backward = LocalStore(tmp_path / "backward.db")
+        envelopes = self._load()
+        # Absent row reads enabled (F2) before any toggle lands.
+        assert forward.is_feature_enabled(WS, "readItLater") is True
+        for env in envelopes:
+            assert forward.apply_remote(env) is True
+        for env in reversed(envelopes):
+            backward.apply_remote(env)
+        for instance in (forward, backward):
+            assert instance.is_feature_enabled(WS, "readItLater") is False
+            assert raw(
+                instance,
+                "SELECT feature, enabled FROM workspace_feature WHERE feature = 'readItLater'",
+            ) == [("readItLater", 0)]
+            # No family archival derivation: the toggle is a surface gate.
+            assert raw(instance, "SELECT COUNT(*) FROM class") == [(0,)]
+            assert raw(instance, "SELECT COUNT(*) FROM class_member_set") == [(0,)]
+            assert raw(instance, "SELECT COUNT(*) FROM class_property") == [(0,)]
+            instance.close()
+
+
+class TestObjectUpdateActiveFixture:
+    """Replay of object-update-active.json: the archival bit flips
+    ``is_active`` with NO trash row ever (archive is a state, deletion is an
+    event) — archive both probe pages, unarchive one, and exactly the other
+    stays archived (the default read hides it; the unarchived one is back)."""
+
+    PAGE = "0192a000-0000-7000-8000-000000000a20"
+    OTHER = "0192a000-0000-7000-8000-000000000a21"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("object-update-active.json")]
+
+    def test_archive_unarchive_flips_the_bit_without_a_trash_row(self, store: LocalStore) -> None:
+        for env in self._load():
+            assert store.apply_remote(env) is True
+        assert store.node(WS, self.PAGE).is_active is True
+        assert store.node(WS, self.OTHER).is_active is False
+        assert raw(store, "SELECT 1 FROM trash WHERE node_id IN (?, ?)", (self.PAGE, self.OTHER)) == []
+        # The default read hides the archived node; include_inactive sees it.
+        assert [row.id for row in store.nodes(WS)] == [self.PAGE]
+        assert {row.id for row in store.nodes(WS, include_inactive=True)} == {self.PAGE, self.OTHER}
+
+
+class TestObjectDeleteClassRoutingFixture:
+    """Replay of object-delete-class-routing.json: the four class-node
+    delete arms — a family BASE (task) routes to
+    the toggle, a LOCKED system class (year) fails loud, another system
+    class (quote) archives instead of trashing, a USER class (Genre) takes
+    the plain trash row. Membership RIDES every arm: the pairs are never
+    touched by class removal."""
+
+    TASK = "00000000-0000-0000-0001-000000000012"
+    YEAR = "00000000-0000-0000-0001-000000000003"
+    QUOTE = "00000000-0000-0000-0001-000000000006"
+    GENRE = "0192a000-0000-7000-8000-000000000a23"
+    TASK_MEMBER = "0192a000-0000-7000-8000-000000000a22"
+    GENRE_MEMBER = "0192a000-0000-7000-8000-000000000a24"
+
+    def _load(self) -> list[dict[str, Any]]:
+        return load_fixture("object-delete-class-routing.json")
+
+    def test_all_four_arms_route_and_membership_survives_each(self, store: LocalStore) -> None:
+        envelopes = [RelayEnvelope.model_validate(item) for item in self._load()]
+        locked_delete = envelopes[5]  # the year delete — arm 1 fails loud
+        for env in [*envelopes[:5], *envelopes[6:]]:
+            assert store.apply_remote(env) is True
+        # Arm 2 — family base (task): routed to the toggle, NOT trashed; the
+        # family archives membership-preserving.
+        assert store.is_feature_enabled(WS, "tasks") is False
+        assert store.node(WS, self.TASK).is_active is False
+        assert raw(store, "SELECT 1 FROM trash WHERE node_id = ?", (self.TASK,)) == []
+        assert store.node(WS, self.TASK_MEMBER).class_ids == (self.TASK,)
+        # Arm 3 — system class (quote): archived, NOT trashed.
+        assert store.node(WS, self.QUOTE).is_active is False
+        assert raw(store, "SELECT 1 FROM trash WHERE node_id = ?", (self.QUOTE,)) == []
+        assert raw(store, "SELECT active FROM class WHERE id = ?", (self.QUOTE,)) == [(0,)]
+        # Arm 4 — user class (Genre): plain trash row, memberships intact.
+        assert store.node(WS, self.GENRE).is_active is False
+        assert raw(store, "SELECT is_permanent FROM trash WHERE node_id = ?", (self.GENRE,)) == [(0,)]
+        assert store.node(WS, self.GENRE_MEMBER).class_ids == (self.GENRE,)
+        assert raw(
+            store,
+            "SELECT present FROM class_member_set WHERE node_id = ? AND class_id = ?",
+            (self.GENRE_MEMBER, self.GENRE),
+        ) == [(1,)]
+        # Arm 1 — the locked delete still throws when applied deliberately.
+        with pytest.raises(LockedSystemClassError, match="locked system class"):
+            store.apply_remote(locked_delete)
+        assert store.node(WS, self.YEAR).is_active is True
+
+    def test_a_trashed_user_class_restores_with_every_assignment_intact(self, store: LocalStore) -> None:
+        envelopes = [RelayEnvelope.model_validate(item) for item in self._load()]
+        for env in [*envelopes[:5], *envelopes[6:]]:
+            assert store.apply_remote(env) is True
+        restore = RelayEnvelope.model_validate(
+            {
+                "id": "0192a000-0000-7000-8000-000000000a99",
+                "protocolVersion": 3,
+                "workspaceId": WS,
+                "actorId": "0192a000-0000-7000-8000-000000000002",
+                "deviceId": "fixture-test-device",
+                "hlc": {"physical": 1727200030950, "logical": 0},
+                "affectedNodeIds": [self.GENRE],
+                "opType": "object.restore",
+                "timestamp": "2026-09-24T12:00:30.950Z",
+                "payload": {"objectId": self.GENRE},
+            }
+        )
+        assert store.apply_remote(restore) is True
+        assert store.node(WS, self.GENRE).is_active is True
+        assert store.node(WS, self.GENRE_MEMBER).class_ids == (self.GENRE,)
+        assert raw(
+            store,
+            "SELECT present FROM class_member_set WHERE node_id = ? AND class_id = ?",
+            (self.GENRE_MEMBER, self.GENRE),
+        ) == [(1,)]
+
+
+class TestCodeBlockFixture:
+    """Replay of code-block.json: the code_block token is a
+    PROMOTION SURVIVOR — the promote op flattens the surrounding rich tokens
+    to one text run but keeps the block (a code page is a real surface); the
+    language-less inline block keeps its token verbatim."""
+
+    BLOCK = "0192a000-0000-7000-8000-000000000621"
+    PLAIN = "0192a000-0000-7000-8000-000000000623"
+
+    def test_code_block_survives_promotion(self, store: LocalStore) -> None:
+        for envelope in load_fixture("code-block.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        promoted = json.loads(store.node(WS, self.BLOCK).content or "[]")
+        assert promoted == [
+            {"type": "text", "text": "before after"},
+            {"type": "code_block", "language": "python", "text": "print('hi')\nprint('bye')"},
+        ]
+        assert json.loads(store.node(WS, self.PLAIN).content or "[]") == [
+            {"type": "code_block", "text": "plain snippet"},
+        ]
+
+
+class TestHrFixture:
+    """Replay of hr.json: hr is deliberately NOT a promotion
+    survivor — the promote op stringifies it away; an inline block keeps the
+    token verbatim."""
+
+    BLOCK = "0192a000-0000-7000-8000-000000000631"
+    RULE_ONLY = "0192a000-0000-7000-8000-000000000633"
+
+    def test_hr_flattens_on_promotion_and_survives_inline(self, store: LocalStore) -> None:
+        for envelope in load_fixture("hr.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        assert json.loads(store.node(WS, self.BLOCK).content or "[]") == [{"type": "text", "text": "above below"}]
+        assert json.loads(store.node(WS, self.RULE_ONLY).content or "[]") == [{"type": "hr"}]
+
+
+class TestEmbedRefViewFixture:
+    """Replay of embed-ref-view.json: the view field applies
+    verbatim — absent = the full transclusion default, wide_card rides the
+    token; the small_card authored at create time was overwritten by the
+    later content update (row LWW)."""
+
+    BLOCK = "0192a000-0000-7000-8000-000000000642"
+    TARGET = "0192a000-0000-7000-8000-000000000640"
+
+    def test_view_field_applies_verbatim_default_absent(self, store: LocalStore) -> None:
+        for envelope in load_fixture("embed-ref-view.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        assert json.loads(store.node(WS, self.BLOCK).content or "[]") == [
+            {"type": "embed_ref", "nodeId": self.TARGET},
+            {"type": "embed_ref", "nodeId": self.TARGET, "view": "wide_card"},
+        ]
+
+
+class TestPropertyValueElementsFixture:
+    """Replay of property-value-elements.json (PG5): same-idx
+    concurrent element adds coexist (ordered by element id), the element
+    remove tombstones phone's element, the newer re-add revives it
+    (add-wins), and the legacy positional add lands at its deterministic
+    positional element."""
+
+    NODE = "0192a000-0000-7000-8000-000000000712"
+    SCHEMA = "0192a000-0000-7000-8000-000000000711"
+    ALPHA = "0192a000-0000-7000-8000-000000000721"
+    BETA = "0192a000-0000-7000-8000-000000000722"
+    GAMMA = "0192a000-0000-7000-8000-000000000723"
+    POSITIONAL_ROW = f"{NODE}:{SCHEMA}:4"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("property-value-elements.json")]
+
+    def test_or_set_semantics_end_to_end(self, store: LocalStore) -> None:
+        for env in self._load():
+            assert store.apply_remote(env) is True
+        # Same-idx concurrent adds coexist; the remove + newer re-add revived
+        # beta; the legacy positional add landed at its deterministic id.
+        assert raw(
+            store,
+            "SELECT id, value, idx, metadata FROM property_value WHERE node_id = ? ORDER BY idx, id",
+            (self.NODE,),
+        ) == [
+            (self.ALPHA, '"alpha"', 0, '{"since": "2020"}'),
+            (self.BETA, '"beta"', 1, None),
+            (self.GAMMA, '"gamma"', 1, None),
+            (self.POSITIONAL_ROW, '"positional"', 4, None),
+        ]
+        # The remove's causality is recorded on the element tombstone.
+        assert raw(
+            store,
+            "SELECT hlc_physical, hlc_logical FROM property_value_element_tombstone WHERE element_id = ?",
+            (self.BETA,),
+        ) == [(1727200020500, 0)]
+
+    def test_effective_read_surfaces_every_element_ordered_by_idx_then_id(self, store: LocalStore) -> None:
+        for env in self._load():
+            store.apply_remote(env)
+        effective = store.get_effective_properties(self.NODE)
+        assert [(row.idx, row.element_id, row.value, row.source, row.bound_by) for row in effective] == [
+            (0, self.ALPHA, "alpha", "authored", None),
+            (1, self.BETA, "beta", "authored", None),
+            (1, self.GAMMA, "gamma", "authored", None),
+            (4, self.POSITIONAL_ROW, "positional", "authored", None),
+        ]
+
+    def test_same_hlc_remove_and_add_resolve_add_wins_under_both_orders(self, tmp_path: Path) -> None:
+        """The membership comparator is HLC-only: an element remove at the
+        SAME HLC as the add loses (add-wins) regardless of actor — under
+        either delivery order."""
+        base = [RelayEnvelope.model_validate(item) for item in load_fixture("property-value-elements.json")[:4]]
+        remove = self._load()[5].model_copy(update={"hlc": Hlc(physical=1727200020300, logical=0)})
+        re_add = self._load()[6]
+        forward = LocalStore(tmp_path / "f.db")
+        backward = LocalStore(tmp_path / "b.db")
+        for instance, tail in ((forward, (remove, re_add)), (backward, (re_add, remove))):
+            for env in base:
+                assert instance.apply_remote(env) is True
+            for env in tail:
+                instance.apply_remote(env)
+            # The equal-HLC remove lost to the add; the newer re-add keeps beta.
+            assert raw(instance, "SELECT id FROM property_value WHERE node_id = ? ORDER BY id", (self.NODE,)) == [
+                (self.ALPHA,),
+                (self.BETA,),
+            ]
+            instance.close()
+
+
+class TestClassPropertyActiveFixture:
+    """Replay of class-property-active.json (PC4 + the option
+    icon, display position corrected to PROPERTY-level): the disable
+    wins the row LWW race over the interleaved lower-HLC enable, so the
+    derived default vanishes while the ROW survives; an authored value
+    written while inactive reads unbound; the re-enable restores the flag
+    (the authored value at idx 0 keeps shadowing the default). The schema's
+    options carry the icon (plus the color) verbatim into the
+    stored options JSON, and a trailing propertySchema.update positions the
+    value display at the bullet — a SCHEMA-side render contract, read off the schema, never the binding."""
+
+    SCHEMA = "0192a000-0000-7000-8000-000000000741"
+    CLASS = "0192a000-0000-7000-8000-000000000742"
+    ITEM = "0192a000-0000-7000-8000-000000000743"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("class-property-active.json")]
+
+    def test_prefix_6_disable_wins_the_row_race_default_vanishes_row_survives(self, store: LocalStore) -> None:
+        for env in self._load()[:6]:
+            assert store.apply_remote(env) is True
+        # The ROW survives, flagged inactive; the SCHEMA-level default
+        # is untouched…
+        assert raw(
+            store,
+            "SELECT active FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            (self.CLASS, self.SCHEMA),
+        ) == [(0,)]
+        assert raw(store, "SELECT default_value FROM property_schema WHERE id = ?", (self.SCHEMA,)) == [('"opt-a"',)]
+        # …so the effective read shows neither the default nor metadata.
+        assert store.get_effective_properties(self.ITEM) == []
+
+    def test_authored_value_while_inactive_reads_unbound(self, store: LocalStore) -> None:
+        for env in self._load()[:7]:
+            assert store.apply_remote(env) is True
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.value, row.source, row.bound_by) for row in effective] == [
+            ("opt-b", "authored", None)
+        ]
+
+    def test_full_reenable_restores_flag_authored_shadows_default(self, store: LocalStore) -> None:
+        for env in self._load():
+            assert store.apply_remote(env) is True
+        assert raw(
+            store,
+            "SELECT active FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            (self.CLASS, self.SCHEMA),
+        ) == [(1,)]
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.value, row.source, row.bound_by, row.element_id) for row in effective] == [
+            ("opt-b", "authored", self.CLASS, f"{self.ITEM}:{self.SCHEMA}:0")
+        ]
+
+    def test_full_replay_carries_the_option_icon_color_and_bullet_display(self, store: LocalStore) -> None:
+        """The option decoration lands in the stored options
+        JSON verbatim (the applier serializes the raw payload), and the
+        trailing propertySchema.update{display:"bullet"} rides onto the
+        SCHEMA row — the effective read sources the position from the schema,
+        never the binding."""
+        for env in self._load():
+            assert store.apply_remote(env) is True
+        options = raw(store, "SELECT options FROM property_schema WHERE id = ?", (self.SCHEMA,))
+        assert json.loads(options[0][0]) == [
+            {"id": "opt-a", "label": "A", "icon": "mdiCircle", "color": "yellow"},
+            {"id": "opt-b", "label": "B"},
+        ]
+        assert raw(store, "SELECT display FROM property_schema WHERE id = ?", (self.SCHEMA,)) == [("bullet",)]
+        effective = store.get_effective_properties(self.ITEM)
+        assert [row.display for row in effective] == ["bullet"]
+
+
+class TestPropertyDateQualifierFixture:
+    """Replay of property-date-qualifier.json (PC6): chain-created
+    refs apply verbatim at idx 0; the legacy ISO-string startDate at idx 1
+    normalizes ON WRITE to the deterministic day-node ref."""
+
+    CLUB = "0192a000-0000-7000-8000-000000000763"
+    SCHEMA = "0192a000-0000-7000-8000-000000000761"
+    ADA = "0192a000-0000-7000-8000-000000000764"
+    DAY_2020 = "00000000-0000-0000-00dd-202003040000"
+    DAY_2022 = "00000000-0000-0000-00dd-202205060000"
+    DAY_2019 = "00000000-0000-0000-00dd-201901150000"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("property-date-qualifier.json")]
+
+    def test_refs_apply_verbatim_and_the_iso_string_normalizes_on_write(self, store: LocalStore) -> None:
+        for env in self._load():
+            assert store.apply_remote(env) is True
+        assert raw(
+            store,
+            "SELECT idx, value, metadata FROM property_value WHERE node_id = ? ORDER BY idx",
+            (self.CLUB,),
+        ) == [
+            (
+                0,
+                json.dumps({"nodeId": self.ADA}),
+                json.dumps({"startDate": {"nodeId": self.DAY_2020}, "endDate": {"nodeId": self.DAY_2022}}),
+            ),
+            (1, json.dumps({"nodeId": self.ADA}), json.dumps({"startDate": {"nodeId": self.DAY_2019}})),
+        ]
+        # Every reader stays lenient: the effective read surfaces both
+        # shapes as authored.
+        effective = store.get_effective_properties(self.CLUB)
+        assert [(row.idx, row.value, row.metadata, row.element_id) for row in effective] == [
+            (
+                0,
+                {"nodeId": self.ADA},
+                {"startDate": {"nodeId": self.DAY_2020}, "endDate": {"nodeId": self.DAY_2022}},
+                f"{self.CLUB}:{self.SCHEMA}:0",
+            ),
+            (1, {"nodeId": self.ADA}, {"startDate": {"nodeId": self.DAY_2019}}, f"{self.CLUB}:{self.SCHEMA}:1"),
+        ]
+
+    def test_the_date_chain_landed(self, store: LocalStore) -> None:
+        for env in self._load():
+            store.apply_remote(env)
+        assert store.node(WS, self.DAY_2019) is not None
+        assert store.node(WS, self.DAY_2019).parent_id == "00000000-0000-0000-00aa-201901000000"
+        assert store.node(WS, self.DAY_2020) is not None
+        assert store.node(WS, self.DAY_2022) is not None
+
+
+class TestPropertyDatetimeFixture:
+    """Replay of property-datetime.json (the unified-datetime batch,
+    2026-10-09): a day-precision 'When' schema and a year-precision 'Year'
+    schema land; the 2024-07-26 / 2024-08-02 chains are created with
+    deterministic ids (the ensureDateChain shape); the value union exercises
+    end to end on one node — a full-day point (the default), a timed point,
+    an open range, a range with a timed end slot, and a year-precision point
+    on the YEAR node (mirrors the monorepo store test's datetime suite)."""
+
+    NODE = "0192a000-0000-7000-8000-000000000812"
+    WHEN = "0192a000-0000-7000-8000-000000000810"
+    YEAR = "0192a000-0000-7000-8000-000000000811"
+    DAY_0726 = "00000000-0000-0000-00dd-202407260000"
+    DAY_0802 = "00000000-0000-0000-00dd-202408020000"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("property-datetime.json")]
+
+    def test_the_schemas_land_datetime_typed_at_their_precisions(self, store: LocalStore) -> None:
+        for envelope in self._load():
+            assert store.apply_remote(envelope) is True
+        assert raw(
+            store,
+            "SELECT id, type, name, date_precision, multi, scope_class_ids FROM property_schema ORDER BY id",
+        ) == [
+            (self.WHEN, "datetime", "When", None, 0, None),
+            (self.YEAR, "datetime", "Year", "year", 0, None),
+        ]
+
+    def test_the_value_union_replays_end_to_end_with_lww_winners(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        # Prefix through the first When write: the full-day point lands.
+        for envelope in envelopes[:9]:
+            assert store.apply_remote(envelope) is True
+        assert raw(
+            store,
+            "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = 0",
+            (self.NODE, self.WHEN),
+        ) == [(json.dumps({"nodeId": self.DAY_0726}),)]
+        # The timed point overwrites at idx 0 (row LWW, ascending HLCs).
+        assert store.apply_remote(envelopes[9]) is True
+        assert self._when_value(store) == json.dumps({"nodeId": self.DAY_0726, "time": "14:30"})
+        # The open range {start, end: null}…
+        assert store.apply_remote(envelopes[10]) is True
+        assert self._when_value(store) == json.dumps({"start": {"nodeId": self.DAY_0726}, "end": None})
+        # …and the range with a timed end slot.
+        assert store.apply_remote(envelopes[11]) is True
+        assert self._when_value(store) == json.dumps(
+            {"start": {"nodeId": self.DAY_0726}, "end": {"nodeId": self.DAY_0802, "time": "09:15"}}
+        )
+        # The year-precision point rides the YEAR node on its own schema.
+        assert store.apply_remote(envelopes[12]) is True
+        assert raw(
+            store,
+            "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = 0",
+            (self.NODE, self.YEAR),
+        ) == [(json.dumps({"nodeId": "00000000-0000-0000-00bb-202400000000"}),)]
+
+    def _when_value(self, store: LocalStore) -> str | None:
+        rows = raw(
+            store,
+            "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = 0",
+            (self.NODE, self.WHEN),
+        )
+        return rows[0][0] if rows else None
+
+    def test_the_date_chain_landed_with_parents(self, store: LocalStore) -> None:
+        for envelope in self._load():
+            store.apply_remote(envelope)
+        year = store.node(WS, "00000000-0000-0000-00bb-202400000000")
+        month = store.node(WS, "00000000-0000-0000-00aa-202407000000")
+        day = store.node(WS, self.DAY_0726)
+        assert year is not None and year.parent_id is None
+        assert month is not None and month.parent_id == year.id
+        assert day is not None and day.parent_id == month.id
+
+
+class TestTrashEmptyFixture:
+    """trash-empty.json: the bulk permanent delete hard-removes every trashed
+    root's subtree (an independently-trashed descendant inside one root's
+    subtree rides the purge), spares the page restored before the empty, and
+    leaves exactly one permanent retention row per emptied root."""
+
+    A = "0192a000-0000-7000-8000-0000000000f3"
+    A_CHILD = "0192a000-0000-7000-8000-0000000000f4"
+    B = "0192a000-0000-7000-8000-0000000000f5"
+    B_CHILD = "0192a000-0000-7000-8000-0000000000f6"
+    C = "0192a000-0000-7000-8000-0000000000f7"
+
+    def _replay(self, store: LocalStore) -> None:
+        for envelope in load_fixture("trash-empty.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+
+    def test_replay_hard_deletes_trashed_subtrees_and_spares_the_restored_page(self, store: LocalStore) -> None:
+        self._replay(store)
+        for node_id in (self.A, self.A_CHILD, self.B, self.B_CHILD):
+            assert store.node(WS, node_id) is None, node_id
+        restored = store.node(WS, self.C)
+        assert restored is not None
+        assert (restored.is_active, restored.is_embedded) == (True, False)
+
+    def test_retention_rows_are_exactly_the_two_emptied_roots_and_permanent(self, store: LocalStore) -> None:
+        self._replay(store)
+        fixture_ids = (self.A, self.A_CHILD, self.B, self.B_CHILD, self.C)
+        rows = [
+            (node_id, is_permanent)
+            for (node_id, is_permanent) in raw(store, "SELECT node_id, is_permanent FROM trash ORDER BY node_id")
+            if node_id in fixture_ids
+        ]
+        assert rows == [(self.A, 1), (self.B, 1)]
+
+    def test_a_second_empty_with_a_fresh_envelope_is_a_no_op(self, store: LocalStore) -> None:
+        self._replay(store)
+        second = RelayEnvelope.model_validate(
+            {
+                "protocolVersion": 3,
+                "workspaceId": WS,
+                "actorId": "0192a000-0000-7000-8000-000000000002",
+                "deviceId": "fixture-test-device",
+                "hlc": {"physical": 1727200009000, "logical": 0},
+                "affectedNodeIds": [],
+                "opType": "trash.empty",
+                "timestamp": "2026-09-24T12:00:09.000Z",
+                "payload": {},
+            }
+        )
+        assert store.apply_remote(second) is True
+        assert raw(store, "SELECT COUNT(*) FROM trash WHERE is_permanent = 0") == [(0,)]
+
+
+class TestCycleFixture:
+    def test_cycle_closing_envelopes_throw_and_roll_back(self, store: LocalStore) -> None:
+        root, leaf, leaf_extends_root, root_extends_leaf, root_extends_root_self = (
+            RelayEnvelope.model_validate(item) for item in load_fixture("class-extends-cycle.json")
+        )
+        # The PREFIX applies cleanly: Root and Leaf created, Leaf extends [Root].
+        assert store.apply_remote(root) is True
+        assert store.apply_remote(leaf) is True
+        assert store.apply_remote(leaf_extends_root) is True
+        assert raw(
+            store,
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? ORDER BY ancestor_id",
+            (CYCLE_LEAF,),
+        ) == [(CYCLE_ROOT,), (CYCLE_LEAF,)]
+
+        # Multi-hop cycle (Root extends [Leaf] with Leaf already under Root)...
+        with pytest.raises(CycleError):
+            store.apply_remote(root_extends_leaf)
+        # ...and the self-parent case (Root extends [Root]).
+        with pytest.raises(CycleError):
+            store.apply_remote(root_extends_root_self)
+
+        # A thrown apply rolls back: closure and edges are exactly the prefix state.
+        assert raw(
+            store,
+            "SELECT ancestor_id FROM class_hierarchy WHERE class_id = ? ORDER BY ancestor_id",
+            (CYCLE_ROOT,),
+        ) == [(CYCLE_ROOT,)]
+        assert raw(store, "SELECT COUNT(*) FROM class_extends") == [(1,)]
+        # And the thrown envelope ids were not consumed: a retry after a wipe
+        # re-applies the prefix (the throw rolled the dedupe record back too).
+        assert raw(store, "SELECT COUNT(*) FROM relay_operations") == [(3,)]
+
+
+class TestSystemExtendsLockFixture:
+    """Replay of class-extends-system-lock.json (the system-extends lock): a system class's extends mapping is frozen to
+    the seeded set — only an idempotent re-issue applies; every deviation
+    fails loud with SystemExtendsLockError and rolls back. Mirrors the
+    monorepo store test."""
+
+    EVENT = "00000000-0000-0000-0001-000000000040"
+    MEETING = "00000000-0000-0000-0001-000000000039"
+    USER_CLASS = "0192a000-0000-7000-8000-0000000000e1"
+
+    def test_lock_tail_throws_and_rolls_back(self, store: LocalStore) -> None:
+        (
+            create_event,
+            create_meeting,
+            create_user_class,
+            user_extends_meeting,
+            meeting_reissue,
+            meeting_detach,
+            meeting_extra_parent,
+            event_gains_parent,
+        ) = (RelayEnvelope.model_validate(item) for item in load_fixture("class-extends-system-lock.json"))
+        # The PREFIX applies cleanly: user classes extend system bases, and an
+        # idempotent re-issue of the seeded edge (the seed/ensure convergence
+        # path) applies.
+        assert store.apply_remote(create_event) is True
+        assert store.apply_remote(create_meeting) is True
+        assert store.apply_remote(create_user_class) is True
+        assert store.apply_remote(user_extends_meeting) is True
+        assert store.apply_remote(meeting_reissue) is True
+        assert raw(
+            store,
+            "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+            (self.USER_CLASS,),
+        ) == [(self.MEETING,)]
+        assert raw(
+            store,
+            "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+            (self.MEETING,),
+        ) == [(self.EVENT,)]
+
+        # Detaching meeting's seeded parent, adding an extra parent to
+        # meeting, and adding a parent to event (no seeded parents — frozen
+        # to empty) each fail loud and roll back.
+        with pytest.raises(SystemExtendsLockError):
+            store.apply_remote(meeting_detach)
+        with pytest.raises(SystemExtendsLockError):
+            store.apply_remote(meeting_extra_parent)
+        with pytest.raises(SystemExtendsLockError):
+            store.apply_remote(event_gains_parent)
+
+        # The rejected writes left the derived edges exactly at the prefix
+        # state.
+        assert raw(
+            store,
+            "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+            (self.EVENT,),
+        ) == []
+        assert raw(store, "SELECT COUNT(*) FROM class_extends") == [(2,)]
+
+
+class TestIsEmbeddedParentPageFixture:
+    def test_standalone_claim_under_an_embedded_block_throws_and_rolls_back(
+        self, store: LocalStore
+    ) -> None:
+        page_p, block_b, violating_x = (
+            RelayEnvelope.model_validate(item) for item in load_fixture("is-embedded-parent-page.json")
+        )
+        p = "0192a000-0000-7000-8000-0000000000f1"
+        b = "0192a000-0000-7000-8000-0000000000f2"
+        x = "0192a000-0000-7000-8000-0000000000f3"
+        # The prefix applies cleanly: page P, then embedded block B under P.
+        assert store.apply_remote(page_p) is True
+        assert store.apply_remote(block_b) is True
+        row = store.node(WS, b)
+        assert row is not None and row.parent_id == p and row.is_embedded is True
+
+        # Claiming the standalone role (isEmbedded: false) under the BLOCK fails
+        # loud (parent-page condition, Revision 12) and
+        # rolls back: no row for X.
+        with pytest.raises(MoveGuardError):
+            store.apply_remote(violating_x)
+        assert store.node(WS, x) is None
+
+
+class TestIsEmbeddedDateChainFixture:
+    def test_writing_the_render_bit_on_a_date_chain_node_throws_and_rolls_back(
+        self, store: LocalStore
+    ) -> None:
+        year_e, month_e, day_e, demote_day, promote_month = (
+            RelayEnvelope.model_validate(item) for item in load_fixture("is-embedded-date-chain.json")
+        )
+        year = "00000000-0000-0000-00bb-202400000000"
+        month = "00000000-0000-0000-00aa-202407000000"
+        day = "00000000-0000-0000-00dd-202407260000"
+        # The prefix applies cleanly: the 2024-07-26 chain, each level with
+        # its precision's system class and the standalone claim.
+        assert store.apply_remote(year_e) is True
+        assert store.apply_remote(month_e) is True
+        assert store.apply_remote(day_e) is True
+        year_row = store.node(WS, year)
+        month_row = store.node(WS, month)
+        day_row = store.node(WS, day)
+        assert year_row is not None and year_row.parent_id is None and year_row.is_embedded is False
+        assert month_row is not None and month_row.parent_id == year and month_row.is_embedded is False
+        assert day_row is not None and day_row.parent_id == month and day_row.is_embedded is False
+
+        # The render bit is platform-fixed on the chain: demoting the day
+        # node (it would nest the journal page as an inline block in the
+        # month's body) and promoting the month node both fail loud, state
+        # unchanged.
+        with pytest.raises(MoveGuardError):
+            store.apply_remote(demote_day)
+        with pytest.raises(MoveGuardError):
+            store.apply_remote(promote_month)
+        assert store.node(WS, day).is_embedded is False
+        assert store.node(WS, month).is_embedded is False
+
+
+class TestObjectDeleteDateChainFixture:
+    def test_deleting_a_date_chain_node_throws_on_both_delete_arms(self, store: LocalStore) -> None:
+        """object-delete-date-chain.json (the fourth date-chain lock,
+        delete-locked — monorepo store.test.ts parity): the 2024-07-26 chain
+        prefix applies cleanly, then the soft delete (the trash arm) and the
+        permanent delete (the purge arm) both fail loud with MoveGuardError —
+        the nodes stay live."""
+        year_e, month_e, day_e, delete_day, delete_year = (
+            RelayEnvelope.model_validate(item) for item in load_fixture("object-delete-date-chain.json")
+        )
+        year = "00000000-0000-0000-00bb-202400000000"
+        month = "00000000-0000-0000-00aa-202407000000"
+        day = "00000000-0000-0000-00dd-202407260000"
+        # The prefix applies cleanly: the 2024-07-26 chain, each level with
+        # its precision's system class and the standalone claim.
+        assert store.apply_remote(year_e) is True
+        assert store.apply_remote(month_e) is True
+        assert store.apply_remote(day_e) is True
+        assert store.node(WS, year).parent_id is None
+        assert store.node(WS, month).parent_id == year
+        assert store.node(WS, day).parent_id == month
+
+        # The chain is permanent scaffolding: the soft delete (the trash arm)
+        # and the permanent delete (the purge arm) both fail loud, state
+        # unchanged — the nodes stay live and no trash row lands.
+        with pytest.raises(MoveGuardError, match="date-chain node"):
+            store.apply_remote(delete_day)
+        with pytest.raises(MoveGuardError, match="can never be deleted"):
+            store.apply_remote(delete_year)
+        assert store.node(WS, day).is_active is True
+        assert store.node(WS, month).is_active is True
+        assert store.node(WS, year).is_active is True
+        assert raw(store, "SELECT COUNT(*) FROM trash") == [(0,)]
+
+
+class TestClassParentlessRoleFixture:
+    """Replay of class-parentless-role.json (the class-level parentlessRole
+    render contract, web schema v31→v32 parity): the flag
+    is presence-writes / present-null-clears on BOTH the class node row and
+    the registry (the icon/color precedent), and the extends-aware effective
+    role derives at read time through class_hierarchy — mirroring the
+    monorepo store test."""
+
+    TASK = "0192a000-0000-7000-8000-0000000000d1"
+    EVENT = "0192a000-0000-7000-8000-0000000000d2"
+    TASK_NODE = "0192a000-0000-7000-8000-0000000000d3"
+    ERRAND = "0192a000-0000-7000-8000-0000000000d4"
+    #: The fixture's envelopes carry their own workspace id (…0000000000d0),
+    #: not the suite-default WS.
+    FIXTURE_WS = "0192a000-0000-7000-8000-0000000000d0"
+
+    def node_role(self, store: LocalStore, class_id: str) -> Any:
+        return raw(store, "SELECT parentless_role FROM nodes WHERE id = ?", (class_id,))[0][0]
+
+    def registry_role(self, store: LocalStore, class_id: str) -> Any:
+        return raw(store, "SELECT parentless_role FROM class WHERE id = ?", (class_id,))[0][0]
+
+    def test_the_fixture_lands_flag_set_update_and_present_null_clear_on_both_tables(
+        self, store: LocalStore
+    ) -> None:
+        (task_create, event_create, task_node_create, event_flag, event_clear, errand_create, errand_extends) = (
+            RelayEnvelope.model_validate(item) for item in load_fixture("class-parentless-role.json")
+        )
+        assert store.apply_remote(task_create) is True
+        assert store.apply_remote(event_create) is True
+        # Task seeds flagged "block" on the class node row AND the registry;
+        # Event carries no flag — NULL on both (the zero-migration default).
+        assert self.node_role(store, self.TASK) == "block"
+        assert self.registry_role(store, self.TASK) == "block"
+        assert self.node_role(store, self.EVENT) is None
+        assert self.registry_role(store, self.EVENT) is None
+        # The fixture's standalone task object applies cleanly (parentless,
+        # classed) — the population the role bends.
+        assert store.apply_remote(task_node_create) is True
+        node = store.node(self.FIXTURE_WS, self.TASK_NODE)
+        assert node is not None and node.is_class is False and node.parent_id is None
+        assert node.parentless_role is None  # meaningful on class rows only
+        # class.update presence writes, then present-null clears, both tables.
+        assert store.apply_remote(event_flag) is True
+        assert self.node_role(store, self.EVENT) == "block"
+        assert self.registry_role(store, self.EVENT) == "block"
+        assert store.apply_remote(event_clear) is True
+        assert self.node_role(store, self.EVENT) is None
+        assert self.registry_role(store, self.EVENT) is None
+        # Errand carries no flag of its own; the seeded extends edge to the
+        # flagged Task is what the read-time effective role derives from.
+        assert store.apply_remote(errand_create) is True
+        assert store.apply_remote(errand_extends) is True
+        assert self.node_role(store, self.ERRAND) is None
+        assert raw(
+            store, "SELECT 1 FROM class_hierarchy WHERE class_id = ? AND ancestor_id = ?", (self.ERRAND, self.TASK)
+        ) == [(1,)]
+
+
+class TestClassDisplayTemplateFixture:
+    """Replay of class-display-template.json (the class-level displayTemplate,
+    web schema v35→v36 parity): the registry column is presence-writes /
+    present-null-clears on class.create (absent PRESERVES on a re-issued
+    create via COALESCE) and class.update ("" = the explicit opt-out, stored
+    as '' and distinct from NULL), and the extends-aware effective template
+    derives at read time nearest-first with the '' stop — mirroring the
+    monorepo store test (``resolveEffectiveDisplayTemplate``). The node row
+    is NOT a carrier (unlike parentless_role)."""
+
+    SOURCE = "0192a000-0000-7000-8000-000000000821"
+    MEMBER = "0192a000-0000-7000-8000-000000000822"
+    BOOK = "0192a000-0000-7000-8000-000000000823"
+    WEB_LINK = "0192a000-0000-7000-8000-000000000824"
+    TEMPLATE = "@{{citekey}}"
+    #: The fixture's envelopes carry their own workspace id (…000000000820),
+    #: not the suite-default WS.
+    FIXTURE_WS = "0192a000-0000-7000-8000-000000000820"
+
+    def registry_template(self, store: LocalStore, class_id: str) -> Any:
+        return raw(store, "SELECT display_template FROM class WHERE id = ?", (class_id,))[0][0]
+
+    def test_the_fixture_lands_create_inherit_opt_out_and_clear(self, store: LocalStore) -> None:
+        (
+            source_create,
+            member_create,
+            book_create,
+            book_extends,
+            web_create,
+            web_extends,
+            web_opt_out,
+            source_clear,
+        ) = (RelayEnvelope.model_validate(item) for item in load_fixture("class-display-template.json"))
+        # Source seeds the template on the registry; the member object is the
+        # population the template renders over.
+        assert store.apply_remote(source_create) is True
+        assert self.registry_template(store, self.SOURCE) == self.TEMPLATE
+        assert store.apply_remote(member_create) is True
+        assert store.node(self.FIXTURE_WS, self.MEMBER) is not None
+        # Book extends Source with no own template: NULL own, inherited effective.
+        assert store.apply_remote(book_create) is True
+        assert store.apply_remote(book_extends) is True
+        assert self.registry_template(store, self.BOOK) is None
+        assert store.resolve_effective_display_template(self.BOOK) == self.TEMPLATE
+        # Web link extends Source too; opting out via "" stores '' — the own
+        # opt-out wins over the still-live ancestor template.
+        assert store.apply_remote(web_create) is True
+        assert store.apply_remote(web_extends) is True
+        assert store.resolve_effective_display_template(self.WEB_LINK) == self.TEMPLATE
+        assert store.apply_remote(web_opt_out) is True
+        assert self.registry_template(store, self.WEB_LINK) == ""
+        assert store.resolve_effective_display_template(self.WEB_LINK) is None
+        # Book still inherits at this point (the '' stop is per-class).
+        assert store.resolve_effective_display_template(self.BOOK) == self.TEMPLATE
+        # Clearing Source's template back to NULL: the whole chain reads
+        # plain-title now.
+        assert store.apply_remote(source_clear) is True
+        assert self.registry_template(store, self.SOURCE) is None
+        assert store.resolve_effective_display_template(self.SOURCE) is None
+        assert store.resolve_effective_display_template(self.BOOK) is None
+        assert store.resolve_effective_display_template(self.WEB_LINK) is None
+
+    def test_upsert_class_node_does_not_carry_the_template(self, store: LocalStore) -> None:
+        """The node row is NOT a carrier (TS ``upsertClassNode`` parity —
+        unlike ``parentless_role``): the nodes table keeps no
+        display_template column."""
+        (source_create, *_rest) = (RelayEnvelope.model_validate(item) for item in load_fixture("class-display-template.json"))
+        assert store.apply_remote(source_create) is True
+        columns = [row[1] for row in raw(store, "PRAGMA table_info(nodes)")]
+        assert "display_template" not in columns
+
+    def test_a_reissued_create_preserves_the_stored_template(self, store: LocalStore) -> None:
+        """Absent on class.create = inherit — the ON CONFLICT COALESCE arm
+        preserves the stored value on the seed/ensure re-issue path."""
+        raw_items = load_fixture("class-display-template.json")
+        (source_create, *_rest) = (RelayEnvelope.model_validate(item) for item in raw_items)
+        assert store.apply_remote(source_create) is True
+        reissued_raw = dict(raw_items[0])
+        # A NEW op id (the dedupe log keys on it) and a NEWER HLC, with the
+        # displayTemplate key absent — the seed/ensure re-issue shape.
+        reissued_raw["id"] = "0192a000-0000-7000-8000-000000000900"
+        reissued_raw["hlc"] = {"physical": raw_items[0]["hlc"]["physical"] + 1000, "logical": 0}
+        reissued_raw["payload"] = {"classId": self.SOURCE, "contentAst": [{"type": "text", "text": "Source"}]}
+        assert store.apply_remote(RelayEnvelope.model_validate(reissued_raw)) is True
+        assert self.registry_template(store, self.SOURCE) == self.TEMPLATE
+
+
+class TestReplayIdempotence:
+    def test_reapplying_the_whole_fixture_set_is_idempotent(self, store: LocalStore) -> None:
+        envelopes = [RelayEnvelope.model_validate(item) for item in all_fixture_envelopes()]
+        # Note: alphabetical fixture order lands typed-link-mark-deleted
+        # (higher HLC) before typed-link-mark, so the mark is legitimately
+        # dropped by row LWW on first replay — convergence, not a bug.
+        for envelope in envelopes:
+            store.apply_remote(envelope)
+        # Sanity: the move fixture's subtree landed (the typed-link fixture
+        # updates lose the row LWW to object-move's newer HLCs here — the
+        # per-fixture tests cover their own outcomes).
+        assert store.node(WS, MOVE_C).parent_id == MOVE_A
+        before = raw(store, "SELECT id, content, class_ids, name FROM nodes ORDER BY id")
+        assert [store.apply_remote(envelope) for envelope in envelopes] == [False] * len(envelopes)
+        assert raw(store, "SELECT id, content, class_ids, name FROM nodes ORDER BY id") == before
+        assert raw(store, "SELECT COUNT(*) FROM relay_operations") == [(len(envelopes),)]
+
+
+class TestObjectListStyleFixture:
+    """Replay of object-list-style.json (the listStyle wire node field,
+    web schema v22→v23 parity): create-with-style, update set, and
+    present-null clear — mirroring the monorepo store test."""
+
+    PAGE = "0192a000-0000-7000-8000-00000000056a"
+    BLOCK = "0192a000-0000-7000-8000-00000000056b"
+
+    def test_the_fixture_lands_create_with_style_set_and_null_clear(self, store: LocalStore) -> None:
+        create_page, create_block, set_alpha, clear, set_roman = (
+            RelayEnvelope.model_validate(item) for item in load_fixture("object-list-style.json")
+        )
+        assert store.apply_remote(create_page) is True
+        assert store.apply_remote(create_block) is True
+        assert store.node(WS, self.BLOCK).list_style == "numbered"
+        assert store.apply_remote(set_alpha) is True
+        assert store.node(WS, self.BLOCK).list_style == "alpha"
+        assert store.apply_remote(clear) is True
+        assert store.node(WS, self.BLOCK).list_style is None
+        assert store.apply_remote(set_roman) is True
+        assert store.node(WS, self.PAGE).list_style == "roman"
+
+
+class TestPropertySchemaScopeFixture:
+    """Replay of property-schema-scope.json:
+    extends-aware eligibility and authored-row survival under scope
+    narrowing — the R3/R4 read-side arms."""
+
+    A = "0192a000-0000-7000-8000-000000000901"
+    SCHEMA = "0192a000-0000-7000-8000-000000000910"
+    NA = "0192a000-0000-7000-8000-000000000921"
+    NB = "0192a000-0000-7000-8000-000000000922"
+    NX = "0192a000-0000-7000-8000-000000000923"
+
+    def _replay(self, store: LocalStore) -> None:
+        for envelope in load_fixture("property-schema-scope.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+
+    def rows_of(self, store: LocalStore, node_id: str) -> list[tuple[Any, bool]]:
+        return [
+            (row.value, row.eligible)
+            for row in store.get_effective_properties(node_id)
+            if row.property_schema_id == self.SCHEMA
+        ]
+
+    def test_the_fixture_pins_extends_aware_eligibility_and_survival_under_narrowing(
+        self, store: LocalStore
+    ) -> None:
+        self._replay(store)
+        # The scope list and the icon ride the schema row.
+        schema_row = raw(
+            store, "SELECT icon, scope_class_ids FROM property_schema WHERE id = ?", (self.SCHEMA,)
+        )
+        assert schema_row == [("mdiTagOutline", json.dumps([self.A]))]
+        # A-member and B-member (via the extends ancestor) are eligible.
+        assert self.rows_of(store, self.NA) == [("science fiction", True)]
+        assert self.rows_of(store, self.NB) == [("hard sci-fi", True)]
+        # The unclassed node's authored row SURVIVES the narrowing (never
+        # retroactive) and reads tagged eligible=false (R3 read-side arm).
+        assert self.rows_of(store, self.NX) == [("authored while global", False)]
+        # The binding row authored while the schema was scoped to A survives too.
+        assert raw(
+            store,
+            "SELECT COUNT(*) FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            (self.A, self.SCHEMA),
+        ) == [(1,)]
+
+
+class TestPropertySchemaUpdateFieldsFixture:
+    """Replay of property-schema-update-fields.json: the update keep/clear
+    contract for icon/scopeClassIds/targetClassFilter/multi/validationRules
+    (absent keeps, present-null clears) — mirroring the monorepo store test."""
+
+    SCORE = "0192a000-0000-7000-8000-000000000960"
+    RELATED = "0192a000-0000-7000-8000-000000000961"
+    FILTER_TARGET = "0192a000-0000-7000-8000-000000000951"
+
+    def test_update_keep_clear_for_icon_scope_filter_multi_and_validation_rules(
+        self, store: LocalStore
+    ) -> None:
+        for envelope in load_fixture("property-schema-update-fields.json"):
+            assert store.apply_remote(RelayEnvelope.model_validate(envelope)) is True
+        # Cleared at the end of the Score lifecycle: icon/multi/rules back to
+        # defaults, the keep-riding name landed.
+        assert raw(
+            store,
+            "SELECT icon, multi, scope_class_ids, target_class_filter, validation_rules"
+            " FROM property_schema WHERE id = ?",
+            (self.SCORE,),
+        ) == [(None, 0, None, None, None)]
+        assert raw(store, "SELECT name FROM property_schema WHERE id = ?", (self.SCORE,)) == [
+            ("Score (kept fields ride)",)
+        ]
+        # Related: filter + scope set then cleared (the intermediate values
+        # were the set arms of the same contract).
+        assert raw(
+            store,
+            "SELECT scope_class_ids, target_class_filter FROM property_schema WHERE id = ?",
+            (self.RELATED,),
+        ) == [(None, None)]
+
+
+class TestPropertyValidationRulesFixture:
+    """Replay of property-validation-rules.json (R2 value enforcement): the
+    first 24 envelopes are the accepting prefix (boundaries, the normalized
+    numeric string, min-only/max-only, rule-free, schema-less); the tail of
+    6 pins the rejects — mirroring the monorepo property-validation test."""
+
+    OWNER = "0192a000-0000-7000-8000-000000001001"
+    RATING = "0192a000-0000-7000-8000-000000001010"
+    KEYWORDS = "0192a000-0000-7000-8000-000000001013"
+    GOOD_ELEMENT = "0192a000-0000-7000-8000-000000001020"
+
+    def _accepts_rejects(self) -> tuple[list[RelayEnvelope], list[RelayEnvelope]]:
+        envelopes = [RelayEnvelope.model_validate(item) for item in load_fixture("property-validation-rules.json")]
+        return envelopes[:24], envelopes[24:]
+
+    def test_accepting_prefix_replays_cleanly_and_idempotently(self, store: LocalStore) -> None:
+        accepts, _ = self._accepts_rejects()
+        for envelope in accepts:
+            assert store.apply_remote(envelope) is True
+        # A second pass dedupes to False on every envelope.
+        assert [store.apply_remote(envelope) for envelope in accepts] == [False] * len(accepts)
+        assert raw(store, "SELECT COUNT(*) FROM property_value") != [(0,)]
+
+    def test_reject_tail_throws_on_apply_each_leaving_the_accepted_state_intact(
+        self, store: LocalStore
+    ) -> None:
+        accepts, rejects = self._accepts_rejects()
+        for envelope in accepts:
+            assert store.apply_remote(envelope) is True
+        # Below min / above max on Rating.
+        with pytest.raises(PropertyValueShapeError, match="below the schema's validationRules min 1"):
+            store.apply_remote(rejects[0])
+        with pytest.raises(PropertyValueShapeError, match="above the schema's validationRules max 5"):
+            store.apply_remote(rejects[1])
+        # Pattern rejects on text (the Homepage schema — text retyped from
+        # the retired `url` type — and the multi-select element).
+        with pytest.raises(PropertyValueShapeError, match="does not match the schema's validationRules pattern"):
+            store.apply_remote(rejects[2])
+        with pytest.raises(PropertyValueShapeError, match="does not match the schema's validationRules pattern"):
+            store.apply_remote(rejects[3])
+        # One bad multi element: the op rejects, the good element survives.
+        with pytest.raises(PropertyValueShapeError, match="does not match the schema's validationRules pattern"):
+            store.apply_remote(rejects[4])
+        # Uncompilable pattern at the rule write.
+        with pytest.raises(PropertyValueShapeError, match="not a compilable regex"):
+            store.apply_remote(rejects[5])
+        # Rating holds the last accepted value (the normalized "4").
+        assert raw(
+            store,
+            "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = 0",
+            (self.OWNER, self.RATING),
+        ) == [("4",)]
+        # Keywords holds the good element; the BAD1 reject wrote nothing.
+        # (property_value.value is the JSON encoding — '"good"'.)
+        assert raw(
+            store,
+            "SELECT value, id FROM property_value WHERE node_id = ? AND property_schema_id = ? ORDER BY rowid",
+            (self.OWNER, self.KEYWORDS),
+        ) == [(json.dumps("good"), self.GOOD_ELEMENT)]
+
+
+class TestExternalRefFixture:
+    """Replay of external-ref.json (the
+    importer/sync-plugin mapping substrate): two node creates, eight
+    ``external_ref.set`` writes racing on four refs (a move, a delete race),
+    two ``external_ref.delete`` writes, and the permanent ``object.delete``
+    purge of node A. Mirrors the monorepo external-ref.test.ts fixture
+    assertions: the racing-set and set-beats-stale-delete-after-reorder
+    scenarios converge identically under either delivery order of the
+    mapping ops, and the hard delete purges node A's live rows while the
+    ref tombstones survive (keyed by ref)."""
+
+    A = "0192a000-0000-7000-8000-000000000b10"
+    B = "0192a000-0000-7000-8000-000000000b11"
+    REF_GCAL = "gcal:event:abc123@google.com"
+    REF_DEF456 = "gcal:event:def456@google.com"
+    REF_GHI789 = "gcal:event:ghi789@google.com"
+    REF_READWISE = "readwise:highlight:12345"
+    REF_READITLATER = "readitlater:entry:7788"
+
+    @staticmethod
+    def _envelopes() -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("external-ref.json")]
+
+    def test_full_replay_lands_the_final_mapping_state(self, store: LocalStore) -> None:
+        envelopes = self._envelopes()
+        for envelope in envelopes:
+            assert store.apply_remote(envelope) is True
+        # Idempotent replay: every envelope dedupes to False.
+        assert [store.apply_remote(envelope) for envelope in envelopes] == [False] * len(envelopes)
+        self._assert_final_state(store)
+
+    def test_mapping_ops_converge_under_reversed_delivery(self, tmp_path: Path) -> None:
+        envelopes = self._envelopes()
+        creates, mapping_ops, purge = envelopes[:2], envelopes[2:-1], envelopes[-1]
+        forward = LocalStore(tmp_path / "forward.db")
+        for envelope in [*creates, *mapping_ops, purge]:
+            assert forward.apply_remote(envelope) is True
+        backward = LocalStore(tmp_path / "backward.db")
+        for envelope in [*creates, *reversed(mapping_ops), purge]:
+            # Reversed delivery drops the lower-tuple racing sets by LWW
+            # (e.g. the readitlater A-set against the already-standing
+            # higher-tuple B-set) — convergence, not a bug.
+            backward.apply_remote(envelope)
+        for instance in (forward, backward):
+            self._assert_final_state(instance)
+            instance.close()
+
+    def _assert_final_state(self, store: LocalStore) -> None:
+        """The post-purge derived state both delivery orders must reach
+        (the monorepo external-ref.test.ts fixture assertions, extended by
+        the fixture's def456 delete + ghi789 purge)."""
+        # The gcal mapping MOVED A -> B (…050400 beat …050200); readitlater
+        # moved A -> B too — its racing pair is the two sets (…050700 from
+        # the laptop vs …050750 from the phone; the higher tuple wins), with
+        # no delete in the fixture.
+        assert store.resolve_external_ref(WS, self.REF_GCAL) == self.B
+        assert store.resolve_external_ref(WS, self.REF_READITLATER) == self.B
+        # The two deletes tombstoned readwise and def456 (ghi789's sibling).
+        assert store.resolve_external_ref(WS, self.REF_READWISE) is None
+        assert store.resolve_external_ref(WS, self.REF_DEF456) is None
+        # ghi789 rode node A and died with its purge (the hard-delete purge).
+        assert store.resolve_external_ref(WS, self.REF_GHI789) is None
+        # The reverse read: A is purged (no live rows), B carries both refs sorted.
+        assert store.external_refs_of(WS, self.A) == []
+        assert store.external_refs_of(WS, self.B) == [self.REF_GCAL, self.REF_READITLATER]
+        # The ref tombstones survive the node's purge (keyed by ref).
+        assert raw(
+            store,
+            "SELECT ref FROM external_ref_tombstone WHERE workspace_id = ? ORDER BY ref",
+            (WS,),
+        ) == [(self.REF_DEF456,), (self.REF_READWISE,)]
+        assert raw(
+            store,
+            "SELECT ref, node_id FROM external_ref WHERE workspace_id = ? ORDER BY ref",
+            (WS,),
+        ) == [(self.REF_GCAL, self.B), (self.REF_READITLATER, self.B)]
+
+
+class TestTagMembershipFixture:
+    """Replay of tag-membership.json (SCHEMA.md "Tags"): two parentless tag
+    pages, the content node seeded with tagIds [A], the re-issued
+    ``object.create`` assign carrier accumulating B without touching the
+    tree, the ``tag.unassign`` tombstone, and the newer re-issued create
+    resurrecting A (add-wins, the strictly-greater actor tiebreak) —
+    mirroring the monorepo store test."""
+
+    TAG_A = "0192a000-0000-7000-8000-000000000701"
+    TAG_B = "0192a000-0000-7000-8000-000000000702"
+    ITEM = "0192a000-0000-7000-8000-000000000703"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("tag-membership.json")]
+
+    def test_fixture_shape_seed_carrier_tombstone_and_newer_add(self) -> None:
+        """The wire-shape pins (mirroring the monorepo protocol test): tag
+        pages first, the seed, the bare re-issued-create carriers, the exact
+        {objectId, tagId} tombstone, the resurrection's newer HLC, and the
+        strict unassign schema."""
+        envelopes = self._load()
+        creates = [env for env in envelopes if env.op_type == "object.create"]
+        assert [env.payload["objectId"] for env in creates] == [
+            self.TAG_A,
+            self.TAG_B,
+            self.ITEM,
+            self.ITEM,
+            self.ITEM,
+        ]
+        assert creates[2].payload["tagIds"] == [self.TAG_A]
+        # The assign carrier is a RE-ISSUED object.create on the existing id:
+        # no content, no tree keys — just the id + the tagIds OR-Set seed.
+        assert creates[3].payload == {"objectId": self.ITEM, "tagIds": [self.TAG_B]}
+        assert creates[4].payload == {"objectId": self.ITEM, "tagIds": [self.TAG_A]}
+        unassign = next(env for env in envelopes if env.op_type == "tag.unassign")
+        assert unassign.payload == {"objectId": self.ITEM, "tagId": self.TAG_A}
+        # The resurrection add carries a strictly newer HLC than the tombstone.
+        assert unassign.hlc.physical < creates[4].hlc.physical
+        # Strict schema: an extra key on the unassign payload is rejected.
+        with pytest.raises(ValueError, match="Extra inputs"):
+            validate_payload("tag.unassign", {"objectId": self.ITEM, "tagId": self.TAG_A, "idx": 0})
+        physicals = [env.hlc.physical for env in envelopes]
+        assert physicals == sorted(physicals)
+
+    def test_seed_assign_carrier_unassign_tombstone_and_resurrection(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        # Tag pages + the seeded create: only A.
+        for env in envelopes[:3]:
+            assert store.apply_remote(env) is True
+        assert store.node(WS, self.ITEM).tag_ids == (self.TAG_A,)
+        # The re-issued create assign carrier accumulates B (recompute sorts
+        # by tag id); the tree is untouched (parentless, standalone). The
+        # re-create returns False (no tree mutation — the
+        # class-property-defaults envelope-6 precedent); the OR-Set upsert is
+        # its by-design side effect.
+        store.apply_remote(envelopes[3])
+        row = store.node(WS, self.ITEM)
+        assert row.tag_ids == (self.TAG_A, self.TAG_B)
+        assert (row.parent_id, row.is_embedded) == (None, False)
+        # The unassign tombstones A…
+        assert store.apply_remote(envelopes[4]) is True
+        assert store.node(WS, self.ITEM).tag_ids == (self.TAG_B,)
+        # …and the newer re-issued create resurrects it (add-wins).
+        store.apply_remote(envelopes[5])
+        assert store.node(WS, self.ITEM).tag_ids == (self.TAG_A, self.TAG_B)
+
+
+class TestMentionCustomLabelFixture:
+    """Replay of mention-custom-label.json (the mention reshape): the
+    mention token's ONLY stored text is the optional customLabel — envelope 2
+    writes a bare mention (resolves the target's current name) next to a
+    customLabel-carrying mention (renders the label), envelope 3 clears the
+    label by rewriting the stream to a single bare mention."""
+
+    PAGE = "0192a000-0000-7000-8000-00000000cc10"
+    BLOCK = "0192a000-0000-7000-8000-00000000cc11"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("mention-custom-label.json")]
+
+    def test_replay_lands_the_label_write_then_the_label_clear(self, store: LocalStore) -> None:
+        page, block, clear = self._load()
+        assert store.apply_remote(page) is True
+        assert store.apply_remote(block) is True
+        # The embedded block's content rides verbatim: the bare mention
+        # stores id only, the label mention stores customLabel — no captured
+        # link text anywhere.
+        assert json.loads(store.node(WS, self.BLOCK).content or "[]") == [
+            {
+                "type": "mention",
+                "targetNodeId": self.PAGE,
+                "linkId": "0192a000-0000-7000-8000-00000000cc20",
+            },
+            {"type": "text", "text": " — "},
+            {
+                "type": "mention",
+                "targetNodeId": self.PAGE,
+                "customLabel": "the Republic",
+                "linkId": "0192a000-0000-7000-8000-00000000cc21",
+            },
+        ]
+        # The clear is an ordinary object.update rewriting the stream to one
+        # bare mention (presence writes; absent label = resolve the target).
+        assert store.apply_remote(clear) is True
+        assert json.loads(store.node(WS, self.BLOCK).content or "[]") == [
+            {
+                "type": "mention",
+                "targetNodeId": self.PAGE,
+                "linkId": "0192a000-0000-7000-8000-00000000cc20",
+            }
+        ]
+
+    def test_retired_captured_text_keys_rejected_custom_label_accepted(self) -> None:
+        """The strict grammar pins (mirroring the monorepo protocol test):
+        bare and customLabel-carrying mentions validate; the retired
+        captured-text keys fail loud."""
+        target = self.PAGE
+        validate_content_ast([{"type": "mention", "targetNodeId": target}])
+        validate_content_ast([{"type": "mention", "targetNodeId": target, "customLabel": "the Republic"}])
+        with pytest.raises(ValueError):
+            validate_content_ast([{"type": "mention", "targetNodeId": target, "text": "captured"}])
+        with pytest.raises(ValueError):
+            validate_content_ast([{"type": "mention", "targetNodeId": target, "displayText": "the Republic"}])
+
+    def test_fixture_content_ast_bytes_pass_the_strict_validator(self) -> None:
+        """The fixture's actual payload bytes are the pin: every contentAst
+        the corpus carries (a bare mention, a customLabel mention, and the
+        cleared single-bare-mention rewrite) validates against the strict
+        grammar — the validator accepts exactly what the wire carries."""
+        for envelope in self._load():
+            content_ast = envelope.payload.get("contentAst")
+            if content_ast is not None:
+                validate_content_ast(list(content_ast))
+
+
+class TestClassPropertyPinnedFixture:
+    """Replay of class-property-pinned.json (the binding row's pinned tier
+    flag, additive 2026-10-27): `pinned` rides ``class.property.set`` with
+    the `active` patch semantics (omitted keeps the stored flag), row LWW by
+    envelope HLC — the interleaved lower-HLC phone pin never wins — and
+    ``class.property.unset`` deletes the row outright regardless of pinning
+    state."""
+
+    SCHEMA = "0192a000-0000-7000-8000-000000000f0b"
+    CLASS = "0192a000-0000-7000-8000-000000000f0c"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("class-property-pinned.json")]
+
+    def _pinned(self, store: LocalStore) -> list[tuple[Any]]:
+        return raw(
+            store,
+            "SELECT pinned FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            (self.CLASS, self.SCHEMA),
+        )
+
+    def test_fixture_shape_patch_semantics_race_and_unset_pair(self) -> None:
+        """The wire-shape pins (mirroring the monorepo protocol test):
+        bind → pin → interleaved pin (lower HLC, race loser) → unpin →
+        active-only patch (pinned omitted) → pin back; the unset is the
+        bare {classId, propertySchemaId} pair."""
+        envelopes = self._load()
+        sets = [env for env in envelopes if env.op_type == "class.property.set"]
+        assert [env.payload.get("pinned") for env in sets] == [True, True, False, None, True]
+        # The interleaved phone pin loses the row LWW race: its HLC strictly
+        # precedes the next (winning) web write.
+        assert sets[1].hlc.physical < sets[2].hlc.physical
+        # The active-only patch (pinned omitted) keeps the stored flag.
+        assert sets[3].payload.get("active") is True
+        unset = next(env for env in envelopes if env.op_type == "class.property.unset")
+        assert sorted(unset.payload) == ["classId", "propertySchemaId"]
+        physicals = [env.hlc.physical for env in envelopes]
+        assert physicals == sorted(physicals)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "lockstep-pending: the `pinned` payload key is rejected outright by the strict "
+            "class.property.set schema on main (EnvelopeValidationError on the first pinned "
+            "envelope; the class_property table has no pinned column) — the applier work "
+            "rides the class-property-pinned lockstep branch"
+        ),
+    )
+    def test_pinned_flag_tracks_the_newest_envelope_and_unset_deletes(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:3]:  # schema, class, first pin (web, pinned=true)
+            assert store.apply_remote(env) is True
+        assert self._pinned(store) == [(1,)]
+        # The interleaved phone pin applies but never wins the row: the flag
+        # tracks the newest envelope's value, not the newest file position.
+        assert store.apply_remote(envelopes[3]) is True
+        assert self._pinned(store) == [(1,)]
+        assert store.apply_remote(envelopes[4]) is True  # the newer web unpin wins
+        assert self._pinned(store) == [(0,)]
+        # The active-only patch keeps the stored flag…
+        assert store.apply_remote(envelopes[5]) is True
+        assert self._pinned(store) == [(0,)]
+        # …a later pin flips it back…
+        assert store.apply_remote(envelopes[6]) is True
+        assert self._pinned(store) == [(1,)]
+        # …and the unset deletes the row outright, ignoring pinning state.
+        assert store.apply_remote(envelopes[7]) is True
+        assert self._pinned(store) == []
+
+
+class TestClassPropertyNodeRowsFixture:
+    """Replay of class-property-node-rows.json (the binding row's
+    ``showInNodeRows`` node-row preview flag, additive 2026-11-08): the flag
+    rides ``class.property.set`` with the ``active`` patch semantics (omitted
+    keeps the stored flag), row LWW by envelope HLC — the interleaved
+    lower-HLC phone flag never wins — and ``class.property.unset`` deletes
+    the row outright regardless of preview state."""
+
+    SCHEMA = "0192a000-0000-7000-8000-000000000f2b"
+    CLASS = "0192a000-0000-7000-8000-000000000f2c"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("class-property-node-rows.json")]
+
+    def _flag(self, store: LocalStore) -> list[tuple[Any]]:
+        return raw(
+            store,
+            "SELECT show_in_node_rows FROM class_property WHERE class_id = ? AND property_schema_id = ?",
+            (self.CLASS, self.SCHEMA),
+        )
+
+    def test_fixture_shape_patch_semantics_race_and_unset_pair(self) -> None:
+        """The wire-shape pins (mirroring the monorepo protocol test):
+        bind → flag → interleaved flag (lower HLC, race loser) → unflag
+        (newer, winner) → active-only patch (flag kept) → flag back; the
+        unset is the bare {classId, propertySchemaId} pair."""
+        envelopes = self._load()
+        sets = [env for env in envelopes if env.op_type == "class.property.set"]
+        assert [env.payload.get("showInNodeRows") for env in sets] == [True, True, False, None, True]
+        # The interleaved phone flag loses the row LWW race: its HLC strictly
+        # precedes the next (winning) web write.
+        assert sets[1].hlc.physical < sets[2].hlc.physical
+        # The active-only patch (showInNodeRows omitted) keeps the stored flag.
+        assert sets[3].payload.get("active") is True
+        unset = next(env for env in envelopes if env.op_type == "class.property.unset")
+        assert sorted(unset.payload) == ["classId", "propertySchemaId"]
+        physicals = [env.hlc.physical for env in envelopes]
+        assert physicals == sorted(physicals)
+
+    def test_show_in_node_rows_tracks_the_newest_envelope_and_unset_deletes(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for env in envelopes[:3]:  # schema, class, first flag (web, showInNodeRows=true)
+            assert store.apply_remote(env) is True
+        assert self._flag(store) == [(1,)]
+        # The interleaved phone flag applies but never wins the row: the flag
+        # tracks the newest envelope's value, not the newest file position.
+        assert store.apply_remote(envelopes[3]) is True
+        assert self._flag(store) == [(1,)]
+        assert store.apply_remote(envelopes[4]) is True  # the newer web unflag wins
+        assert self._flag(store) == [(0,)]
+        # The active-only patch keeps the stored flag…
+        assert store.apply_remote(envelopes[5]) is True
+        assert self._flag(store) == [(0,)]
+        # …a later flag flips it back…
+        assert store.apply_remote(envelopes[6]) is True
+        assert self._flag(store) == [(1,)]
+        # …and the unset deletes the row outright, ignoring preview state.
+        assert store.apply_remote(envelopes[7]) is True
+        assert self._flag(store) == []
+
+
+class TestPropertyAssignFixture:
+    """Replay of property-assign.json (node-level property assignment):
+    concurrent assigns converge on ONE node_property presence row, the value
+    lands through an ordinary ``property.set``, ``property.unassign`` kills
+    the declaration while the authored value SURVIVES, the newer re-assign
+    revives the pin, and ``property.empty`` clears every authored value
+    while the declaration survives — the end state reads assigned and
+    valueless."""
+
+    SCHEMA = "0192a000-0000-7000-8000-000000000901"
+    ITEM = "0192a000-0000-7000-8000-000000000902"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("property-assign.json")]
+
+    def test_fixture_shape_bare_pair_ops_and_ordinary_value_carrier(self) -> None:
+        """The wire-shape pins (mirroring the monorepo protocol test): the
+        assignment family addresses the bare (node, schema) pair — no
+        value/order keys — and the value rides an ordinary property.set."""
+        envelopes = self._load()
+        assigns = [env for env in envelopes if env.op_type == "property.assign"]
+        unassigns = [env for env in envelopes if env.op_type == "property.unassign"]
+        empties = [env for env in envelopes if env.op_type == "property.empty"]
+        sets = [env for env in envelopes if env.op_type == "property.set"]
+        assert (len(assigns), len(unassigns), len(empties)) == (3, 1, 1)
+        for env in (*assigns, *unassigns, *empties):
+            assert sorted(env.payload) == ["objectId", "propertySchemaId"]
+            assert env.payload["objectId"] == self.ITEM
+        assert sets[0].payload["value"] == "https://example.org"
+        # The value arrives AFTER both assigns; the empty is the newest op.
+        assert assigns[1].hlc.physical < sets[0].hlc.physical
+        assert assigns[2].hlc.physical < empties[0].hlc.physical
+        physicals = [env.hlc.physical for env in envelopes]
+        assert physicals == sorted(physicals)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "lockstep-pending: property.assign/unassign/empty are not in the GTK op registry "
+            "on main — the ops skip as unknown (logged, unrecorded), the node_property table "
+            "and the assigned-empty effective row do not exist, and the property.set value "
+            "never dies; the authored value survives where the fixture pins it dead"
+        ),
+    )
+    def test_assignment_lifecycle_ends_assigned_and_valueless(self, store: LocalStore) -> None:
+        for envelope in self._load():
+            assert store.apply_remote(envelope) is True
+        # property.empty cleared every authored value (both tombstone
+        # families stamped at the empty's HLC)…
+        assert raw(store, "SELECT COUNT(*) FROM property_value WHERE node_id = ?", (self.ITEM,)) == [(0,)]
+        # …while the declaration survived: the effective read renders the
+        # assigned-empty row again (valueless, source "assigned").
+        effective = store.get_effective_properties(self.ITEM)
+        assert [(row.property_schema_id, row.value, row.source) for row in effective] == [
+            (self.SCHEMA, None, "assigned")
+        ]
+
+
+class TestCardReviewFixture:
+    """Replay of card-review.json (the memorization-card review op, SCHEMA.md
+    "Memorization cards"): two graded reviews of a card-classed node land as
+    HISTORY-ONLY rows in the derived ``card_review`` table — one envelope, one
+    row, NO LWW gate, and the op never writes property values. Mirrors the
+    monorepo's card-review.test.ts assertions."""
+
+    CARD = "0192a000-0000-7000-8000-000000000940"
+    SESSION_AGAIN = "0192a000-0000-7000-8000-000000000944"
+    SESSION_GOOD = "0192a000-0000-7000-8000-000000000945"
+
+    def _load(self) -> list[RelayEnvelope]:
+        return [RelayEnvelope.model_validate(item) for item in load_fixture("card-review.json")]
+
+    def _review_envelope(self, fixture_env: RelayEnvelope, card_id: str, envelope_id: str) -> RelayEnvelope:
+        """A copy of a fixture review re-targeted at ``card_id`` (fail-loud
+        arms) — a fresh envelope id so the relay_operations dedupe lets it
+        apply."""
+        data = fixture_env.model_dump(mode="json", by_alias=True)
+        data["id"] = envelope_id
+        data["payload"]["cardId"] = card_id
+        return RelayEnvelope.model_validate(data)
+
+    def test_full_replay_lands_two_history_rows_and_the_latest_state(self, store: LocalStore) -> None:
+        for envelope in self._load():
+            assert store.apply_remote(envelope) is True
+        reviews = store.list_card_reviews(self.CARD)
+        assert [(row.grade, row.session_id) for row in reviews] == [
+            ("again", self.SESSION_AGAIN),
+            ("good", self.SESSION_GOOD),
+        ]
+        # Both reviews are history — no LWW collapse — and the card's derived
+        # SRS state is the LATEST row's stateAfter (the fixture comment's
+        # end state).
+        assert reviews[1].state_after == {
+            "due": "2026-10-29",
+            "reps": 1,
+            "interval": 1,
+            "ease": 2.5,
+            "difficulty": None,
+            "stability": None,
+        }
+        assert reviews[0].state_before == {
+            "due": None,
+            "reps": 0,
+            "interval": 0,
+            "ease": None,
+            "difficulty": None,
+            "stability": None,
+        }
+        assert reviews[0].algorithm == "sm2"
+        assert reviews[0].reviewed_at == "2026-10-28T09:05:00.000Z"
+        # HISTORY-ONLY: the op never writes property values — the seeded
+        # card-family property schemas stay the schedule surface.
+        assert raw(store, "SELECT COUNT(*) FROM property_value WHERE node_id = ?", (self.CARD,)) == [(0,)]
+        assert raw(store, "SELECT COUNT(*) FROM property_value_tombstone WHERE node_id = ?", (self.CARD,)) == [(0,)]
+
+    def test_state_snapshots_store_the_verbatim_wire_json(self, store: LocalStore) -> None:
+        envelopes = self._load()
+        for envelope in envelopes:
+            assert store.apply_remote(envelope) is True
+        fixture_payloads = [env.payload for env in envelopes if env.op_type == "card.review"]
+        rows = raw(store, "SELECT state_before, state_after FROM card_review ORDER BY hlc_physical")
+        # Byte-verbatim: the derived rows re-serialize to the fixture's state
+        # dicts, camelCase keys and int/float shapes untouched.
+        assert [json.loads(row[0]) for row in rows] == [payload["stateBefore"] for payload in fixture_payloads]
+        assert [json.loads(row[1]) for row in rows] == [payload["stateAfter"] for payload in fixture_payloads]
+
+    def test_concurrent_reviews_list_in_hlc_order_under_both_delivery_orders(self, tmp_path: Path) -> None:
+        forward = LocalStore(tmp_path / "forward.db")
+        backward = LocalStore(tmp_path / "backward.db")
+        create, again, good = self._load()
+        for envelope in (create, again, good):
+            assert forward.apply_remote(envelope) is True
+        for envelope in (create, good, again):
+            assert backward.apply_remote(envelope) is True
+        # The read seam orders by (hlc_physical, hlc_logical): both delivery
+        # orders converge on the identical history.
+        assert forward.list_card_reviews(self.CARD) == backward.list_card_reviews(self.CARD)
+        assert [row.grade for row in forward.list_card_reviews(self.CARD)] == ["again", "good"]
+        forward.close()
+        backward.close()
+
+    def test_fail_loud_missing_node_and_non_card_node(self, store: LocalStore) -> None:
+        create, again, _good = self._load()
+        missing = self._review_envelope(again, "0192a000-0000-7000-8000-000000000c42", "0192a000-0000-7000-8000-000000000950")
+        with pytest.raises(NotFoundError, match="does not exist"):
+            store.apply_remote(missing)
+        # The failed apply rolled back whole — nothing recorded.
+        assert raw(store, "SELECT COUNT(*) FROM relay_operations WHERE op_id = ?", (missing.id,)) == [(0,)]
+        assert raw(store, "SELECT COUNT(*) FROM card_review") == [(0,)]
+
+        # An existing node WITHOUT the card system class fails the membership
+        # guard just as loud (MoveGuardError — the write-time-impossible law).
+        plain = RelayEnvelope.model_validate(
+            {
+                "protocolVersion": 3,
+                "workspaceId": WS,
+                "actorId": "0192a000-0000-7000-8000-000000000002",
+                "deviceId": "fixture-test-device",
+                "hlc": {"physical": 1727200000000, "logical": 0},
+                "opType": "object.create",
+                "timestamp": "2026-10-28T08:00:00.000Z",
+                "payload": {"objectId": NODE_PAGE, "classIds": [], "tagIds": [], "contentAst": []},
+            }
+        )
+        assert store.apply_remote(plain) is True
+        not_a_card = self._review_envelope(again, NODE_PAGE, "0192a000-0000-7000-8000-000000000951")
+        with pytest.raises(MoveGuardError, match="is not classed memorization card"):
+            store.apply_remote(not_a_card)
+        assert raw(store, "SELECT COUNT(*) FROM card_review") == [(0,)]
+
+    def test_reapplying_a_review_envelope_is_deduplicated(self, store: LocalStore) -> None:
+        """HISTORY-ONLY is not append-twice: the relay_operations dedupe (the
+        apply_remote seam) makes a re-delivered review envelope a no-op."""
+        create, again, _good = self._load()
+        for envelope in (create, again):
+            assert store.apply_remote(envelope) is True
+        assert store.apply_remote(again) is False
+        assert raw(store, "SELECT COUNT(*) FROM card_review WHERE card_id = ?", (self.CARD,)) == [(1,)]

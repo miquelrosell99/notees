@@ -1,0 +1,325 @@
+"""Validate protocol fixtures against the GTK client's wire models.
+
+Two fixture sets live under ``tests/fixtures/``:
+
+- the repo's own wire fixtures (batch/catch-up/WS frames), and
+- ``wire/`` — a verbatim port of ``packages/protocol/fixtures/`` from the
+  Notees monorepo. That port is the cross-implementation parity anchor: every
+  envelope the TypeScript reference produces must parse through these models
+  and round-trip field-by-field.
+
+Each fixture is parsed by the model that owns that wire shape, serialized back
+with the wire casing, and compared (timestamps compared as instants — pydantic
+serializes ``...06.400Z`` with microsecond precision, same moment). If a model
+and its fixture drift (renamed field, changed default, changed casing), this
+test fails.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+from conftest import normalize_json
+from pydantic import BaseModel, ValidationError
+
+from notees_gtk.core.protocol.crypto import b64u_decode, decrypt_envelope
+from notees_gtk.core.protocol.models import (
+    PROTOCOL_VERSION,
+    WS_PROTOCOL_VERSION,
+    BatchRequest,
+    CatchUpPaginatedResponse,
+    CatchUpRequest,
+    RelayEnvelope,
+    WsAckMessage,
+    WsBatchMessage,
+    WsErrorMessage,
+    WsHelloMessage,
+    WsOpsMessage,
+)
+from notees_gtk.core.protocol.payloads import validate_payload
+from notees_gtk.core.protocol.query_ast import parse_query_ast
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+
+# fixture path (relative to FIXTURES_DIR) -> (model, serialize with camelCase aliases)
+FIXTURE_MODELS: dict[str, tuple[type[BaseModel], bool]] = {
+    "batch-request.json": (BatchRequest, True),
+    "catch-up-request.json": (CatchUpRequest, True),
+    "catch-up-response.json": (CatchUpPaginatedResponse, True),
+    "ws-hello.json": (WsHelloMessage, True),
+    "ws-ops.json": (WsOpsMessage, True),
+    "ws-batch.json": (WsBatchMessage, True),
+    "ws-ack.json": (WsAckMessage, True),
+    "ws-error.json": (WsErrorMessage, True),
+}
+
+# wire/ parity port: fixtures holding a single envelope document.
+WIRE_SINGLE_ENVELOPE_FIXTURES = [
+    "wire/envelope-minimal.json",
+    "wire/object-create.json",
+]
+
+# wire/ parity port: fixtures holding {"comment": ..., "envelopes": [...]}.
+WIRE_ENVELOPE_LIST_FIXTURES = [
+    "wire/card-review.json",
+    "wire/class-convert.json",
+    "wire/class-extends-cycle.json",
+    "wire/class-extends-m2m.json",
+    "wire/class-extends-system-lock.json",
+    "wire/class-link-assertion.json",
+    "wire/class-link.json",
+    "wire/class-parentless-role.json",
+    "wire/class-display-template.json",
+    "wire/class-property-active.json",
+    "wire/class-property-defaults.json",
+    "wire/class-property-node-rows.json",
+    "wire/class-property-pinned.json",
+    "wire/class-unassign.json",
+    "wire/code-block.json",
+    "wire/embed-ref-view.json",
+    "wire/envelope-encrypted.json",
+    "wire/hr.json",
+    "wire/heading-content.json",
+    "wire/is-embedded-date-chain.json",
+    "wire/is-embedded-parent-page.json",
+    "wire/link-embedded.json",
+    "wire/mention-custom-label.json",
+    "wire/object-color.json",
+    "wire/object-delete-class-routing.json",
+    "wire/object-delete-date-chain.json",
+    "wire/object-is-embedded.json",
+    "wire/object-list-style.json",
+    "wire/object-move-before.json",
+    "wire/object-move.json",
+    "wire/object-restore.json",
+    "wire/object-update-active.json",
+    "wire/object-wire-fields.json",
+    "wire/property-asset-type.json",
+    "wire/property-assign.json",
+    "wire/property-date-qualifier.json",
+    "wire/property-datetime.json",
+    "wire/property-schema-delete.json",
+    "wire/property-schema-scope.json",
+    "wire/property-schema-update-fields.json",
+    "wire/property-set-lww.json",
+    "wire/property-validation-rules.json",
+    "wire/property-value-elements.json",
+    "wire/tag-membership.json",
+    "wire/typed-link-mark.json",
+    "wire/typed-link-mark-deleted.json",
+    "wire/query-ast-v2.json",
+    "wire/recurrence-property.json",
+    "wire/tag-membership.json",
+    "wire/typed-link-mark.json",
+    "wire/typed-link-mark-deleted.json",
+    "wire/trash-empty.json",
+    "wire/workspace-feature-readitlater.json",
+    "wire/workspace-feature-set.json",
+    "wire/external-ref.json",
+]
+
+
+def _round_trip(raw: Any, serialized: Any, fixture_name: str) -> None:
+    assert normalize_json(serialized) == normalize_json(raw), (
+        f"{fixture_name} drifted from the wire models:\n"
+        f"fixture:    {json.dumps(raw, sort_keys=True, default=str)}\n"
+        f"serialized: {json.dumps(serialized, sort_keys=True, default=str)}"
+    )
+
+
+@pytest.mark.parametrize("fixture_name", sorted(FIXTURE_MODELS))
+def test_fixture_round_trips_through_model(fixture_name: str) -> None:
+    model, by_alias = FIXTURE_MODELS[fixture_name]
+    raw = json.loads((FIXTURES_DIR / fixture_name).read_text())
+    parsed = model.model_validate(raw)
+    _round_trip(raw, parsed.model_dump(mode="json", by_alias=by_alias), fixture_name)
+
+
+@pytest.mark.parametrize("fixture_name", WIRE_SINGLE_ENVELOPE_FIXTURES)
+def test_wire_single_envelope_fixture_round_trips(fixture_name: str) -> None:
+    """The monorepo's single-envelope fixtures parse and re-serialize exactly."""
+    raw = json.loads((FIXTURES_DIR / fixture_name).read_text())
+    parsed = RelayEnvelope.model_validate(raw)
+    _round_trip(raw, parsed.model_dump(mode="json", by_alias=True), fixture_name)
+
+
+@pytest.mark.parametrize("fixture_name", WIRE_ENVELOPE_LIST_FIXTURES)
+def test_wire_envelope_list_fixture_round_trips(fixture_name: str) -> None:
+    """The monorepo's multi-envelope fixtures: every envelope parses and re-serializes."""
+    raw = json.loads((FIXTURES_DIR / fixture_name).read_text())
+    envelopes = raw["envelopes"]
+    parsed = [RelayEnvelope.model_validate(item) for item in envelopes]
+    # exclude_none: absent optional claims (e.g. no `client`) stay absent on
+    # the wire — the model represents them as None, the fixture omits the key.
+    serialized = [env.model_dump(mode="json", by_alias=True, exclude_none=True) for env in parsed]
+    _round_trip(envelopes, serialized, fixture_name)
+
+
+def test_wire_encrypted_fixture_decrypts_and_validates_against_strict_schemas() -> None:
+    """The lockstep contract: the fixture key opens every $e envelope and the
+    OPENED payload validates against the strict per-opType schema (not just
+    "decrypts to something")."""
+    raw = json.loads((FIXTURES_DIR / "wire/envelope-encrypted.json").read_text())
+    key = b64u_decode(raw["crypto"]["workspaceKey"])
+    assert len(key) == 32
+    for item in raw["envelopes"]:
+        envelope = RelayEnvelope.model_validate(item)
+        opened = decrypt_envelope(key, envelope)
+        assert "$e" not in opened.payload
+        validate_payload(envelope.op_type, opened.payload)
+
+
+def test_every_fixture_file_is_covered() -> None:
+    """A fixture file that is not round-tripped here silently rots."""
+    on_disk = {str(path.relative_to(FIXTURES_DIR)) for path in FIXTURES_DIR.rglob("*.json")}
+    covered = set(FIXTURE_MODELS) | set(WIRE_SINGLE_ENVELOPE_FIXTURES) | set(WIRE_ENVELOPE_LIST_FIXTURES)
+    assert on_disk == covered, (
+        f"fixture files without a model mapping: {on_disk - covered}; mappings without a file: {covered - on_disk}"
+    )
+
+
+def test_wire_envelopes_declare_protocol_version_three() -> None:
+    for fixture_name in WIRE_SINGLE_ENVELOPE_FIXTURES:
+        raw = json.loads((FIXTURES_DIR / fixture_name).read_text())
+        assert raw["protocolVersion"] == PROTOCOL_VERSION
+
+
+def test_envelope_protocol_version_is_mandatory() -> None:
+    raw = json.loads((FIXTURES_DIR / "wire/envelope-minimal.json").read_text())
+    without_version = {key: value for key, value in raw.items() if key != "protocolVersion"}
+    with pytest.raises(ValidationError, match="protocolVersion"):
+        RelayEnvelope.model_validate(without_version)
+
+
+def test_envelope_rejects_snake_case_field_names() -> None:
+    """The wire is camelCase-only (envelope.ts .strict()); snake keys must fail loud."""
+    raw = json.loads((FIXTURES_DIR / "wire/envelope-minimal.json").read_text())
+    snake = {
+        "id": raw["id"],
+        "protocol_version": raw["protocolVersion"],
+        "workspace_id": raw["workspaceId"],
+        "actor_id": raw["actorId"],
+        "device_id": raw["deviceId"],
+        "hlc": raw["hlc"],
+        "affected_node_ids": raw["affectedNodeIds"],
+        "op_type": raw["opType"],
+        "timestamp": raw["timestamp"],
+        "payload": raw["payload"],
+    }
+    with pytest.raises(ValidationError):
+        RelayEnvelope.model_validate(snake)
+
+
+def test_ws_frames_declare_framing_version_two() -> None:
+    hello = json.loads((FIXTURES_DIR / "ws-hello.json").read_text())
+    ops = json.loads((FIXTURES_DIR / "ws-ops.json").read_text())
+    assert hello["wsProtocolVersion"] == WS_PROTOCOL_VERSION
+    assert ops["wsProtocolVersion"] == WS_PROTOCOL_VERSION
+    assert "protocolVersion" not in hello
+    assert "protocolVersion" not in ops
+
+
+# ------------------------------------------------------------- query-AST v2 gate
+#
+# P2's convergence arm (the query surface): the vendored query-ast-v2.json
+# corpus anchor must not just ride the wire opaquely (the P1 arm) — every v2
+# shape it carries must strict-parse AND compile + execute against the GTK
+# mirror's SQL. The fixture bytes are read, never edited (the byte-pin law).
+
+
+def _fixture_query_ast() -> dict[str, Any]:
+    """The query token's embedded AST from the vendored corpus fixture."""
+    raw = json.loads((FIXTURES_DIR / "wire" / "query-ast-v2.json").read_text())
+
+    def find(node: Any) -> dict[str, Any] | None:
+        if isinstance(node, dict):
+            if node.get("type") == "query" and "queryAst" in node:
+                return node["queryAst"]
+            for value in node.values():
+                found = find(value)
+                if found is not None:
+                    return found
+        elif isinstance(node, list):
+            for item in node:
+                found = find(item)
+                if found is not None:
+                    return found
+        return None
+
+    ast = find(raw["envelopes"][0]["payload"])
+    assert ast is not None, "the query-ast-v2 fixture must embed a query token AST"
+    return ast
+
+
+def test_query_ast_fixture_strict_parses() -> None:
+    """Every folded v2 condition shape in the corpus parses (the strict layer —
+    no opaque carriage)."""
+    parsed = parse_query_ast(_fixture_query_ast())
+    assert parsed.version == 2
+    assert parsed.sort is not None and len(parsed.sort) == 4
+
+
+def _fixture_envelopes() -> list[RelayEnvelope]:
+    raw = json.loads((FIXTURES_DIR / "wire" / "query-ast-v2.json").read_text())
+    return [RelayEnvelope.model_validate(item) for item in raw["envelopes"]]
+
+
+def test_query_ast_fixture_compiles_and_executes_on_the_mirror(tmp_path: Path) -> None:
+    """The fixture replays through the store (the auto-glob already proves
+    that), then its embedded AST compiles + runs against the mirror with the
+    hosting page supplied — every v2 shape is live SQL on the GTK schema."""
+    from notees_gtk.data.store import LocalStore
+
+    store = LocalStore(tmp_path / "store.db")
+    try:
+        for envelope in _fixture_envelopes():
+            assert store.apply_remote(envelope)
+        result = store.run_query_ast(
+            "0192a000-0000-7000-8000-000000000001",
+            _fixture_query_ast(),
+            self_node_id="0192a000-0000-7000-8000-00000000e1a1",
+        )
+        assert isinstance(result.ids, tuple)
+        aggregate = store.run_aggregate_ast(
+            "0192a000-0000-7000-8000-000000000001",
+            {
+                **_fixture_query_ast(),
+                "aggregation": {"dimensions": [{"kind": "isClass"}], "measures": [{"function": "count"}]},
+            },
+            self_node_id="0192a000-0000-7000-8000-00000000e1a1",
+        )
+        assert aggregate.columns == ("isClass", "count")
+    finally:
+        store.close()
+
+
+def test_query_ast_fixture_fail_loud_pins(tmp_path: Path) -> None:
+    """The spec's fail-loud arms stay fail-loud on the GTK path: a self target
+    without the hosting page raises, and referencePath/root exists raises."""
+    from notees_gtk.data.store import LocalStore
+
+    store = LocalStore(tmp_path / "store.db")
+    try:
+        for envelope in _fixture_envelopes():
+            store.apply_remote(envelope)
+        with pytest.raises(ValueError, match="selfNodeId"):
+            store.run_query_ast("0192a000-0000-7000-8000-000000000001", _fixture_query_ast())
+        for family in ("referencePath", "root"):
+            with pytest.raises(ValueError, match="emptiness"):
+                store.run_query_ast(
+                    "0192a000-0000-7000-8000-000000000001",
+                    {
+                        "version": 2,
+                        "scope": {"type": "entire_workspace"},
+                        "root": {
+                            "type": "group",
+                            "logic": "and",
+                            "children": [{"type": "member", "family": family, "op": "exists"}],
+                        },
+                    },
+                )
+    finally:
+        store.close()

@@ -1,0 +1,246 @@
+"""Read-only rendering of :class:`PageView` records into GTK widgets.
+
+The heavy lifting (token parsing, mention/chip resolution) lives in the pure
+:mod:`notees_gtk.ui.ast_render` module; this file only turns view records into
+labels: Pango markup for marked runs and pills, monospace frames for math,
+dimmed placeholders for block-scale tokens (asset/embed/whiteboard), and
+live query sections for ``query`` tokens
+(:mod:`notees_gtk.ui.query_section`).
+
+Above the content the widget renders the node-alias chrome (when the window
+passes it — see :mod:`notees_gtk.ui.aliases`): the Aliases section on an
+aliased node's view and the Aliased-node row on the alias's own view. The
+window-built Tags row (see :mod:`notees_gtk.ui.tags`) renders between the
+title and the alias chrome.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable, Sequence
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, GLib, Gtk
+
+from notees_gtk.data.store import LocalStore
+from notees_gtk.ui.aliases import AliasEntry, build_aliased_node_row, build_aliases_section
+from notees_gtk.ui.ast_render import (
+    ClassChipRun,
+    HardBreakRun,
+    MarkdownLinkRun,
+    MathRun,
+    MentionRun,
+    PageView,
+    PlaceholderView,
+    QuerySectionView,
+    QuoteView,
+    TextRun,
+    TypedLinkRun,
+)
+from notees_gtk.ui.brand import ContentColors, content_colors
+from notees_gtk.ui.query_section import EditRequest, QuerySectionWidget
+
+__all__ = ["PageViewWidget", "run_markup", "runs_to_markup"]
+
+
+def run_markup(run: object, colors: ContentColors) -> str:
+    """Convert one inline view record to Pango markup.
+
+    ``colors`` carries the Margin Green roles (``ui.brand``) resolved for the
+    current colour scheme — Pango spans cannot read GTK CSS variables.
+    """
+    if isinstance(run, TextRun):
+        text = f"{GLib.markup_escape_text(run.text, -1)}"
+        if "code" in run.marks:
+            text = f"<tt>{text}</tt>"
+        if "highlight" in run.marks:
+            text = f'<span background="yellow" color="black">{text}</span>'
+        if "strike" in run.marks:
+            text = f"<s>{text}</s>"
+        if "italic" in run.marks:
+            text = f"<i>{text}</i>"
+        if "bold" in run.marks:
+            text = f"<b>{text}</b>"
+        return text
+    if isinstance(run, MentionRun):
+        return f'<span foreground="{colors.link}" underline="single">{GLib.markup_escape_text(run.text, -1)}</span>'
+    if isinstance(run, ClassChipRun):
+        return (
+            f'<span background="{colors.chip_background}" color="{colors.chip_foreground}">'
+            f"{GLib.markup_escape_text(run.text, -1)}</span>"
+        )
+    if isinstance(run, TypedLinkRun):
+        return f"<u>{GLib.markup_escape_text(run.text, -1)}</u>"
+    if isinstance(run, MarkdownLinkRun):
+        return f'<span foreground="{colors.link}" underline="single">{GLib.markup_escape_text(run.text, -1)}</span>'
+    if isinstance(run, MathRun):
+        return f"<tt>{GLib.markup_escape_text(run.expression, -1)}</tt>"
+    if isinstance(run, HardBreakRun):
+        return ""
+    return ""
+
+
+def runs_to_markup(runs: Iterable[object], colors: ContentColors) -> str:
+    """Convert a line's inline view records to one Pango markup string."""
+    return "".join(run_markup(run, colors) for run in runs)
+
+
+class PageViewWidget(Gtk.Box):
+    """Scrollable read-only rendering of one node's content."""
+
+    def __init__(self) -> None:
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        scrolled = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+        self.append(scrolled)
+        self._content = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=12,
+            margin_top=18,
+            margin_bottom=18,
+            margin_start=24,
+            margin_end=24,
+        )
+        # The reading surface: theme.css sets the Newsreader stack on this
+        # class (the brand's reading-text typeface, with a system serif
+        # fallback) and lets it inherit into every content label.
+        self._content.add_css_class("page-content")
+        self._colors: ContentColors = content_colors(dark=False)
+        # The live query sections of the currently rendered page — stopped
+        # on every ``show_page`` (the subscription's lifetime is the page's).
+        self._query_sections: list[QuerySectionWidget] = []
+        clamp = Adw.Clamp(maximum_size=860)
+        clamp.set_child(self._content)
+        scrolled.set_child(clamp)
+
+    def show_page(
+        self,
+        title: str,
+        view: PageView,
+        *,
+        aliases: Sequence[AliasEntry] = (),
+        aliased_main: AliasEntry | None = None,
+        repoint_candidates: Sequence[AliasEntry] = (),
+        tags_row: Gtk.Widget | None = None,
+        empty_state: str | None = None,
+        on_open_node: Callable[[str], None] | None = None,
+        on_repoint: Callable[[str | None], None] | None = None,
+        on_edit_query: EditRequest | None = None,
+        store: LocalStore | None = None,
+        workspace_id: str | None = None,
+    ) -> None:
+        """Render ``view`` with ``title`` as the page header.
+
+        The alias chrome (both directions of the ``aliasedNodeId`` relation)
+        renders above the content when supplied: the Aliases section on the
+        aliased node's view, the Aliased-node row on the alias's own view.
+        ``tags_row`` is the window-built Tags row widget (pills + add
+        picker); it renders under the title, above the alias chrome.
+        ``empty_state`` appends a dimmed label after the content — the
+        review session's "No answer on this card" register.
+
+        ``query`` tokens render as live sections when ``store`` +
+        ``workspace_id`` are supplied (the hosting page id rides in the view
+        records as each section's ``self`` anchor): each section subscribes
+        to the store's change notification and re-runs its AST until the
+        next ``show_page`` replaces it — the previous page's sections are
+        stopped here. ``on_edit_query`` is the section builder's edit seam
+        (hosting node id, token index, the token's AST) — the window opens
+        the condition builder and commits through the content-update path.
+        """
+        for section in self._query_sections:
+            section.close()
+        self._query_sections = []
+        while child := self._content.get_first_child():
+            self._content.remove(child)
+
+        # Margin Green content roles resolved for the active colour scheme
+        # (tokens.css light/dark); re-resolved on every render.
+        self._colors = content_colors(dark=Adw.StyleManager.get_default().get_dark())
+        if title:
+            heading = Gtk.Label(label=title, xalign=0, wrap=True)
+            heading.add_css_class("title-1")
+            heading.add_css_class("page-title")
+            self._content.append(heading)
+            self._content.append(Gtk.Separator())
+
+        if tags_row is not None:
+            self._content.append(tags_row)
+
+        if aliased_main is not None and on_repoint is not None:
+            self._content.append(
+                build_aliased_node_row(
+                    main=aliased_main,
+                    candidates=repoint_candidates,
+                    on_open_node=on_open_node or (lambda _id: None),
+                    on_repoint=on_repoint,
+                )
+            )
+        if aliases and on_open_node is not None:
+            self._content.append(build_aliases_section(aliases, on_open_node))
+
+        line: list[object] = []
+        for item in view.items:
+            if isinstance(item, QuoteView):
+                self._flush_line(line)
+                label = Gtk.Label(xalign=0, wrap=True, use_markup=True, selectable=True)
+                label.set_markup(f"“{runs_to_markup(item.children, self._colors)}”")
+                label.add_css_class("dim-label")
+                self._content.append(label)
+            elif isinstance(item, QuerySectionView):
+                self._flush_line(line)
+                self._content.append(
+                    self._query_section_widget(item, store, workspace_id, on_open_node, on_edit_query)
+                )
+            elif isinstance(item, PlaceholderView):
+                self._flush_line(line)
+                self._content.append(self._placeholder_widget(item))
+            else:
+                line.append(item)
+        self._flush_line(line)
+
+        if empty_state is not None:
+            placeholder = Gtk.Label(label=empty_state, xalign=0.5)
+            placeholder.add_css_class("dim-label")
+            self._content.append(placeholder)
+
+    # ----------------------------------------------------------------- private
+
+    def _flush_line(self, line: list[object]) -> None:
+        """Render the buffered inline records as one wrapped paragraph."""
+        if not line:
+            return
+        label = Gtk.Label(xalign=0, wrap=True, use_markup=True, selectable=True)
+        label.set_markup(runs_to_markup(line, self._colors))
+        self._content.append(label)
+        line.clear()
+
+    def _placeholder_widget(self, block: PlaceholderView) -> Gtk.Widget:
+        label = Gtk.Label(label=f"[{block.kind}]", xalign=0)
+        label.add_css_class("dim-label")
+        return label
+
+    def _query_section_widget(
+        self,
+        section: QuerySectionView,
+        store: LocalStore | None,
+        workspace_id: str | None,
+        on_open_node: Callable[[str], None] | None,
+        on_edit_query: EditRequest | None,
+    ) -> Gtk.Widget:
+        """The live query section — or the labeled fallback when the window
+        did not hand the store across (a render without a run surface)."""
+        if store is None or workspace_id is None:
+            label = Gtk.Label(label="[query]", xalign=0)
+            label.add_css_class("dim-label")
+            return label
+        widget = QuerySectionWidget(
+            store,
+            workspace_id,
+            section,
+            on_open_node=on_open_node,
+            on_edit=on_edit_query,
+        )
+        self._query_sections.append(widget)
+        return widget

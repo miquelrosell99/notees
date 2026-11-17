@@ -1,0 +1,120 @@
+name: Release
+
+# GitHub Releases come ONLY from pushing a `v*` tag. This workflow also runs
+# on manual dispatch: a dispatch builds the python-dist + archpkg artifacts
+# only (the `release` job is tag-gated and stays skipped), optionally from an
+# explicit `git-ref`. The `guard` job enforces the dispatch semantics: a
+# branch/SHA dispatch is legitimate but warned as artifacts-only, while a
+# git-ref that looks like a release tag fails loudly — a dispatch runs with
+# ref_type=branch, so it can never publish what the operator expected; the
+# tag itself must be pushed instead.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      git-ref:
+        description: 'Git ref to build from (artifacts only — releases come from v* tags)'
+        required: true
+        default: 'main'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Enforce dispatch semantics
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            echo "Tag push — artifacts will publish as a GitHub Release."
+            exit 0
+          fi
+          ref="${{ inputs.git-ref }}"
+          case "$ref" in
+            refs/tags/v* | v*)
+              echo "::error::git-ref '$ref' looks like a release tag, but a workflow_dispatch run has ref_type=branch and can never publish a Release. Push the tag instead (git push origin $ref) and let the tag trigger build and publish it."
+              exit 1
+              ;;
+            *)
+              echo "::warning::Manual dispatch from '$ref': this run produces python-dist + archpkg artifacts only. GitHub Releases come from pushing a v* tag."
+              ;;
+          esac
+
+  python-dist:
+    runs-on: ubuntu-22.04
+    needs: guard
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.git-ref || github.ref }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      - name: Setup Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build sdist and wheel
+        run: uv run python -m build
+
+      - name: Upload Python distribution artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-dist
+          path: dist/
+
+  archpkg:
+    runs-on: ubuntu-22.04
+    container: archlinux:latest
+    needs: guard
+    steps:
+      - name: Prepare build environment
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Syu --noconfirm --needed git base-devel python-build python-installer python-wheel python-hatchling python-httpx python-pydantic python-gobject gtk4 libadwaita
+          useradd -m builder
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.git-ref || github.ref }}
+
+      - name: Build package as non-root user
+        run: |
+          chown -R builder:builder .
+          su builder -c makepkg
+
+      - name: Upload Arch package artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: archpkg
+          path: notees-gtk-*.pkg.tar.zst
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [python-dist, archpkg]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3
+        with:
+          files: release-assets/*

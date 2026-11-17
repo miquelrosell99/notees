@@ -1,0 +1,6 @@
+{
+  "type": "hello",
+  "wsProtocolVersion": 2,
+  "restoreEpoch": 0,
+  "latestSeq": 42
+}
