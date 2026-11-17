@@ -1,0 +1,115 @@
+name: Publish Docker images (per-push SHA)
+
+# Every main push that touched shippable source publishes immutable
+# `sha-<sha>` tags for the CHANGED image(s) only — web-only slices build web
+# alone (~half the minutes), docs-only pushes never reach this workflow (the
+# `paths:` trigger). A burst of merges coalesces into one build at the newest
+# head (concurrency cancels the stale run; a cancelled run never half-pushes —
+# buildx pushes only the finished manifest). The publish is GATED: the thin
+# tier (typecheck + the fast package suites — deliberately not the heavy
+# web/server suites, which the local full gate and ci's nightly already
+# cover) must be green first, so a red push never publishes.
+#
+# Channels: this workflow owns ONLY the per-commit SHA tags. `:latest` is
+# release-docker.yml's (stable semver tags); `:nightly` + `nightly-YYYYMMDD`
+# remain the nightly cron's. Budget context (Free plan, 2000 Actions
+# minutes/month private): warm-cache per-push builds are the aligned
+# "every commit is an immutable artifact" endpoint; the paths filter and the
+# coalescing keep the minute spend proportional to real source changes.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/server/**"
+      - "apps/web/**"
+      - "packages/**"
+      - "brand/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig*.json"
+      - ".github/workflows/docker-image.yml"
+      - ".github/workflows/publish-docker.yml"
+
+concurrency:
+  group: publish-docker
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Which images does this push affect? Both share packages/ + the root
+  # toolchain, so those change both; the apps/ and brand/ prefixes are
+  # image-local. (The workflow-level `paths:` gate already skipped
+  # docs-only pushes; this separates web-only from both-images pushes.)
+  changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      sync: ${{ steps.filter.outputs.sync }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Which images does this push affect?
+        id: filter
+        run: |
+          before="${{ github.event.before }}"
+          if [ "$before" = "0000000000000000000000000000000000000000" ]; then
+            before="$(git rev-parse HEAD~1)" # branch (re)creation: best effort
+          fi
+          changed="$(git diff --name-only "$before" HEAD)"
+          printf '%s\n' "$changed"
+          shared='^(packages/|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig|\.github/workflows/(docker-image|publish-docker)\.yml)'
+          sync=false; web=false
+          if printf '%s\n' "$changed" | grep -qE "$shared|^apps/server/"; then sync=true; fi
+          if printf '%s\n' "$changed" | grep -qE "$shared|^apps/web/|^brand/"; then web=true; fi
+          echo "sync=$sync" >> "$GITHUB_OUTPUT"
+          echo "web=$web" >> "$GITHUB_OUTPUT"
+
+  # Thin gate — the cheap tier only (the heavy web/server suites ride the
+  # local full gate and ci's nightly; rerunning them per push was the noise
+  # the retired per-push trigger died of).
+  gate:
+    needs: changes
+    if: needs.changes.outputs.sync == 'true' || needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.0.0 --activate
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build package dists (tsc reads dist; vitest reads src)
+        run: pnpm -r --filter "./packages/*" build
+      - name: Typecheck
+        run: pnpm -r typecheck
+      - name: Fast package suites (protocol/store/query/sync/domain/export)
+        run: pnpm --filter "./packages/*" test
+
+  sync:
+    needs: [changes, gate]
+    if: needs.changes.outputs.sync == 'true'
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      image: notees-sync
+      dockerfile: apps/server/Dockerfile
+      tags: |
+        type=sha,format=short
+
+  web:
+    needs: [changes, gate]
+    if: needs.changes.outputs.web == 'true'
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      image: notees-web
+      dockerfile: apps/web/Dockerfile
+      tags: |
+        type=sha,format=short

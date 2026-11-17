@@ -83,23 +83,28 @@ per the parallel-session preference for scoped commands. Docs-only or
 repo-only slices (no runtime behavior) need no redeploy.
 
 Publish what you ship (ghcr-following hosts): hosts that pull published
-images instead of building a checkout only see a landed slice once a
-workflow has built main's head — `:latest` moves only on a stable `v*` tag
-push, and the nightly (`nightly-docker.yml`, cron 03:47 UTC) publishes
-`:nightly` + `nightly-YYYYMMDD` + the short-SHA tag of main's head. After a
-slice that changed runtime behavior has landed on main, dispatch the nightly
-(`gh workflow run nightly-docker.yml`) so the channels move now rather than
-up to a day later; the session's local redeploy above covers this host, the
-dispatch covers the rest. A dispatch is never fire-and-forget: follow the
-run to completion (`gh run watch <id> --exit-status`) and report the outcome
-to the owner before ending the session — green moves the tags, red is a
-failed publish: diagnose from the logs, never re-dispatch blindly over a
-red run. Docs-only or repo-only slices need no dispatch
-(the same boundary as the redeploy law). Fleet hosts pull `:nightly` at
-their own pace (`docker compose pull && docker compose up -d` — the pull
-matters: the default policy is `missing`); a host pinning `NOTEES_*_IMAGE`
-to the SHA tag rides the same dispatch with an immutable, roll-back-able
-ref.
+images instead of building a checkout see every landed slice as soon as CI
+publishes it. Publishing is per-push and paths-filtered: `publish-docker.yml`
+runs on every main push that touched shippable source, gates on a thin tier
+(typecheck + the fast package suites — deliberately not the heavy web/server
+suites, which the local full gate and ci's nightly cover), and pushes
+immutable `sha-<sha>` tags for the CHANGED image(s) only — web-only slices
+build web alone, rapid merges coalesce into one build at the newest head
+(concurrency cancels the stale run; a cancelled run never half-pushes), and
+docs-only pushes publish nothing. `:latest` still moves only on a stable
+`v*` tag; `:nightly` + `nightly-YYYYMMDD` stay on the nightly cron; the
+weekly `ghcr-retention` sweep keeps the Packages storage budget flat
+(moving + release tags forever, 10 newest dated nightlies, `sha-*` for 30
+days). A publish is never fire-and-forget: follow the push run to completion
+(`gh run watch <id> --exit-status`) and report the outcome to the owner
+before ending the session — green moves the tags, red is a failed publish:
+diagnose from the logs, never re-run blindly over red. The session's local
+redeploy above covers this host; fleet hosts update with
+`scripts/deploy-prod.sh` (pull + recreate + verify-min as ONE command — the
+smoke is non-skippable) or a hand-rolled `docker compose pull && docker
+compose up -d` — the pull matters: the default policy is `missing`. A
+`NOTEES_*_IMAGE` pin to `sha-<sha>` is the immutable, roll-back-able ref off
+the same publish.
 
 Landing a worktree slice: with several worktree branches
 in flight, slices land one at a time in the main checkout — fetch, rebase
