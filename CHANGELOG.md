@@ -6,6 +6,12 @@ goes; those stay static guidance. Before implementing a change, skim this
 file for recent related work. Anything before 2026-10-06 lives in git
 history.
 
+## 2026-11-17
+
+- **fix(ci): the frozen install stops dying on the better-sqlite3 override — the lockfile now records it.** The store-schema-v37 vendor bump added the root `pnpm.overrides` (`better-sqlite3 ^12.11.1`) and `pnpm.onlyBuiltDependencies` to `package.json` but shipped the previously generated `pnpm-lock.yaml`, so `pnpm install --frozen-lockfile` failed with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` — the nightly cron over main's head caught it, since no push-triggered gate ever ran on the bump. The lockfile is regenerated with the `overrides:` section; behavior from source is unchanged. Environment note: the gate needs Node 22/26 + pnpm 9 (`corepack enable && corepack prepare pnpm@9.0.0 --activate`) — a Node 20 system install has neither corepack nor a compatible lockfile reader.
+  - Files: `pnpm-lock.yaml`.
+  - Verification: `pnpm install --frozen-lockfile` clean (the exact step the nightly failed); full gate `pnpm typecheck && pnpm test` green (307/307, 18 files) on node 22.23.5 / pnpm 9.0.0.
+
 ## 2026-11-16
 
 - **feat: `search --json` rows carry the match `tier` — direct FTS hits are finally distinguishable from the fuzzy rescue arm.** The vendored store's `RankedSearchHit` gained `tier` (0–3 direct · 4 first-parent-name · 5 alias · 6 fuzzy rescue · 7 property fan-out) and `searchObjects` maps it through; the search help text documents the roster. Motivating incident: a cleanup loop consumed unannotated fuzzy-rescue rows as exact matches and deleted a hundred unrelated test-workspace nodes — the tier is the annotation that prevents a repeat. Vendor pin moves 50f78b7aa → 930ca8588 (the tier surface + the migrate-e2ee CI-timeout fix).
