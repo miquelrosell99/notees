@@ -90,7 +90,11 @@ push, and the nightly (`nightly-docker.yml`, cron 03:47 UTC) publishes
 slice that changed runtime behavior has landed on main, dispatch the nightly
 (`gh workflow run nightly-docker.yml`) so the channels move now rather than
 up to a day later; the session's local redeploy above covers this host, the
-dispatch covers the rest. Docs-only or repo-only slices need no dispatch
+dispatch covers the rest. A dispatch is never fire-and-forget: follow the
+run to completion (`gh run watch <id> --exit-status`) and report the outcome
+to the owner before ending the session — green moves the tags, red is a
+failed publish: diagnose from the logs, never re-dispatch blindly over a
+red run. Docs-only or repo-only slices need no dispatch
 (the same boundary as the redeploy law). Fleet hosts pull `:nightly` at
 their own pace (`docker compose pull && docker compose up -d` — the pull
 matters: the default policy is `missing`); a host pinning `NOTEES_*_IMAGE`
