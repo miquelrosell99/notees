@@ -1,0 +1,746 @@
+import 'dart:async';
+
+import 'package:cryptography/cryptography.dart';
+import 'package:dio/dio.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../core/api/api_client.dart';
+import '../../../core/crypto/crypto_custody.dart';
+import '../../../core/secure/secure_storage.dart';
+import '../../../core/utils/client_id.dart';
+import '../../../core/utils/uuid7.dart';
+import '../../../data/local/app_database.dart';
+import '../../../data/models/server_profile.dart';
+import '../../../data/models/user.dart';
+import '../../../data/repositories/auth_repository.dart';
+import '../../../data/repositories/server_repository.dart';
+import '../../../data/repositories/workspace_repository.dart';
+import '../../../domain/services/local_asset_store.dart';
+import '../../../domain/services/local_workspace_seed.dart';
+import '../../../domain/services/onboarding_service.dart';
+import '../../../domain/services/sync_v2_service.dart';
+import '../../home/providers/sync_status_provider.dart';
+
+/// Exposes the current server, authenticated user, and auth operations.
+class AuthProvider extends ChangeNotifier {
+  AuthProvider({
+    required this.serverRepository,
+    required this.secureStorage,
+    required this.prefs,
+    SyncStatusProvider? syncStatus,
+  }) : _syncStatus = syncStatus ?? SyncStatusProvider();
+
+  final ServerRepository serverRepository;
+  final SecureStorage secureStorage;
+  final SharedPreferences prefs;
+  final SyncStatusProvider _syncStatus;
+
+  ServerProfile? _activeServer;
+  User? _user;
+  Dio? _dio;
+  SyncV2Service? _syncService;
+  TwoFactorChallenge? _twoFactorChallenge;
+  bool _loading = true;
+  bool _busy = false;
+  String? _error;
+  bool _onboardingCompleted = false;
+  String? _activeWorkspaceId;
+  List<Workspace>? _workspaces;
+  String? _workspaceListError;
+  /// Fail-loud refusal: a keyed workspace this session could not open
+  /// (no master key — a reloaded or 2FA-completed session). Surfaced by the
+  /// workspace management view with the unlock affordance; null once an open
+  /// succeeds or the state clears.
+  String? _workspaceOpenError;
+
+  /// The workspace id the refusal belongs to — the unlock re-prompt
+  /// re-opens THIS workspace in place once the master key is derived.
+  String? _lockedWorkspaceId;
+
+  ServerProfile? get activeServer => _activeServer;
+  User? get user => _user;
+  bool get isAuthenticated => _user != null;
+  bool get loading => _loading;
+  bool get busy => _busy;
+  String? get error => _error;
+  Dio? get dio => _dio;
+  SyncV2Service? get syncService => _syncService;
+  bool get onboardingCompleted => _onboardingCompleted;
+
+  /// Drives the bootstrap "Catching up…" overlay for workspace-entry pulls
+  /// (provided above the app shell in `app.dart`).
+  SyncStatusProvider get syncStatus => _syncStatus;
+
+  /// The active workspace id for the current server+account session, or null
+  /// when none is selected (the management view picks up from there). This
+  /// field is the single source of truth for the selection; it is persisted
+  /// per server+account in [prefs] and mirrored into the sync service (which
+  /// stamps it onto envelopes).
+  String? get activeWorkspaceId => _activeWorkspaceId;
+
+  /// The account's workspace list as last fetched from the server; null when
+  /// the fetch has not succeeded yet (offline start) or failed.
+  List<Workspace>? get workspaces => _workspaces;
+
+  /// Last workspace-list fetch error, kept for the management view's retry
+  /// state; any previously fetched list stays usable alongside it.
+  String? get workspaceListError => _workspaceListError;
+
+  /// Fail-loud locked-refusal message (see [_workspaceOpenError]), or null.
+  String? get workspaceOpenError => _workspaceOpenError;
+
+  /// The workspace a locked refusal is holding for the unlock re-prompt,
+  /// or null when nothing is waiting to unlock.
+  String? get lockedWorkspaceId => _lockedWorkspaceId;
+
+  /// Whether the session may enter the main shell. A local (offline) session
+  /// always may — it is its own workspace. A server session needs an active
+  /// workspace; when the list was never fetched (offline start) a remembered
+  /// selection stays trusted, mirroring the web client, which validates
+  /// membership on boot and only otherwise trusts its stored id.
+  bool get hasValidWorkspace {
+    if (!isAuthenticated) return false;
+    if (isLocalMode) return true;
+    final id = _activeWorkspaceId;
+    if (id == null) return false;
+    final list = _workspaces;
+    return list == null || list.any((w) => w.uuid == id);
+  }
+
+  /// Offline (serverless) mode: the current session is the synthetic local
+  /// profile, with no server configured and no auth.
+  bool get isLocalMode => _user?.isLocal ?? false;
+
+  // Server-dependent capabilities, mirroring the web client's
+  // `useCapabilities` gating. All are disabled in local mode; the UI hides
+  // the corresponding entry points rather than letting them fail.
+  bool get canManageServers => !isLocalMode;
+  bool get canManageWorkspaces => !isLocalMode;
+  bool get canManageAccount => !isLocalMode;
+  bool get canShare => !isLocalMode;
+  // Asset capture works in local mode too: bytes go to the on-device
+  // LocalAssetStore and sync on server attach (matches the web client, which
+  // branches inside uploadAsset instead of gating the capability).
+  bool get canUploadAssets => true;
+
+  // Local profile persistence. The local workspace uuid is stored alongside
+  // so the session survives a local database reset.
+  static const _localProfileUuidKey = 'local_profile_uuid';
+  static const _localWorkspaceUuidKey = 'local_workspace_uuid';
+  static const _localDisplayName = 'Local user';
+
+  // Remembered active workspace, keyed per server+account: selecting a
+  // workspace switches the active one for this server and account only
+  // (the web client's WorkspaceSwitcher mental model).
+  static String _activeWorkspaceKey(String serverId, String userId) =>
+      'active_workspace_${serverId}_$userId';
+
+  OnboardingService get onboardingService => OnboardingService(prefs: prefs);
+
+  /// Pending 2FA challenge after a successful password step, if any.
+  TwoFactorChallenge? get twoFactorChallenge => _twoFactorChallenge;
+
+  Future<void> initialize() async {
+    _loading = true;
+    notifyListeners();
+    try {
+      _activeServer = await serverRepository.getActiveServer();
+      if (_activeServer != null) {
+        _dio = createApiClient(
+          baseUrl: _activeServer!.url,
+          secureStorage: secureStorage,
+          trustSelfSigned: _activeServer!.trustSelfSigned,
+          cookieJar: await sharedCookieJar(),
+          serverId: _activeServer!.id,
+        );
+        _syncService = await _buildSyncService(_dio!);
+        _user = await fetchSession();
+        if (_user == null) {
+          // Server configured but not signed in. If the user originally chose
+          // local mode and a login is still pending (e.g. they added a server
+          // but never completed sign-in), fall back to the local session so
+          // local data stays reachable until a successful login adopts it.
+          await _restoreLocalSessionIfPresent();
+        } else {
+          // A stored-token session carries no kdf record, so re-hydrate the
+          // persisted master key BEFORE workspace resolution (mirroring the
+          // web client's boot restore): a signed-in app start must not
+          // re-prompt for the password to unlock encrypted workspaces.
+          // Silent no-op when nothing is stored; harmless double-restore on
+          // the login/2FA path, which fills the slot only when empty.
+          await restoreMasterKeyFromStorage();
+        }
+        _applyActorId();
+        await _resolveActiveWorkspace();
+        await _applyRealtimeSession();
+      } else {
+        await _restoreLocalSessionIfPresent();
+      }
+      _onboardingCompleted = onboardingService.isCompleted;
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Restores the persisted local profile, if any. No-op otherwise.
+  Future<void> _restoreLocalSessionIfPresent() async {
+    final localUuid = prefs.getString(_localProfileUuidKey);
+    if (localUuid == null) return;
+    await _startLocalSession(localUuid);
+  }
+
+  /// The server's session check — extracted so tests can script the session
+  /// without HTTP fakes.
+  @visibleForTesting
+  Future<User?> fetchSession() =>
+      AuthRepository(dio: _dio!, secureStorage: secureStorage).checkSession();
+
+  /// The account's workspace list — extracted so tests can script server
+  /// replies without HTTP fakes.
+  @visibleForTesting
+  Future<List<Workspace>> fetchWorkspaces() =>
+      WorkspaceRepository(dio: _dio!).listWorkspaces();
+
+  /// Picks the active workspace for a server session: the remembered one when
+  /// it is still among the account's workspaces, otherwise none (the router
+  /// guard then lands on the workspace management view instead of the shell).
+  /// Runs after session restore and after every login.
+  Future<void> _resolveActiveWorkspace() async {
+    final server = _activeServer;
+    final user = _user;
+    final dio = _dio;
+    if (server == null || user == null || dio == null || isLocalMode) return;
+    final key = _activeWorkspaceKey(server.id, user.uuid);
+    // Installs that predate per-account persistence only have the sync
+    // service's pointer; adopt it once so they keep their workspace.
+    final remembered =
+        prefs.getString(key) ?? await _syncService?.getWorkspaceId();
+    try {
+      final list = await fetchWorkspaces();
+      _workspaces = list;
+      _workspaceListError = null;
+      if (remembered != null && list.any((w) => w.uuid == remembered)) {
+        try {
+          await _setActiveWorkspace(remembered);
+        } on EncryptedWorkspaceLockedError catch (e) {
+          // Fail-loud: a keyed workspace refuses the open. Drop the
+          // selection (the router guard lands on the management view,
+          // which surfaces the unlock re-prompt) — never fall through to
+          // the offline catch below, which would open it keyless.
+          _workspaceOpenError = e.toString();
+          _lockedWorkspaceId = remembered;
+          _activeWorkspaceId = null;
+          await prefs.remove(key);
+          await _syncService?.stopRealtime();
+          return;
+        }
+        _kickWorkspacePull();
+      } else {
+        // None remembered, or it vanished (deleted / membership revoked):
+        // clear the selection; the sync pointer stays harmless because the
+        // guard keeps the session out of the shell.
+        _activeWorkspaceId = null;
+        await prefs.remove(key);
+        await _syncService?.stopRealtime();
+      }
+    } catch (_) {
+      // The relay is unreachable: keep the remembered selection so an
+      // offline start still lands in the shell, and let the sync layer
+      // surface the error (the web client validates membership the same
+      // best-effort way on boot).
+      _activeWorkspaceId = remembered;
+      if (remembered != null) {
+        await _syncService?.setWorkspaceId(remembered);
+      }
+    }
+  }
+
+  /// Re-fetches the account's workspace list — the management view calls this
+  /// on entry and after create/rename. A fetch that proves the active
+  /// workspace gone (deleted / membership revoked) drops the selection so the
+  /// router guard falls back to the management view.
+  Future<void> refreshWorkspaces() async {
+    final server = _activeServer;
+    final user = _user;
+    final dio = _dio;
+    if (server == null || user == null || dio == null || isLocalMode) return;
+    try {
+      final list = await fetchWorkspaces();
+      _workspaces = list;
+      _workspaceListError = null;
+      final id = _activeWorkspaceId;
+      if (id != null && !list.any((w) => w.uuid == id)) {
+        _activeWorkspaceId = null;
+        await prefs.remove(_activeWorkspaceKey(server.id, user.uuid));
+        await _syncService?.stopRealtime();
+      }
+    } catch (e) {
+      // Keep any previously fetched list usable; the view shows this error
+      // with a retry affordance.
+      _workspaceListError = e.toString();
+    }
+    notifyListeners();
+  }
+
+  /// The single write path for the active-workspace selection.
+  ///
+  /// Fail-loud ruling: custody resolves BEFORE anything is persisted — a
+  /// keyed workspace never opens keyless. A locked refusal throws
+  /// [EncryptedWorkspaceLockedError] and the selection stays untouched;
+  /// a keyless workspace opens plaintext (key = null).
+  Future<void> _setActiveWorkspace(String workspaceId) async {
+    final server = _activeServer;
+    final user = _user;
+    if (server == null || user == null) {
+      _activeWorkspaceId = workspaceId;
+      return;
+    }
+    final crypto = await _resolveWorkspaceCrypto(workspaceId);
+    _activeWorkspaceId = workspaceId;
+    _workspaceOpenError = null;
+    _lockedWorkspaceId = null;
+    await prefs.setString(
+        _activeWorkspaceKey(server.id, user.uuid), workspaceId);
+    await _syncService?.setWorkspaceId(workspaceId);
+    _syncService?.workspaceKey = crypto;
+  }
+
+  /// The unlock re-prompt (the web client's W2 flow): verifies the account
+  /// password against `POST /auth/unlock` (no session minted — the live
+  /// credential stays), derives the master key into the custody holder,
+  /// and re-opens the refused workspace in place. Wrong password and
+  /// account-lockout surface as [AuthException] for the dialog's form
+  /// error; the account-locked message carries the server's retry-after.
+  Future<void> unlockWorkspace(String password) async {
+    final dio = _dio;
+    final user = _user;
+    final workspaceId = _lockedWorkspaceId;
+    if (dio == null || user == null) {
+      throw const AuthException('No session to unlock with');
+    }
+    if (workspaceId == null) return;
+    final repo = AuthRepository(dio: dio, secureStorage: secureStorage);
+    final kdf = await repo.unlock(email: user.email, password: password);
+    try {
+      await deriveMasterKey(password, kdf);
+    } on StateError catch (e) {
+      // The server verified the password but the record does not open —
+      // never a silent keyless session.
+      throw AuthException(e.message);
+    }
+    // Custody holds the master now: the re-open fetch-or-ensures the
+    // workspace key and clears the refusal state.
+    await _setActiveWorkspace(workspaceId);
+    await _applyRealtimeSession();
+    _kickWorkspacePull();
+    notifyListeners();
+  }
+
+  /// Resolves the workspace's E2EE key for an open (`resolveWorkspaceKey`,
+  /// fail-loud). Local sessions and keyless workspaces resolve null; a
+  /// keyed workspace this session cannot unlock throws
+  /// [EncryptedWorkspaceLockedError] before any state is written.
+  Future<SecretKey?> _resolveWorkspaceCrypto(String workspaceId) async {
+    final sync = _syncService;
+    final dio = _dio;
+    // Asset I/O resolves the active workspace's key through custody; note
+    // the id even when the resolution below cannot run (local, keyless).
+    noteActiveWorkspace(workspaceId);
+    if (sync == null || dio == null || isLocalMode) return null;
+    final resolution = await resolveWorkspaceKey(dio, workspaceId);
+    if (resolution.locked) {
+      sync.workspaceKey = null;
+      throw EncryptedWorkspaceLockedError(workspaceId);
+    }
+    return resolution.key;
+  }
+
+  /// Fire-and-forget convergence pull after entering a workspace (the web
+  /// client's connect() syncs on entry); failures surface in the catching-up
+  /// overlay (error mode with retry), successes end it. The FIRST pull after
+  /// a workspace session begins drives the "Catching up…" overlay (the web
+  /// client's ConnectingScreen): progress events forward into
+  /// [SyncStatusProvider], ended on completion or failure — plus the
+  /// provider's generous timeout backstop — while later catch-ups outside
+  /// this path stay silent.
+  void _kickWorkspacePull() {
+    final sync = _syncService;
+    if (sync == null) return;
+    final status = _syncStatus;
+    sync.onPullProgress = (progress) =>
+        status.updateProgress(progress.applied, progress.total);
+    status.beginCatchUp();
+    unawaited(
+      sync.pull().then((_) {
+        status.endCatchUp();
+      }).catchError((Object e) {
+        debugPrint('AuthProvider: workspace pull failed: $e');
+        status.failCatchUp(e.toString());
+      }),
+    );
+  }
+
+  /// Re-runs the workspace-entry pull after a surfaced failure (the
+  /// catching-up overlay's Retry action).
+  void retryWorkspacePull() => _kickWorkspacePull();
+
+  void _clearWorkspaceState() {
+    _activeWorkspaceId = null;
+    _workspaces = null;
+    _workspaceListError = null;
+    _workspaceOpenError = null;
+    _lockedWorkspaceId = null;
+  }
+
+  /// Creates the local profile: a synthetic user with no server and no auth,
+  /// plus the seeded local workspace. Mirrors the web client's
+  /// `loginLocally()` + `ensureLocalWorkspace()`.
+  Future<void> loginLocally() async {
+    _error = null;
+    _busy = true;
+    notifyListeners();
+    try {
+      final uuid = Uuid7.generate();
+      await prefs.setString(_localProfileUuidKey, uuid);
+      await _startLocalSession(uuid);
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Starts (or restores) an offline session for the local profile [uuid].
+  Future<void> _startLocalSession(String uuid) async {
+    // A local session replaces any server session: its realtime stream must
+    // not outlive the swap.
+    await _syncService?.stopRealtime();
+    _syncService?.workspaceKey = null;
+    clearCryptoCustody();
+    _user = User(
+      id: uuid,
+      uuid: uuid,
+      email: 'local@local', // Sentinel, never sent anywhere.
+      name: _localDisplayName,
+      role: 'user',
+      isActive: true,
+      isLocal: true,
+    );
+    // A placeholder client: every core read path is local-cache first, but
+    // screens gate on `dio == null` before doing any work, so a non-null
+    // client that never issues requests keeps them functional.
+    _dio ??= Dio();
+    _syncService = await _buildServerlessSyncService();
+    _applyActorId();
+
+    final sync = _syncService;
+    if (sync == null) {
+      // Platforms without the local SQLite store (non-Android/iOS) get a
+      // session without persistence; nothing to seed.
+      debugPrint('AuthProvider: local mode without local database support; '
+          'data will not persist');
+      return;
+    }
+    var workspaceId = prefs.getString(_localWorkspaceUuidKey);
+    if (workspaceId == null) {
+      workspaceId = Uuid7.generate();
+      await prefs.setString(_localWorkspaceUuidKey, workspaceId);
+    }
+    _activeWorkspaceId = workspaceId;
+    try {
+      await sync.setWorkspaceId(workspaceId);
+      await LocalWorkspaceSeed(sync).ensureLocalWorkspace();
+    } on MissingPluginException {
+      // The platform reports a supported database (e.g. test hosts reporting
+      // Android) but the sqlcipher plugin is absent. Degrade to a session
+      // without persistence instead of failing the login.
+      debugPrint('AuthProvider: local database plugin missing; '
+          'data will not persist');
+    }
+  }
+
+  Future<SyncV2Service?> _buildServerlessSyncService() async {
+    if (!AppDatabase.isSupported) return null;
+    final clientId = await getClientId(prefs);
+    return SyncV2Service(
+      database: AppDatabase(),
+      dio: Dio(),
+      clientId: clientId,
+      serverless: true,
+    );
+  }
+
+  /// Propagate the authenticated user's uuid to the sync service so
+  /// envelopes carry the user as actor (not the per-install device id).
+  void _applyActorId() {
+    _syncService?.actorId = _user?.uuid;
+  }
+
+  Future<SyncV2Service?> _buildSyncService(Dio dio) async {
+    // The local SQLite queue (sqflite_sqlcipher) only has Android/iOS
+    // implementations; elsewhere repositories talk to the API directly
+    // when there is no sync service.
+    if (!AppDatabase.isSupported) return null;
+    final clientId = await getClientId(prefs);
+    return SyncV2Service(
+      database: AppDatabase(),
+      dio: dio,
+      clientId: clientId,
+      autoUploadGate: () => _snapshotUploadGate?.call() ?? true,
+    );
+  }
+
+  /// The snapshot AUTO-upload's network gate (Settings "Wi-Fi only" switch
+  /// composed with the unmetered heuristic), wired by the app layer —
+  /// AuthProvider/SyncV2Service cannot reach ConnectivityProvider/
+  /// SettingsProvider (layering). Null until wired; a null gate allows.
+  bool Function()? _snapshotUploadGate;
+  set snapshotUploadGate(bool Function()? gate) => _snapshotUploadGate = gate;
+
+  Future<void> selectServer(ServerProfile server) async {
+    // The old sync service (and its realtime stream) belongs to the old
+    // server/session: stop it before the replacement drops the reference.
+    await _syncService?.stopRealtime();
+    clearCryptoCustody();
+    await serverRepository.setActiveServerId(server.id);
+    _activeServer = server;
+    _dio = createApiClient(
+      baseUrl: server.url,
+      secureStorage: secureStorage,
+      trustSelfSigned: server.trustSelfSigned,
+      cookieJar: await sharedCookieJar(),
+      serverId: server.id,
+    );
+    _syncService = await _buildSyncService(_dio!);
+    _user = null;
+    _clearWorkspaceState();
+    _applyActorId();
+    _twoFactorChallenge = null;
+    notifyListeners();
+  }
+
+  /// (Re)evaluates the realtime subscription for the current session: a
+  /// server session with an API key subscribes; anything else (logged out,
+  /// local mode, no key) stops the stream. Idempotent at each lifecycle
+  /// point — login, initialize, workspace switch, logout.
+  Future<void> _applyRealtimeSession() async {
+    final sync = _syncService;
+    if (sync == null) return;
+    await sync.stopRealtime();
+    final server = _activeServer;
+    if (server == null || _user == null || isLocalMode) return;
+    final key = await secureStorage.readApiKey(server.id);
+    if (key != null && key.isNotEmpty) {
+      sync.startRealtime(apiKey: key);
+    }
+  }
+
+  /// Switches the active workspace: persists the selection per
+  /// server+account, points the sync service (and the realtime subscription)
+  /// at [workspaceId], and kicks a pull so the workspace converges. Adopts a
+  /// pending local-workspace backlog onto the new workspace, mirroring the
+  /// post-login adoption (a no-op once the local profile has been adopted).
+  Future<void> switchWorkspace(String workspaceId) async {
+    final sync = _syncService;
+    await sync?.stopRealtime();
+    try {
+      await _setActiveWorkspace(workspaceId);
+    } on EncryptedWorkspaceLockedError catch (e) {
+      // Fail-loud: the previous selection stays active; the refusal message
+      // surfaces here (and on the management view) with the unlock
+      // re-prompt.
+      _workspaceOpenError = e.toString();
+      _lockedWorkspaceId = workspaceId;
+      notifyListeners();
+      rethrow;
+    }
+    await _applyRealtimeSession();
+    await _adoptLocalWorkspaceIfPending();
+    _kickWorkspacePull();
+    notifyListeners();
+  }
+
+  Future<void> login(String email, String password) async {
+    _error = null;
+    _twoFactorChallenge = null;
+    _busy = true;
+    notifyListeners();
+    try {
+      if (_dio == null) throw const AuthException('No server configured');
+      final repo = AuthRepository(dio: _dio!, secureStorage: secureStorage);
+      // The server login body is strict {email, password}; session lifetime is
+      // server-owned (30-day sliding sessions) — no remember-me field exists.
+      final result = await repo.login(email: email, password: password);
+      switch (result) {
+        case LoginSuccess(:final user):
+          _user = user;
+          _applyActorId();
+          await _resolveActiveWorkspace();
+          await _adoptLocalWorkspaceIfPending();
+          await _applyRealtimeSession();
+        case TwoFactorChallenge():
+          _twoFactorChallenge = result;
+      }
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Completes a pending 2FA challenge with a TOTP or backup code.
+  Future<void> verifyTwoFactor(String code) async {
+    final challenge = _twoFactorChallenge;
+    if (challenge == null) throw const AuthException('No two-factor challenge pending');
+    _error = null;
+    _busy = true;
+    notifyListeners();
+    try {
+      if (_dio == null) throw const AuthException('No server configured');
+      final repo = AuthRepository(dio: _dio!, secureStorage: secureStorage);
+      _user = await repo.verifyTwoFactor(
+        preauthToken: challenge.preauthToken,
+        code: code,
+      );
+      _twoFactorChallenge = null;
+      _applyActorId();
+      await _resolveActiveWorkspace();
+      await _adoptLocalWorkspaceIfPending();
+      await _applyRealtimeSession();
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Discards a pending 2FA challenge, returning to the password step.
+  void cancelTwoFactor() {
+    _twoFactorChallenge = null;
+    _error = null;
+    notifyListeners();
+  }
+
+  Future<void> register(String email, String password, {String? name, String? surnames}) async {
+    _error = null;
+    _busy = true;
+    notifyListeners();
+    try {
+      if (_dio == null) throw const AuthException('No server configured');
+      final repo = AuthRepository(dio: _dio!, secureStorage: secureStorage);
+      _user = await repo.register(email: email, password: password, name: name, surnames: surnames);
+      _applyActorId();
+      await _resolveActiveWorkspace();
+      await _adoptLocalWorkspaceIfPending();
+      await _applyRealtimeSession();
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> logout() async {
+    _busy = true;
+    notifyListeners();
+    try {
+      if (_dio != null) {
+        await AuthRepository(dio: _dio!, secureStorage: secureStorage).logout();
+      }
+    } finally {
+      _busy = false;
+      _user = null;
+      _clearWorkspaceState();
+      _applyActorId();
+      _twoFactorChallenge = null;
+      // E2EE custody: sign-out drops the master key and every workspace key
+      // (the sync service re-locks) and deletes the persisted master-key
+      // record — session end reverts to the password.
+      clearCryptoCustody();
+      _syncService?.workspaceKey = null;
+      await _applyRealtimeSession();
+      notifyListeners();
+    }
+  }
+
+  /// Switches the active server and clears the current session so the user
+  /// must sign in again.
+  Future<void> switchActiveServer(ServerProfile server) async {
+    await selectServer(server);
+  }
+
+  /// Updates the current user's profile and refreshes the cached user.
+  Future<void> updateUserProfile({String? name, String? surnames}) async {
+    if (_dio == null) throw const AuthException('No server configured');
+    final repo = AuthRepository(dio: _dio!, secureStorage: secureStorage);
+    _user = await repo.updateProfile(name: name, surnames: surnames);
+    _applyActorId();
+    notifyListeners();
+  }
+
+  /// Connect-later adoption: after the first successful server login
+  /// from a local profile, remap the local workspace id (and actor) of the
+  /// accumulated outbox/operation state onto the server workspace, clear the
+  /// local profile, then flush the outbox so local edits reach the server.
+  ///
+  /// This is not a full op-log replay like the web client's `adoption.ts`:
+  /// the server workspace keeps its own seed (the class.create applier is an
+  /// upsert on class id, so our duplicate seed ops are harmless), and only
+  /// the pending outbox is pushed.
+  ///
+  /// Replayed `asset.upload` ops carry only metadata, so after the flush the
+  /// blob bytes of every locally captured asset are uploaded against the
+  /// replayed asset node (mirroring the web client's `uploadAssetBytes`
+  /// adoption step). Per-asset failures are logged and skipped; the ops and
+  /// local blobs stay, so a later flush/upload can be retried manually.
+  Future<void> _adoptLocalWorkspaceIfPending() async {
+    final localWorkspaceId = prefs.getString(_localWorkspaceUuidKey);
+    if (localWorkspaceId == null) return;
+    final sync = _syncService;
+    final serverWorkspaceId = await sync?.getWorkspaceId();
+    if (sync != null &&
+        serverWorkspaceId != null &&
+        serverWorkspaceId != localWorkspaceId) {
+      await sync.remapWorkspace(
+        localWorkspaceId,
+        serverWorkspaceId,
+        actorId: _user?.uuid,
+      );
+    }
+    await prefs.remove(_localProfileUuidKey);
+    await prefs.remove(_localWorkspaceUuidKey);
+    try {
+      await sync?.flush();
+      if (sync != null && _dio != null) {
+        final failures =
+            await LocalAssetService(sync).uploadPendingAssets(_dio!);
+        if (failures.isNotEmpty) {
+          debugPrint('AuthProvider: ${failures.length} local asset(s) failed '
+              'to upload during adoption: ${failures.first}');
+        }
+      }
+      await sync?.pull();
+    } on Exception catch (e) {
+      // Login itself succeeded; the outbox stays pending and the next
+      // connectivity-driven flush retries.
+      debugPrint('AuthProvider: post-adoption sync failed: $e');
+    }
+  }
+
+  /// Reloads the onboarding completion flag from preferences and notifies
+  /// listeners. Call this after the onboarding flow finishes so the router
+  /// redirect re-evaluates.
+  Future<void> refreshOnboarding() async {
+    _onboardingCompleted = onboardingService.isCompleted;
+    notifyListeners();
+  }
+}

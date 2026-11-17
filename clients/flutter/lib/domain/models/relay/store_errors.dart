@@ -1,0 +1,84 @@
+/// Typed errors for the relay-v2 derived-state appliers, ported from
+/// `packages/store/src/errors.ts`. Appliers fail loud: constraint
+/// violations, move-guard breaches, extends cycles, and unsupported wire
+/// carriers surface as dedicated types instead of silent drops, so the sync
+/// service can quarantine with a typed reason and rolls back by not
+/// consuming the envelope id.
+class StoreError implements Exception {
+  const StoreError(this.message, [this.opType]);
+
+  final String message;
+  final String? opType;
+
+  @override
+  String toString() =>
+      'StoreError${opType != null ? '($opType)' : ''}: $message';
+}
+
+/// Envelope or payload failed protocol validation before application.
+class EnvelopeValidationError extends StoreError {
+  const EnvelopeValidationError(super.message, [super.opType]);
+}
+
+/// A placement CHECK rejected a write (bullet-proof schema): a block can
+/// never be parentless; a class is always tree-external.
+class CheckConstraintError extends StoreError {
+  const CheckConstraintError(super.message, [this.constraint, super.opType]);
+
+  final String? constraint;
+}
+
+/// Structural guard: a class node can never be a parent, a date-chain
+/// node's structure is FIXED — its parent is the deterministic chain parent,
+/// its class set is its precision's system class (never declared a class
+/// itself, SCHEMA.md "Datetime") — and a node may never move under itself or
+/// its own descendant.
+class MoveGuardError extends StoreError {
+  const MoveGuardError(super.message, [super.opType]);
+}
+
+/// class.setExtends would introduce a cycle in the extends chain (self-parent
+/// or multi-hop).
+class CycleError extends StoreError {
+  const CycleError(super.message, [super.opType]);
+}
+
+/// class.setExtends attempted to modify a system class's frozen extends
+/// mapping (SCHEMA.md "Class properties" — system
+/// mappings are seeded platform structure; only an idempotent re-issue of the
+/// seeded parent set applies, every deviation fails loud and is never
+/// applied).
+class SystemExtendsLockError extends StoreError {
+  const SystemExtendsLockError(super.message, [super.opType]);
+}
+
+/// A LOCKED system class (the date chain + table, asset, query, code,
+/// template, comment) was archived or deleted (the
+/// classes-gallery batch): platform structure can never be archived or
+/// deleted — the write fails loud and is never applied (SCHEMA.md
+/// "Workspace features").
+class LockedSystemClassError extends StoreError {
+  const LockedSystemClassError(super.message, [super.opType]);
+}
+
+/// object.update arrived with the canonical CRDT wire carrier
+/// (contentDeltaB64) but no readable contentAst mirror. The Yjs port is
+/// future work; until it lands this carrier cannot be interpreted, so the applier
+/// fails loud rather than dropping a write silently.
+class UnsupportedCarrierError extends StoreError {
+  const UnsupportedCarrierError(super.message, [super.opType]);
+}
+
+/// Referenced row (node/parent/class) does not exist in the derived state.
+class NodeNotFoundError extends StoreError {
+  const NodeNotFoundError(super.message, [super.opType]);
+}
+
+/// property.set / class.property.set carried a value whose shape does not
+/// match the property schema's type (SCHEMA.md "Node-backed text
+/// properties": one-shape-per-type, fail-loud at the apply-time write path;
+/// PG6). Node-typed refs failing the schema's graph constraints
+/// (existence, targetClassFilter, datePrecision ceiling) throw this too.
+class PropertyValueShapeError extends StoreError {
+  const PropertyValueShapeError(super.message, [super.opType]);
+}

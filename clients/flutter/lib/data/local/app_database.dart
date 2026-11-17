@@ -1,0 +1,1984 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
+
+import '../../core/constants/system.dart';
+
+/// Simple SQLite database for the offline queue and the sync outbox.
+///
+/// The database is a singleton so all callers share the same connection and
+/// encryption password. Encryption is opt-in; when enabled the database file is
+/// recreated with a SQLCipher password.
+class AppDatabase {
+  // Kept configurable for tests that need an isolated database file.
+  // ignore: unused_element_parameter
+  AppDatabase._internal([this._dbName = 'notees_mobile.db']);
+
+  static AppDatabase? _instance;
+
+  /// Returns the shared database instance.
+  factory AppDatabase() => _instance ??= AppDatabase._internal();
+
+  /// Returns an in-memory database instance for tests.
+  factory AppDatabase.inMemory() =>
+      _inMemoryInstance ??= AppDatabase._internal(':memory:');
+  static AppDatabase? _inMemoryInstance;
+
+  /// Wraps an already-opened database for tests.
+  factory AppDatabase.fromDatabase(Database db) {
+    final instance = AppDatabase._internal(':memory:');
+    instance._db = db;
+    return instance;
+  }
+
+  /// Resets the singleton, mainly for tests.
+  static void reset() {
+    _instance?._db = null;
+    _instance = null;
+    _inMemoryInstance?._db = null;
+    _inMemoryInstance = null;
+    encryptionPassword = null;
+  }
+
+  final String _dbName;
+  Database? _db;
+
+  /// Whether the local SQLite database has a platform implementation.
+  /// sqflite_sqlcipher only supports Android and iOS.
+  static bool get isSupported =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  /// The SQLCipher password used when opening the database.
+  /// Set to `null` to use an unencrypted database.
+  static String? encryptionPassword;
+
+  /// Test hook: overrides the database factory (integration/widget tests run
+  /// the cache on ffi SQLite; the SQLCipher plugin channel has no test
+  /// implementation and cannot be redirected via the package-global
+  /// `databaseFactory`).
+  static DatabaseFactory? debugDatabaseFactory;
+
+  Future<Database> get database async => _db ??= await _open();
+
+  Future<String> get _path async {
+    if (_dbName == ':memory:') return ':memory:';
+    final dir = await getApplicationDocumentsDirectory();
+    return join(dir.path, _dbName);
+  }
+
+  Future<Database> _open() async {
+    final path = await _path;
+    final factory = debugDatabaseFactory;
+    if (factory != null) {
+      return factory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 45,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+        ),
+      );
+    }
+    return openDatabase(
+      path,
+      version: 45,
+      password: encryptionPassword,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    await _createOfflineQueue(db);
+    await _createSyncState(db);
+    await _createNodeCache(db);
+    await _createSearchIndex(db);
+    await _createRelayOutbox(db);
+    await _createRelayOperations(db);
+    await _createSyncWatermark(db);
+    await _createSyncPushWatermark(db);
+    await _createFavorites(db);
+    await _createTaskCompletion(db);
+    await _createTaskRecurrence(db);
+    await _createNodeContentHlc(db);
+    await _createClassCache(db);
+    await _createPropertySchema(db);
+    await _createClassPropertyEdge(db);
+    await _createNodeUserShare(db);
+    await _migrateV16(db);
+    await _createEdge(db);
+    await _createClassProperty(db);
+    await _migrateV19(db);
+    await _migrateV20(db);
+    await _createTrashRoot(db);
+    await _migrateV22(db);
+    await _migrateV23(db);
+    await _migrateV24(db);
+    await _migrateV26(db);
+    await _migrateV27(db);
+    await _migrateV28(db);
+    await _migrateNodeCacheV29(db);
+    await _migrateEdgeV30(db);
+    await _migrateV31(db);
+    await _migrateV32(db);
+    await _migrateV33(db);
+    await _migrateV34(db);
+    await _migrateV35(db);
+    await _migrateV36(db);
+    await _migrateV37(db);
+    await _migrateV38(db);
+    await _migrateV39(db);
+    await _migrateV40(db);
+    await _migrateV41(db);
+    await _migrateV42(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createSyncOutbox(db);
+      await _createSyncState(db);
+    }
+    if (oldVersion < 3) {
+      await _createNodeCache(db);
+    }
+    if (oldVersion < 4) {
+      await _createSearchIndex(db);
+    }
+    if (oldVersion < 5) {
+      await _createRelayOutbox(db);
+      await _createRelayOperations(db);
+      await _createSyncWatermark(db);
+      await _createSyncPushWatermark(db);
+    }
+    if (oldVersion < 6) {
+      await _migrateNodeCacheV6(db);
+    }
+    if (oldVersion < 7) {
+      await _createFavorites(db);
+    }
+    if (oldVersion < 8) {
+      await _migrateNodeCacheV8(db);
+    }
+    if (oldVersion < 9) {
+      await _createTaskCompletion(db);
+    }
+    if (oldVersion < 10) {
+      await _createClassCache(db);
+    }
+    if (oldVersion < 11) {
+      await _createPropertySchema(db);
+      await _createClassPropertyEdge(db);
+    }
+    if (oldVersion < 12) {
+      await _migrateNodeCacheV12(db);
+    }
+    if (oldVersion < 13) {
+      await _migrateSyncWatermarkV13(db);
+    }
+    if (oldVersion < 14) {
+      await _migrateFavoritesV14(db);
+      await _createTaskRecurrence(db);
+      await _createNodeContentHlc(db);
+    }
+    if (oldVersion < 15) {
+      await _createNodeUserShare(db);
+    }
+    if (oldVersion < 16) {
+      await _migrateV16(db);
+    }
+    if (oldVersion < 17) {
+      await _createEdge(db);
+    }
+    if (oldVersion < 18) {
+      await _createClassProperty(db);
+    }
+    if (oldVersion < 19) {
+      await _migrateV19(db);
+    }
+    if (oldVersion < 20) {
+      await _migrateV20(db);
+    }
+    if (oldVersion < 21) {
+      await _createTrashRoot(db);
+    }
+    if (oldVersion < 22) {
+      await _migrateV22(db);
+    }
+    if (oldVersion < 23) {
+      await _migrateV23(db);
+    }
+    if (oldVersion < 24) {
+      await _migrateV24(db);
+    }
+    if (oldVersion < 26) {
+      await _migrateV26(db);
+    }
+    if (oldVersion < 27) {
+      await _migrateV27(db);
+    }
+    if (oldVersion < 28) {
+      await _migrateV28(db);
+    }
+    if (oldVersion < 29) {
+      await _migrateNodeCacheV29(db);
+    }
+    if (oldVersion < 30) {
+      await _migrateEdgeV30(db);
+    }
+    if (oldVersion < 31) {
+      await _migrateV31(db);
+    }
+    if (oldVersion < 32) {
+      await _migrateV32(db);
+    }
+    if (oldVersion < 33) {
+      await _migrateV33(db);
+    }
+    if (oldVersion < 34) {
+      await _migrateV34(db);
+    }
+    if (oldVersion < 35) {
+      await _migrateV35(db);
+    }
+    if (oldVersion < 36) {
+      await _migrateV36(db);
+    }
+    if (oldVersion < 37) {
+      await _migrateV37(db);
+    }
+    if (oldVersion < 38) {
+      await _migrateV38(db);
+    }
+    if (oldVersion < 39) {
+      await _migrateV39(db);
+    }
+    if (oldVersion < 40) {
+      await _migrateV40(db);
+    }
+    if (oldVersion < 41) {
+      await _migrateV41(db);
+    }
+    if (oldVersion < 42) {
+      await _migrateV42(db);
+    }
+    if (oldVersion < 43) {
+      await _migrateV43(db);
+    }
+    if (oldVersion < 44) {
+      await _migrateV44(db);
+    }
+    if (oldVersion < 45) {
+      await _createPendingAsset(db);
+    }
+  }
+
+  /// v45 — the background-asset upload queue (mobile-specific reliability
+  /// layer; the web client uploads inline with no queue — a failed upload
+  /// there drops the file). One row per captured file awaiting upload +
+  /// attach; files live under the app-documents pending-assets directory
+  /// ([PendingAssetService] owns the lifecycle). Sealing happens at DRAIN
+  /// time (the foreground session's workspace key, or custody restored in
+  /// the background isolate), so rows store the plaintext capture and the
+  /// sealed/iv columns are unused today — reserved for a future
+  /// seal-at-enqueue optimization. `next_attempt_at` schedules the
+  /// exponential backoff (attach 4xx defers to the next round).
+  Future<void> _createPendingAsset(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pending_asset (
+        id TEXT PRIMARY KEY,
+        local_path TEXT NOT NULL,
+        node_uuid TEXT,
+        parent_uuid TEXT,
+        mime TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        sealed INTEGER NOT NULL DEFAULT 0,
+        iv TEXT,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        state TEXT NOT NULL DEFAULT 'pending',
+        created_at INTEGER NOT NULL,
+        last_attempt_at INTEGER,
+        next_attempt_at INTEGER
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_pending_asset_drain ON pending_asset(state, next_attempt_at, created_at)',
+    );
+  }
+
+  /// v31 — the property-scope + per-block list-style batch (2026-10-20
+  /// lockstep with the TS store schema v23→v24 + the listStyle node
+  /// column):
+  ///  - `property_schema.scope_class_ids`: the JSON scope list (NULL =
+  ///    global) — the SOLE locality authority;
+  ///    the retired display-only `scope` enum column stays in place (legacy
+  ///    rows round-trip it) but carries zero availability semantics, and
+  ///    the `icon` / `validation_rules` columns the wire surface needs
+  ///    already exist (v11-era legacy columns — same names, same JSON map
+  ///    shape, reused verbatim).
+  ///  - `node_cache.list_style`: the direct projection of object.create /
+  ///    object.update's listStyle ('numbered' | 'alpha' | 'roman'; NULL =
+  ///    the bullet default).
+  /// The column guards keep the migration idempotent for databases that
+  /// already carry them (a fresh v31 create).
+  Future<void> _migrateV31(Database db) async {
+    await _addColumnIfMissing(db, 'property_schema', 'scope_class_ids', 'TEXT');
+    await _addColumnIfMissing(db, 'node_cache', 'list_style', 'TEXT');
+  }
+
+  /// v28 — the page-subtitle wire node field (2026-10-09 lockstep with the
+  /// TS store schema v17→v18): `node_cache` gains `description` — the
+  /// direct projection of `object.update`'s description (the page subtitle
+  /// in the core page chrome, max 512 chars; presence writes,
+  /// present-null clears; NULL = unset). The column guard keeps the
+  /// migration idempotent for databases that already carry it (a fresh
+  /// v28 create).
+  Future<void> _migrateV28(Database db) async {
+    await _addColumnIfMissing(db, 'node_cache', 'description', 'TEXT');
+  }
+
+  /// v27 — the wire node fields (2026-10-07 lockstep with the TS store
+  /// schema v16): `node_cache` gains `cover_asset_id` / `banner_asset_id` /
+  /// `aliased_node_id` — the direct projections of `object.update`'s
+  /// coverAssetId / bannerAssetId / aliasedNodeId (presence writes,
+  /// present-null clears; NULL = unset). Reference integrity (asset
+  /// existence, alias cycles) is NOT a column concern: the alias cycle
+  /// check is write-time applier logic, the rest rides the read layer.
+  /// The column guard keeps the migration idempotent for databases that
+  /// already carry them (a fresh v27 create).
+  Future<void> _migrateV27(Database db) async {
+    await _addColumnIfMissing(db, 'node_cache', 'cover_asset_id', 'TEXT');
+    await _addColumnIfMissing(db, 'node_cache', 'banner_asset_id', 'TEXT');
+    await _addColumnIfMissing(db, 'node_cache', 'aliased_node_id', 'TEXT');
+  }
+
+  /// v26 — owner review 2026-10-05 (the render contracts move from
+  /// the binding to the property; supersedes the never-shipped v25
+  /// experiment, folded away like the TS store's v13→v14):
+  ///  (1) `property_schema.display` — where a select/multi_select (or
+  ///      boolean) value renders on a block row ('panel' | 'bullet' |
+  ///      'inline'; NULL = the 'panel' default). `readonly`/
+  ///      `hide_when_empty` already ride the legacy columns (NOT NULL 0 =
+  ///      unset) — only the position is new. Both guards keep the migration
+  ///      idempotent for databases that already carry them.
+  ///  (2) `class_property` is REBUILT without the retired binding columns
+  ///      (readonly/hide_when_empty from the original shape, display from the
+  ///      v25 experiment — the v23 property_value rebuild precedent: same
+  ///      surviving columns, rows copy verbatim, indexes recreated).
+  ///      `required`/`default_value` SURVIVE this step — they retired/moved
+  ///      to the schema only later (v32 below).
+  Future<void> _migrateV26(Database db) async {
+    await _addColumnIfMissing(db, 'property_schema', 'display', 'TEXT');
+    final columns = await db.rawQuery('PRAGMA table_info(class_property)');
+    final names = columns.map((c) => c['name'] as String).toSet();
+    if (names.contains('display') ||
+        names.contains('hide_when_empty') ||
+        names.contains('readonly')) {
+      await db.execute('''
+        CREATE TABLE class_property_v26 (
+          class_id TEXT NOT NULL,
+          property_schema_id TEXT NOT NULL,
+          required INTEGER,
+          default_value TEXT,
+          active INTEGER NOT NULL DEFAULT 1,
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT,
+          PRIMARY KEY (class_id, property_schema_id)
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO class_property_v26 (
+          class_id, property_schema_id, required, default_value, active,
+          hlc_physical, hlc_logical, actor_id
+        )
+        SELECT class_id, property_schema_id, required, default_value, active,
+               hlc_physical, hlc_logical, actor_id
+        FROM class_property
+      ''');
+      await db.execute('DROP TABLE class_property');
+      await db.execute('ALTER TABLE class_property_v26 RENAME TO class_property');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_class_property_schema ON class_property(property_schema_id)',
+      );
+    }
+  }
+
+  /// v24 — number display formatting (SCHEMA.md "Number formats",
+  /// lockstep): additive property_schema columns, NULL = unformatted. The
+  /// column guard keeps it idempotent for databases that already carry them
+  /// (a fresh v24 create).
+  Future<void> _migrateV24(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(property_schema)');
+    final names = columns.map((c) => c['name'] as String).toSet();
+    if (!names.contains('number_pad')) {
+      await db.execute('ALTER TABLE property_schema ADD COLUMN number_pad INTEGER');
+      await db.execute('ALTER TABLE property_schema ADD COLUMN number_decimals INTEGER');
+      await db.execute('ALTER TABLE property_schema ADD COLUMN number_rounding TEXT');
+    }
+  }
+
+  /// v21 — trash retention metadata for the relay-v2 restore applier
+  /// (lockstep with the TS reference's `trash` table): one row per soft-deleted
+  /// ROOT, so `object.restore` can tell
+  /// "trashed with the parent" apart from "trashed independently".
+  Future<void> _createTrashRoot(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS trash_root (
+        node_id TEXT PRIMARY KEY,
+        deleted_at TEXT NOT NULL,
+        is_permanent INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  /// v22 — property-wire batch, part 1 (lockstep with the TS
+  /// store schema v9→v10 + the PC4/PC6 columns):
+  ///  - `workspace_feature`: the winning LWW row per (workspace_id, feature)
+  ///    for `workspace.feature.set`; an ABSENT row means enabled (all
+  ///    features default ON — the empty table is the pre-toggle state, so
+  ///    existing workspaces need no migration); the `settings` column (the
+  ///    optional per-feature configuration record, JSON text; NULL = the
+  ///    winning payload carried no settings) is added by v37 below — the
+  ///    column's home since the TS store schema v30 lockstep;
+  ///  - `class_property.active`: the PC4 soft-unbind flag — absent column
+  ///    means the pre-PC4 state, which IS active, so the backfill default
+  ///    is 1;
+  ///  - `property_schema.date_precision`/`date_qualified`: the SCHEMA.md
+  ///    "Dates" columns (PC6: dateQualified schemas canonicalize the
+  ///    reserved metadata qualifier keys to date-node refs).
+  Future<void> _migrateV22(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS workspace_feature (
+        workspace_id TEXT NOT NULL,
+        feature TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (workspace_id, feature)
+      )
+    ''');
+    await _addColumnIfMissing(
+      db,
+      'class_property',
+      'active',
+      'INTEGER NOT NULL DEFAULT 1',
+    );
+    await _addColumnIfMissing(db, 'property_schema', 'date_precision', 'TEXT');
+    await _addColumnIfMissing(
+      db,
+      'property_schema',
+      'date_qualified',
+      'INTEGER',
+    );
+  }
+
+  /// v23 — property-wire batch, part 2 (PG5 element identity,
+  /// lockstep with the TS store schema v10→v11):
+  ///  - `property_value` is REBUILT without the retired
+  ///    UNIQUE(node_uuid, property_schema_id, idx): per-element identity
+  ///    means concurrent adds at the same idx are DISTINCT elements and
+  ///    both stay visible — `idx` is only a per-element order hint
+  ///    (readers order by (idx, element id); gaps never heal). The row id
+  ///    IS the element id: writer-minted UUIDv7 for element adds, the
+  ///    deterministic composite `node:schema:idx` for single-value slots
+  ///    and legacy positional writes;
+  ///  - `property_value_element_tombstone`: one row per removed element,
+  ///    carrying the winning remove's causality (strictly-greater full
+  ///    (hlc, actor) upsert — on an exact tie the earlier add sticks,
+  ///    add-wins).
+  Future<void> _migrateV23(Database db) async {
+    final indexes = await db.rawQuery('PRAGMA index_list(property_value)');
+    final hasUnique = indexes.any((i) => i['unique'] == 1);
+    if (hasUnique) {
+      await db.execute('''
+        CREATE TABLE property_value_v23 (
+          id TEXT PRIMARY KEY,
+          node_uuid TEXT NOT NULL,
+          property_schema_id TEXT NOT NULL,
+          value TEXT NOT NULL,
+          idx INTEGER NOT NULL DEFAULT 0,
+          metadata TEXT,
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO property_value_v23 (
+          id, node_uuid, property_schema_id, value, idx, metadata,
+          hlc_physical, hlc_logical, actor_id
+        )
+        SELECT id, node_uuid, property_schema_id, value, idx, metadata,
+               hlc_physical, hlc_logical, actor_id
+        FROM property_value
+      ''');
+      await db.execute('DROP TABLE property_value');
+      await db.execute('ALTER TABLE property_value_v23 RENAME TO property_value');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_property_value_node ON property_value(node_uuid)',
+      );
+    }
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS property_value_element_tombstone (
+        element_id TEXT PRIMARY KEY,
+        node_uuid TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_property_value_element_tomb_node ON property_value_element_tombstone(node_uuid)',
+    );
+  }
+
+  /// v16 — derived-state depth for the relay appliers:
+  ///  - `node_cache` gains the wire row shape: scalar `title` (the old `name`
+  ///    slot, split from the content `name` column; since retired — the
+  ///    protocol has no node `name` field anymore (title-is-content,
+  ///    2026-10-01) — the column stays for legacy rows only), lexicographic
+  ///    fractional `position`, `node_type` (retired by v20: the render-state
+  ///    migration rebuilds the table with `is_class`/`present_as_main` and
+  ///    drops it), and the row-LWW winner
+  ///    (`hlc_physical`, `hlc_logical`, `actor_id`);
+  ///  - new derived tables mirroring the TS store: OR-Set class membership,
+  ///    m2m class extends + transitive closure, multi-value property rows
+  ///    with LWW tombstones, and collection membership.
+  Future<void> _migrateV16(Database db) async {
+    await _addColumnIfMissing(db, 'node_cache', 'title', 'TEXT');
+    await _addColumnIfMissing(db, 'node_cache', 'position', 'TEXT');
+    await _addColumnIfMissing(db, 'node_cache', 'node_type', 'TEXT');
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'hlc_physical',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'hlc_logical',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(db, 'node_cache', 'actor_id', 'TEXT');
+    await _createClassMemberSet(db);
+    await _createClassExtends(db);
+    await _createPropertyValue(db);
+    await _createCollectionMember(db);
+  }
+
+  /// v19 — first-class tags + class ORDER (2026-10-01 protocol lockstep,
+  /// store schema v6→v7 parity):
+  ///  - `tag_member_set`: the tag-assignment OR-Set (same membership
+  ///    semantics as `class_member_set`, own table, no role overlap);
+  ///  - `node_cache.class_order`: the per-node user-defined class order list
+  ///    (class.reorder, LWW-by-arrival); the effective classes_uuid =
+  ///    ordered members first, then unlisted members sorted by id.
+  Future<void> _migrateV19(Database db) async {
+    await _createTagMemberSet(db);
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'class_order',
+      "TEXT NOT NULL DEFAULT '[]'",
+    );
+  }
+
+  /// v20 — Revision-11 render-state model (2026-10-02 protocol lockstep,
+  /// store schema v7→v8 parity): the retired `node_type` enumeration
+  /// (`page`/`block`/`class`) is replaced by two booleans — `is_class` (the
+  /// only identity marker; classes are always roots) and `present_as_main`
+  /// (the render bit read by the third cascade branch). Table rebuild (safe
+  /// on stock SQLite builds — no DROP COLUMN): the rows map
+  /// page → (0, 1), block → (0, 0), class → (1, 0), and the single
+  /// placement CHECK (`is_class = 0 OR parent_uuid IS NULL`) replaces the
+  /// retired block-needs-a-parent / class-is-tree-external rules.
+  /// Parentless non-class nodes are legal from here on: they render with
+  /// document chrome by the second cascade branch regardless of the bit.
+  Future<void> _migrateV20(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(node_cache)');
+    if (columns.any((c) => c['name'] == 'node_type')) {
+      await db.execute('''
+        CREATE TABLE node_cache_v20 (
+          uuid TEXT PRIMARY KEY,
+          name TEXT,
+          parent_uuid TEXT,
+          classes_uuid TEXT,
+          is_class INTEGER NOT NULL DEFAULT 0,
+          present_as_main INTEGER NOT NULL DEFAULT 0,
+          is_page INTEGER NOT NULL DEFAULT 0,
+          is_task INTEGER NOT NULL DEFAULT 0,
+          is_daily INTEGER NOT NULL DEFAULT 0,
+          is_monthly INTEGER NOT NULL DEFAULT 0,
+          is_yearly INTEGER NOT NULL DEFAULT 0,
+          is_deleted INTEGER NOT NULL DEFAULT 0,
+          is_archived INTEGER NOT NULL DEFAULT 0,
+          sequence REAL NOT NULL DEFAULT 0,
+          version INTEGER NOT NULL DEFAULT 0,
+          write_date TEXT,
+          payload TEXT NOT NULL,
+          synced_at INTEGER NOT NULL,
+          title TEXT,
+          position TEXT,
+          class_order TEXT NOT NULL DEFAULT '[]',
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT,
+          CHECK (is_class = 0 OR parent_uuid IS NULL)
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO node_cache_v20 (
+          uuid, name, parent_uuid, classes_uuid, is_class, present_as_main,
+          is_page, is_task, is_daily, is_monthly, is_yearly, is_deleted,
+          is_archived, sequence, version, write_date, payload, synced_at,
+          title, position, class_order,
+          hlc_physical, hlc_logical, actor_id
+        )
+        SELECT
+          uuid, name, parent_uuid, classes_uuid,
+          CASE WHEN node_type = 'class' THEN 1 ELSE 0 END,
+          CASE WHEN node_type = 'page' THEN 1 ELSE 0 END,
+          is_page, is_task, is_daily, is_monthly, is_yearly, is_deleted,
+          is_archived, sequence, version, write_date, payload, synced_at,
+          title, position, class_order,
+          hlc_physical, hlc_logical, actor_id
+        FROM node_cache
+      ''');
+      await db.execute('DROP TABLE node_cache');
+      await db.execute('ALTER TABLE node_cache_v20 RENAME TO node_cache');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_node_cache_parent ON node_cache(parent_uuid)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_node_cache_deleted ON node_cache(is_deleted)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_node_cache_page ON node_cache(is_page)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_node_cache_task ON node_cache(is_task)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_node_cache_daily ON node_cache(is_daily)',
+      );
+      return;
+    }
+    // No node_type column: the table is already at the v20 shape (fresh
+    // create); keep the guarded adds for defense in depth.
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'is_class',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'present_as_main',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+  }
+
+  /// v29 — the Revision-12 embedding model (protocol
+  /// lockstep; TS store schema v21 parity): `present_as_main` is renamed to
+  /// `is_embedded` WITH POLARITY INVERSION (is_embedded = 1 -
+  /// present_as_main: the old main-zone bit 1 becomes the standalone claim
+  /// 0, the old inline-body 0 becomes the embedded default 1; class rows
+  /// converge to 0). The derived `is_page` flag recomputes with the same
+  /// polarity as the repository read: is_class OR parentless OR
+  /// is_embedded = 0. Table rebuild (safe on stock SQLite builds); guarded
+  /// on the old column so the step is a no-op for databases already at the
+  /// v29 shape (fresh creates, idempotent re-runs).
+  /// v30 — the link-embedding flag (TS store
+  /// schema v22 parity): `edge` gains `is_embedded INTEGER NOT NULL
+  /// DEFAULT 0`, the derived projection of the mention token's manual
+  /// embedding flag. Purely additive — every pre-existing edge reads 0
+  /// (the default link is an ordinary inline link). Guarded ALTER (the
+  /// v27/v28 precedent); the mobile client mines mention edges per read,
+  /// so no backfill is required beyond the default.
+  Future<void> _migrateEdgeV30(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      'edge',
+      'is_embedded',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+  }
+
+  Future<void> _migrateNodeCacheV29(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(node_cache)');
+    if (!columns.any((c) => c['name'] == 'present_as_main')) return;
+    await db.execute('''
+      CREATE TABLE node_cache_v29 (
+        uuid TEXT PRIMARY KEY,
+        name TEXT,
+        parent_uuid TEXT,
+        classes_uuid TEXT,
+        is_class INTEGER NOT NULL DEFAULT 0,
+        is_embedded INTEGER NOT NULL DEFAULT 1,
+        is_page INTEGER NOT NULL DEFAULT 0,
+        is_task INTEGER NOT NULL DEFAULT 0,
+        is_daily INTEGER NOT NULL DEFAULT 0,
+        is_monthly INTEGER NOT NULL DEFAULT 0,
+        is_yearly INTEGER NOT NULL DEFAULT 0,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        sequence REAL NOT NULL DEFAULT 0,
+        version INTEGER NOT NULL DEFAULT 0,
+        write_date TEXT,
+        payload TEXT NOT NULL,
+        synced_at INTEGER NOT NULL,
+        title TEXT,
+        position TEXT,
+        class_order TEXT NOT NULL DEFAULT '[]',
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        cover_asset_id TEXT,
+        banner_asset_id TEXT,
+        aliased_node_id TEXT,
+        description TEXT,
+        CHECK (is_class = 0 OR parent_uuid IS NULL)
+      )
+    ''');
+    await db.execute('''
+      INSERT INTO node_cache_v29 (
+        uuid, name, parent_uuid, classes_uuid, is_class, is_embedded,
+        is_page, is_task, is_daily, is_monthly, is_yearly, is_deleted,
+        is_archived, sequence, version, write_date, payload, synced_at,
+        title, position, class_order,
+        hlc_physical, hlc_logical, actor_id,
+        cover_asset_id, banner_asset_id, aliased_node_id, description
+      )
+      SELECT
+        uuid, name, parent_uuid, classes_uuid, is_class,
+        CASE WHEN is_class = 1 THEN 0
+             WHEN present_as_main = 1 THEN 0
+             ELSE 1 END,
+        CASE WHEN is_class = 1 THEN 1
+             WHEN parent_uuid IS NULL THEN 1
+             WHEN present_as_main = 1 THEN 0
+             ELSE 1 END,
+        is_task, is_daily, is_monthly, is_yearly, is_deleted,
+        is_archived, sequence, version, write_date, payload, synced_at,
+        title, position, class_order,
+        hlc_physical, hlc_logical, actor_id,
+        cover_asset_id, banner_asset_id, aliased_node_id, description
+      FROM node_cache
+    ''');
+    await db.execute('DROP TABLE node_cache');
+    await db.execute('ALTER TABLE node_cache_v29 RENAME TO node_cache');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_parent ON node_cache(parent_uuid)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_deleted ON node_cache(is_deleted)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_page ON node_cache(is_page)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_task ON node_cache(is_task)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_daily ON node_cache(is_daily)',
+    );
+  }
+
+  Future<void> _createTagMemberSet(Database db) async {
+    // OR-Set of tag assignments (add-wins, LWW per (node, tag) pair by
+    // (hlc, actor)); the applier projects the present rows into
+    // node_cache's tags_uuid payload. Mirrors the TS store schema.ts
+    // tag_member_set.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS tag_member_set (
+        node_uuid TEXT NOT NULL,
+        tag_id TEXT NOT NULL,
+        present INTEGER NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (node_uuid, tag_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_tag_member_set_tag ON tag_member_set(tag_id)',
+    );
+  }
+
+  Future<void> _createClassMemberSet(Database db) async {
+    // OR-Set of class assignments (add-wins, LWW per (node, class) pair by
+    // (hlc, actor)); the applier projects the present rows into
+    // node_cache.classes_uuid. Mirrors the TS store schema.ts class_member_set.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS class_member_set (
+        node_uuid TEXT NOT NULL,
+        class_id TEXT NOT NULL,
+        present INTEGER NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (node_uuid, class_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_class_member_set_class ON class_member_set(class_id)',
+    );
+  }
+
+  Future<void> _createClassExtends(Database db) async {
+    // Direct m2m extends edges (class.setExtends replace semantics) plus the
+    // applier-maintained transitive closure (self-row included). Mirrors the
+    // TS store class_extends / class_hierarchy.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS class_extends (
+        class_id TEXT NOT NULL,
+        parent_class_id TEXT NOT NULL,
+        PRIMARY KEY (class_id, parent_class_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_class_extends_parent ON class_extends(parent_class_id)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS class_hierarchy (
+        class_id TEXT NOT NULL,
+        ancestor_id TEXT NOT NULL,
+        PRIMARY KEY (class_id, ancestor_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor ON class_hierarchy(ancestor_id)',
+    );
+  }
+
+  Future<void> _createPropertyValue(Database db) async {
+    // Authored property rows — the LIVE visible rows only (the applier
+    // deletes a row when its element's OR-Set remove wins). The row id IS
+    // the element id (PG5): writer-minted UUIDv7 for element adds,
+    // the deterministic composite 'node:schema:idx' for single-value slots
+    // and legacy positional writes. The pre-PG5 UNIQUE(node, schema, idx)
+    // is GONE (v23): per-element identity means concurrent adds at the same
+    // idx are DISTINCT elements and both stay visible — 'idx' is only a
+    // per-element order hint (readers order by (idx, element id); gaps
+    // never heal). Mirrors the TS store schema v11 property_value.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS property_value (
+        id TEXT PRIMARY KEY,
+        node_uuid TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        value TEXT NOT NULL,
+        idx INTEGER NOT NULL DEFAULT 0,
+        metadata TEXT,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_property_value_node ON property_value(node_uuid)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS property_value_tombstone (
+        node_uuid TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        idx INTEGER NOT NULL DEFAULT 0,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (node_uuid, property_schema_id, idx)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS property_value_element_tombstone (
+        element_id TEXT PRIMARY KEY,
+        node_uuid TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_property_value_element_tomb_node ON property_value_element_tombstone(node_uuid)',
+    );
+  }
+
+  /// Class → property-schema bindings (SCHEMA.md "Class properties"): the
+  /// genuinely per-class mechanic ONLY — `active`, the soft-unbind flag,
+  /// `pinned`, the binary tier flag, and `show_in_node_rows`, the binary
+  /// node-row preview flag (a flagged binding's property value renders in
+  /// the node's row, not only the properties panel; absent = false).
+  /// The render contracts moved to the property schema (owner review
+  /// 2026-10-05); `required`/`defaultValue` left the binding entirely
+  /// (`required` retired outright, `defaultValue`
+  /// moved to the schema — one global default per property, the Logseq
+  /// shape; the local `property_schema` table carries the legacy
+  /// `default_value` column already) and `sequence` retired outright
+  /// (class panels render alphabetically by
+  /// property name, a read-time derivation; no order is stored or
+  /// configurable). The legacy `class_property_edge` table (the old UI
+  /// read model) stays untouched.
+  Future<void> _createClassProperty(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS class_property (
+        class_id TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        show_in_node_rows INTEGER NOT NULL DEFAULT 0,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (class_id, property_schema_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_class_property_schema ON class_property(property_schema_id)',
+    );
+  }
+
+  /// Node-level property ASSIGNMENT: the (node, property) pair declaration
+  /// WITHOUT a value (SCHEMA.md "Class properties", the effective read's
+  /// assigned-empty synthesis). Presence row, LWW by (hlc, actor);
+  /// `property.unassign` deletes the row (the class.property.unset
+  /// precedent); zero availability semantics — scope stays the sole
+  /// locality authority, enforced at the applier.
+  Future<void> _createNodeProperty(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS node_property (
+        node_uuid TEXT NOT NULL,
+        property_schema_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (node_uuid, property_schema_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_property_node ON node_property(node_uuid)',
+    );
+  }
+
+  /// v32 — the property-definition surfaces batch,
+  /// lockstep with the TS store schema v24→v25 + the binding-flags v26
+  /// precedent: `class_property` REBUILDS without the retired
+  /// `required`/`default_value` columns (SQLite cannot drop a column on old
+  /// builds — same-table copy, the v26 rebuild pattern); the schema's
+  /// `default_value` column already exists locally (legacy column, reused
+  /// verbatim as the moved default's home — the guard keeps the step a no-op
+  /// for databases that lack it). The moved values arrive from the live log
+  /// rewrite (the monorepo's migrate-drop-binding-required.mts), so the
+  /// backfill is deliberately NULL.
+  Future<void> _migrateV32(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(class_property)');
+    final names = columns.map((c) => c['name'] as String).toSet();
+    if (names.contains('required') || names.contains('default_value')) {
+      await db.execute('''
+        CREATE TABLE class_property_v32 (
+          class_id TEXT NOT NULL,
+          property_schema_id TEXT NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1,
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT,
+          PRIMARY KEY (class_id, property_schema_id)
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO class_property_v32 (
+          class_id, property_schema_id, active,
+          hlc_physical, hlc_logical, actor_id
+        )
+        SELECT class_id, property_schema_id, active,
+               hlc_physical, hlc_logical, actor_id
+        FROM class_property
+      ''');
+      await db.execute('DROP TABLE class_property');
+      await db.execute('ALTER TABLE class_property_v32 RENAME TO class_property');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_class_property_schema ON class_property(property_schema_id)',
+      );
+    }
+    await _addColumnIfMissing(db, 'property_schema', 'default_value', 'TEXT');
+  }
+
+  /// v33 — the binding-sequence retirement (
+  /// lockstep with the TS store schema v25→v26): `sequence` retires from
+  /// the binding — class panels render alphabetically by property name (a
+  /// read-time derivation), so panel order no longer exists to configure.
+  /// `class_property` REBUILDS without the column (SQLite cannot drop a
+  /// column on old builds — same-table copy, the v26/v32 rebuild pattern);
+  /// there is NO data backfill (order metadata is discarded). The column
+  /// guard keeps the step a no-op for databases already carrying the new
+  /// shape (idempotent).
+  Future<void> _migrateV33(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(class_property)');
+    final names = columns.map((c) => c['name'] as String).toSet();
+    if (names.contains('sequence')) {
+      await db.execute('''
+        CREATE TABLE class_property_v33 (
+          class_id TEXT NOT NULL,
+          property_schema_id TEXT NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1,
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT,
+          PRIMARY KEY (class_id, property_schema_id)
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO class_property_v33 (
+          class_id, property_schema_id, active,
+          hlc_physical, hlc_logical, actor_id
+        )
+        SELECT class_id, property_schema_id, active,
+               hlc_physical, hlc_logical, actor_id
+        FROM class_property
+      ''');
+      await db.execute('DROP TABLE class_property');
+      await db.execute('ALTER TABLE class_property_v33 RENAME TO class_property');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_class_property_schema ON class_property(property_schema_id)',
+      );
+    }
+  }
+
+  /// v34 — the readonly retirement (lockstep
+  /// with the TS store schema v26→v27): the `readonly` render contract
+  /// retires — never user configuration (no seed ever carried the flag), so
+  /// clients derive readonly-ness from the system property list
+  /// (`isReadonlyProperty`, core/constants) instead of storing it. The
+  /// legacy NOT NULL column on the local `property_schema` cache table
+  /// rebuilds away (same-table copy, the v26/v32 rebuild pattern); there is
+  /// NO data backfill (derived, not stored). The column guard keeps the
+  /// step a no-op for databases already carrying the new shape (idempotent).
+  Future<void> _migrateV34(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(property_schema)');
+    final names = columns.map((c) => c['name'] as String).toSet();
+    if (names.contains('readonly')) {
+      await db.execute(
+        'CREATE TABLE property_schema_v34 (\n'
+        '  uuid TEXT PRIMARY KEY,\n'
+        '  workspace_id TEXT NOT NULL,\n'
+        '  name TEXT NOT NULL,\n'
+        '  icon TEXT,\n'
+        "  type TEXT NOT NULL DEFAULT 'text',\n"
+        '  multi INTEGER NOT NULL DEFAULT 0,\n'
+        '  is_system INTEGER NOT NULL DEFAULT 0,\n'
+        "  scope TEXT NOT NULL DEFAULT 'global',\n"
+        '  node_uuid TEXT,\n'
+        '  icon_visibility TEXT,\n'
+        '  validation_rules TEXT,\n'
+        '  required INTEGER NOT NULL DEFAULT 0,\n'
+        '  hide_when_empty INTEGER NOT NULL DEFAULT 0,\n'
+        '  display TEXT,\n'
+        '  default_value TEXT,\n'
+        "  class_filter_uuids TEXT NOT NULL DEFAULT '[]',\n"
+        "  options TEXT NOT NULL DEFAULT '[]',\n"
+        '  computed TEXT,\n'
+        '  active INTEGER NOT NULL DEFAULT 1,\n'
+        '  created_at TEXT,\n'
+        '  updated_at TEXT\n'
+        ')',
+      );
+      await db.execute(
+        'INSERT INTO property_schema_v34 (\n'
+        '  uuid, workspace_id, name, icon, type, multi, is_system, scope,\n'
+        '  node_uuid, icon_visibility, validation_rules, required,\n'
+        '  hide_when_empty, display, default_value, class_filter_uuids,\n'
+        '  options, computed, active, created_at, updated_at\n'
+        ')\n'
+        'SELECT uuid, workspace_id, name, icon, type, multi, is_system, scope,\n'
+        '       node_uuid, icon_visibility, validation_rules, required,\n'
+        '       hide_when_empty, display, default_value, class_filter_uuids,\n'
+        '       options, computed, active, created_at, updated_at\n'
+        'FROM property_schema',
+      );
+      await db.execute('DROP TABLE property_schema');
+      await db.execute(
+        'ALTER TABLE property_schema_v34 RENAME TO property_schema',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_property_schema_workspace ON property_schema(workspace_id)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_property_schema_node ON property_schema(node_uuid)',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_property_schema_active ON property_schema(active)',
+      );
+    }
+  }
+
+  /// v35 — diacritic folding in the local search index (2026-10-21, the web
+  /// store's `foldSearchText` mirror): `tokenize()` now strips diacritics,
+  /// so every pre-v35 row holds unfolded terms that an unaccented query can
+  /// never hit. The index is derived state — clear it; the sync service's
+  /// `shouldReindexSearch()` sees an empty index and `reindexAll()`
+  /// backfills with folded terms on the next boot path.
+  Future<void> _migrateV35(Database db) async {
+    await db.delete('search_index');
+  }
+
+  /// v36 — external-id mappings for importer/sync plugins (2026-10-23
+  /// lockstep with the TS store schema v29→v30 + SCHEMA.md "External-id
+  /// mappings"): the `external_ref.*` op family. One LIVE mapping per
+  /// (workspace, ref) — LWW by envelope (hlc, actor) on the ref key, so a
+  /// re-set MOVES the mapping and racing writes converge on the higher
+  /// tuple; a node may carry MANY refs (the reverse read scans by node_id).
+  /// The delete side keeps a tombstone per (workspace, ref) (the
+  /// property_value_tombstone precedent) — including a delete of an
+  /// UNMAPPED ref — so a stale concurrent set delivered after the winning
+  /// delete is dropped on every replica. At most one of {live row,
+  /// tombstone} stands per key. No referential integrity (the
+  /// property_value precedent); a node's HARD delete purges its live rows
+  /// (the subtree purge in NodeCacheRepository.hardDelete), soft-trash
+  /// keeps them. Purely additive: CREATE IF NOT EXISTS is a no-op for
+  /// fresh v36 creates.
+  Future<void> _migrateV36(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS external_ref (
+        ref TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        node_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (workspace_id, ref)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_external_ref_node ON external_ref (node_id)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS external_ref_tombstone (
+        ref TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (workspace_id, ref)
+      )
+    ''');
+  }
+
+  /// v37 — the `workspace.feature.set` settings payload (2026-10-23 lockstep
+  /// with the TS store schema v29→v30): `workspace_feature` gains `settings`
+  /// TEXT — the winning payload's optional per-feature configuration record
+  /// as JSON text. NULL = the winning payload carried no settings (absent is
+  /// distinct from '{}'); existing rows backfill to NULL, which is exactly
+  /// their pre-column meaning (an old-shape winning write stores NULL).
+  /// The column guard keeps the migration idempotent for databases that
+  /// already carry it (a fresh v37 create).
+  Future<void> _migrateV37(Database db) async {
+    await _addColumnIfMissing(db, 'workspace_feature', 'settings', 'TEXT');
+  }
+
+  /// v38 — the class-level parentlessRole render contract (2026-10-24
+  /// lockstep with the TS store schema v31→v32, SCHEMA.md "Node structure"): `class_cache` gains `parentless_role` TEXT — the
+  /// class registry's copy of the class.create/class.update
+  /// `parentlessRole` payload field (`'block'` = parentless members render
+  /// in the Block role; NULL = the 'page' default; presence writes,
+  /// present-null clears, the icon/color precedent). The local store keeps
+  /// class config in `class_cache` ONLY — classes have no node_cache row
+  /// here (converted classes keep theirs, and the icon/color precedent
+  /// never mirrored class config onto it), so the TS store's two-column
+  /// node+registry port lands as this single registry column; the
+  /// effective-role reads walk `class_cache` × `class_hierarchy`, the
+  /// effectiveClassColor precedent. The column guard keeps the migration
+  /// idempotent for databases that already carry it (a fresh v38 create).
+  Future<void> _migrateV38(Database db) async {
+    await _addColumnIfMissing(db, 'class_cache', 'parentless_role', 'TEXT');
+  }
+
+  /// v39 — the memorization-card review history (2026-10-28 lockstep with
+  /// the TS store schema v34→v35, SCHEMA.md "Memorization cards"): the
+  /// `card.review` op family. One append-only derived row per graded review
+  /// — HISTORY-ONLY, NO LWW gate, NO tombstone/superseded path (every
+  /// envelope lands a row, concurrent reviews are ALL history); the op never
+  /// writes property values (the seeded card-family properties stay the
+  /// current schedule surface). The (card_id, hlc) index is the per-card
+  /// read seam (NodeCacheRepository.listCardReviews), mirroring the TS
+  /// store's `idx_card_review_card`. Purely additive: CREATE IF NOT EXISTS
+  /// is a no-op for fresh v39 creates; an old database gains the empty table
+  /// and collects rows as the log's card.review envelopes replay.
+  Future<void> _migrateV39(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS card_review (
+        card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        grade TEXT NOT NULL,
+        algorithm TEXT NOT NULL,
+        state_before TEXT NOT NULL,
+        state_after TEXT NOT NULL,
+        reviewed_at TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL,
+        actor_id TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_card_review_card ON card_review (card_id, hlc_physical, hlc_logical)',
+    );
+  }
+
+  /// v40 — the class-level displayTemplate (2026-10-29 lockstep with the TS
+  /// store schema v35→v36, SCHEMA.md): `class_cache` gains `display_template`
+  /// TEXT — the class registry's copy of the class.create/class.update
+  /// `displayTemplate` payload field (the members' derived-title format
+  /// string; NULL = inherit, '' = the explicit opt-out that STOPS
+  /// extends-inheritance, a non-empty string = the template; presence
+  /// writes, present-null clears, the icon/color precedent). The local store
+  /// keeps class config in `class_cache` ONLY (the v38 precedent), so the TS
+  /// store's registry column lands as this single column; effective-template
+  /// reads walk `class_cache` × `class_extends` BFS nearest-first (the TS
+  /// `resolveEffectiveDisplayTemplate` parity). The column guard keeps the
+  /// migration idempotent for databases that already carry it (a fresh v40
+  /// create).
+  Future<void> _migrateV40(Database db) async {
+    await _addColumnIfMissing(db, 'class_cache', 'display_template', 'TEXT');
+  }
+
+  /// v41 — the E2EE-fixture re-vendor batch (2026-11-03 lockstep with the
+  /// TS store schema v34 `pinned` tier flag + the node-level assignment
+  /// `node_property` table, SCHEMA.md "Class properties"):
+  ///  - `class_property.pinned`: the binding row's binary tier flag — a
+  ///    pinned binding's property renders in the FIRST tier of class
+  ///    property lists (alphabetical within each tier; a stored/configurable
+  ///    order stays retired). Backfill default 0 (the unpinned tier);
+  ///  - `node_property`: the (node, property) pair PRESENCE declaration
+  ///    (property.assign/unassign/empty) — the effective read synthesizes an
+  ///    empty row for a live assignment whose schema has no authored/default
+  ///    rows. Purely additive — both guards keep the step idempotent for
+  ///    databases that already carry them.
+  Future<void> _migrateV41(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      'class_property',
+      'pinned',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _createNodeProperty(db);
+  }
+
+  /// v42 — the query-surface batch (2026-11-04, the P3 slice-1 schema the
+  /// query-AST v2 compiler ports against):
+  ///  - `node_cache.created_at` / `node_cache.updated_at`: the direct
+  ///    projections of the TS store `node.created_at` / `node.updated_at`
+  ///    (object.create stamps both; every mutating op bumps updated —
+  ///    the appliers write them through the Node row). Existing rows
+  ///    backfill from `write_date` / the payload's createDate (the column
+  ///    is derived state: a wipe → replay converges it).
+  ///  - `node_cache.tag_ids`: the OR-Set tag membership projected as a
+  ///    JSON id list (recomputeTagIds maintains it, one more column write;
+  ///    the `tags` query family probes it through json_each). Existing
+  ///    rows backfill from the tag_member_set present rows.
+  ///  - `search_index_fts` (+ `search_index_fts_docid`): the derived
+  ///    search PLAINTEXT backend the query compiler's content conditions
+  ///    probe (the web store's FTS5 `search_index` mirror; the pre-existing
+  ///    `search_index` term inverted index is a different table and stays
+  ///    untouched — v35 already DELETEs it for reindex sweeps, so its name
+  ///    was not reusable). Populated next to the term index in the
+  ///    repository's indexer from the same diacritic-folded plaintext
+  ///    source. The FTS5 → FTS4 probe keeps old SQLCipher/Android builds
+  ///    working (the TS ftsModule fallback precedent; MATCH syntax is
+  ///    identical). Existing rows backfill through the sync service's
+  ///    reindex path (shouldReindexSearch sees the empty FTS table).
+  Future<void> _migrateV42(Database db) async {
+    await _addColumnIfMissing(db, 'node_cache', 'created_at', 'TEXT');
+    await _addColumnIfMissing(db, 'node_cache', 'updated_at', 'TEXT');
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'tag_ids',
+      "TEXT NOT NULL DEFAULT '[]'",
+    );
+    await db.execute(
+      "UPDATE node_cache SET updated_at = write_date WHERE updated_at IS NULL",
+    );
+    await db.execute(
+      "UPDATE node_cache SET created_at = COALESCE(json_extract(payload, '\$.createDate'), write_date) WHERE created_at IS NULL",
+    );
+    final tagRows = await db.rawQuery(
+      'SELECT node_uuid, json_group_array(tag_id) AS tag_ids FROM '
+      '(SELECT node_uuid, tag_id FROM tag_member_set WHERE present = 1 '
+      'ORDER BY node_uuid, tag_id) GROUP BY node_uuid',
+    );
+    if (tagRows.isNotEmpty) {
+      final batch = db.batch();
+      for (final row in tagRows) {
+        batch.update(
+          'node_cache',
+          {'tag_ids': row['tag_ids']},
+          where: 'uuid = ?',
+          whereArgs: [row['node_uuid']],
+        );
+      }
+      await batch.commit(noResult: true);
+    }
+    try {
+      await db.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS search_index_fts USING fts5(content, tokenize='unicode61')",
+      );
+    } catch (_) {
+      // FTS5 missing on this SQLCipher/SQLite build — the FTS4 fallback
+      // (same MATCH syntax, the TS ftsModule precedent).
+      await db.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS search_index_fts USING fts4(content, tokenize='unicode61')",
+      );
+    }
+    await db.execute(
+      'CREATE TABLE IF NOT EXISTS search_index_fts_docid ('
+      'node_id TEXT PRIMARY KEY, docid INTEGER NOT NULL)',
+    );
+  }
+
+  /// v43 — the binding row's node-row preview flag (2026-11-09 lockstep
+  /// with the TS store schema v36→v37, SCHEMA.md "Class properties"):
+  /// `class_property` gains `show_in_node_rows` INTEGER NOT NULL DEFAULT 0
+  /// — a flagged binding's property value renders in the node's row (the
+  /// outliner line/chrome preview), not only in the properties panel.
+  /// Absent = false: existing rows converge by the default 0 (the pinned
+  /// additive-column precedent; live workspaces converge by future
+  /// `class.property.set` envelopes, no backfill). The column guard keeps
+  /// the migration idempotent for databases that already carry it (a fresh
+  /// v43 create).
+  Future<void> _migrateV43(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      'class_property',
+      'show_in_node_rows',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+  }
+
+  /// Derived reference index (never authored): mention/typed_link edges
+  /// projected from content tokens plus node-typed property values. Mirrors
+  /// the TS store `edge` table.
+  Future<void> _createEdge(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS edge (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL DEFAULT '',
+        source_id TEXT NOT NULL,
+        target_id TEXT,
+        type TEXT NOT NULL,
+        verb TEXT,
+        metadata TEXT,
+        is_embedded INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_edge_source ON edge(source_id, type)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_edge_target ON edge(target_id, type)');
+  }
+
+  Future<void> _createCollectionMember(Database db) async {
+    // OR-Set membership for collection nodes (add-wins per member pair).
+    // Mirrors the TS store collection_member.
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS collection_member (
+        collection_id TEXT NOT NULL,
+        object_id TEXT NOT NULL,
+        present INTEGER NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (collection_id, object_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_collection_member_object ON collection_member(object_id)',
+    );
+  }
+
+  /// Closes and deletes the database file, then reopens it with the current
+  /// encryption password. Use this when toggling encryption on or off.
+  Future<void> recreate() async {
+    await close();
+    final path = await _path;
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
+    _db = null;
+    await database;
+  }
+
+  Future<void> _createOfflineQueue(Database db) async {
+    await db.execute('''
+      CREATE TABLE offline_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        method TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createSyncOutbox(Database db) async {
+    await db.execute('''
+      CREATE TABLE sync_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        op_json TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        next_retry_at INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('CREATE INDEX idx_sync_outbox_seq ON sync_outbox(seq)');
+  }
+
+  Future<void> _createSyncState(Database db) async {
+    await db.execute('''
+      CREATE TABLE sync_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createNodeCache(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS node_cache (
+        uuid TEXT PRIMARY KEY,
+        name TEXT,
+        parent_uuid TEXT,
+        classes_uuid TEXT,
+        is_class INTEGER NOT NULL DEFAULT 0,
+        is_embedded INTEGER NOT NULL DEFAULT 1,
+        is_page INTEGER NOT NULL DEFAULT 0,
+        is_task INTEGER NOT NULL DEFAULT 0,
+        is_daily INTEGER NOT NULL DEFAULT 0,
+        is_monthly INTEGER NOT NULL DEFAULT 0,
+        is_yearly INTEGER NOT NULL DEFAULT 0,
+        is_deleted INTEGER NOT NULL DEFAULT 0,
+        is_archived INTEGER NOT NULL DEFAULT 0,
+        sequence REAL NOT NULL DEFAULT 0,
+        version INTEGER NOT NULL DEFAULT 0,
+        write_date TEXT,
+        payload TEXT NOT NULL,
+        synced_at INTEGER NOT NULL,
+        CHECK (is_class = 0 OR parent_uuid IS NULL)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_parent ON node_cache(parent_uuid)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_deleted ON node_cache(is_deleted)',
+    );
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_node_cache_page ON node_cache(is_page)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_node_cache_task ON node_cache(is_task)');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_daily ON node_cache(is_daily)',
+    );
+  }
+
+  /// Adds [column] to [table] unless it already exists. Column migrations
+  /// must be idempotent: upgrade paths from versions predating a table create
+  /// it at its CURRENT shape (via the _create* functions), so an unguarded
+  /// ALTER re-adding the same column fails with "duplicate column name".
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((c) => c['name'] == column)) return;
+    await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+  }
+
+  Future<void> _migrateNodeCacheV6(Database db) async {
+    await _addColumnIfMissing(db, 'node_cache', 'classes_uuid', 'TEXT');
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'is_page',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'is_task',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'is_daily',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'is_monthly',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'is_yearly',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_page ON node_cache(is_page)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_task ON node_cache(is_task)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_node_cache_daily ON node_cache(is_daily)',
+    );
+  }
+
+  Future<void> _migrateNodeCacheV8(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      'node_cache',
+      'is_archived',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+  }
+
+  Future<void> _migrateNodeCacheV12(Database db) async {
+    // The `page` system class is no longer emitted; page status is now derived
+    // from `kind == 'page'` / the `is_page` column. Strip the obsolete page
+    // class UUID from any cached class lists.
+    const pageClassUuid = SystemClassUuids.page;
+    final rows = await db.query(
+      'node_cache',
+      columns: ['uuid', 'classes_uuid'],
+      where: "classes_uuid LIKE ?",
+      whereArgs: ['%$pageClassUuid%'],
+    );
+    for (final row in rows) {
+      final uuid = row['uuid'] as String?;
+      final classesJson = row['classes_uuid'] as String?;
+      if (uuid == null || classesJson == null) continue;
+      final classIds = (jsonDecode(classesJson) as List<dynamic>)
+          .cast<String>();
+      if (!classIds.contains(pageClassUuid)) continue;
+      classIds.remove(pageClassUuid);
+      await db.update(
+        'node_cache',
+        {'classes_uuid': jsonEncode(classIds)},
+        where: 'uuid = ?',
+        whereArgs: [uuid],
+      );
+    }
+  }
+
+  Future<void> _createFavorites(Database db) async {
+    // Favorites are keyed per actor, matching the server-side
+    // `user_favorite(actor_id, node_id, workspace_id)` keying. Rows written
+    // before the actor column existed carry the empty-string actor.
+    await db.execute('''
+      CREATE TABLE user_favorite (
+        workspace_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL DEFAULT '',
+        node_uuid TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, actor_id, node_uuid)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_user_favorite_workspace ON user_favorite(workspace_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_user_favorite_position ON user_favorite(workspace_id, actor_id, position)',
+    );
+  }
+
+  Future<void> _migrateFavoritesV14(Database db) async {
+    // Rebuilds user_favorite with actor_id in the primary key; existing rows
+    // keep the empty-string actor (pre-actor-aware local writes).
+    await db.execute('''
+      CREATE TABLE user_favorite_new (
+        workspace_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL DEFAULT '',
+        node_uuid TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (workspace_id, actor_id, node_uuid)
+      )
+    ''');
+    await db.execute('''
+      INSERT INTO user_favorite_new (workspace_id, actor_id, node_uuid, position, updated_at)
+      SELECT workspace_id, '', node_uuid, position, updated_at FROM user_favorite
+    ''');
+    await db.execute('DROP TABLE user_favorite');
+    await db.execute('ALTER TABLE user_favorite_new RENAME TO user_favorite');
+    await db.execute(
+      'CREATE INDEX idx_user_favorite_workspace ON user_favorite(workspace_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_user_favorite_position ON user_favorite(workspace_id, actor_id, position)',
+    );
+  }
+
+  Future<void> _createSearchIndex(Database db) async {
+    await db.execute('''
+      CREATE TABLE search_index (
+        term TEXT NOT NULL,
+        node_uuid TEXT NOT NULL,
+        field TEXT NOT NULL,
+        rank INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (term, node_uuid, field)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_search_index_term ON search_index(term)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_search_index_node ON search_index(node_uuid)',
+    );
+  }
+
+  Future<void> _createRelayOutbox(Database db) async {
+    await db.execute('''
+      CREATE TABLE relay_outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        envelope_json TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'pending',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        next_retry_at INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_relay_outbox_state_retry ON relay_outbox(state, next_retry_at)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_relay_outbox_created ON relay_outbox(created_at)',
+    );
+  }
+
+  Future<void> _createRelayOperations(Database db) async {
+    await db.execute('''
+      CREATE TABLE relay_operations (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        actor_id TEXT NOT NULL,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL,
+        affected_node_ids TEXT NOT NULL,
+        op_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        is_local INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_relay_operations_workspace_hlc ON relay_operations(workspace_id, hlc_physical, hlc_logical)',
+    );
+  }
+
+  Future<void> _createSyncWatermark(Database db) async {
+    await db.execute('''
+      CREATE TABLE sync_watermark (
+        workspace_id TEXT PRIMARY KEY,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL,
+        restore_epoch INTEGER NOT NULL DEFAULT 0,
+        cursor_seq INTEGER NOT NULL DEFAULT 0,
+        uploaded_snapshot_hlc_physical INTEGER,
+        uploaded_snapshot_hlc_logical INTEGER
+      )
+    ''');
+  }
+
+  /// v44 — the durable snapshot-upload watermark (`uploadedSnapshotHlc` in
+  /// the TS engine): the HLC this device last covered with a client-uploaded
+  /// snapshot, per workspace. NULL = never uploaded. Survives restarts so a
+  /// restarted app does not re-upload against a lagging server checkpoint;
+  /// a workspace reset (restoreEpoch resync) drops the row with the rest of
+  /// the watermark state.
+  Future<void> _migrateV44(Database db) async {
+    await _addColumnIfMissing(
+      db,
+      'sync_watermark',
+      'uploaded_snapshot_hlc_physical',
+      'INTEGER',
+    );
+    await _addColumnIfMissing(
+      db,
+      'sync_watermark',
+      'uploaded_snapshot_hlc_logical',
+      'INTEGER',
+    );
+  }
+
+  Future<void> _migrateSyncWatermarkV13(Database db) async {
+    // Adds the server-assigned seq catch-up cursor. Existing rows read as
+    // cursor 0 = full catch-up; re-applied envelopes are deduped by op id.
+    // Guarded: upgrades from versions predating the table create it at its
+    // CURRENT shape (cursor_seq included) in the <5 branch above, so an
+    // unguarded ALTER fails with "duplicate column name".
+    await _addColumnIfMissing(
+      db,
+      'sync_watermark',
+      'cursor_seq',
+      'INTEGER NOT NULL DEFAULT 0',
+    );
+  }
+
+  Future<void> _createSyncPushWatermark(Database db) async {
+    await db.execute('''
+      CREATE TABLE sync_push_watermark (
+        workspace_id TEXT PRIMARY KEY,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createTaskCompletion(Database db) async {
+    await db.execute('''
+      CREATE TABLE task_completion (
+        completion_id TEXT PRIMARY KEY,
+        node_uuid TEXT NOT NULL,
+        completed_at TEXT,
+        scheduled_date TEXT,
+        deadline_date TEXT,
+        status TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_task_completion_node ON task_completion(node_uuid)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_task_completion_created ON task_completion(node_uuid, created_at DESC)',
+    );
+  }
+
+  Future<void> _createTaskRecurrence(Database db) async {
+    // Mirrors the server-derived `task_recurrence` table.
+    await db.execute('''
+      CREATE TABLE task_recurrence (
+        recurrence_id TEXT PRIMARY KEY,
+        node_uuid TEXT NOT NULL,
+        rule TEXT NOT NULL,
+        actor_id TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_task_recurrence_node ON task_recurrence(node_uuid)',
+    );
+  }
+
+  Future<void> _createNodeUserShare(Database db) async {
+    // Mirrors the server-derived `node_user_share` table, plus a workspace
+    // column since the local cache spans workspaces.
+    await db.execute('''
+      CREATE TABLE node_user_share (
+        workspace_id TEXT NOT NULL,
+        node_uuid TEXT NOT NULL,
+        target_user_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT '',
+        permission_bits INTEGER NOT NULL DEFAULT 0,
+        share_id TEXT,
+        created_by TEXT,
+        created_at TEXT,
+        PRIMARY KEY (workspace_id, node_uuid, target_user_id)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_node_user_share_target ON node_user_share(workspace_id, target_user_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_node_user_share_share ON node_user_share(share_id)',
+    );
+  }
+
+  Future<void> _createNodeContentHlc(Database db) async {
+    // Last applied content HLC per node, used to skip stale
+    // `node.updateContent` operations (last-write-wins, like the server).
+    await db.execute('''
+      CREATE TABLE node_content_hlc (
+        node_uuid TEXT PRIMARY KEY,
+        hlc_physical INTEGER NOT NULL,
+        hlc_logical INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createClassCache(Database db) async {
+    await db.execute('''
+      CREATE TABLE class_cache (
+        uuid TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        icon TEXT,
+        color TEXT,
+        description TEXT,
+        extends_uuid TEXT NOT NULL DEFAULT '[]',
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_class_cache_active ON class_cache(active)',
+    );
+  }
+
+  Future<void> _createPropertySchema(Database db) async {
+    await db.execute('''
+      CREATE TABLE property_schema (
+        uuid TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        icon TEXT,
+        type TEXT NOT NULL DEFAULT 'text',
+        multi INTEGER NOT NULL DEFAULT 0,
+        is_system INTEGER NOT NULL DEFAULT 0,
+        scope TEXT NOT NULL DEFAULT 'global',
+        node_uuid TEXT,
+        icon_visibility TEXT,
+        validation_rules TEXT,
+        required INTEGER NOT NULL DEFAULT 0,
+        hide_when_empty INTEGER NOT NULL DEFAULT 0,
+        -- the value-display position (panel|bullet|inline; NULL =
+        -- the 'panel' default) — PROPERTY-level, like the hide-when-empty
+        -- flag above (legacy NOT NULL column; 0 = unset). `readonly`
+        -- retired outright at v34 (derived from
+        -- the system property list, `isReadonlyProperty` in
+        -- core/constants, not stored).
+        display TEXT,
+        default_value TEXT,
+        class_filter_uuids TEXT NOT NULL DEFAULT '[]',
+        options TEXT NOT NULL DEFAULT '[]',
+        computed TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_property_schema_workspace ON property_schema(workspace_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_property_schema_node ON property_schema(node_uuid)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_property_schema_active ON property_schema(active)',
+    );
+  }
+
+  Future<void> _createClassPropertyEdge(Database db) async {
+    await db.execute('''
+      CREATE TABLE class_property_edge (
+        class_uuid TEXT NOT NULL,
+        property_uuid TEXT NOT NULL,
+        sequence INTEGER NOT NULL DEFAULT 0,
+        default_value TEXT,
+        hidden INTEGER NOT NULL DEFAULT 0,
+        required INTEGER,
+        readonly INTEGER,
+        hide_when_empty INTEGER,
+        PRIMARY KEY (class_uuid, property_uuid)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX idx_class_property_edge_class ON class_property_edge(class_uuid)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_class_property_edge_property ON class_property_edge(property_uuid)',
+    );
+  }
+
+  /// Creates the full schema on an already-opened test database.
+  Future<void> initializeSchema() async {
+    final db = await database;
+    await _createOfflineQueue(db);
+    await _createSyncState(db);
+    await _createNodeCache(db);
+    await _createSearchIndex(db);
+    await _createRelayOutbox(db);
+    await _createRelayOperations(db);
+    await _createSyncWatermark(db);
+    await _createSyncPushWatermark(db);
+    await _createFavorites(db);
+    await _createTaskCompletion(db);
+    await _createTaskRecurrence(db);
+    await _createNodeContentHlc(db);
+    await _createClassCache(db);
+    await _createPropertySchema(db);
+    await _createClassPropertyEdge(db);
+    await _createNodeUserShare(db);
+    await _migrateV16(db);
+    await _createEdge(db);
+    await _createClassProperty(db);
+    await _migrateV19(db);
+    await _migrateV20(db);
+    await _createTrashRoot(db);
+    await _migrateV22(db);
+    await _migrateV23(db);
+    await _migrateV24(db);
+    await _migrateV26(db);
+    await _migrateV27(db);
+    await _migrateV28(db);
+    await _migrateNodeCacheV29(db);
+    await _migrateEdgeV30(db);
+    await _migrateV31(db);
+    await _migrateV32(db);
+    await _migrateV36(db);
+    await _migrateV37(db);
+    await _migrateV38(db);
+    await _migrateV39(db);
+    await _migrateV40(db);
+    await _migrateV41(db);
+    await _migrateV42(db);
+    await _migrateV43(db);
+    await _migrateV44(db);
+    await _createPendingAsset(db);
+  }
+
+  Future<int> enqueue(String method, String payload) async {
+    final db = await database;
+    return db.insert('offline_queue', {
+      'method': method,
+      'payload': payload,
+      'created_at': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  Future<int> enqueueQuickNote(String name) async {
+    return enqueue('quick_note', '{"name": ${jsonEncode(name)}}');
+  }
+
+  Future<List<Map<String, dynamic>>> pending() async {
+    final db = await database;
+    return db.query('offline_queue', orderBy: 'created_at ASC');
+  }
+
+  Future<void> remove(int id) async {
+    final db = await database;
+    await db.delete('offline_queue', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> close() async {
+    await _db?.close();
+    _db = null;
+  }
+}

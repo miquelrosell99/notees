@@ -1,0 +1,384 @@
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'
+    hide GlobalMaterialLocalizations, GlobalCupertinoLocalizations;
+import 'package:cupertino_ui/cupertino_ui.dart'
+    show GlobalCupertinoLocalizations;
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import '../../../core/localization/material_localizations_override.dart';
+import '../../../core/routing/router.dart';
+import '../../../core/utils/ast_stringifier.dart';
+import '../../../core/utils/date_uuid.dart';
+import '../../../core/utils/node_display_name.dart';
+import '../../../data/models/node.dart';
+import '../../../data/models/page_content.dart';
+import '../../../data/repositories/node_repository.dart';
+import '../../../domain/models/search_filters.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../widgets/ast_rich_text.dart';
+import '../widgets/journal_calendar_picker.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/section_title.dart';
+
+/// A continuous, scrollable view of recent journal entries.
+///
+/// Each day's blocks are rendered inline (newest first). Tapping a day opens
+/// the full editor, and a calendar button in the app bar lets the user jump to
+/// or create any date with highlighted days for existing journals.
+class JournalContinuousScreen extends StatefulWidget {
+  const JournalContinuousScreen({super.key});
+
+  @override
+  State<JournalContinuousScreen> createState() => _JournalContinuousScreenState();
+}
+
+class _JournalContinuousScreenState extends State<JournalContinuousScreen> {
+  final _calendarPickerKey = GlobalKey<JournalCalendarPickerState>();
+  List<PageContent> _journalContents = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadJournals();
+  }
+
+  Future<void> _loadJournals() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    setState(() => _loading = true);
+    try {
+      final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+      final journals = await repo.searchWithFilters(
+        const SearchFilters(
+          nodeType: SearchKind.journal,
+          sortBy: SortBy.writeDate,
+          order: SortOrder.desc,
+          limit: 60,
+        ),
+      );
+      final contents = await Future.wait(
+        journals.map((j) => repo.fetchPageContent(j.uuid)),
+      );
+      if (mounted) {
+        setState(() {
+          _journalContents = contents;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _openToday() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    setState(() => _loading = true);
+    try {
+      final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+      final journal = await repo.getOrCreateDailyJournal(DateTime.now());
+      if (mounted) {
+        context.push('${Routes.editor}/${journal.uuid}');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _openDate(DateTime date) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    setState(() => _loading = true);
+    try {
+      final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+      final journal = await repo.getOrCreateDailyJournal(date);
+      if (mounted) {
+        context.push('${Routes.editor}/${journal.uuid}');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _openNode(Node node) {
+    HapticFeedback.lightImpact();
+    context.push('${Routes.editor}/${node.uuid}');
+  }
+
+  void _showCalendar() {
+    HapticFeedback.lightImpact();
+    final now = DateTime.now();
+    final existingDates = <DateTime>{
+      for (final content in _journalContents)
+        if (journalDateFromUuid(content.node.uuid) != null)
+          journalDateFromUuid(content.node.uuid)!,
+    };
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        final settings = ctx.read<SettingsProvider>();
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Jump to journal',
+                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        _calendarPickerKey.currentState?.jumpToCurrentMonth();
+                      },
+                      child: const Text('Today'),
+                    ),
+                    IconButton(
+                      icon: Icon(MdiIcons.close),
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+              ),
+              Localizations.override(
+                context: ctx,
+                delegates: [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  FirstDayOfWeekLocalizationsDelegate(settings.firstDayOfWeek),
+                ],
+                child: JournalCalendarPicker(
+                  key: _calendarPickerKey,
+                  initialDate: now,
+                  highlightedDates: existingDates,
+                  onDateChanged: (date) {
+                    Navigator.of(ctx).pop();
+                    _openDate(date);
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final settings = context.watch<SettingsProvider>();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Journals'),
+        actions: [
+          IconButton(
+            icon: Icon(MdiIcons.calendarEditOutline),
+            tooltip: "Today's journal",
+            onPressed: _openToday,
+          ),
+          IconButton(
+            icon: Icon(MdiIcons.calendarMonthOutline),
+            tooltip: 'Jump to date',
+            onPressed: _showCalendar,
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadJournals,
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _buildContent(colors, settings),
+      ),
+    );
+  }
+
+  Widget _buildContent(ColorScheme colors, SettingsProvider settings) {
+    if (_error != null) {
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          EmptyState(
+            icon: MdiIcons.alertCircleOutline,
+            title: 'Could not load journals',
+            subtitle: _error,
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: FilledButton.tonalIcon(
+              onPressed: _loadJournals,
+              icon: Icon(MdiIcons.refresh),
+              label: const Text('Retry'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_journalContents.isEmpty) {
+      return ListView(
+        children: [
+          const SizedBox(height: 120),
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  'No journal entries yet.',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _openToday,
+                  icon: Icon(MdiIcons.pencilOutline),
+                  label: const Text("Write today's journal"),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _journalContents.length + 1,
+      separatorBuilder: (context, index) {
+        if (index == 0) return const SizedBox.shrink();
+        return const Divider(height: 1);
+      },
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 20, bottom: 8),
+            child: SectionTitle(
+              icon: MdiIcons.history,
+              label: 'Recent entries',
+            ),
+          );
+        }
+        final content = _journalContents[index - 1];
+        return _JournalDayCard(
+          content: content,
+          onHeaderTap: _openNode,
+          onBlockTap: _openNode,
+          dateFormat: settings.dateFormat,
+        );
+      },
+    );
+  }
+}
+
+class _JournalDayCard extends StatelessWidget {
+  const _JournalDayCard({
+    required this.content,
+    required this.onHeaderTap,
+    required this.onBlockTap,
+    required this.dateFormat,
+  });
+
+  final PageContent content;
+  final ValueChanged<Node> onHeaderTap;
+  final ValueChanged<Node> onBlockTap;
+  final String dateFormat;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final date = resolveNodeDisplayName(content.node, dateFormat: dateFormat);
+    // Revision-11 render cascade: the journal card body shows the inline
+    // (present_as_main = 0) children; main children render as child pages
+    // when the day page is zoomed, not in the card.
+    final children =
+        content.node.children.where((b) => b.isEmbedded != false).toList();
+
+    return InkWell(
+      onTap: () => onHeaderTap(content.node),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(MdiIcons.calendarOutline, size: 18, color: colors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    date,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                Icon(MdiIcons.chevronRight, color: colors.onSurfaceVariant),
+              ],
+            ),
+            if (children.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  'Nothing written yet.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                        fontStyle: FontStyle.italic,
+                      ),
+                ),
+              )
+            else
+              ...children.map((block) {
+                final plain = astToPlainText(block.name).trim();
+                if (plain.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: InkWell(
+                    onTap: () => onBlockTap(block),
+                    borderRadius: BorderRadius.circular(8),
+                    child: AstRichText(
+                      source: block.name,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                      onNodeLinkTap: (uuid) => context.push('${Routes.editor}/$uuid'),
+                    ),
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

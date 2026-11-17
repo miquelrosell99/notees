@@ -1,0 +1,1572 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:notees/domain/models/relay/operation_payloads.dart';
+
+/// Unit tests for the op payload factories and their strict validation
+/// (the Dart port of `packages/protocol/src/op-types.ts`).
+void main() {
+  const objectId = '0192a000-0000-7000-8000-000000000010';
+  const classId = '0192a000-0000-7000-8000-0000000000c5';
+
+  group('factories emit registry-valid payloads', () {
+    test('object.create carries the wire field names', () {
+      final payload = OperationPayloads.objectCreate(
+        objectId: objectId,
+        isEmbedded: false,
+        classIds: const [classId],
+        tagIds: const ['0192a000-0000-7000-8000-0000000000aa'],
+        contentAst: const [
+          {'type': 'text', 'text': 'hi'},
+        ],
+        parentId: null,
+      );
+
+      expect(payload['objectId'], objectId);
+      expect(payload['isEmbedded'], isFalse);
+      expect(payload['classIds'], [classId]);
+      expect(payload['tagIds'], ['0192a000-0000-7000-8000-0000000000aa']);
+      expect(payload['contentAst'], hasLength(1));
+      expect(payload['parentId'], isNull);
+      expect(payload.containsKey('name'), isFalse);
+      expect(() => OperationPayloads.validatePayload('object.create', payload),
+          returnsNormally);
+    });
+
+    test('object.create defaults classIds and tagIds to empty', () {
+      final payload = OperationPayloads.objectCreate(objectId: objectId);
+      expect(payload['classIds'], isEmpty);
+      expect(payload['tagIds'], isEmpty);
+      expect(payload.containsKey('isEmbedded'), isFalse);
+    });
+
+    test('object.create emits the embedding flag when given', () {
+      final payload = OperationPayloads.objectCreate(
+        objectId: objectId,
+        isEmbedded: true,
+        parentId: classId,
+      );
+      expect(payload['isEmbedded'], isTrue);
+      expect(() => OperationPayloads.validatePayload('object.create', payload),
+          returnsNormally);
+    });
+
+    test('object.create name convenience converts to a single text token', () {
+      final payload =
+          OperationPayloads.objectCreate(objectId: objectId, name: 'A page');
+      expect(payload['contentAst'], [
+        {'type': 'text', 'text': 'A page'},
+      ]);
+      expect(payload.containsKey('name'), isFalse);
+      expect(() => OperationPayloads.validatePayload('object.create', payload),
+          returnsNormally);
+    });
+
+    test('object.create contentAst wins over the name convenience', () {
+      final payload = OperationPayloads.objectCreate(
+        objectId: objectId,
+        name: 'dropped',
+        contentAst: const [
+          {'type': 'text', 'text': 'kept'},
+        ],
+      );
+      expect(payload['contentAst'], [
+        {'type': 'text', 'text': 'kept'},
+      ]);
+      expect(payload.containsKey('name'), isFalse);
+    });
+
+    test('object.update requires at least one field', () {
+      expect(() => OperationPayloads.objectUpdate(objectId: objectId),
+          throwsArgumentError);
+      expect(
+        () => OperationPayloads.validatePayload(
+            'object.update', {'objectId': objectId}),
+        throwsFormatException,
+      );
+    });
+
+    test('object.update rejects two content carriers', () {
+      expect(
+        () => OperationPayloads.objectUpdate(
+          objectId: objectId,
+          contentAst: const [
+            {'type': 'text', 'text': 'x'},
+          ],
+          contentDeltaB64: 'AAAA',
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('object.update carries the archival bit; object.create rejects it '
+        'outright', () {
+      // The classes-gallery batch: `active` is a
+      // platform node field — `false` archives, `true` unarchives.
+      final archived = OperationPayloads.objectUpdate(
+        objectId: objectId,
+        active: false,
+      );
+      expect(archived['active'], isFalse);
+      final unarchived = OperationPayloads.objectUpdate(
+        objectId: objectId,
+        active: true,
+      );
+      expect(unarchived['active'], isTrue);
+      // A non-boolean active is rejected outright (the strict schema).
+      expect(
+        () => OperationPayloads.validatePayload('object.update', {
+          'objectId': objectId,
+          'active': 'yes',
+        }),
+        throwsFormatException,
+      );
+      // The bit is object.update-only — object.create carries no
+      // appearance/fundamental fields (the wire-fields precedent).
+      expect(
+        () => OperationPayloads.validatePayload('object.create', {
+          'objectId': objectId,
+          'active': false,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('class.delete is retired from the op registry', () {
+      expect(OperationPayloads.isKnownOpType('class.delete'), isFalse);
+      expect(
+        () => OperationPayloads.validatePayload(
+            'class.delete', {'classId': classId}),
+        throwsFormatException,
+      );
+    });
+
+    test('workspace.feature.set accepts journal and readItLater; the plural '
+        'spelling stays rejected outright', () {
+      for (final feature in ['journal', 'readItLater']) {
+        final payload = OperationPayloads.workspaceFeatureSet(
+          feature: feature,
+          enabled: false,
+        );
+        expect(payload, {'feature': feature, 'enabled': false});
+      }
+      expect(
+        () => OperationPayloads.workspaceFeatureSet(
+          feature: 'journals',
+          enabled: false,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('workspace.feature.set settings: optional record, strict shape', () {
+      const settings = {'citekeyPattern': '[auth:lower][year]', 'autoCitekey': true};
+      // Absent stays absent (the old shape); present rides the payload.
+      expect(
+        OperationPayloads.workspaceFeatureSet(feature: 'sources', enabled: true),
+        {'feature': 'sources', 'enabled': true},
+      );
+      final withSettings = OperationPayloads.workspaceFeatureSet(
+        feature: 'sources',
+        enabled: true,
+        settings: settings,
+      );
+      expect(withSettings['settings'], settings);
+      // An empty record is a REAL value (distinct from absent).
+      final empty = OperationPayloads.workspaceFeatureSet(
+        feature: 'sources',
+        enabled: true,
+        settings: const {},
+      );
+      expect(empty['settings'], isEmpty);
+      // Non-record settings fail loud at validation.
+      expect(
+        () => OperationPayloads.validatePayload('workspace.feature.set', {
+          'feature': 'sources',
+          'enabled': true,
+          'settings': 'not-a-record',
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('object.update carries the wire node fields set + clear; '
+        'object.create rejects them outright', () {
+      const asset = '0192a000-0000-7000-8000-00000000052b';
+      // Presence writes; an explicit null reaches the wire as a clear.
+      final set = OperationPayloads.objectUpdate(
+        objectId: objectId,
+        coverAssetId: asset,
+        bannerAssetId: asset,
+        aliasedNodeId: asset,
+      );
+      expect(set['coverAssetId'], asset);
+      expect(set['bannerAssetId'], asset);
+      expect(set['aliasedNodeId'], asset);
+      final cleared = OperationPayloads.objectUpdate(
+        objectId: objectId,
+        aliasedNodeId: null,
+      );
+      expect(cleared.containsKey('aliasedNodeId'), isTrue);
+      expect(cleared['aliasedNodeId'], isNull);
+      // Omitted stays absent (absence = no write, distinct from a clear).
+      final iconOnly = OperationPayloads.objectUpdate(
+        objectId: objectId,
+        icon: 'mdiStar',
+      );
+      expect(iconOnly.containsKey('coverAssetId'), isFalse);
+      expect(iconOnly.containsKey('bannerAssetId'), isFalse);
+      expect(iconOnly.containsKey('aliasedNodeId'), isFalse);
+      // A non-uuid reference is rejected outright.
+      expect(
+        () => OperationPayloads.validatePayload('object.update', {
+          'objectId': objectId,
+          'coverAssetId': 'not-a-uuid',
+        }),
+        throwsFormatException,
+      );
+      // The fields are object.update-only: object.create rejects them like
+      // any unknown key (the strict schema).
+      for (final key in ['coverAssetId', 'bannerAssetId', 'aliasedNodeId']) {
+        expect(
+          () => OperationPayloads.validatePayload('object.create', {
+            'objectId': objectId,
+            key: asset,
+          }),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('propertySchema.create accepts the asset type and rejects a bogus '
+        'one', () {
+      final payload = OperationPayloads.propertySchemaCreate(
+        propertySchemaId: classId,
+        name: 'Attachment',
+        type: 'asset',
+        multi: true,
+        scopeClassIds: const [classId],
+      );
+      expect(payload['type'], 'asset');
+      expect(payload['scopeClassIds'], [classId]);
+      expect(() => OperationPayloads.validatePayload(
+          'propertySchema.create', payload), returnsNormally);
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'Bogus',
+          'type': 'asset_payload',
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('propertySchema.create: scopeClassIds is the sole locality '
+        'authority — the retired `scope` enum is rejected like any '
+        'retired key, an empty list is rejected, null/absent is global',
+        () {
+      // The retired enum key fails the strict schema (unknown-key reject)
+      // for BOTH its legacy values — the parse-level pin.
+      for (final legacy in ['global', 'class', 'object']) {
+        expect(
+          () => OperationPayloads.validatePayload('propertySchema.create', {
+            'propertySchemaId': classId,
+            'name': 'Legacy scope',
+            'type': 'text',
+            'scope': legacy,
+          }),
+          throwsFormatException,
+          reason: 'retired scope enum value "$legacy" must fail loud',
+        );
+      }
+      // Exactly one spelling of "global": the EMPTY list is rejected.
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'Empty scope',
+          'type': 'text',
+          'scopeClassIds': <String>[],
+        }),
+        throwsFormatException,
+      );
+      // Absent and explicit null both read global.
+      for (final scope in [null, const [classId]]) {
+        expect(
+          () => OperationPayloads.validatePayload('propertySchema.create', {
+            'propertySchemaId': classId,
+            'name': 'Scoped',
+            'type': 'text',
+            'scopeClassIds': scope,
+          }),
+          returnsNormally,
+        );
+      }
+      // Non-uuid entries fail the uuid-list gate.
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'Bad scope',
+          'type': 'text',
+          'scopeClassIds': const ['not-a-uuid'],
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('propertySchema.create carries an optional nullable icon', () {
+      final payload = OperationPayloads.propertySchemaCreate(
+        propertySchemaId: classId,
+        name: 'Genre',
+        type: 'text',
+        icon: 'mdiTagOutline',
+      );
+      expect(payload['icon'], 'mdiTagOutline');
+      expect(() => OperationPayloads.validatePayload(
+          'propertySchema.create', payload), returnsNormally);
+      // Present null = no icon; overlong strings fail.
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'No icon',
+          'type': 'text',
+          'icon': null,
+        }),
+        returnsNormally,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'Long icon',
+          'type': 'text',
+          'icon': 'x' * 65,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('propertySchema.create accepts datetime and rejects the retired '
+        'date/date_range/url types outright', () {
+      final payload = OperationPayloads.propertySchemaCreate(
+        propertySchemaId: classId,
+        name: 'When',
+        type: 'datetime',
+        datePrecision: 'day',
+      );
+      expect(payload['type'], 'datetime');
+      expect(() => OperationPayloads.validatePayload(
+          'propertySchema.create', payload), returnsNormally);
+      // The strict enum: the retired values are rejected outright (the
+      // live log rewrites them — date/date_range to datetime, url to text —
+      // before pre-batch clients mix).
+      for (final retired in ['date', 'date_range', 'url']) {
+        expect(
+          () => OperationPayloads.validatePayload('propertySchema.create', {
+            'propertySchemaId': classId,
+            'name': 'Legacy',
+            'type': retired,
+          }),
+          throwsFormatException,
+          reason: 'retired type $retired must fail loud',
+        );
+      }
+    });
+
+    test('class.create name convenience converts to contentAst', () {
+      final payload = OperationPayloads.classCreate(
+        classId: classId,
+        name: 'Genre',
+      );
+      expect(payload['contentAst'], [
+        {'type': 'text', 'text': 'Genre'},
+      ]);
+      expect(payload.containsKey('name'), isFalse);
+      expect(() => OperationPayloads.validatePayload('class.create', payload),
+          returnsNormally);
+    });
+
+    test('class.update accepts contentAst and keeps other fields', () {
+      final payload = OperationPayloads.classUpdate(
+        classId: classId,
+        contentAst: const [
+          {'type': 'text', 'text': 'Renamed class'},
+        ],
+        color: '#5B7D5B',
+      );
+      expect(payload['contentAst'], hasLength(1));
+      expect(payload['color'], '#5B7D5B');
+      expect(() => OperationPayloads.validatePayload('class.update', payload),
+          returnsNormally);
+    });
+
+    test('class.create/class.update parentlessRole: presence writes, '
+        'present-null clears, bad values reject', () {
+      // create carries the flag...
+      final created = OperationPayloads.classCreate(
+        classId: classId,
+        name: 'Task',
+        parentlessRole: 'block',
+      );
+      expect(created['parentlessRole'], 'block');
+      expect(
+          () => OperationPayloads.validatePayload('class.create', created),
+          returnsNormally);
+      // ...and stays absent when omitted.
+      final plain = OperationPayloads.classCreate(
+        classId: classId,
+        name: 'Note',
+      );
+      expect(plain.containsKey('parentlessRole'), isFalse);
+      expect(() => OperationPayloads.validatePayload('class.create', plain),
+          returnsNormally);
+
+      // update: present-null CLEARS (the wire carries the null)...
+      final cleared = OperationPayloads.classUpdate(
+        classId: classId,
+        parentlessRole: null,
+      );
+      expect(cleared.containsKey('parentlessRole'), isTrue);
+      expect(cleared['parentlessRole'], isNull);
+      expect(
+          () => OperationPayloads.validatePayload('class.update', cleared),
+          returnsNormally);
+      // ...an explicit 'page' writes the default...
+      final paged = OperationPayloads.classUpdate(
+        classId: classId,
+        parentlessRole: 'page',
+      );
+      expect(paged['parentlessRole'], 'page');
+      expect(() => OperationPayloads.validatePayload('class.update', paged),
+          returnsNormally);
+      // ...and an unknown value fails loud like any bad enum.
+      for (final opType in ['class.create', 'class.update']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'classId': classId,
+            'parentlessRole': 'widget',
+          }),
+          throwsFormatException,
+          reason: '$opType rejects a non-enum parentlessRole',
+        );
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'classId': classId,
+            'parentlessRole': 7,
+          }),
+          throwsFormatException,
+          reason: '$opType rejects a non-string parentlessRole',
+        );
+      }
+    });
+
+    test('class.create/class.update displayTemplate: presence writes, "" '
+        'opt-out round-trips, present-null clears, bad values reject', () {
+      // create carries the template...
+      final created = OperationPayloads.classCreate(
+        classId: classId,
+        name: 'Source',
+        displayTemplate: '@{{citekey}}',
+      );
+      expect(created['displayTemplate'], '@{{citekey}}');
+      expect(
+          () => OperationPayloads.validatePayload('class.create', created),
+          returnsNormally);
+      // ...and stays absent when omitted (inherit — a re-issued create
+      // PRESERVES the stored value).
+      final plain = OperationPayloads.classCreate(
+        classId: classId,
+        name: 'Book',
+      );
+      expect(plain.containsKey('displayTemplate'), isFalse);
+      expect(() => OperationPayloads.validatePayload('class.create', plain),
+          returnsNormally);
+
+      // update: the empty string is the explicit opt-out and rides verbatim.
+      final optedOut = OperationPayloads.classUpdate(
+        classId: classId,
+        displayTemplate: '',
+      );
+      expect(optedOut['displayTemplate'], '');
+      expect(
+          () => OperationPayloads.validatePayload('class.update', optedOut),
+          returnsNormally);
+      // update: present-null CLEARS back to NULL/inherit...
+      final cleared = OperationPayloads.classUpdate(
+        classId: classId,
+        displayTemplate: null,
+      );
+      expect(cleared.containsKey('displayTemplate'), isTrue);
+      expect(cleared['displayTemplate'], isNull);
+      expect(
+          () => OperationPayloads.validatePayload('class.update', cleared),
+          returnsNormally);
+      // ...and a lone displayTemplate satisfies the at-least-one-field guard.
+      expect(optedOut.length, 2);
+
+      // Registry strictness: non-strings and overlong templates reject.
+      for (final opType in ['class.create', 'class.update']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'classId': classId,
+            'displayTemplate': 7,
+          }),
+          throwsFormatException,
+          reason: '$opType rejects a non-string displayTemplate',
+        );
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'classId': classId,
+            'displayTemplate': 'x' * 1025,
+          }),
+          throwsFormatException,
+          reason: '$opType rejects an overlong displayTemplate',
+        );
+        // Object ops reject the class-only key outright (strict payloads).
+        expect(
+          () => OperationPayloads.validatePayload('object.update', {
+            'objectId': classId,
+            'displayTemplate': '@{{citekey}}',
+          }),
+          throwsFormatException,
+          reason: 'object.update rejects the class-only displayTemplate key',
+        );
+      }
+    });
+
+    test('class.reorder carries objectId and the full ordered classIds', () {
+      final payload = OperationPayloads.classReorder(
+        objectId: objectId,
+        classIds: const [classId, '0192a000-0000-7000-8000-0000000000b1'],
+      );
+      expect(payload['objectId'], objectId);
+      expect(payload['classIds'], hasLength(2));
+      expect(payload.containsKey('tagIds'), isFalse);
+      expect(() => OperationPayloads.validatePayload('class.reorder', payload),
+          returnsNormally);
+      expect(OperationPayloads.isKnownOpType('class.reorder'), isTrue);
+    });
+
+    test('tag.unassign carries objectId and tagId', () {
+      final payload = OperationPayloads.tagUnassign(
+        objectId: objectId,
+        tagId: classId,
+      );
+      expect(payload, {'objectId': objectId, 'tagId': classId});
+      expect(() => OperationPayloads.validatePayload('tag.unassign', payload),
+          returnsNormally);
+      expect(OperationPayloads.isKnownOpType('tag.unassign'), isTrue);
+    });
+
+    test('object.delete defaults permanent to false', () {
+      final payload = OperationPayloads.objectDelete(objectId: objectId);
+      expect(payload['permanent'], isFalse);
+    });
+
+    test('trash.empty is a strict empty object: the factory emits {}, any '
+        'key is rejected', () {
+      final payload = OperationPayloads.trashEmpty();
+      expect(payload, isEmpty);
+      expect(() => OperationPayloads.validatePayload('trash.empty', payload),
+          returnsNormally);
+      expect(OperationPayloads.isKnownOpType('trash.empty'), isTrue);
+      expect(
+        () => OperationPayloads.validatePayload(
+            'trash.empty', {'objectId': objectId}),
+        throwsFormatException,
+      );
+    });
+
+    test('object.move keeps a null parentId (workspace root; parentless '
+        'non-class nodes render with document chrome)', () {
+      final payload =
+          OperationPayloads.objectMove(objectId: objectId, parentId: null);
+      expect(payload['parentId'], isNull);
+      expect(payload.containsKey('afterId'), isFalse);
+      expect(payload.containsKey('beforeId'), isFalse);
+    });
+
+    test('object.move carries the sibling placement anchors', () {
+      final payload = OperationPayloads.objectMove(
+        objectId: objectId,
+        parentId: classId,
+        afterId: '0192a000-0000-7000-8000-0000000000b1',
+        beforeId: '0192a000-0000-7000-8000-0000000000b2',
+      );
+      expect(payload['afterId'], '0192a000-0000-7000-8000-0000000000b1');
+      expect(payload['beforeId'], '0192a000-0000-7000-8000-0000000000b2');
+      expect(() => OperationPayloads.validatePayload('object.move', payload),
+          returnsNormally);
+    });
+
+    test('object.create carries the sibling placement anchors', () {
+      final payload = OperationPayloads.objectCreate(
+        objectId: objectId,
+        parentId: classId,
+        afterId: '0192a000-0000-7000-8000-0000000000b1',
+        beforeId: '0192a000-0000-7000-8000-0000000000b2',
+      );
+      expect(payload['afterId'], '0192a000-0000-7000-8000-0000000000b1');
+      expect(payload['beforeId'], '0192a000-0000-7000-8000-0000000000b2');
+      expect(() => OperationPayloads.validatePayload('object.create', payload),
+          returnsNormally);
+
+      final plain =
+          OperationPayloads.objectCreate(objectId: objectId, parentId: classId);
+      expect(plain.containsKey('afterId'), isFalse);
+      expect(plain.containsKey('beforeId'), isFalse);
+    });
+
+    test('class.setExtends carries parentClassIds (replace semantics)', () {
+      final payload = OperationPayloads.classSetExtends(
+        classId: classId,
+        parentClassIds: const [objectId],
+      );
+      expect(payload['parentClassIds'], [objectId]);
+      expect(payload.containsKey('extendsClassIds'), isFalse);
+    });
+
+    test('property.set carries objectId/propertySchemaId/idx/metadata', () {
+      final payload = OperationPayloads.propertySet(
+        objectId: objectId,
+        propertySchemaId: classId,
+        value: const {'nodeId': objectId},
+        metadata: const {'since': '1962'},
+      );
+      expect(payload['objectId'], objectId);
+      expect(payload['propertySchemaId'], classId);
+      expect(payload['idx'], 0);
+      expect(payload['metadata'], {'since': '1962'});
+      expect(payload.containsKey('propertyValueId'), isFalse);
+      expect(payload.containsKey('nodeId'), isFalse);
+    });
+
+    test('propertySchema.create validates the type enum', () {
+      final payload = OperationPayloads.propertySchemaCreate(
+        propertySchemaId: classId,
+        name: 'Status',
+        type: 'select',
+        options: const [
+          {'id': 'a', 'label': 'Open'},
+        ],
+      );
+      expect(() =>
+          OperationPayloads.validatePayload('propertySchema.create', payload),
+          returnsNormally);
+      expect(
+        () => OperationPayloads.propertySchemaCreate(
+          propertySchemaId: classId,
+          name: 'Status',
+          type: 'selection',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('number formats: create accepts, validates ranges/enum; update keep/clear', () {
+      final created = OperationPayloads.propertySchemaCreate(
+        propertySchemaId: classId,
+        name: 'Dex number',
+        type: 'number',
+        numberPad: 4,
+        numberDecimals: 1,
+        numberRounding: 'floor',
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', created),
+        returnsNormally,
+      );
+      expect(created['numberPad'], 4);
+      expect(created['numberDecimals'], 1);
+      expect(created['numberRounding'], 'floor');
+
+      // Range and enum enforcement mirror the TS reference.
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'x',
+          'type': 'number',
+          'numberPad': 0,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'x',
+          'type': 'number',
+          'numberDecimals': 11,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'x',
+          'type': 'number',
+          'numberRounding': 'sideways',
+        }),
+        throwsFormatException,
+      );
+
+      // update carries the fields; an explicit null clear validates too.
+      final updated = OperationPayloads.propertySchemaUpdate(
+        propertySchemaId: classId,
+        numberDecimals: 2,
+      );
+      expect(updated['numberDecimals'], 2);
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.update', {
+          'propertySchemaId': classId,
+          'numberPad': null,
+        }),
+        returnsNormally,
+      );
+      // Unknown keys stay rejected (strict validator).
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'x',
+          'type': 'number',
+          'numberPadded': 4,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('render contracts are PROPERTY-level (schema), not binding '
+        '— option icon unchanged', () {
+      // class.property.set carries ONLY the genuinely per-class mechanics
+      // (active, pinned, showInNodeRows): the binding-level display
+      // experiment is gone,
+      // readonly/hideWhenEmpty reject here like any retired key, and
+      // `required`/`defaultValue` retired outright / moved to the schema
+      // — the strict 5-key payload rejects them
+      // exactly like the render contracts.
+      for (final retired in [
+        'display',
+        'readonly',
+        'hideWhenEmpty',
+        'required',
+        'defaultValue',
+      ]) {
+        expect(
+          () => OperationPayloads.validatePayload('class.property.set', {
+            'classId': classId,
+            'propertySchemaId': objectId,
+            retired: switch (retired) {
+              'display' => 'bullet',
+              'defaultValue' => 'high',
+              _ => true,
+            },
+          }),
+          throwsFormatException,
+          reason: retired,
+        );
+      }
+      // The surviving keys validate.
+      expect(
+        () => OperationPayloads.validatePayload('class.property.set', {
+          'classId': classId,
+          'propertySchemaId': objectId,
+          'active': false,
+        }),
+        returnsNormally,
+      );
+
+      // The builder carries the three flags additively: omitted stays
+      // absent (the COALESCE patch), present rides the payload.
+      final allFlags = OperationPayloads.classPropertySet(
+        classId: classId,
+        propertySchemaId: objectId,
+        active: true,
+        pinned: true,
+        showInNodeRows: true,
+      );
+      expect(
+        allFlags,
+        {
+          'classId': classId,
+          'propertySchemaId': objectId,
+          'active': true,
+          'pinned': true,
+          'showInNodeRows': true,
+        },
+      );
+      expect(
+        OperationPayloads.classPropertySet(
+          classId: classId,
+          propertySchemaId: objectId,
+        ),
+        {'classId': classId, 'propertySchemaId': objectId},
+      );
+      // The strict schema accepts the showInNodeRows boolean (absent =
+      // false, the pinned/active patch semantics) and still rejects retired
+      // and property-level keys alongside it.
+      expect(
+        () => OperationPayloads.validatePayload('class.property.set', {
+          'classId': classId,
+          'propertySchemaId': objectId,
+          'showInNodeRows': false,
+        }),
+        returnsNormally,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('class.property.set', {
+          'classId': classId,
+          'propertySchemaId': objectId,
+          'showInNodeRows': 'yes',
+        }),
+        throwsFormatException,
+      );
+
+      // propertySchema.create/update carry the render contracts —
+      // nullable+optional (absent keeps, null clears; the builders omit
+      // nulls, so explicit clears ride raw maps). `readonly` retired
+      // outright: the strict validator rejects
+      // it on both schema payloads.
+      final created = OperationPayloads.propertySchemaCreate(
+        propertySchemaId: classId,
+        name: 'Status',
+        type: 'select',
+        display: 'bullet',
+        hideWhenEmpty: false,
+      );
+      expect(created['display'], 'bullet');
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          ...created,
+          'readonly': true,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', created),
+        returnsNormally,
+      );
+      for (final display in ['panel', 'bullet', 'inline']) {
+        expect(
+          () => OperationPayloads.validatePayload('propertySchema.create', {
+            'propertySchemaId': classId,
+            'name': 'Status',
+            'type': 'select',
+            'display': display,
+          }),
+          returnsNormally,
+          reason: display,
+        );
+      }
+      // An unknown display position is rejected outright (strict enum) on
+      // both schema ops; the flags are bool-or-null.
+      for (final opType in ['propertySchema.create', 'propertySchema.update']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'propertySchemaId': classId,
+            if (opType == 'propertySchema.create') ...{
+              'name': 'Status',
+              'type': 'select',
+            },
+            'display': 'hover',
+          }),
+          throwsFormatException,
+          reason: opType,
+        );
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'propertySchemaId': classId,
+            if (opType == 'propertySchema.create') ...{'name': 'Status', 'type': 'select'},
+            'hideWhenEmpty': 'yes',
+          }),
+          throwsFormatException,
+          reason: opType,
+        );
+        // Explicit null clears validate (raw maps — the builders omit nulls).
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'propertySchemaId': classId,
+            if (opType == 'propertySchema.create') ...{'name': 'Status', 'type': 'select'},
+            'display': null,
+            'hideWhenEmpty': null,
+          }),
+          returnsNormally,
+          reason: opType,
+        );
+        // `readonly` retired outright (derived
+        // from the system list, not stored): it rejects on both schema
+        // payloads like any retired key.
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'propertySchemaId': classId,
+            if (opType == 'propertySchema.create') ...{'name': 'Status', 'type': 'select'},
+            'readonly': true,
+          }),
+          throwsFormatException,
+          reason: opType,
+        );
+      }
+      // `required` retired outright — it rejects
+      // on the schema ops like any retired key. `defaultValue` MOVED here:
+      // any JSON value validates, absent/null included.
+      for (final opType in ['propertySchema.create', 'propertySchema.update']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'propertySchemaId': classId,
+            if (opType == 'propertySchema.create') ...{'name': 'Status', 'type': 'select'},
+            'required': true,
+          }),
+          throwsFormatException,
+          reason: opType,
+        );
+      }
+      for (final opType in ['propertySchema.create', 'propertySchema.update']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'propertySchemaId': classId,
+            if (opType == 'propertySchema.create') ...{'name': 'Status', 'type': 'select'},
+            'defaultValue': null,
+          }),
+          returnsNormally,
+          reason: opType,
+        );
+      }
+
+      // Option records accept the icon (max 64 chars, absent/null =
+      // no icon) and stay NON-strict: unknown keys pass through so
+      // icon-carrying options sync through older parsers.
+      final createdWithIcon = OperationPayloads.propertySchemaCreate(
+        propertySchemaId: classId,
+        name: 'Status',
+        type: 'select',
+        options: const [
+          {'id': 'a', 'label': 'Open', 'icon': 'mdiCheckCircle', 'color': 'green'},
+          {'id': 'b', 'label': 'Shut', 'icon': null, 'future': 'key'},
+        ],
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', createdWithIcon),
+        returnsNormally,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.create', {
+          'propertySchemaId': classId,
+          'name': 'Status',
+          'type': 'select',
+          'options': [
+            {'id': 'a', 'label': 'Open', 'icon': 'x' * 65},
+          ],
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.update', {
+          'propertySchemaId': classId,
+          'options': [
+            {'id': 'a', 'label': 'Open', 'icon': 'mdiCircle'},
+          ],
+        }),
+        returnsNormally,
+      );
+    });
+
+    test('propertySchema.update carries icon/scopeClassIds/targetClassFilter/'
+        'multi/validationRules — the keep/clear contract', () {
+      // The builder's sentinel defaults: absent keeps (the key never rides).
+      final untouched = OperationPayloads.propertySchemaUpdate(
+        propertySchemaId: classId,
+        name: 'x',
+      );
+      for (final key in [
+        'icon',
+        'scopeClassIds',
+        'targetClassFilter',
+        'multi',
+        'validationRules',
+        'defaultValue',
+      ]) {
+        expect(untouched.containsKey(key), isFalse, reason: key);
+      }
+      // Present values ride; explicit nulls ride as JSON clears.
+      final updated = OperationPayloads.propertySchemaUpdate(
+        propertySchemaId: classId,
+        icon: null,
+        scopeClassIds: null,
+        targetClassFilter: const [classId],
+        multi: true,
+        validationRules: const {'min': 0, 'max': 10},
+        defaultValue: 'fallback',
+      );
+      expect(updated, containsPair('icon', null));
+      expect(updated, containsPair('scopeClassIds', null));
+      expect(updated, containsPair('targetClassFilter', [classId]));
+      expect(updated, containsPair('multi', true));
+      expect(updated, containsPair('defaultValue', 'fallback'));
+      expect(
+        updated['validationRules'],
+        {'min': 0, 'max': 10},
+      );
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.update', updated),
+        returnsNormally,
+      );
+      // The default's explicit-null clear rides too.
+      expect(
+        OperationPayloads.propertySchemaUpdate(
+          propertySchemaId: classId,
+          defaultValue: null,
+        ),
+        containsPair('defaultValue', null),
+      );
+      // At least one field: an all-absent update rejects (zod refine parity).
+      expect(
+        () => OperationPayloads.propertySchemaUpdate(propertySchemaId: classId),
+        throwsArgumentError,
+      );
+    });
+
+    test('validationRules parse gate: strict {min?, max?, pattern?} keys, '
+        'numeric bounds, min <= max; compilability is NOT parse-level', () {
+      // Well-formed shapes validate (each alone and combined).
+      for (final rules in [
+        {'min': 1},
+        {'max': 5.5},
+        {'min': 0, 'max': 10},
+        {'pattern': '[a-z0-9-]+'},
+        <String, dynamic>{},
+      ]) {
+        expect(
+          () => OperationPayloads.validatePayload('propertySchema.update', {
+            'propertySchemaId': classId,
+            'validationRules': rules,
+          }),
+          returnsNormally,
+          reason: '$rules',
+        );
+      }
+      // min > max rejects at parse time.
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.update', {
+          'propertySchemaId': classId,
+          'validationRules': {'min': 10, 'max': 1},
+        }),
+        throwsFormatException,
+      );
+      // Strict keys, wrong types, and explicit nulls (zod .optional()
+      // rejects null) all fail the shape gate.
+      for (final rules in [
+        {'minimum': 1},
+        {'min': '1'},
+        {'max': true},
+        {'pattern': 3},
+        {'min': null},
+      ]) {
+        expect(
+          () => OperationPayloads.validatePayload('propertySchema.update', {
+            'propertySchemaId': classId,
+            'validationRules': rules,
+          }),
+          throwsFormatException,
+          reason: '$rules',
+        );
+      }
+      // A non-compilable pattern is a PARSE-LEVEL PASS — the applier fails
+      // it at the rule write (R2), not the shape gate.
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.update', {
+          'propertySchemaId': classId,
+          'validationRules': {'pattern': '([a-z'},
+        }),
+        returnsNormally,
+      );
+      // Present-null clears the rules (the keep/clear contract).
+      expect(
+        () => OperationPayloads.validatePayload('propertySchema.update', {
+          'propertySchemaId': classId,
+          'validationRules': null,
+        }),
+        returnsNormally,
+      );
+    });
+
+    test('object listStyle: the strict three-style enum, nullable on '
+        'create and update', () {
+      for (final style in ['numbered', 'alpha', 'roman']) {
+        final created = OperationPayloads.objectCreate(
+          objectId: objectId,
+          listStyle: style,
+        );
+        expect(created['listStyle'], style);
+        expect(
+          () => OperationPayloads.validatePayload('object.create', created),
+          returnsNormally,
+          reason: style,
+        );
+        expect(
+          () => OperationPayloads.validatePayload('object.update', {
+            'objectId': objectId,
+            'listStyle': style,
+          }),
+          returnsNormally,
+          reason: style,
+        );
+      }
+      // Absent and present-null both validate (null = the bullet default /
+      // clear); a bogus style fails the enum.
+      expect(
+        () => OperationPayloads.validatePayload('object.create', {
+          'objectId': objectId,
+          'listStyle': null,
+        }),
+        returnsNormally,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('object.update', {
+          'objectId': objectId,
+          'listStyle': null,
+        }),
+        returnsNormally,
+      );
+      for (final opType in ['object.create', 'object.update']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'objectId': objectId,
+            'listStyle': 'bullets',
+          }),
+          throwsFormatException,
+          reason: opType,
+        );
+      }
+      // object.update counts listStyle toward its at-least-one-field rule.
+      final cleared = OperationPayloads.objectUpdate(
+        objectId: objectId,
+        listStyle: null,
+      );
+      expect(cleared, containsPair('listStyle', null));
+      expect(
+        () => OperationPayloads.validatePayload('object.update', cleared),
+        returnsNormally,
+      );
+    });
+
+    test('asset.attach enforces the 64-char hash', () {
+      expect(
+        () => OperationPayloads.assetAttach(
+          objectId: objectId,
+          assetId: classId,
+          hash: 'abc',
+          mimeType: 'image/png',
+          size: 3,
+          originalName: 'a.png',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('collection membership ops carry collectionId/objectId', () {
+      final payload = OperationPayloads.collectionMemberAdd(
+        collectionId: classId,
+        objectId: objectId,
+      );
+      expect(() => OperationPayloads.validatePayload(
+          'collection.member.add', payload), returnsNormally);
+    });
+  });
+
+  group('strict validation (zod .strict() parity)', () {
+    test('unknown payload keys are rejected', () {
+      expect(
+        () => OperationPayloads.validatePayload('object.delete', {
+          'objectId': objectId,
+          'permanent': true,
+          'nodeId': objectId,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('object payloads reject the retired name key (title-is-content)',
+        () {
+      expect(
+        () => OperationPayloads.validatePayload('object.create', {
+          'objectId': objectId,
+          'name': 'A page',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('object.update', {
+          'objectId': objectId,
+          'name': 'A page',
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('object payloads reject the retired nodeType key outright '
+        '(Revision 11, no legacy replay)', () {
+      // The page/block/class enumeration is gone: the render state is
+      // is_class + present_as_main, and the old key fails strict validation
+      // on BOTH object ops.
+      expect(
+        () => OperationPayloads.validatePayload('object.create', {
+          'objectId': objectId,
+          'nodeType': 'page',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('object.update', {
+          'objectId': objectId,
+          'nodeType': 'block',
+        }),
+        throwsFormatException,
+      );
+      // presentAsMain validates as a plain bool on both ops.
+      for (final opType in ['object.create', 'object.update']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'objectId': objectId,
+            'isEmbedded': false,
+          }),
+          returnsNormally,
+        );
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'objectId': objectId,
+            'isEmbedded': 'yes',
+          }),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('class payloads reject name and accept contentAst', () {
+      expect(
+        () => OperationPayloads.validatePayload('class.create', {
+          'classId': classId,
+          'name': 'Genre',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('class.update', {
+          'classId': classId,
+          'name': 'Genre',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('class.create', {
+          'classId': classId,
+          'contentAst': [
+            {'type': 'text', 'text': 'Genre'},
+          ],
+        }),
+        returnsNormally,
+      );
+    });
+
+    test('class.reorder rejects non-uuid class lists', () {
+      expect(
+        () => OperationPayloads.validatePayload('class.reorder', {
+          'objectId': objectId,
+          'classIds': ['nope'],
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('sibling anchor fields are accepted on both payloads (uuid-checked)',
+        () {
+      for (final opType in ['object.create', 'object.move']) {
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'objectId': objectId,
+            'parentId': classId,
+            'afterId': '0192a000-0000-7000-8000-0000000000b1',
+            'beforeId': '0192a000-0000-7000-8000-0000000000b2',
+          }),
+          returnsNormally,
+        );
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'objectId': objectId,
+            'parentId': classId,
+            'beforeId': 'not-a-uuid',
+          }),
+          throwsFormatException,
+        );
+        expect(
+          () => OperationPayloads.validatePayload(opType, {
+            'objectId': objectId,
+            'parentId': classId,
+            'afterId': 'not-a-uuid',
+          }),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('snake_case payload keys are rejected', () {
+      expect(
+        () => OperationPayloads.validatePayload('property.set', {
+          'object_id': objectId,
+          'property_schema_id': classId,
+          'value': 1,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('non-uuid ids are rejected', () {
+      expect(
+        () => OperationPayloads.validatePayload('object.delete', {
+          'objectId': 'not-a-uuid',
+          'permanent': true,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('negative idx is rejected', () {
+      expect(
+        () => OperationPayloads.validatePayload('property.set', {
+          'objectId': objectId,
+          'propertySchemaId': classId,
+          'value': 1,
+          'idx': -1,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('external_ref.set/delete are strict, the ref is length-capped',
+        () {
+      final set = OperationPayloads.externalRefSet(
+        ref: 'gcal:event:abc123@google.com',
+        nodeId: objectId,
+      );
+      expect(set, {
+        'ref': 'gcal:event:abc123@google.com',
+        'nodeId': objectId,
+      });
+      expect(
+        () => OperationPayloads.validatePayload('external_ref.set', set),
+        returnsNormally,
+      );
+
+      final del = OperationPayloads.externalRefDelete(
+        ref: 'gcal:event:abc123@google.com',
+      );
+      expect(del, {'ref': 'gcal:event:abc123@google.com'});
+      expect(
+        () =>
+            OperationPayloads.validatePayload('external_ref.delete', del),
+        returnsNormally,
+      );
+
+      // The 512-char cap: 512 validates, 513 fails loud.
+      final atCap = OperationPayloads.externalRefSet(
+        ref: 'x' * 512,
+        nodeId: objectId,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('external_ref.set', atCap),
+        returnsNormally,
+      );
+
+      // Empty / oversize / missing / non-uuid / extra keys fail loud
+      // (zod .strict() parity).
+      final badSets = [
+        {'ref': '', 'nodeId': objectId},
+        {'ref': 'x' * 513, 'nodeId': objectId},
+        {'ref': 'gcal:event:abc123@google.com'},
+        {'ref': 'gcal:event:abc123@google.com', 'nodeId': 'not-a-uuid'},
+        {
+          'ref': 'gcal:event:abc123@google.com',
+          'nodeId': objectId,
+          'kind': 'event',
+        },
+      ];
+      for (final bad in badSets) {
+        expect(
+          () => OperationPayloads.validatePayload('external_ref.set', bad),
+          throwsFormatException,
+          reason: '$bad',
+        );
+      }
+      expect(
+        () => OperationPayloads.validatePayload('external_ref.delete', {
+          'ref': '',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => OperationPayloads.validatePayload('external_ref.delete', {
+          'ref': 'gcal:event:abc123@google.com',
+          'nodeId': objectId,
+        }),
+        throwsFormatException,
+      );
+      expect(OperationPayloads.isKnownOpType('external_ref.set'), isTrue);
+      expect(OperationPayloads.isKnownOpType('external_ref.delete'), isTrue);
+    });
+
+    test('card.review is strict: the SRS state records, the grade/algorithm '
+        'enums, each violation rejected independently', () {
+      const unseen = <String, dynamic>{
+        'due': null,
+        'reps': 0,
+        'interval': 0,
+        'ease': null,
+        'difficulty': null,
+        'stability': null,
+      };
+      const seen = <String, dynamic>{
+        'due': '2026-10-29',
+        'reps': 1,
+        'interval': 1,
+        'ease': 2.5,
+        'difficulty': null,
+        'stability': null,
+      };
+      Map<String, dynamic> payload({
+        String grade = 'good',
+        String algorithm = 'sm2',
+        Map<String, dynamic>? stateBefore,
+        Map<String, dynamic>? stateAfter,
+        String reviewedAt = '2026-10-28T10:00:00.000Z',
+        String? sessionId =
+            '0192a000-0000-7000-8000-000000000944',
+        String cardId = '0192a000-0000-7000-8000-000000000940',
+      }) =>
+          {
+            'cardId': cardId,
+            'grade': grade,
+            'algorithm': algorithm,
+            'stateBefore': stateBefore ?? unseen,
+            'stateAfter': stateAfter ?? seen,
+            'reviewedAt': reviewedAt,
+            'sessionId': sessionId,
+          };
+
+      // The fixture-shaped payload validates (null due/ease on the unseen
+      // side, initialized ease on the seen side).
+      final good = payload();
+      expect(
+        () => OperationPayloads.validatePayload('card.review', good),
+        returnsNormally,
+      );
+
+      // The strict schema rejects each violation INDEPENDENTLY (the
+      // protocol.test.ts parity): an unknown grade with everything else
+      // valid fails…
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review', payload(grade: 'great')),
+        throwsFormatException,
+      );
+      // …an unknown algorithm fails…
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review', payload(algorithm: 'anki')),
+        throwsFormatException,
+      );
+      // …a non-uuid session with everything else valid fails…
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review', payload(sessionId: 'not-a-uuid')),
+        throwsFormatException,
+      );
+      // …an unknown top-level key fails (zod .strict() parity)…
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review', {...good, 'deckId': 'some-deck'}),
+        throwsFormatException,
+      );
+      // …a non-strict state snapshot fails (the inner strict object)…
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review',
+            payload(
+              stateBefore: {...unseen, 'lapses': 0},
+            )),
+        throwsFormatException,
+      );
+      // …a missing state key fails…
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review',
+            payload(
+              stateAfter: {
+                'due': '2026-10-29',
+                'reps': 1,
+                'interval': 1,
+                'ease': 2.5,
+                'difficulty': null,
+              },
+            )),
+        throwsFormatException,
+      );
+      // …a wrong-typed scalar fails (reps is a number, not a string)…
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review',
+            payload(
+              stateAfter: {
+                'due': '2026-10-29',
+                'reps': 'one',
+                'interval': 1,
+                'ease': 2.5,
+                'difficulty': null,
+                'stability': null,
+              },
+            )),
+        throwsFormatException,
+      );
+      // …and a non-string due fails (null or YYYY-MM-DD text only).
+      expect(
+        () => OperationPayloads.validatePayload(
+            'card.review',
+            payload(
+              stateBefore: {...unseen, 'due': 20261028},
+            )),
+        throwsFormatException,
+      );
+
+      // The factory validates its output through the same gate.
+      final built = OperationPayloads.cardReview(
+        cardId: '0192a000-0000-7000-8000-000000000940',
+        grade: 'again',
+        algorithm: 'sm2',
+        stateBefore: unseen,
+        stateAfter: seen,
+        reviewedAt: '2026-10-28T09:05:00.000Z',
+        sessionId: '0192a000-0000-7000-8000-000000000944',
+      );
+      expect(built['grade'], 'again');
+      expect(() => OperationPayloads.validatePayload('card.review', built),
+          returnsNormally);
+      expect(
+        () => OperationPayloads.cardReview(
+          cardId: 'not-a-uuid',
+          grade: 'good',
+          algorithm: 'sm2',
+          stateBefore: unseen,
+          stateAfter: seen,
+          reviewedAt: '2026-10-28T09:05:00.000Z',
+          sessionId: '0192a000-0000-7000-8000-000000000944',
+        ),
+        throwsFormatException,
+      );
+
+      expect(OperationPayloads.isKnownOpType('card.review'), isTrue);
+    });
+
+    test('unknown op type is rejected', () {
+      expect(
+        () => OperationPayloads.validatePayload('node.archive', {
+          'nodeId': objectId,
+        }),
+        throwsFormatException,
+      );
+      expect(OperationPayloads.isKnownOpType('node.archive'), isFalse);
+      expect(OperationPayloads.isKnownOpType('object.create'), isTrue);
+    });
+  });
+}

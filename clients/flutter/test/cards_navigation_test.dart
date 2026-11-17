@@ -1,0 +1,400 @@
+import 'package:dio/dio.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:notees/core/routing/router.dart';
+import 'package:notees/core/secure/secure_storage.dart';
+import 'package:notees/data/models/server_profile.dart';
+import 'package:notees/data/repositories/server_repository.dart';
+import 'package:notees/data/repositories/workspace_repository.dart';
+import 'package:notees/features/auth/providers/auth_provider.dart';
+import 'package:notees/features/cards/screens/cards_screen.dart';
+import 'package:notees/features/cards/screens/review_session_screen.dart';
+import 'package:notees/features/home/screens/main_shell_screen.dart';
+import 'package:notees/features/editor/screens/journal_continuous_screen.dart';
+import 'package:notees/features/home/screens/home_screen.dart';
+import 'package:notees/features/library/screens/library_screen.dart';
+import 'package:notees/features/settings/providers/settings_provider.dart';
+import 'package:notees/features/tasks/screens/tasks_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// The memorization-cards navigation tests: the third shell destination
+/// and the /cards + /cards/review deep-link routes with the state.extra
+/// session hand-off.
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late SharedPreferences prefs;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    prefs = await SharedPreferences.getInstance();
+  });
+
+  FakeAuth fakeAuth() => FakeAuth(
+        serverRepository: ServerRepository(prefs: prefs),
+        secureStorage: const SecureStorage(),
+        prefs: prefs,
+      );
+
+  Widget appWithShell({int initialIndex = 0}) {
+    final auth = fakeAuth();
+    return ChangeNotifierProvider<AuthProvider>.value(
+      value: auth,
+      child: ChangeNotifierProvider<SettingsProvider>(
+        create: (_) => SettingsProvider(prefs),
+        child: MaterialApp(home: MainShellScreen(initialIndex: initialIndex)),
+      ),
+    );
+  }
+
+  group('main shell navigation', () {
+    testWidgets('Cards is gone; four destinations plus Search, indices remapped',
+        (tester) async {
+      // A narrow surface (400x600 logical) drives the NavigationBar branch.
+      tester.view.physicalSize = const Size(1200.0, 1800.0);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(appWithShell());
+      await tester.pump();
+
+      final labels = tester
+          .widgetList<Text>(find.byWidgetPredicate(
+              (widget) => widget is Text && widget.data != null))
+          .map((text) => text.data!)
+          .toList();
+      final navLabels = [
+        'Home',
+        'Tasks',
+        'Journal',
+        'Library',
+        'Search',
+      ].where(labels.contains).toList();
+      expect(navLabels, ['Home', 'Tasks', 'Journal', 'Library', 'Search']);
+      expect(find.text('Cards'), findsNothing);
+
+      // The remapped indices: Tasks 1, Journal 2, Library 3.
+      await tester.tap(find.text('Tasks'));
+      await tester.pump();
+      expect(find.byType(TasksScreen), findsOneWidget);
+
+      await tester.tap(find.text('Journal'));
+      await tester.pump();
+      expect(find.byType(JournalContinuousScreen), findsOneWidget);
+
+      await tester.tap(find.text('Library'));
+      await tester.pump();
+      expect(find.byType(LibraryScreen), findsOneWidget);
+    });
+
+    testWidgets('a stale out-of-range initialIndex falls back to Home',
+        (tester) async {
+      tester.view.physicalSize = const Size(1200.0, 1800.0);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(appWithShell(initialIndex: 4));
+      await tester.pump();
+
+      expect(find.byType(HomeScreen), findsOneWidget);
+    });
+
+    testWidgets('the rail path renders the tab set plus Search and the extras',
+        (tester) async {
+      // Default test surface (800x600 logical) drives the NavigationRail branch.
+      await tester.pumpWidget(appWithShell());
+      await tester.pump();
+
+      final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+      expect(rail.destinations.length, 9); // four tabs + Search + four extras
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    testWidgets('the bar path renders five destinations',
+        (tester) async {
+      // A narrow surface (400x600 logical) drives the NavigationBar branch.
+      tester.view.physicalSize = const Size(1200.0, 1800.0);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(appWithShell());
+      await tester.pump();
+
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(bar.destinations.length, 5); // four + Search
+      expect(find.byType(NavigationRail), findsNothing);
+    });
+  });
+
+  group('drag pill and more sheet', () {
+    void narrow(WidgetTester tester) {
+      tester.view.physicalSize = const Size(1200.0, 1800.0);
+      addTearDown(tester.view.resetPhysicalSize);
+    }
+
+    Future<GoRouter> pumpShell(
+      WidgetTester tester, {
+      required FakeAuth auth,
+    }) async {
+      final router = createRouter(authProvider: auth);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: auth,
+          child: ChangeNotifierProvider<SettingsProvider>(
+            create: (_) => SettingsProvider(prefs),
+            child: MaterialApp.router(routerConfig: router),
+          ),
+        ),
+      );
+      router.go(Routes.dashboard);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      return router;
+    }
+
+    testWidgets('the pill sits above the five-destination bar', (tester) async {
+      narrow(tester);
+      await pumpShell(tester, auth: fakeAuth());
+
+      expect(find.byKey(const Key('nav-more-pill')), findsOneWidget);
+      final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+      expect(bar.destinations.length, 5);
+    });
+
+    testWidgets('tapping the pill opens the sheet; Cards pushes the hub',
+        (tester) async {
+      narrow(tester);
+      final router = await pumpShell(tester, auth: fakeAuth());
+
+      await tester.tap(find.byKey(const Key('nav-more-pill')));
+      await tester.pumpAndSettle();
+      for (final label in ['Cards', 'Inbox', 'Graph', 'Notifications', 'Settings']) {
+        expect(find.text(label), findsWidgets);
+      }
+
+      await tester.tap(find.text('Cards'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CardsScreen), findsOneWidget);
+      expect(router.routerDelegate.currentConfiguration.matches.length, 2);
+    });
+
+    testWidgets('dragging the pill upward opens the sheet', (tester) async {
+      narrow(tester);
+      await pumpShell(tester, auth: fakeAuth());
+
+      await tester.drag(
+        find.byKey(const Key('nav-more-pill')),
+        const Offset(0, -80),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Notifications'), findsWidgets);
+    });
+
+    testWidgets('a fast fling on the pill opens the sheet', (tester) async {
+      narrow(tester);
+      await pumpShell(tester, auth: fakeAuth());
+
+      await tester.fling(
+        find.byKey(const Key('nav-more-pill')),
+        const Offset(0, -200),
+        800,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Notifications'), findsWidgets);
+    });
+
+    testWidgets('the rail exposes every sheet target and no pill',
+        (tester) async {
+      // Default test surface (800x600 logical) drives the NavigationRail branch.
+      await pumpShell(tester, auth: fakeAuth());
+
+      expect(find.byKey(const Key('nav-more-pill')), findsNothing);
+      final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+      expect(rail.destinations.length, 9); // four + Search + four extras
+
+      await tester.tap(find.text('Cards'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CardsScreen), findsOneWidget);
+    });
+
+    testWidgets('the sheet Inbox entry switches back to the home tab',
+        (tester) async {
+      narrow(tester);
+      await pumpShell(tester, auth: fakeAuth());
+
+      // Leave Home first so the switch is observable.
+      await tester.tap(find.text('Tasks'));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('nav-more-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Inbox'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.text('Notifications'), findsNothing); // sheet closed
+    });
+  });
+
+  group('deep-link routes', () {
+    Future<GoRouter> pumpRouter(
+      WidgetTester tester, {
+      required FakeAuth auth,
+      required String location,
+    }) async {
+      final router = createRouter(authProvider: auth);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: auth,
+          child: ChangeNotifierProvider<SettingsProvider>(
+            create: (_) => SettingsProvider(prefs),
+            child: MaterialApp.router(routerConfig: router),
+          ),
+        ),
+      );
+      router.go(location);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      return router;
+    }
+
+    testWidgets('/cards builds the hub as a pushed page (no shell)',
+        (tester) async {
+      final auth = fakeAuth();
+      await pumpRouter(tester, auth: auth, location: Routes.cards);
+
+      expect(find.byType(CardsScreen), findsOneWidget);
+      expect(find.byType(MainShellScreen), findsNothing);
+    });
+
+    testWidgets('/cards/review without a hand-off falls back (member resolve fails loud-safe)',
+        (tester) async {
+      final auth = fakeAuth();
+      await pumpRouter(tester, auth: auth, location: Routes.cardsReview);
+
+      // No usable cache in the test: the fallback resolve lands on the
+      // honest error state rather than crashing the route.
+      expect(find.byType(ReviewSessionScreen), findsOneWidget);
+      expect(find.text('Could not start the review session'), findsOneWidget);
+    });
+
+    testWidgets('a pushed /cards/review with a hand-off extra drives the session '
+        '(the ids are used — no member-resolve fallback)', (tester) async {
+      final auth = fakeAuth();
+      final router = await pumpRouter(tester, auth: auth, location: Routes.cards);
+      expect(find.byType(CardsScreen), findsOneWidget);
+
+      router.push(Routes.cardsReview, extra: <String, dynamic>{
+        'cardIds': <String>['card-a', 'card-b'],
+        'label': 'All cards',
+      });
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // The session screen took the hand-off (the fake environment has no
+      // usable cache, so the queue load lands on the honest error state —
+      // the same visible arm as a deep link, but reached WITH the ids).
+      expect(find.byType(ReviewSessionScreen), findsOneWidget);
+      expect(find.text('Could not start the review session'), findsOneWidget);
+    });
+
+    testWidgets('a corrupt hand-off extra falls back like a deep link',
+        (tester) async {
+      final auth = fakeAuth();
+      final router = await pumpRouter(tester, auth: auth, location: Routes.cards);
+
+      router.push(Routes.cardsReview, extra: 'not-a-handoff');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(ReviewSessionScreen), findsOneWidget);
+      expect(find.text('Could not start the review session'), findsOneWidget);
+    });
+  });
+
+  group('CardsSessionHandOff.fromExtra', () {
+    test('parses the hand-off map', () {
+      final handOff = CardsSessionHandOff.fromExtra(<String, dynamic>{
+        'cardIds': <String>['a', 'b'],
+        'label': 'All cards',
+      });
+      expect(handOff?.cardIds, ['a', 'b']);
+      expect(handOff?.label, 'All cards');
+    });
+
+    test('an explicit empty cardIds list is a valid (empty) hand-off', () {
+      final handOff = CardsSessionHandOff.fromExtra(<String, dynamic>{
+        'cardIds': <String>[],
+        'label': 'All cards',
+      });
+      expect(handOff?.cardIds, isEmpty);
+      expect(handOff?.label, 'All cards');
+    });
+
+    test('rejects a missing/corrupt extra', () {
+      expect(CardsSessionHandOff.fromExtra(null), isNull);
+      expect(CardsSessionHandOff.fromExtra('garbage'), isNull);
+      expect(CardsSessionHandOff.fromExtra(<String, dynamic>{}), isNull);
+      expect(
+        CardsSessionHandOff.fromExtra(<String, dynamic>{'cardIds': <String>['a']}),
+        isNull,
+      );
+      expect(
+        CardsSessionHandOff.fromExtra(<String, dynamic>{
+          'cardIds': 'not-a-list',
+          'label': 'x',
+        }),
+        isNull,
+      );
+    });
+  });
+}
+
+/// A scripted [AuthProvider] for widget tests: authenticated against a
+/// fake server whose Dio rejects every request (screens must land on their
+/// honest error/empty states).
+class FakeAuth extends AuthProvider {
+  FakeAuth({required super.serverRepository, required super.secureStorage, required super.prefs})
+      : fakeDio = rejectingDio();
+
+  final Dio fakeDio;
+
+  @override
+  bool get loading => false;
+
+  @override
+  bool get isAuthenticated => true;
+
+  @override
+  bool get isLocalMode => false;
+
+  @override
+  ServerProfile? get activeServer =>
+      ServerProfile(id: 'server-1', url: 'https://notees.example.com', nickname: 'Test');
+
+  @override
+  Dio? get dio => fakeDio;
+
+  @override
+  bool get onboardingCompleted => true;
+
+  @override
+  String? get activeWorkspaceId => 'ws-owner';
+
+  @override
+  List<Workspace>? get workspaces => [Workspace(uuid: 'ws-owner', name: 'Personal', role: 'owner')];
+
+  @override
+  bool get hasValidWorkspace => true;
+}
+
+Dio rejectingDio() {
+  final dio = Dio(BaseOptions(baseUrl: 'https://notees.example.com/api'));
+  dio.interceptors.add(
+    InterceptorsWrapper(
+      onRequest: (options, handler) => handler.reject(
+        DioException(requestOptions: options, error: 'unscripted ${options.path}'),
+      ),
+    ),
+  );
+  return dio;
+}

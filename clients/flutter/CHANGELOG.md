@@ -1,0 +1,2336 @@
+# Changelog
+
+The record of shipped work for the Notees Flutter mobile client. One entry
+per shipped slice, newest first. This file — not `AGENTS.md`, not `docs/` —
+is where history goes; those stay static guidance. Before implementing a
+change, skim this file for recent related work. Anything before 2026-10-06
+lives in git history.
+
+## 2026-11-10
+
+- **feat(sync,settings): local-first derived rebuild — an offline rebuild
+  from the durable envelope archive, a mobile-only capability** (the web
+  client has no local archive and no manual rebuild; its rebuild is the
+  restoreEpoch server round-trip). `SyncV2Service.rebuildLocalDerivedState()`
+  wipes the derived tables (`_cache.clear()`) and replays the full local
+  `relay_operations` log — server and local ops, HLC-ordered with a rowid
+  tiebreak, in bounded batches — through the same appliers live apply uses,
+  fully offline (zero relay/dio traffic). `$e` payloads ride the exact live
+  decrypt path (extracted shared chokepoint `_decryptForApply`): a keyed
+  session decrypts through the custody workspace key; a locked session skips
+  encrypted rows with the counted locked semantic. Watermarks are preserved
+  (they describe server cursors/received HLC, independent of the derived
+  tables; the archive holds exactly the applied ops), the replay runs
+  without the applied-id dedupe (the dedupe table IS the archive) and
+  without re-recording, applier-level StoreErrors skip with a log like live
+  apply, and a mid-replay failure leaves the cleared store cleared and
+  reports loud — the operation is idempotent, so re-running finishes the
+  job. A new `_flushInFlight` guard (plus the existing pull guard) makes the
+  rebuild refuse to run while a pull/flush/rebuild is in flight. Settings →
+  Sync gains a "Rebuild local data" tile with a confirm sheet (busy state,
+  replay-count / error SnackBar). The restoreEpoch resync path is untouched
+  (a wiped server must still be re-fetched). Scoped gates green
+  (convergence-after-corruption vs a fresh-apply baseline, zero-network
+  proof via a throwing relay, local-op inclusion, watermark preservation,
+  E2EE keyed + locked arms incl. a raw `$e` archive row, in-flight refusal,
+  mid-replay failure + idempotent re-run, confirm-sheet widget test); the
+  full sync suites confirm the epoch path and live apply are unchanged.
+  `flutter analyze` clean. Follow-up (noted, out of scope): `relay_operations`
+  is unbounded — pruning ops covered by a durable snapshot watermark.
+
+- **feat(capture,sync): background asset uploads — the `pending_asset` queue,
+  a mobile-specific reliability layer with no web equivalent** (the web
+  client uploads inline, one attempt, no queue: asset-transport.ts — a
+  failed upload there drops the file; mobile matched that failure mode until
+  now). Captures (photos, shared images, audio) that fail to upload — or are
+  taken offline — now persist into a new `pending_asset` table (schema v45:
+  file path under the app-documents pending-assets dir, target node/parent,
+  mime, size, retry state, backoff schedule) and drain automatically instead
+  of dropping: Settings → Sync shows "Pending uploads" (waiting/failed
+  counts) with a dead-letter sheet (retry-now / discard). The drain runs in
+  the 15-min WorkManager task after flush, before pull (attach targets exist
+  server-side; `NetworkType.connected` unchanged, the SQLCipher skip covers
+  it like all local-DB work) and in the foreground on connectivity restore /
+  app start via OfflineSync. State machine per row: target node not yet
+  synced → defer to the next round; attach 4xx (node missing server-side) →
+  retry next round, no backoff; upload 5xx/network → exponential backoff via
+  `next_attempt_at`; 6 attempts → `failed` dead letter. Server caps (50 MB
+  media / 100 MB docs, assets.ts) are enforced at enqueue — over-cap captures
+  keep the fail-loud path. Uploads stream the file from disk
+  (`AssetRepository.uploadPath`; plaintext rides `MultipartFile.fromFile`,
+  never a whole-file read); sealing uses the session workspace key —
+  foreground the custody cache's active key, background a defensive
+  restore (`restoreMasterKeyFromStorage` + `ensureWorkspaceKey`) where ANY
+  custody error degrades the round to keyless plaintext (legal on the wire,
+  never a crash) — flutter_secure_storage in a WorkManager isolate is
+  UNVERIFIED on device, hence the defensive design. Scoped gates green
+  (enqueue offline/failure/caps, drain order, defer, attach-4xx retry, 5xx
+  backoff, dead-letter + retry/discard, sealed background drain, custody
+  failure fallback, worker order, SQLCipher skip gate, sheet widget test);
+  `flutter analyze` clean.
+
+- **feat(sync): snapshot auto-upload after a successful pull — the
+  `maybeUploadSnapshot` port, closing the last snapshot-upload gap.** Mobile
+  now best-effort uploads a client checkpoint at the end of every successful
+  `pull()` (HTTP catch-up and WS-hello resync alike), gated exactly like the
+  web engine: local `receivedHlc` must be ahead of both the server snapshot's
+  HLC (or the server has none) and this device's durable
+  `uploadedSnapshotHlc` watermark — a new nullable column pair on
+  `sync_watermark` (schema v44, upsert-preserved across per-page watermark
+  writes; dropped with the row on restoreEpoch resync, so a wiped relay gets
+  re-covered). The quarantine gate is wired as a documented always-false
+  hook (`hasQuarantinedEnvelopes` — mobile has no quarantine list yet). The
+  covering HLC semantics are fixed: the upload covers the RECEIVED watermark
+  (web parity), not the pushed one. Size rules carry the web constants with
+  `sync-engine.ts parity` annotations: VACUUM-compact the image at ≥32 MiB
+  raw, single PUT at ≤48 MiB sealed, 64 MiB multipart parts above, pre-flight
+  skip at ≥256 MiB sealed, and a 413 reported once per session, never failing
+  the pull. The pipeline is file-based, symmetric to the restore pipeline:
+  `buildV2SnapshotFile` builds the image in a temp file without reading it
+  into RAM, `encryptBytesToFile` seals file→file, the single PUT streams the
+  file body, multipart parts are read from disk, and every temp file is
+  deleted in a `finally` (peak ≈ 2× part size). Auto-upload is additionally
+  gated to unmetered connections by default (Android-convention heuristic in
+  `ConnectivityProvider.unmetered`; mobile/satellite read metered, offline
+  never unmetered) behind a new Settings → Sync switch, "Upload checkpoints
+  on Wi-Fi only" (default ON, persisted in SettingsProvider); the gate is a
+  `bool Function()` composed in `app.dart` and injected into the sync
+  service, and the explicit Settings-tile trigger bypasses it and keeps its
+  SnackBar. The 15-min WorkManager pull inherits the gate automatically
+  (upload runs inside `pull()`; the worker's NetworkType constraint is
+  untouched). Scoped gates green (new auto-upload matrix — watermark gates,
+  transport selection, size rules, 413/oversize warn-once, network gate,
+  temp cleanup, watermark persistence across a service rebuild — plus the
+  sync pull/e2ee/realtime suites); `flutter analyze` clean.
+
+- **fix(sync,api): the first-sync snapshot pipeline is file-based, logging no
+  longer materializes bodies, and pull failures surface with retry.** A
+  ~1.2M-op workspace ships as a 160MB sealed snapshot; the old path buffered
+  it ~4× in RAM (dio bytes + `decryptBytes` sublist copies + restore input)
+  and the stock `LogInterceptor(responseBody: true)` stringified the binary
+  response into a ~700MB string — together an OOM/freeze on phones. Now: (1)
+  `createApiClient` swaps the dio `LogInterceptor` for a trimming interceptor
+  (`TrimmingLogInterceptor`) that logs one line per request/response, caps
+  String/JSON bodies at 1000 chars, and logs binary bodies by byte length
+  only — never `toString()` on bytes; `ApiErrorReporter` hardens the same
+  way. (2) The snapshot restore pipeline streams to disk:
+  `RelayClient.downloadSnapshotData` writes the blob chunk-by-chunk to a temp
+  file (content-length verified, `RelayException` on non-2xx, partial files
+  deleted), `decryptBytesToFile` decrypts sealed→plain temp file with
+  zero-copy sublist views and a reused output buffer (peak ≈ 2× snapshot:
+  ciphertext + plaintext buffers, everything else on disk), and
+  `NodeCacheRepository.restoreFromSnapshotFile` opens the plaintext file
+  directly; the sealed temp file is deleted before the restore and every
+  temp file is removed in a `finally`. The skip-with-counted-warning
+  semantics (plaintext image for a keyed workspace, sealed blob when keyless)
+  are unchanged. (3) A failed first pull no longer vanishes into debugPrint:
+  the catching-up overlay switches to error mode with the message plus Retry
+  (re-runs the workspace pull via `AuthProvider.retryWorkspacePull`) and
+  Dismiss; the overlay's safety-net backstop rises 60s → 10 minutes (a legit
+  first-sync restore takes minutes) and error mode cancels it entirely — a
+  surfaced failure stays until the user acts. Scoped gates green (new
+  trimming-interceptor/download/decrypt-file tests, sync pull/e2ee pull
+  suites with temp-cleanup assertions, overlay/provider error-mode tests);
+  `flutter analyze` clean.
+
+- **feat(auth,sync): persistent master-key custody + the "Catching up…"
+  overlay — two web-parity convergences.** (1) The account master key is no
+  longer memory-only: `deriveMasterKey` persists the raw 32 key bytes
+  (base64, best-effort fire-and-forget, warn-once) to OS-keystore-backed
+  secure storage under a new `master_key` record — the counterpart of the web
+  client's IndexedDB `notees-custody` persistence (owner decision
+  2026-11-04). A stored-token session now restores the master silently
+  (`restoreMasterKeyFromStorage`) at boot before workspace resolution, and
+  the passwordless token-response branch (2FA-completed challenge) attempts
+  the same restore instead of dropping custody, so starting the app within a
+  signed-in session no longer re-prompts for the password to unlock
+  encrypted workspaces. Session end still reverts to the password:
+  `clearCryptoCustody` (sign-out, server switch, local-mode entry) also
+  deletes the persisted record. Raw workspace keys stay memory-only. The
+  store sits behind an injectable `MasterKeyStore` seam so tests run an
+  in-memory fake. (2) The first convergence pull after a workspace session
+  begins now shows a full-screen "Catching up…" overlay (the web client's
+  `ConnectingScreen`): opaque surface with the app mark, the floored
+  "Catching up… N%" label and a determinate bar while pull progress events
+  flow, plain indeterminate label otherwise. `SyncStatusProvider` drives it —
+  `beginCatchUp`/`updateProgress`/`endCatchUp` — wired from the
+  workspace-entry pull in `AuthProvider`, ended on completion, failure, and a
+  60s safety-net timeout; later catch-ups outside that path stay silent.
+  Scoped gates green (`crypto_custody`, `auth_unlock`, `sync_v2_pull`, the
+  new sync-status/overlay tests); `flutter analyze` clean.
+
+- **feat(home,routing): the bottom-bar Cards tab is gone — a drag-pill
+  more-sheet takes its place.** The bottom navigation bar drops to four tabs
+  (Home, Tasks, Journal, Library) plus Search, and a grab-pill stacked on the
+  bar's top edge expands a bottom sheet of secondary targets: Cards, Inbox,
+  Graph, Notifications, Settings (tap, upward drag past a small threshold, or
+  a fling all open it). The Cards hub is still one tap away — it moves from a
+  shell tab to a pushed page: `/cards` builds `CardsScreen` with the standard
+  push transition (deep links and the review-session hand-off unchanged), and
+  the command palette's Cards action pushes the route instead of switching
+  tabs. Tab indices remap (Journal 2, Library 3) with a `MainShellScreen`
+  fallback to Home for any stale out-of-range `initialIndex`. Wide layouts
+  (≥600dp) keep everything visible: the `NavigationRail` gains the four sheet
+  targets directly (nine destinations) and shows no pill. Scoped gate: the
+  shell/palette/guard tests green, `flutter analyze` clean.
+
+## 2026-11-09
+
+- **ci(android),deps: the deliberate SDK bump — Flutter 3.47.9 → 3.50.0-0.4.pre
+  (Dart 3.14.0-315.3.beta) with the `material_ui` migration.** The 3.50 line
+  deprecated `package:flutter/material.dart` in favor of the `material_ui` pub
+  package; every material import became a `deprecated_member_use` info on the
+  newer analyzer, and infos fail this gate — fixing them required the bump the
+  workflow comment already prescribes (pin + pubspec + full gate). **(1) CI
+  pin** moves to 3.50.0-0.4.pre with the rationale recorded in the comment;
+  the pubspec `sdk: ^3.12.0` constraint still covers the pinned Dart, so it
+  stays. (flutter-action validates the version against the named channel's
+  release manifest, and the 3.50 line rides the beta channel — the workflow
+  says `channel: beta` alongside the pin; the Gradle wrapper rides along at
+  9.5.0, the 3.50 template default, since the new flutter-gradle-plugin
+  refuses Gradle < 9.3.1, and the AGP pin moves 9.0.1 → 9.3.1, the 3.50
+  template default, for the same reason; AGP 9.3.1's release lint crashes
+  with an internal JavaDocParser error on plugin sources — a lint bug, not
+  a finding — so release builds skip lint, `flutter analyze` remains the
+  static gate.) **(2) All 114 material imports** (93 lib + 21 test) now import
+  `package:material_ui/material_ui.dart` (new direct dependency, `^1.10.0`).
+  **(3) The migration's real API seams:** `dynamic_color` 1.8.1 still built on
+  the deprecated SDK material (its `ColorScheme` is a different class from
+  material_ui's, breaking `DynamicColorBuilder`'s builder signature) — upgraded
+  to 2.1.0, which depends on material_ui itself; the journal calendar's
+  `Localizations.override` delegates now take material_ui's
+  `GlobalMaterialLocalizations` (flutter_localizations' copy is hidden on that
+  import) and `cupertino_ui`'s `GlobalCupertinoLocalizations` (the deprecated
+  SDK copy's own pointer, new direct dependency `^1.1.6`), keeping
+  flutter_localizations only for `GlobalWidgetsLocalizations`. Local gate on
+  the new pin: `flutter analyze` clean (0 issues), full suite green. Also
+  replaced the broken local `/root/flutter-sdk` (version file claimed 3.47.6
+  but bundled Dart 3.7.2, too old for the pubspec) with the pinned release, so
+  the local toolchain now matches CI exactly.
+
+- **fix(routing): break the first-run redirect loop between `/onboarding`
+  and `/workspaces`.** A fresh login that was both not-yet-onboarded (the
+  per-device `onboarding_completed` flag starts false) and workspace-less
+  (empty workspace list, nothing remembered) bounced forever: the onboarding
+  guard redirects every path except `/onboarding` to `/onboarding`, and the
+  workspace guard redirected every path except `/workspaces` — including
+  `/onboarding` — to `/workspaces`, so the two guards ping-ponged until
+  go_router threw `GoException: redirect loop detected`. The workspace guard
+  now exempts `/onboarding`: the first-run flow runs first (it needs no
+  workspace), and finishing it falls through to the workspace management
+  view, then the shell. Regression tests pin both halves of the sequence
+  (workspace_guard_test).
+
+- **feat(protocol,store): lockstep debt — the readItLater feature toggle, the
+  `showInNodeRows` binding flag, and the three-fixture corpus re-vendor (sync
+  main 4eaa14c).** Three slices landed on the notees-sync wire and were
+  recorded LOCKSTEP-PENDING for the clients; this is the Flutter arm (the GTK
+  arm shipped at 58e41e8). **(1) `workspace.feature.set` gains the seventh
+  feature id `readItLater`** — a SURFACES-only toggle like `journal` (the
+  read-later capture surface; no class family, no archival derivation, LWW row
+  only): the strict feature enum accepts it, the retired pre-reshape list
+  loses it (journals/library/people/collections stay rejected outright), and
+  the applier writes just the `workspace_feature` row (the `isFamilyFeature`
+  guard derives nothing). **(2) `class.property.set` gains the optional
+  additive boolean `showInNodeRows`** (absent = false; omitted = keep the
+  stored flag — the `pinned`/`active` COALESCE-patch semantics, row LWW by
+  envelope HLC): the strict payload carries the fifth key (retired keys still
+  fail loud), the local store schema bumps v42 → v43 with
+  `class_property.show_in_node_rows INTEGER NOT NULL DEFAULT 0` (guarded
+  ALTER, the pinned additive-column precedent — existing rows converge by
+  default 0), and the binding upsert COALESCE-patches the flag. The node-row
+  RENDER consumption stays pending (the displayTemplate precedent: the store
+  carries and resolves the wire key, no Flutter surface renders it yet).
+  **(3) The fixture corpus re-vendors 51 → 54, byte-identical (sha256) from
+  `packages/protocol/fixtures/`**: `workspace-feature-readitlater.json`,
+  `class-property-node-rows.json`, and `recurrence-property.json` (the
+  dedicated Repeat-property fixture — pure value + value-metadata wire over
+  system-seed ids, no payload change; the RR5 grammar port is a separate
+  pending slice). Recorded, not fixed out of scope: the sync changelog marks
+  `pinned` itself LOCKSTEP-PENDING in clients — Flutter already accepts it
+  (payload builder + validator, the v41 additive column, the
+  `class-property-pinned.json` replay), so nothing is owed. Tests: the gate's
+  coverage list (fixtures_test), dedicated replays (the node-rows LWW +
+  COALESCE-patch + unset tail, the readItLater LWW row with no class bits, the
+  recurrence values + metadata), payload pins (readItLater acceptance, the
+  plural spelling + retired ids still rejected, the 5-key binding builder and
+  strict validator), and `schema_v43_test` (fresh-create column shape,
+  absent-false default, the COALESCE patch). No SDK on the reference host —
+  verification rides the Android CI on the PR.
+
+## 2026-11-05
+
+- **feat(e2ee): the in-session unlock re-prompt (the web W2 flow).** A
+  locked session no longer needs a sign-out/sign-in cycle: the fail-loud
+  refusal banner on the workspace management view offers an Unlock
+  affordance that opens a password dialog (the biometric Lock screen's
+  visual patterns — lock container, headline, obscured field, primary
+  action; the account email shown in the copy). The dialog calls the new
+  `AuthRepository.unlock` → `POST /auth/unlock` (routes-auth.ts:443 —
+  returns `{kdf}` only, NO session minted; the same per-IP counter and
+  per-account lockout as login), derives the master key into the custody
+  holder, and `AuthProvider.unlockWorkspace` re-opens the refused
+  workspace in place — fetch-or-ensure, realtime re-evaluated, pull
+  kicked, refusal state cleared. Wrong password renders the server
+  message as the form error; `account_locked`/`rate_limited` 429s surface
+  the retry-after text the same way (the wire error envelope's
+  `error.message` is now read, not just the legacy `detail`). The refusal
+  paths remember the refused workspace id (`_lockedWorkspaceId`) so the
+  re-prompt re-opens exactly what was refused. `docs/lockstep-debt.md`
+  updated: only the TS locked-skip cursor rewind remains on the register.
+  Tests: `auth_unlock_test` (kdf return, wrong-password form error,
+  retry-after message, kdf-less success body) and the management screen's
+  new W2 group (banner affordance, dialog error-then-success flow into
+  the shell).
+
+- **docs: re-point the reference-repo references at miquelrosell99/notees-sync.**
+  The Notees monorepo split 2026-11-05 into notees-sync (core + server) and
+  notees-web (web client). The reference implementation, the fixture corpus
+  source, and the operations runbooks live in notees-sync now; AGENTS.md and
+  the project skills name it (fixture paths unchanged). Gate green:
+  flutter analyze, flutter test.
+
+## 2026-11-04
+
+- **feat(graph): the graph view — a minimal force-directed graph with
+  query-driven color groups (the deferred Flutter slice).** The app had no
+  graph surface at all; the web's collection graph is the reference and
+  this slice ports its contract at minimal weight:
+  - `lib/domain/graph/graph_model.dart` — the topology model: the node
+    set is classes + standalone (parentless or non-embedded) pages ONLY —
+    blocks never render as graph nodes, deleted/archived/journal rows
+    drop — and the edge families ride the derived `edge` index
+    (mention / property / tag; typed links stay out, their target
+    resolution is deferred by design) plus the structural parent family.
+    An edge endpoint outside the node set rolls up to its nearest
+    node-set ancestor (the web `graph.ts` backlinksWithRollup semantics —
+    load-bearing because a standalone page's own content is text-only by
+    the flatten contract, so the surviving mentions live on embedded
+    blocks). Parallel same-family edges collapse into one weighted edge;
+    rolled-up self-links drop. Nodes and edges carry deterministic sort
+    orders and the incident-edge degree per node. Deliberately not
+    ported: the semantic/temporal co-occurrence projections, the
+    alias-terminal walk, and the web engine's clustered/mass-aware
+    physics.
+  - `lib/domain/graph/graph_layout.dart` — the deterministic
+    force-directed layout: Fruchterman–Reingold at heart (pairwise
+    repulsion, edge attraction toward an ideal distance, a gentle
+    centering pull, linear temperature cooling) over a FIXED iteration
+    count. The only randomness is the seeded mulberry32 initial
+    placement, so the same topology + seed yields identical positions on
+    every run and every device — no run-to-run drift, pure functions, the
+    topology never mutated.
+  - `lib/data/repositories/graph_repository.dart` — the topology's
+    read site over the local derived store (offline-local: no server
+    reads). Pages ride the Page-role predicate the list surfaces use,
+    classes ride `class_cache` (active classes excluded from the page set
+    so a class never double-counts).
+  - `lib/domain/graph/graph_color_group.dart` — the color-group layer,
+    a port of the web's `colorGroups.ts`: each group is a query AST root
+    group plus a color; the persisted list order IS the first-match-wins
+    priority; evaluation wraps the group in the workspace-scope AST and
+    rides the local query runner. The two one-time load migrations port
+    the web effect's precedent — a legacy text-DSL `query` string parses
+    through the DSL (names resolve against the workspace), a stored v1
+    AST rewrites through the pure v1→v2 mapping (no dual-parse); a
+    fail-loud error KEEPS the group listed but paints it nowhere.
+  - `lib/domain/query/query_ast_v1_migration.dart` — the strict Dart
+    port of the monorepo's `scripts/lib/map-query-ast-v1-v2.ts`: the v1
+    family hats (`descendantOf`/`*Any`/`*Query`/`*Self`/the `*Set` bits)
+    become explicit `member` conditions, `contentSet`/`propertyBetween`/
+    `propertyWithin`/the ten created*/updated* types/isClass+isEmbedded
+    fold into their parameterized v2 types, not-wrappers/groups/scope/
+    sort/aggregation pass through, and unknown shapes fail loud with the
+    tree path (v2 input included — double-mapping is a bug, not a no-op).
+    `Condition` gains the abstract `type` discriminator the sealed model
+    always carried implicitly.
+  - `lib/data/repositories/color_group_store.dart` — device-local
+    persistence (SharedPreferences, the ViewModeStore idiom): the
+    migrated rows re-persist at load so legacy shapes rewrite once.
+  - `lib/domain/services/graph_service.dart` — the run site
+    (ChangeNotifier, the QueryService seam's twin): owns the topology +
+    layout + groups + the evaluated nodeId→color assignment, and rides
+    the slice-3 `StoreChangeBus` with a short debounce — every store
+    change rebuilds the topology AND re-evaluates the coloring (the web
+    `useQueryRun` coalesced re-run twin). Group CRUD parses the DSL
+    through the local query surface (fails loud — the sheet shows the
+    error), persists, and recolors live on save.
+  - `lib/features/graph/` — the screen, wired per the repo's routing
+    conventions (`/graph` push route; the command palette gains "Go to
+    graph"): a CustomPainter canvas (nodes as labeled circles — group
+    colors win over the node's own color token, classes read as rings —
+    edges as hairlines, pan/pinch with focal-anchored zoom, tap a node to
+    open the editor) plus the color-groups sheet: the list (order = the
+    first-match-wins priority), add/edit (label + preset color + the
+    query as DSL text — the same grammar the search box accepts), remove,
+    live recolor on save. Monochrome base with the preset swatches as the
+    only intentional hue, per the repo's design system.
+  - Verification: `test/graph_layout_test.dart` (11 pins — run-to-run
+    determinism, input-order insensitivity, seed sensitivity, bounded
+    finite positions, topology purity, degenerate inputs), the
+    `test/graph_topology_test.dart` pins over the seeded ffi store (18 —
+    the node-set contract, the rollup, the collapse/degree counts, the
+    family filters), `test/graph_color_groups_test.dart` (19 — the
+    mapping port's shapes and fail-loud arms, both migrations, the
+    first-match-wins evaluation), and `test/graph_service_test.dart`
+    (8 — the load migrations and re-persist, CRUD round-trips, the
+    live-recolor ride on the store-change bus, the topology rebuild).
+    `flutter analyze` 0 errors / 0 warnings; `flutter test` all green.
+  - Deviations from the web reference (documented): no semantic/temporal
+    edge families, no alias-terminal walk, no clustered physics, and the
+    group editor authors queries as DSL text (the slice-4 builder model
+    stays the editor's surface — wiring it into the group sheet is a
+    follow-up); group rows never carry a DSL string, only the AST, so the
+    sheet's edit form starts empty rather than round-tripping the text.
+
+- **fix(protocol): the mention token grammar aligns on the wire contract —
+  `customLabel` is the only text a mention stores (the retired `text`/
+  `displayText` keys reject outright), matching the GTK `4f8efc3` slice.**
+  The strict content grammar's mention branch still mirrored the retired
+  captured-text shape: `MentionToken` REQUIRED a `text` key and carried an
+  optional `displayText`, `AstBuilder.nodeLink` authored `text`, the legacy
+  converter captured the pill label as `text`, and the excerpt derivation +
+  the rich-text renderer read `displayText ?? text`. The wire schema and the
+  corpus (`mention-custom-label.json`) carry `customLabel` only
+  (content-mark.ts `mentionTokenSchema`, zod `.strict()`). Aligned, all
+  sites: `MentionToken` is now exactly `{type, targetNodeId, customLabel?
+  (1..512), linkId? (uuid), isEmbedded?}` with a strict key set — the retired
+  captured-text keys fail loud as unknown keys, like any `.strict()` extra
+  (the fail-loud / no-backward-compatibility law); `AstBuilder.nodeLink`
+  authors `customLabel` when the user sets a label (the editor's `[[id|label]]`
+  text form rides this seam), `toMarkdown` round-trips it; the legacy
+  `node_link` conversion maps the pill label to `customLabel`; the renderer
+  resolves `customLabel ?? the target's current name ?? the raw id`
+  (auto-rename free); `plainTextExcerpt` reads `customLabel`, gains the
+  TS-parallel optional `resolveMention` parameter (a bare mention contributes
+  nothing without a resolver). The applier/registry path stays map-level
+  pass-through by design — `contentAst` rides the derived store byte-intact
+  (pinned by a new fixture-replay arm); the edge miner reads `targetNodeId`
+  only and needed no change. No wire change: the fixture corpus stays
+  byte-pinned, both fixture-count pins untouched.
+  - Verification: `test/content_lockstep_test.dart` gains the mention
+    grammar group — the `mention-custom-label.json` fixture's actual bytes
+    validate through the strict parser with the exact `toJson` wire shape,
+    the rejection pins for `text`/`displayText`/unknown keys, the
+    `targetNodeId`-uuid and `customLabel` 1..512 bounds, the
+    `linkId`/`isEmbedded` type pins, the AstBuilder author-shape pin, and the
+    excerpt arms (customLabel wins; a bare mention silent without a resolver,
+    resolved with one) — plus the seeded-DB replay arm (the mention rides the
+    derived store intact, the edge derives); `test/content_tokens_test.dart`
+    and `test/relay_appliers_test.dart` arms that built mentions with the
+    retired shape move to the wire shape; the renderer gains the
+    customLabel-wins-over-resolver pin. `flutter analyze` 0 errors / 0
+    warnings; `flutter test` all green.
+  - Lockstep: the mention grammar now matches the TS reference and the GTK
+    client exactly; no wire change.
+
+- **perf(query): an invalidation-correct cache for the DSL resolver maps —
+  the slice-2 resolver-map caching follow-up.** `QueryService.parseQueryLanguage`
+  was rebuilding the three resolver name maps (class registry names,
+  property-schema names, node display names) from the local derived store
+  on EVERY call — O(workspace) per debounced search-box keystroke. The
+  maps are now derived-and-cached state: built once, rebuilt ONLY when the
+  slice-3 `StoreChangeBus` fires (every mutation funnel in SyncV2Service
+  notifies after its batch applies — the maps invalidate like any other
+  projection, no staleness window), with a generation guard so a build
+  that races a mid-flight store change discards its result instead of
+  caching stale names. `QueryService` subscribes to the bus (injectable
+  `storeChanges` stream for tests, the slice-3 widget idiom) and exposes
+  `dispose` (wired into the app.dart Provider). Matching semantics are
+  untouched: case-insensitive EXACT matches, uuid-order first-wins, the
+  raw schema-name known-fields list.
+  - Verification: `test/query_resolver_cache_test.dart` (4 pins over the
+    real ffi store: two parses without an intervening change reuse the
+    maps — one rebuild; a bus notification invalidates — a class added
+    after the first parse resolves on the next; a rename funnels through
+    the bus — the old display name stops resolving, the new one resolves;
+    uuid-order first-wins + case-insensitive exact-match parity on the
+    cached maps). `flutter analyze` 0 errors / 0 warnings; `flutter test`
+    all green.
+
+- **feat(query): the query-builder sheet over the v2 AST — the
+  register-driven condition model port, the mobile builder chrome, and
+  authoring through the content-update op path (P3 slice 4).** A faithful
+  port of the web's `FilterBlockBuilder` MODEL
+  (`apps/web/src/features/collection/filterBlockModel.ts` +
+  `filterQuery.ts`), adapted to the mobile idioms (bottom sheet + chips per
+  the repo's design system, not a pixel port of the web's flat column
+  rows):
+  - `lib/domain/query/query_filter_model.dart` — the Odoo register
+    ([family][operator][value][target mode]) as pure functions over the v2
+    draft AST: `blockView` (the not-wrap sugar view), `familyOf` (the
+    19-family taxonomy — `name` joins `content`), the per-member-family
+    `memberRegisterOf` (positives/canonical/negatives/set-bit), the
+    `operatorOptions` per family (the property family's list adapts to the
+    SELECTED schema's type; `type`/`placement` carry NO operator column —
+    the boolean single-selector ruling), `operatorOf` (the operator
+    column's read + its negation), and the operator-application morphs —
+    `applyOperator`, `applyBooleanValue` — implementing the orthogonality
+    law: a member operator choice flips ONLY `op` (`in` ⇄ `not-in`) with
+    the target riding VERBATIM (ids/query/self — the mode axis never moves),
+    the set bits re-materialize `exists`/`not-exists` (no target), the
+    content/property/date negatives and the isClass/isEmbedded polarity
+    wrap in `not`, and every value payload (picked ids / text / bounds /
+    timestamps) carries across the morphs.
+  - `lib/domain/query/query_filter_query.dart` — the draft layer
+    (`FilterQuery`, `draftOrFactoryAst`, `isFilterInactive`), the
+    draft → composed group prune (`filterQueryToGroup` — half-typed rows
+    drop, set bits / self target / node fields / `within` survive, emptied
+    nested groups and not-wraps drop), the 22-entry add-menu register
+    (19 condition families + the AND/OR/NOT constructors, the web's
+    FILTER_KIND_OPTIONS 1:1), and `createCondition` (the half-typed
+    defaults per family).
+  - `lib/domain/query/builder_facts.dart` — the picker-source read model
+    (the web `builderFacts.ts` shape): classes + bound properties
+    (deduped by schema id) enriched with select options and the
+    node-typed target filter; `QueryService.buildFacts` derives it per
+    open from the local derived store (`class_cache` + `class_property` +
+    `property_schema`).
+  - `lib/features/editor/widgets/query_builder_sheet.dart` — the builder
+    chrome: the head row carries BOTH switches (the root Match ALL/ANY
+    logic toggle + the blocks ⇄ JSON exchange toggle, the web's
+    `nt-fb__head`), condition rows are outlined cards (family label /
+    property schema pick, the operator dropdown — skipped when the
+    register is empty, the typed value control, the target-mode chip
+    switch Manual/Query/Self — Self offered only with a hosting page, the
+    query mode nesting a recursive group editor), nested groups indent
+    under a hairline with their own ALL/ANY header + count, the NOT
+    wrapper rides a badge, and the add menu offers the full register.
+    Apply composes the draft through the prune (`draftOrFactoryAst`). The
+    JSON arm edits the WHOLE token AST verbatim (scope/root/sort/
+    aggregation) — the exchange format doubles as the mobile
+    AGGREGATION-AUTHORING escape hatch: the full pivot-style aggregation
+    builder is deliberately scoped out (slice 3 already renders
+    aggregation ASTs; the JSON arm authors them), a documented deviation
+    from the web's group-only raw arm (mobile has no saved-views hub).
+  - Authoring lands through the existing content-update op path: the
+    section gains the tappable "Set a query to see results." affordance
+    (and an edit button over the result states) when the seam is threaded;
+    `BlockTreeEditor` mounts the live section for a block the query
+    system class marks EVEN WITHOUT a payload token (the web's
+    QueryNodeSection contract — the class marks the block, the first
+    Apply creates the token) and threads `queryFactsLoader` /
+    `queryNodePicker` / `onCommitQuery`; `node_editor_screen` commits via
+    `update_content` (→ `object.update {contentAst}`, local apply + flush
+    + store-bus notify), splicing the AST into the first `query` token or
+    appending it (`lib/core/utils/query_tokens.dart`, the web
+    `queryTokens.ts` port), updating the in-memory block in step so the
+    section re-runs. `AstBuilder.parseInlinePreservingQuery` closes the
+    text-form round-trip: the editor's save funnels re-attach the
+    preserved `query` tokens at their `[query]` placeholder labels by
+    occurrence order, so an autosave never flattens a query token (and
+    deleting the label drops the token — the placeholder IS its
+    text-form presence).
+  - The search feature's existing FilterBottomSheet/FilterChipBar are
+    UNTOUCHED: they are the transient search-filter layer (a different
+    web surface), while the query builder edits a persisted query token's
+    AST — extending them onto the full register model would have bolted
+    persistence onto a transient state; the new sheet is the smaller
+    coherent change.
+  - Verification: `test/query_filter_model_test.dart` — 49 pure-Dart pins
+    over the matrix (taxonomy, per-family operator registers, the
+    orthogonality law per target mode, the boolean rulings, the prune
+    parity, the registers' integrity, the draft state);
+    `test/query_token_write_test.dart` — the token splice helpers + the
+    round-trip preservation; `test/query_builder_sheet_test.dart` — 14
+    widget pins over the faked facts/picker seams (head chrome, the
+    add-menu register, operator morphs, the mode switch, AND/OR, the
+    prune-on-Apply, the boolean ruling, the NOT badge, the boolean
+    property fold, manual + single-slot picks, the JSON arm's aggregation
+    round-trip and its error surface); `test/query_node_section_authoring_test.dart`
+    — the Set a query affordance, the edit button, and the class-marked
+    no-token mount. `flutter analyze` 0 errors / 0 warnings (the beta
+    SDK's repo-wide material.dart deprecation infos); `flutter test` all
+    green.
+
+- **feat(query): live `query` content-token views in the editor — the
+  query-node section with coalesced re-runs on store changes (P3 slice 3).**
+  The editor now renders a block's `query` content token as a live result
+  section, mirroring the web's `QueryNodeSection.tsx` + `queryRun.ts`:
+  - `lib/features/editor/widgets/query_node_section.dart` — the section
+    below the block row: the FIRST `query` token's `queryAst` runs through
+    the slice-1 QueryService/compiler seam, LOCAL execution only (no server
+    reads, offline-correct). The hosting PAGE's node id threads into every
+    run's `CompileOptions.selfNodeId` — the first Flutter surface exercising
+    the `self` member-target mode, whose compiler fails loud without a
+    host. The `useQueryRun` hook ported faithfully: the run identity is
+    (astKey, version, selfNodeId) — an already-current identity is skipped
+    outright; a store notification while a run is in flight marks the
+    section dirty and schedules exactly ONE trailing run (a burst costs at
+    most two executions); the last result caches between runs and
+    deletions/renames converge without a manual refresh. Render states per
+    the web: unspecified (no token / empty match-all) → "Set a query to see
+    results."; malformed AST → the invalid-query line (tooltip names the
+    error); empty → "No results."; rows per the web row chrome (title, open
+    on tap); aggregation ASTs run the new `QueryService.runAggregate` seam
+    and render the grouped grid (null cells read as a dash, the
+    `formatAggregateCell` parity); the 200-row `QUERY_RESULT_CAP` window +
+    "N more — load more".
+  - `lib/domain/services/store_change_bus.dart` — the local derived store's
+    change bus (singleton broadcast stream, the IntentReceiver idiom): the
+    Flutter twin of the web workspace client's `subscribe` notify. Every
+    store mutation funnel in `SyncV2Service` notifies after its batch
+    applies — the local flush, the serverless flush, catch-up/realtime
+    server pages (only when something applied), snapshot restores, and
+    `emitLocal` applies (bullet writes, class reorder).
+  - `lib/domain/services/query_service.dart` — the `runAggregate` run-site
+    addition over the slice-1 runner.
+  - `lib/features/editor/widgets/block_tree_editor.dart` — a block whose
+    content carries a `query` token mounts the live section below its row
+    (indented like the tags row), only when BOTH the service seam AND the
+    hosting page id are threaded — the `self` anchor is part of every run's
+    identity, so they travel together or not at all; malformed content
+    degrades to no section. `lib/features/editor/screens/node_editor_screen.dart`
+    passes the provided QueryService, the page's uuid, and the
+    render-cascade navigation (a result-row tap opens the node's page — a
+    nested query target re-runs through the same path on its own host).
+  - Verification: `test/editor_query_node_section_test.dart` — 10 widget
+    pins over the faked service seam (no sqflite under testWidgets; the
+    DB-backed path is the golden suite's): the render plan (one run
+    request, the token's AST verbatim, `selfNodeId` = the hosting page),
+    re-run on notify replacing the rows (rename + deletion convergence),
+    burst coalescing (two mid-flight notifications → exactly one trailing
+    run), the unchanged-identity skip, `selfNodeId` as run identity, the
+    unspecified/invalid states never running, the aggregate grid, and the
+    BlockTreeEditor mount pins (section under a query-token block with the
+    host threaded; no seam → no section). `flutter analyze` 0 errors / 0
+    warnings (the beta SDK's repo-wide material.dart deprecation infos, two
+    added by the new files); `flutter test` all green.
+
+- **feat(query): the text query DSL port — `parseQueryLanguage` +
+  `looksLikeQueryLanguage` over the v2 AST, and the search box routing
+  query-language input through it (P3 slice 2).** A strict port of
+  `packages/query/src/dsl.ts` (the README "Text query DSL" contract) and
+  its `dsl.test.ts` case list (42 parity pins, same grammar + error
+  behavior):
+  - `lib/domain/query/query_dsl.dart` — the full grammar: `class:` /
+    `isClass:` / `isEmbedded:` / `text:` / `name:` / `linked:` /
+    `coverAsset:` / `bannerAsset:` / `aliasedNode:` / `prop:<schema><op>val`
+    + the bare-schema shorthand (`year:>2010`), the twelve operator tokens
+    (longest-first scan), `AND OR NOT ( )` with juxtaposition-AND,
+    single/double-quoted phrases with escapes, number coercion, slice-mode
+    values (URLs/DOIs/ISO dates survive whole), the injected
+    `QueryLanguageResolvers` (class/schema/node name → id is the caller's
+    job) and the fail-loud surface: `QueryLanguageError` with the source
+    position, unknown fields listing the known ones, unresolvable names,
+    per-field operator rejections, unterminated strings, missing values.
+    Emits only the slice-1 v2 AST shapes (member ids targets, nodeField
+    eq/exists, content/name, property).
+  - `lib/domain/services/query_service.dart` — `parseQueryLanguage(text)`:
+    the run-site seam building the resolvers from the local derived store
+    (the web `/resolve` twin's policy — case-insensitive EXACT matches:
+    classes from `class_cache`, property schemas from `property_schema`,
+    nodes by the derived display name over active `node_cache` rows,
+    `uuid` order first-wins).
+  - `lib/features/search/search_query_ast.dart` —
+    `searchFiltersToQueryAst(filters, languageAst:)`: the DSL root rides
+    the search AST as ONE AND child instead of the plain content-contains
+    term (an OR-rooted parse keeps its grouping; the structured filters,
+    scope and sort are untouched).
+  - `lib/features/search/screens/search_screen.dart` — the search box
+    gates on `looksLikeQueryLanguage` (field prefix ex-URL schemes,
+    standalone AND/OR/NOT, quoted phrases) and routes query-language input
+    through the DSL; plain text keeps the slice-1 content-contains path.
+    The DSL fails loud: a parse error lands on the screen's error surface,
+    never a silent text-search fallback.
+  - Verification: `test/query_dsl_test.dart` (the ported `dsl.test.ts`
+    case list, 42 tests) + `test/search_query_language_test.dart` (4
+    widget pins: DSL routing, plain-path parity, the fail-loud error
+    surface, the heuristic leaving clock-time/URL input on the plain
+    path). `flutter analyze` 0 errors / 0 warnings; `flutter test` all
+    green. Also clears two latent slice-1 analyze warnings (an unused
+    local in `search_screen_local_test.dart`, an unnecessary cast in
+    `query_golden_test.dart`).
+
+- **feat(query): query-AST v2 surface — strict parse, the full
+  `packages/query` compiler + executor port over the local derived store,
+  and the search feature riding local execution (P3 slice 1).** The mobile
+  query surface, mirroring the GTK P2 slice 1 pattern:
+  - `lib/domain/query/query_ast.dart` — the strict v2 model (sealed classes
+    + hand-rolled validators, zod `.strict()` parity: `version: 1` and
+    every unknown shape rejects outright — no dual-parse; the op/target
+    couplings fail loud: `in`/`not-in` require a target, `exists`/
+    `not-exists` forbid one, `exact` pins family `class` + a single-id
+    list).
+  - `lib/domain/query/query_placeholders.dart` — the `{today}`-style token
+    port: local-day → UTC boundary resolution, period bounds, pinned
+    `now`, `CompileOptions.selfNodeId`.
+  - `lib/domain/query/query_compiler.dart` — the method-for-method
+    compiler port: all four scopes, the six condition types, the ten
+    member families × ops × three target modes, sort (NULLS-last + id
+    tiebreak + NOCASE name), aggregation (`WITH filtered`), count and
+    matches, the effective-values CTEs (tombstone-suppressed authored ∪
+    binding defaults, `includeDefaults: false` arm), and the date-node-ref
+    ISO-date arms — positional params pushed before compose (bind order is
+    contract; golden param vectors pin it). The schema deltas from the TS
+    reference are isolated + documented in the header (the GTK D1/D2/D6
+    precedent): **F1** the `node_cache` renames (`uuid`/`name`/
+    `classes_uuid`/`parent_uuid`, `node_uuid` in the property tables,
+    `property_schema.uuid`), **F2** `is_active = 1` →
+    `is_deleted = 0 AND is_archived = 0` (the local read helpers' archived
+    exclusion, pinned in the golden vectors), **F3** the fresh-scope alias
+    `m` (the same system-SQLite outer-row shadowing pitfall the GTK port
+    hit — the node alias threads through every group/condition method),
+    **F4** the parentlessRole demote reads `class_cache` (classes keep
+    their config in the registry locally), **F5** the FTS backend is
+    `search_index_fts` (+`_docid`).
+  - `lib/domain/query/query_runner.dart` — the `execute.ts` port over
+    sqflite: `run` (rejects aggregation ASTs), `runAggregate`, `count`,
+    `matches`.
+  - Schema **v42** (`app_database.dart` + the repository + the relay
+    appliers, every delta with its applier tests in
+    `test/schema_v42_test.dart`): `node_cache.created_at`/`updated_at`
+    (the TS store parity — create stamps both, the mutating ops bump
+    updated; the delete-time bump rides the new Node `updatedDate` payload
+    slot so it survives restore's full-row re-upsert, writeDate staying
+    the row-LWW winner), `node_cache.tag_ids` (recomputeTagIds maintains
+    it; migration backfills from the tag OR-Set), `search_index_fts`
+    (+`search_index_fts_docid`, FTS5 with the FTS4 probe fallback — the TS
+    ftsModule precedent; the indexer projects the diacritic-folded
+    plaintext next to the term index; `reindexAll`/`shouldReindexSearch`
+    cover it; hard-delete purges it), and the **class-node projection**
+    (class.create/update now mirror a node_cache row — the TS store's
+    `INSERT OR IGNORE INTO node` parity — so `isClass` conditions and
+    class-targeted nested queries see classes; class.update mirrors under
+    the row LWW; delete/restore keep the registry mirror; the replay
+    test's fresh-class assertion updated to the projection).
+  - The golden corpus `test/fixtures/query/query-golden.json` (sha256-pinned
+    under `test/fixtures/query/`, a second fixtures root) — 51 cases over
+    one seeded mini-workspace, expectations GENERATED by the TS reference
+    runner (`scripts/query/gen-golden.mjs`, better-sqlite3 + the TS store
+    schema; the file carries the seed in TS-schema names, the Flutter
+    runner maps the renames). Execution parity across every family × mode,
+    scopes, sort order vectors, aggregation grids, count, and matches.
+  - The search surface: `lib/features/search/search_query_ast.dart` (the
+    `SearchFilters → QueryAst` translation — task state rides the taskStatus
+    property at the FIXED seeded option ids: open = task ∧ NOT(Done |
+    Cancelled), completed = Done | Cancelled; the date range → the
+    `created` date condition; sort maps name/createDate, the rest ride the
+    id tiebreak), `lib/domain/services/query_service.dart` (the Provider
+    seam), and `SearchScreen._search` switched from the Dio endpoint to
+    local execution — offline search (null Dio) returns results instead of
+    an empty list. The favorites/suggestions chrome is untouched.
+  - Test plan: `query_ast_test` (the strict parse matrix), 
+    `query_placeholders_test`, `query_compiler_test` (SQL + golden param
+    vectors for the subtle bind orders), `query_golden_test` (the 51-case
+    TS-parity replay), `query_ast_fixture_test` (the vendored
+    `query-ast-v2.json` strict-parses, walks every pinned shape, compiles
+    self-hosted; the fail-loud pins), `schema_v42_test` (the applier
+    deltas), `search_filters_query_ast_test` + `search_screen_local_test`
+    (the translation + the widget level, service seammed per repo
+    convention — no sqflite under testWidgets).
+  Verification: `flutter analyze` clean (0 errors, 0 warnings; the beta
+  SDK's repo-wide `material.dart` deprecation infos are unchanged from
+  main's baseline of 115) + full gate green — 1066 tests, all passed.
+
+## 2026-11-05
+
+- **feat(sync,e2ee): lockstep debt — sealed snapshots, chunked uploads, the
+  fail-loud locked ruling.** Catches the mobile client up with the
+  post-custody monorepo slices (TS reference commits `8b1776b2a`,
+  `115d69d32`, `c29ed8c73`, `f0e87d1ef`). (1) SEALED SNAPSHOTS: snapshot meta
+  carries `sealed` (`LatestSnapshotResponse.sealed`, WIRE.md `GET
+  /relay/v2/snapshot`) and the restore contract ports the TS four-arm rule —
+  a keyed client decrypts and restores ONLY a `sealed: true` blob; a keyed
+  workspace facing a PLAINTEXT image (a keyless upload or the server's
+  content-empty self-heal snapshot, whose derived store skips sealed
+  envelopes) SKIPS it with a counted warning instead of restoring an
+  empty-store trap and jumping the cursor to `upToSeq` — the log replays
+  from the durable cursor; a keyless client restores a plaintext image
+  as-is (SQLite-magic probe) and skips a sealed blob the same counted way.
+  Snapshot freshness moves to the server-side HLC watermark (TS parity) so
+  a skipped snapshot is marked seen — never re-downloaded every pull — while
+  the seq cursor stays put. (2) CHUNKED UPLOADS: `RelayClient` gains
+  `PUT /snapshot/data/part` + `POST /snapshot/data/commit` (WIRE.md
+  multipart contract, ≤64 MiB parts); `SyncV2Service.uploadSnapshot`
+  declares `sealed=1` on the single PUT and rides part+commit above the 48
+  MiB single-body threshold (both thresholds injectable for tests, the TS
+  engine's option parity). (3) FAIL-LOUD RULING (owner decision, supersedes
+  keyless-open): a keyed workspace never opens keyless — the
+  `store-connection.ts` `resolveWorkspaceKey` ports into
+  `lib/core/crypto/crypto_custody.dart` (master-held fetch-or-ensure with a
+  wrapped-row probe; no-master sessions probe the row — membership-only);
+  `AuthProvider._setActiveWorkspace` resolves custody BEFORE persisting
+  anything and a locked refusal throws `EncryptedWorkspaceLockedError`
+  ("This workspace is encrypted — sign in with your password to open it.")
+  without touching the selection — the boot path catches it separately so
+  it can never fall through to the offline keyless open. The workspace
+  management view surfaces the refusal as a persistent banner plus lock
+  badges from the listing's new `encrypted` flag; password sign-in unlocks.
+  `docs/lockstep-debt.md` updated: the unlock re-prompt modal (no
+  in-session re-login exists) and the TS locked-skip cursor rewind remain
+  the registered debt. Tests: `sync_v2_e2ee_test` grows the
+  keyed-plaintext-skip + replay (cursor stays, no re-download), the
+  locked-sealed no-re-download, and the single-PUT-vs-multipart upload
+  matrix; `crypto_custody_test` grows the `resolveWorkspaceKey`
+  decision matrix (five arms pinned).
+
+## 2026-11-03
+
+- **fix(assets): align the asset channel with the shipped server routes
+  (`POST /api/assets`, `GET /api/assets/:id`, `/info`).** Review follow-up:
+  the plan-05 sealing wiring was correct per its own channel, but the
+  channel itself predated the shipped Fastify routes and had drifted — it
+  posted the retired `/assets/upload` and parsed the retired snake_case row.
+  `AssetRepository` now posts `POST /api/assets` (multipart; attach rides as
+  the `objectId` field — `existingNodeUuid`/`parentUuid` both spell "attach
+  to this node", the block itself is created by the node-creation path) and
+  parses the camelCase response `{assetId, hash, mimeType, size,
+  originalName, refs, iv}`; the sealed arm keeps declaring
+  `encrypted`/`mimeType`/`iv`. Downloads go through `GET /api/assets/:id`
+  with the IV resolving from the caller, then the `x-notees-asset-iv`
+  header, then a /info fallback (hash-addressed downloads carry no header);
+  `Asset` is the camelCase info row with the category derived client-side
+  (the server no longer categorizes); the dead `content` upload field and
+  the server's-nonexistent `DELETE` route are dropped; the local-mode
+  adoption upload (`LocalAssetService.uploadPendingAssets`) posts the same
+  route with `objectId`. The plan-05 crypto rules are untouched: keyed
+  uploads seal (tag‖ct, external IV), sealed downloads open through custody,
+  keyless stays plaintext, sealed-without-key stays the honest error. A
+  `docs/lockstep-debt.md` entry tracks the GTK asset-UI boundary follow-up
+  (its `seal_asset_if_keyed`/`open_asset_if_sealed` helpers await a UI
+  caller; the GTK repo owns that side). Verification: `flutter analyze`
+  clean (0 errors) + full gate green — 896 tests, all passed.
+
+- **feat(e2ee): CAS asset encryption (plan 05, Flutter track) — uploads
+  seal and declare, downloads open through custody, keyless stays
+  plaintext.** New `lib/domain/models/relay/asset_crypto.dart`
+  (`encryptAssetBytes`/`decryptAssetBytes`, pure package:cryptography, no
+  KDF) implements the shared blob layout contract byte-for-byte with the
+  TS/GTK ports: stored bytes = tag(16) ‖ ct, the IV external as server-side
+  asset metadata (the `asset.iv` column, b64u on the wire) — no wire/protocol
+  change, the fixture corpus is untouched. `Asset` gains the `iv` field and
+  `AssetRepository` seals the rules: `uploadFile` encrypts when the custody
+  cache holds the active workspace's key and declares the upload
+  (`encrypted`, declared `mimeType`, `iv`) so the server skips magic-byte
+  sniffing; keyless sessions keep the historical plaintext path. A new
+  `downloadBytes` opens sealed bytes through the custody key, throws an
+  honest `StateError` for sealed-without-key (the widgets' existing error
+  text), and lets the GCM authenticity error propagate — never a corrupted
+  render. `crypto_custody` gains active-workspace tracking
+  (`noteActiveWorkspace` from the auth provider's single workspace-crypto
+  write path, `activeWorkspaceKey` for asset I/O); the local-mode adoption
+  upload (`LocalAssetService.uploadPendingAssets`) seals under the same
+  rule. Verification: `flutter analyze` clean (0 errors) + full gate green —
+  892 tests, all passed.
+
+- **feat(protocol): query-AST v2 fixture lockstep — the 51st corpus fixture
+  re-vendored (opaque query AST, count pins only).** The monorepo's
+  query-AST v2 grammar slice adds `query-ast-v2.json` to the byte-pinned
+  corpus: an `object.create` envelope whose content carries a `query` token
+  with a v2 `queryAst` (the 64-variant flat condition union folded into 6
+  types — one of every v2 condition shape, `version` the literal 2). Clients
+  carry query ASTs OPAQUELY, so this arm is corpus re-vendor + gate pins
+  only: the fixture lands sha256-verified byte-identical to
+  `packages/protocol/fixtures/` (`6a958166…e33e10ff66`, `cmp`-verified) —
+  corpus 50 → 51 — and enters `test/fixtures_test.dart`'s envelope-list
+  round-trip set (the on-disk-vs-gate coverage test is the count pin). The
+  auto-glob all-fixtures replay in `test/fixture_replay_test.dart` picks the
+  fixture up unchanged: the `QueryToken` model holds `queryAst` as an
+  opaque `Map<String, dynamic>`, so the v2 grammar replays through the
+  appliers with no parser/model work. Verification: `flutter analyze` clean
+  (0 errors/warnings) + full gate green — 882 tests, all passed.
+
+- **fix(e2ee): skip sealed snapshots when locked (no more keyless restore
+  crash) + the lockfile floor checked against CI.** The snapshot restore
+  shortcut opened every downloaded blob when no workspace key was installed
+  — a sealed (encrypted) snapshot blob then hit `restoreFromSnapshot` as
+  garbage and broke the whole pull. The locked state now probes the blob
+  for the `SQLite format 3\0` magic first: a sealed blob is skipped with a
+  counted warning (the locked `$e` skip semantics — the counter and the
+  debugPrint ride the same session count) and the seq cursor stays put so
+  catch-up replays the full log; with a key installed the decrypt path is
+  unchanged (a decrypt failure stays a loud corruption error). The
+  pubspec.lock Dart floor (`>=3.13.0-0`, an artifact of resolving under the
+  pre-release SDK — no locked package requires it) was verified against CI:
+  the scheduled Android CI resolved it green on a fresh stable 3.47.9
+  install this morning, so the floor stays. Verification: +2 cases in
+  `test/sync_v2_e2ee_test.dart` (9 in the file: locked + sealed blob ⇒
+  green pull, plaintext catch-up applies, the sealed envelope skips, the
+  counter reads 2, the cursor lands on the replayed log rather than the
+  snapshot's upToSeq shortcut; locked + plaintext snapshot still restores
+  via the magic probe); full gate green (pub get + both pub-cache patches +
+  analyze + test).
+
+- **feat(e2ee): sibling custody — full decrypt/encrypt at the sync boundary
+  (plan-04 Flutter track F1-F6).** The mobile client becomes a full custody
+  citizen of the E2EE core, converging with the TS reference and the GTK
+  client on the plan-01 `crypto.ts` custody half and the shared locked-sync
+  semantic. `pointycastle` (pure Dart, no native code) joins the deps for
+  scrypt — `package:cryptography` has none; the KDF wrapper
+  (`deriveScryptKeyBytes`, N=131072/r=8/p=1/dkLen=32) lives in
+  `lib/domain/models/relay/payload_crypto.dart` alongside the ported custody
+  half: `KdfRecord` create/unwrap with the fail-fast verifier
+  (HMAC-SHA256 over the DERIVED key, "notees-key-check"), workspace-key
+  wrap/unwrap (`iv ‖ tag ‖ ct` b64u — the payload slot's ct stays TAG-FIRST,
+  the documented opposite), `encryptPayload`/`encryptEnvelope`/
+  `encryptBytes`/`decryptBytes`, and `exportWorkspaceKey`. The plan-01 TS
+  golden vector ports with EXACT-string equality — the expected
+  salt/wrapped-record/verifier strings were produced independently with
+  node:crypto (`test/payload_crypto_test.dart`).
+  `RelayClient` gains the custody routes (`GET/PUT /workspaces/:id/key`,
+  404 ⇒ null on the GET) and `SyncV2Service` gains the engine boundary:
+  decrypt-before-apply at the single remote-apply chokepoint
+  (`_applyServerEnvelopes`, catch-up + WS drain both funnel there), a
+  sealed COPY at push in `flush()` (outbox row + `_applyLocalAndRecord`
+  stay plaintext — encrypt-a-copy), snapshot seal on `uploadSnapshot` and
+  decrypt at the restore shortcut (a wrong key fails loud as real
+  corruption, `decryptSnapshotOrThrow` parity). The LOCKED semantic matches
+  the web/GTK: with no key, remote `$e` envelopes are skipped with a
+  counted warning (`lockedSkipCount`), never applied, never thrown — the
+  plaintext batch-mates apply and the seq cursor still advances over the
+  skipped envelopes (no re-fetch loop). Custody wiring
+  (`lib/core/crypto/crypto_custody.dart`, the `crypto-custody.ts` port):
+  the login/register kdf record derives the account master key into a
+  module-level in-memory slot (never `flutter_secure_storage` — the web's
+  memory-only threat model); a verifier mismatch is a login-level error,
+  never a silent keyless session, and the token is not persisted for a
+  session that failed custody. Workspace open fetch-or-ensures the key
+  (shared in-flight flight; a PUT 409 re-fetches and adopts the winner —
+  first write wins, no split keys) and installs it on the sync service;
+  sign-out / local mode / server switch drop custody. A 2FA-completed
+  session has no password at hand and starts locked until a password
+  sign-in derives the master (the web's unlock re-prompt is the web
+  track's scope). Two real bugs surfaced by the new boundary tests and
+  fixed in the same slice: `_applyServerEnvelopes` now iterates the
+  decrypted/filtered batch (it re-read the raw list, so ciphertext reached
+  the appliers), and snapshot RESTORE routes through the
+  `snapshotDbOpener` test seam like the build path; the restore reader
+  also gains the documented absent-table tolerance for `class_property`
+  (the client-built snapshot schema never carries it, so a client-uploaded
+  snapshot previously could not restore). New suites: `sync_v2_e2ee_test`
+  (wire ciphertext + plaintext local echo, locked mixed batch, two-device
+  convergence, snapshot seal/decrypt round-trip), `relay_key_routes_test`,
+  `crypto_custody_test` (login kdf consumption, fetch-or-ensure, 409
+  adopt, wrong-master loud error). One Dart async trap pinned along the
+  way: a `whenComplete` arrow body returning the map entry it removes
+  deadlocks the future on itself — the cleanup callback is a block body.
+
+- **feat(protocol): E2EE fixture lockstep — the encrypted corpus joins the
+  gate (decrypt module + gate/replay branches) + the re-vendor's lockstep
+  debt (binding `pinned` tier, node-level property assignment, the heading
+  token's excerpt recursion).** The wire
+  corpus re-vendored 46 → 50 fixtures (sha256-verified byte-identical to
+  `packages/protocol/fixtures/`; commit `d9cb6d2`). New module
+  `lib/domain/models/relay/payload_crypto.dart`: a `package:cryptography`
+  port of `packages/protocol/src/crypto.ts` — unpadded-b64u helpers, the
+  `{"$e": {iv, ct}}` slot open with the TAG-FIRST ct layout (`mac =
+  raw.sublist(0,16)`, `cipherText = raw.sublist(16)`), AAD
+  `${envelope.id}.${envelope.workspaceId}`, and a plaintext passthrough.
+  `test/fixtures_test.dart` gains the four new fixtures in the coverage
+  lists and the `$e` branch: the raw slot is SHAPE-validated only (the
+  apply-time rejection STAYS — sibling custody is plan 04), the decrypted
+  plaintext MUST pass the strict op registry. `test/fixture_replay_test.dart`
+  decrypts crypto-carrying fixtures before replay (auto-glob included — the
+  encrypted fixture is deliberately NOT in `replayExcluded`), with a
+  dedicated acceptance test asserting the decrypted replay's derived state
+  (page content + icon). The re-vendor also surfaced two undebted protocol
+  batches, ported in the same slice: (1) `class.property.set`'s `pinned`
+  binary tier flag — the binding row gains the column (schema v41), the
+  payload registry/applier persist it (row LWW, omitted keeps, COALESCE
+  patch), and the effective read sorts the pinned tier FIRST (alphabetical
+  within each tier, unbound authored rows last); (2) the node-level
+  assignment ops `property.assign` / `property.unassign` / `property.empty`
+  — the `node_property` presence table (schema v41, LWW by the full (hlc,
+  actor) tuple, R3 scope eligibility on assign, plain-delete unassign that
+  never touches authored values, empty clearing every authored value through
+  BOTH tombstone families while keeping the assignment) and the effective
+  read's empty-row synthesis (an assigned schema with no rows renders the
+  `assigned` empty row; a winning active binding with no rows renders the
+  `bound` empty row — scalar types included), which moved four existing
+  effective-read test expectations to the TS reference's current semantics
+  (a surviving active binding renders valueless after its default is
+  cleared / type-drifts / dangles — effective.ts 5c). Also completing the
+  committed heading-token slice: `HeadingToken` joins the content model
+  (content-mark.ts `headingTokenSchema` port — the excerpt and the
+  promotion stringify now recurse into it, fixing the red
+  `ast_stringifier_test` heading case the slice left behind), and two
+  sync-lifecycle tests now wait on the drain's LAST write (the
+  applied-envelope `relay_operations` record lands after the apply's
+  derived projections — waiting only for the node row raced the unawaited
+  WS drain's tail against tearDown's DB close, deterministic under full-suite
+  load), with a shared `waitForAsync` helper. Verification: new
+  `test/payload_crypto_test.dart` (11: the fixture vector deep-equals the
+  pinned plaintexts, opened payloads pass the strict registry, wrong-AAD /
+  tamper / ct‖tag-misread / malformed-slot negatives); +2 acceptance tests
+  in `test/fixture_replay_test.dart` (54 in the file: the pinned-row LWW +
+  pin-tier ordering, the assignment LWW both orders + unassign-keeps-values
+  + empty-keeps-assignment end state); `test/fixtures_test.dart` 56 green
+  (coverage lists + the `$e` branch); `test/ast_stringifier_test.dart` 22
+  green; `test/realtime_lifecycle_test.dart` 6 + `test/sync_v2_realtime_test.dart`
+  5 green. Full gate green (`flutter pub get` + both pub-cache patches +
+  `flutter analyze` + `flutter test`). Lockstep context: plan 03, the GTK
+  track converges on the same `envelope-encrypted.json` bytes.
+
+- **fix(store): heading tokens — flat-grammar recognition + edge derivation (two pre-existing divergences from the TS reference, found during the tags-are-links port).** (1) `isFlatTokenStream` did not list `heading`, so ANY stored document with a top-level heading token was misclassified as a legacy nested document and run through `legacyAstToTokens` — the `quote` containers were dropped entirely (their mentions lost) and the heading flattened; with `heading` in the flat set the document round-trips verbatim. (2) The edge derivation's content walk recursed into `quote` children but not `heading` children (the TS `edges.ts` walk covers both — mentions inside headings now derive edges). Verification: +1 case in `test/relay_appliers_test.dart` (mentions inside quote AND heading both derive edge rows; 57 in the file, green); `test/content_tokens_test.dart` + `content_lockstep_test.dart` + `tag_unassign_test.dart` re-run clean (58); `flutter analyze` clean.
+
+- **feat(store): tags are links — tag membership joins the edge index (lockstep with the TS reference's 2026-11-03 ruling).** `rebuildEdges` gains the fourth vocabulary kind: one `type='tag'` edge per tag, derived from the node's derived tag list (`tagsUuid`), so a tagged node links to its tag exactly like a content mention — the tag page's backlinks list every tagged source. The two tag write paths now re-derive edges in the same apply: `tag.unassign` (previously re-derived the tag list only) and the re-issued `object.create` add carrier (previously skipped every tree side effect). The fresh `object.create` also re-derives once after the membership OR-Sets land — closing a TS-parity gap where a new node's edges (content mentions on embedded blocks, property values, tags) were never derived until an `object.update` touched it. Class assignment and `class_link` chips stay OUT of the index (the paired ruling — a class marker, not a node link). Verification: +2 cases in `test/tag_unassign_test.dart` (derive/untag/re-add edge rows; the tag page backlinks the tagged source; 9 in the file, green); `flutter analyze` clean on the touched files. GTK aligns with no change (its derived store never built the reference edge index — no backlinks surface to feed). The web side ships the backlinks/graph surfaces (`backlinksWithRollup`, the Links/Link path query arms, a graph Tags family); the mobile UI's backlink surfaces read the same `edge` table and pick the rows up on their next read-model pass.
+
+## 2026-11-02
+
+- **feat(seed): the task Status schema-level Pending default — lockstep with
+  the TS reference's `TASK_FAMILY_SEED.defaultValue` (the 2026-11-02
+  derived-default slice).** The `taskFamilySeed` Status entry now carries
+  `defaultValue` = the Pending option id (`…0004-…0009`); the
+  `workspace.feature.set {feature:"tasks", enabled:true}` seed-ensure writes
+  it to the `property_schema.default_value` column JSON-encoded (the
+  `'"<uuid>"'` text, the `propertySchema.create/update` appliers' contract).
+  Semantics: assigning the task class derives "Pending" at READ time (never
+  materialized into property values), so removing the class drops an
+  unchanged status automatically; a user-changed status survives as an
+  authored row. The effective read (`getEffectiveProperties`) gains the
+  read-side option-membership rule (the TS `effective.ts` / query-compiler
+  parity): a select/multi_select-typed default whose string value is not
+  among the schema's stored options (dangling id after option deletion)
+  derives no default row. The editor's `_convertToTask` assign arm stops
+  authoring a Pending property write (the web `taskCycle` parity) — the
+  block's local copy still carries "Pending" optimistically, mirroring the
+  derived read; the reopen/complete toggles keep writing real transitions.
+  Files: `lib/domain/models/relay/workspace_features.dart`,
+  `lib/domain/services/relay_appliers.dart`,
+  `lib/data/repositories/node_cache_repository.dart`,
+  `lib/features/editor/screens/node_editor_screen.dart`,
+  `test/workspace_features_test.dart` (four new acceptance tests: the
+  manifest default, the JSON-encoded ensure write, the derived Pending with
+  zero authored rows, the dangling select default).
+
+- **docs(agents): gate economics + host memory discipline in the development
+  skill.** Two-tier gate (mirroring the notees monorepo's 2026-10-30 ruling):
+  `flutter analyze` + `flutter test` on the touched files are the per-task
+  loop; the full gate (pub get + both patch scripts + analyze + full test) is
+  blocking at pre-landing, after a rebase onto a moved main, and for
+  wire/applier/sync changes. Same pass records the host discipline: one suite
+  at a time (never parallel full gates — two OOM the dev host), sequential
+  overlapping dispatches, and the load-symptom rule. Files:
+  `.agents/skills/notees-flutter-development/SKILL.md`. Docs-only; no code
+  surface.
+
+## 2026-10-30
+
+- **feat(seed): the `question`/`plan` deploy-catalog pair — the workflows
+  slice-2 sibling manifest (lockstep with the TS reference's seeds.ts).** The
+  monorepo's `packages/domain/src/seeds.ts` (commit 0728d80d8) lands two new
+  deploy-catalog system classes — `question` (…0001-000000000066) and `plan`
+  (…0001-000000000067) — the everyday classes the research workflow reuses,
+  in the exact definition/idea/place/project/trip precedent: plain seeds,
+  zero wire cost, seed convergence only (five seeds.ts maps; no extends, no
+  parentlessRole flag, no displayTemplate, in no pinned roster; enabled by
+  default). `SystemClassUuids` gains the two fixed ids; the manifest maps
+  resolve them (`systemClassUuids` / `systemClassIcons` /
+  `systemClassDisplayNames` — mdiHelpCircleOutline / "Question",
+  mdiClipboardTextOutline / "Plan") and the frozen-extends authority's
+  `systemClassSeedUuids` carries both (empty parent set — the system lock
+  must know every system class UUID). The local workspace seed (serverless
+  mode) emits the pair like the #14 follow-up four, so a locally seeded
+  workspace no longer misses classes the server seed authors. The parity
+  suites pin the manifest so the drift cannot recur:
+  `seed_parity_test.dart` gains the workflows-slice-2 group (fixed ids, the
+  roster-end slots after …0065, static-map coverage, the plain-seed no-extends
+  / no-flag pins, the features.ts gating mirror) and the seed-emission count
+  moves 59 → 61; `local_mode_test.dart` pins the new local-seed totals. No
+  fixture change (the seed change is server-side).
+
+- **feat(fixtures): the `propertySchema.delete` canonical fixture lands in
+  the vendored wire corpus (lockstep with the TS reference's meetingDate
+  retirement).** The TS monorepo withdraws the `meetingDate` property (a
+  meeting IS-A event and carries the inherited `eventDate`; the class-local
+  date duplicate rendered twice) and ships
+  `scripts/migrate-meeting-date-retirement.mts`, whose cleanup appends
+  `propertySchema.delete` — the schema's soft delete (`active = 0`), an op
+  this port's `relay_appliers.dart` has applied since the v2 promotion but
+  which never had a canonical fixture. The corpus gains
+  `property-schema-delete.json` (byte-identical, sha256
+  `90fc9502bfaffc59cd99f3888ccfee3f1d18de742e5e9e7bbeac2f3fdc202d3c`),
+  added to `fixtures_test.dart`'s envelope-list round-trip set; the
+  auto-discovered replay suite (`fixture_replay_test.dart`) picks it up
+  without a hand-written block. The fixture pins arms this port already
+  implements: soft delete keeps the row (surviving values still validate
+  against the stored type — `PropertySchemaValidationRow`'s deliberate
+  no-active-filter parity), a post-delete `property.set` succeeds, and a
+  delete of an unknown id is a lenient no-op. **LOCKSTEP SHIPPED
+  2026-10-30** — verified with the Flutter 3.50.0-0.3.pre SDK (Dart 3.14,
+  satisfying the pubspec's `^3.12.0`): `flutter test
+  test/fixtures_test.dart test/fixture_replay_test.dart` → 103 tests, all
+  passed (the GTK port's pytest replay is green against the same bytes). No
+  app code change — the applier
+  already soft-deletes exactly like the fixture pins; the port carries no
+  `meetingDate` seed constant (sibling-manifest check, the retirement's
+  lockstep law).
+
+## 2026-10-29
+
+- **feat(store): class-level `displayTemplate` — the members' derived-title
+  format string (lockstep with the TS reference, store schema v35→v36
+  parity).** `class.create`/`class.update` now carry the optional nullable
+  `displayTemplate` payload key (strict-schema acceptance, the zod
+  `z.string().max(1024).nullish()` parity; pre-change clients reject the
+  key, gating mixed writers). Tri-state, exactly like `color`: absent =
+  inherit (a re-issued create PRESERVES the stored value), a non-empty
+  string = the template, `""` = an explicit opt-out (round-trips as `''`,
+  distinct from NULL, and STOPS extends-inheritance for the class and its
+  subclasses), present null = clear back to NULL/inherit. The applier maps
+  the key to a new `class_cache.display_template` TEXT column (schema
+  v39→v40, the registry only — the local store keeps class config in
+  `class_cache`, classes have no node_cache row, the parentlessRole
+  precedent); display reads go through the new
+  `classDisplayTemplate` / `resolveEffectiveDisplayTemplate` repository
+  helpers (the TS store's `getClassDisplayTemplate` /
+  `resolveEffectiveDisplayTemplate` parity — BFS over `class_extends`
+  nearest-first, within-level ties by smallest class id, an own or ancestor
+  `''` stops the walk with null; render is this client's own release, so no
+  stored-bit projection rides along). The `class-display-template.json`
+  fixture is vendored byte-identical (sha256
+  `6d654cb70463bb27d90c6bf05006e262868fdebad2ec5c06df508195763a7d8d`)
+  into `test/fixtures/wire/`, added to the fixture-parity coverage gate,
+  and pinned by a new replay group (create-with-template, inheritance,
+  `""` opt-out stop, present-null clear, the seed/ensure re-issue preserve,
+  and the update write arms) plus payload-shape acceptance tests. Gate:
+  `flutter analyze` clean, `flutter test` all green.
+- **feat(store): date-chain delete lock — object.delete fails loud in both
+  arms.** Lockstep port of the monorepo's fourth date-chain lock (beside the
+  parent/class/embedding locks): `object.delete` targeting a date-chain node
+  (the deterministic year/month/day journal id scheme) now throws
+  `MoveGuardError` on apply in BOTH arms — soft delete (trash) and
+  `permanent: true` (purge) — placed after the node-must-exist check and
+  before the class delete routing and any trash/purge write. A date node is
+  permanent journal scaffolding under the permanent-address model; clearing
+  a day means deleting its content, never the day node. The guard matches
+  node ids only (`parseDateNodeId` is prefix-strict), so the locked-system-
+  class delete arm is untouched. The `object-delete-date-chain.json` fixture
+  is vendored byte-identical (sha256-verified) into `test/fixtures/wire/`,
+  added to the replay exclusions + the fixture-parity coverage gate, and
+  pinned by a new replay test: the 3-envelope 2024-07-26 chain prefix
+  applies cleanly, both delete envelopes throw, and the chain stays live
+  with no trash rows. UI: the node long-press action sheet hides Archive
+  for date-chain nodes and the shared archive helper no-ops for them (no UI
+  for impossible states). Gate: `flutter analyze` clean, `flutter test` all
+  green.
+
+- **ci(release): pin the release runner to `ubuntu-22.04`.** `release.yml`'s
+  `Create GitHub Release` job now names the exact `ubuntu-22.04` image label
+  instead of the floating `ubuntu-latest` alias, matching the `android.yml`
+  pin (0d9e015) — the production release path no longer drifts when GitHub
+  re-points the alias. The `build` job already runs via the pinned
+  `android.yml` `workflow_call`, so both halves of a tag release now build
+  on the same image. YAML validated with `yaml.safe_load`; local gate
+  (`flutter pub get` + both pub-cache patches + `flutter analyze` +
+  `flutter test`) green.
+- **ci(android): pin the CI runner from `ubuntu-latest` to `ubuntu-22.04`.**
+  `android.yml` `runs-on` now names the exact `ubuntu-22.04` image label
+  instead of the floating `ubuntu-latest` alias, so the nightly/PR/dispatch
+  CI artifact build no longer drifts when GitHub re-points the alias (the
+  runner label selects the VM image only — no interaction with the job's
+  steps, caches, or the workflow_call path from release.yml). YAML validated
+  with `yaml.safe_load`; local gate (`flutter pub get` + both pub-cache
+  patches + `flutter analyze` + `flutter test`) green.
+- **ci(android): fail-loud guard tying production signing to v* tag refs.**
+  `android.yml` already builds from an explicit `git-ref` on manual dispatch
+  (checkout takes `ref: ${{ inputs.git-ref || github.ref }}`); a new
+  "Guard signed builds to tag refs" step now fails the run loudly when
+  `sign-release` is set but the run is not from a pushed `v*` tag —
+  previously a dispatch could pass `git-ref: some-branch` with
+  `sign-release: true` and walk away with a production-signed APK that no
+  release pipeline ever vetted. The guard only fires when sign-release is
+  on, so the existing flows are untouched: nightly/PR builds and
+  `trigger-ci-build.sh` dispatches (sign-release defaults false) skip it,
+  and the release.yml `workflow_call` path (sign-release true on a `v*`
+  tag push, ref_type=tag) keeps working. Header comment documents the
+  contract. YAML validated with `yaml.safe_load`; `flutter pub get` + both
+  pub-cache patches + `flutter analyze` + `flutter test` are green.
+- **feat(store): reject isEmbedded writes on date-chain nodes.** Lockstep
+  port of the monorepo's date-chain embedding lock (the last carrier after
+  the object.move parent lock and the object.create / class class lock): an
+  `object.update` carrying `isEmbedded` — either direction — targeting a
+  date-chain node (the deterministic year/month/day id scheme) now throws
+  `MoveGuardError` on apply, before the parent-page checks. A date node's
+  journal role is platform-fixed (document chrome); a demote would nest the
+  journal page as an inline block in its chain parent's body. The
+  `is-embedded-date-chain.json` fixture is re-vendored byte-identical
+  (sha256-verified) into `test/fixtures/wire/`, added to the replay
+  exclusions + the fixture-parity coverage gate, and pinned by a new replay
+  test: the 3-envelope 2024-07-26 chain prefix applies cleanly (parents +
+  standalone claims), both violating envelopes throw, and the rows are
+  unchanged. Gate: `flutter analyze` clean, `flutter test` all green.
+
+- **ci(android): nightly CI artifact replaces the per-push build;
+  concurrency.** `android.yml` no longer triggers on
+  `push: [main]` — a nightly scheduled run (`23 3 * * *`, main's head)
+  produces the CI artifact APK instead, keeping `pull_request`,
+  `workflow_dispatch`, and the `workflow_call` path release.yml relies on.
+  A `concurrency` block cancels superseded PR/dispatch/scheduled runs while
+  excluding `workflow_call` from both the group and cancellation (group is
+  unique per caller run), so a tag release build can never be cancelled by
+  an overlapping CI run. All existing action SHA pins are untouched.
+  Doc sync: AGENTS.md "Build" section + the operations skill's
+  `references/releases.md` now describe the nightly/PR/dispatch/call
+  triggers (PKGBUILD stays local-only, never CI, not on AUR — no drift
+  found).
+
+## 2026-10-28
+
+- **fix(home): the command palette pushes the editor with the wire uuid.**
+  The palette's `NodeCommand` branch built the editor route from `Node.id`
+  (the local int row id) while every other editor push in the app uses
+  `Node.uuid` — the push landed on a nonexistent node. Now
+  `MainShellScreen` pushes `'${Routes.editor}/${node.uuid}'` like the rest
+  of the app. Pinned by a widget test driving the real shell + palette over
+  a scripted recent-pages cache: the pushed path parameter is asserted
+  uuid-shaped and equal to the node's wire uuid, distinct from the local
+  row id (the test fails against the row-id construction).
+- **fix(prefs): the queued offline cards-algorithm write survives an app
+  restart.** `PrefsRepository`'s pending offline PUT lived in memory only,
+  so a restart dropped it and the next successful GET could clobber the
+  device copy with the server's stale value. The pending scalar now rides a
+  second `shared_preferences` key (`notees.cardsAlgorithm.pending`): written
+  when a push fails, cleared when the flush lands, restored at construction
+  — all existing behaviors unchanged (flush-before-answer ordering,
+  answer-from-pending on flush success, invalid→fsrs, offline read = device
+  copy else fsrs). Verified by a new test arm: a pending write survives a
+  repository rebuild over the same prefs store and is not re-flushed after
+  it has landed (the arm fails against the in-memory-only implementation).
+
+- **feat(cards): memorization cards — the hub + the review session UI.**
+  Follow-up to the lockstep slice below (the `card` class rename, the six
+  card-family property schemas, and the `card.review` history op all
+  shipped there); this slice is UI + scheduling only — zero wire/model/
+  applier changes. The web app is the source of truth throughout.
+  (1) **Scheduler** — a 1:1 pure-Dart port of the web `packages/domain/src/srs.ts`
+  (`lib/domain/services/srs.dart`): SM-2 (quality map again 1/hard 3/good 4/easy
+  5, initial ease 2.5, floor 1.3, intervals 1 → 6 → `round(interval·ease)`,
+  lapse resets reps 0/interval 1) and FSRS-5 (the fixed 19-weight vector, no
+  fitting — v1), one `CardSrsState` carrying BOTH algorithms' fields so a
+  mid-deck algorithm switch initializes only the active algorithm's fields
+  and the other's stay byte-for-byte stale; UTC day math. The hub/queue
+  scheduling (`lib/domain/services/card_schedule.dart`) ports the web
+  partition (due day-asc by (day, id) / fresh input order / later
+  day-asc), the review queue (due-first then fresh, **future-due dropped
+  never queued**), the datetime slot grammar (`scheduledIsoOf` — point
+  slot day, range start-day falling back to the end-day, day-precision
+  strictness), and the SRS-state read (missing/unparseable fields read as
+  the unseen defaults).
+  (2) **The write path** — `NodeRepository.reviewCard` (the web
+  `client.ts reviewCard` parity, with the `card.review` append folded in —
+  this client has no undo journal, so "append after the property writes"
+  is the order): idx-addressed `property.set` envelopes for the ACTIVE
+  algorithm's fields ONLY (sm2 → `cardEase`; fsrs → `cardDifficulty` +
+  `cardStability`; the inactive fields stay byte-for-byte stale — a
+  hard-coded branch, never a generic write-all), every write addressing
+  the row's existing idx re-read at write time, then the strict
+  `card.review` envelope (one `sessionId` per session). Fails loud on a
+  missing card before any write lands.
+  (3) **Ruling — the date chain is ensured before the due write.** The
+  `getOrCreateDailyJournal` seam is DAY-ONLY (verified by test — it
+  creates the day node, never the month/year, so a day node would land
+  parentless and diverge from the web's parent-locked chain shape);
+  `NodeRepository.ensureDateChain` therefore mirrors the web
+  `ensureDateChain` and creates year (workspace root) → month (under the
+  year) → day (under the month) at the deterministic ids with the compact
+  date labels, each only when missing. The documented Phase-A divergence —
+  no restore op, so a trashed chain node reads as missing — is noted in
+  the method's doc comment.
+  (4) **Prefs** — `PrefsRepository.getCardsAlgorithm/setCardsAlgorithm`
+  over `GET`/`PUT /api/me/prefs` (the server is the authority; a
+  `shared_preferences` device copy carries offline reads — **offline
+  default `fsrs`** — and offline writes flush to the server on the next
+  successful call; an invalid/absent server value falls back to `fsrs`);
+  `CardsPrefsProvider` is a ChangeNotifier with an optimistic toggle.
+  (5) **Navigation (ruling: the fifth bottom-nav destination, Home · Tasks
+  · Cards · Journal · Library)** — `Routes.cards '/cards'` lands on
+  `MainShellScreen(initialIndex: 2)`; `Routes.cardsReview '/cards/review'`
+  is a pushed route taking the session hand-off via `state.extra`
+  (`CardsSessionHandOff`: cardIds + label — the web sessionStorage
+  hand-off's local equivalent; a missing/corrupt extra resolves every
+  card member, the web deep-link fallback); the command palette gains
+  "Go to cards".
+  (6) **The hub** (`CardsScreen`, the Tasks-screen shape): members via
+  `searchWithFilters(classUuids: [card], limit: 500)`, the family
+  self-heal (`ensureCardFamily` — the web `cardFamily.ts` port: the six
+  schemas + card-class bindings authored idempotently over `emitLocal`, a
+  no-op once present — binding-row PRESENCE, not the active flag, so a
+  soft-unbound binding stays unbound and is never re-authored — the
+  binding pass skipped when the card class node is absent, the whole
+  thing skipped for local workspaces where the seed authors the family; the bound-set read is the op-log `class_property`
+  table, not the snapshot-mirror edge table), the bucket strip (Review N
+  due · M new, disabled at 0; fresh/later pills), FleetCard rows
+  (one-line title, due-day caption, per-row play → a "Single card"
+  session, row tap → editor), the AppBar SegmentedButton ("FSRS
+  (default)"/"SM-2", the web SelectionButton labels).
+  (7) **The review session** (`ReviewSessionScreen`, the web
+  `ReviewSession.tsx` parity): front = the card node's own content;
+  Reveal → the back = the node row + its embedded children; a front-only
+  card names its emptiness ("No answer on this card") and grading still
+  works; the grade bar is Again (error-styled) / Hard / Good / Easy; lapses
+  counted (Again && reps > 0); the summary screen ("N cards reviewed" +
+  "M lapses", "Back to cards"); the empty queue renders the web copy
+  verbatim ("Nothing to review" / "No cards are due. New cards appear here
+  once the card class is assigned.") with a Back action. Verification:
+  71 new tests across the srs vectors (mirroring `srs.test.ts` exactly
+  plus Dart edge arms whose expected numbers were generated from the TS
+  implementation itself), the partition/queue/slot-grammar pins, the
+  prefs round-trips and fallbacks, the routing/navigation widget tests,
+  the hub (sqflite_ffi harness — bucket counts, hand-off ids, toggle
+  write, the self-heal arms), the write path (envelope order and payload
+  shapes for both algorithms, the stale-fields arms, the fresh/reused
+  chain arms, the seam day-only pin, the fail-loud arm), and the session
+  flows (front→reveal→grade→advance, front-only, summary/lapses, empty,
+  vanished-node drop) — 805 tests green, `flutter analyze` clean.
+
+- **feat(protocol,store): memorization cards lockstep — the `card` class
+  rename, the six card-family property schemas, and the `card.review`
+  history op.** Lockstep with the monorepo's `memorization-cards` branch
+  (TS ships first; this branch is `memorization-cards-lockstep`, unmerged by
+  design). (1) The `card` system class is RENAMED to the display title
+  "Memorization card" (UUID …0011 unchanged, the key `card` stays
+  code-facing): `systemClassDisplayNames` + the local seed icon moves to
+  `mdiCardsPlayingOutline` (workspace_features + LocalWorkspaceSeed,
+  exactly the server seed's shape). (2) The six SRS schedule schemas join
+  the seed manifest at the …0004- property block (…0003- is the
+  task/meeting/event family; the select-OPTION ids riding the same
+  namespace never meet schema ids): cardDue (datetime) + cardReps /
+  cardInterval / cardEase / cardDifficulty / cardStability (number),
+  class-bound to `card`, ALL UNPINNED (the 2026-10-27 pinned roster is
+  frozen and no card field joins it) — `SystemPropertyUuids` gains the six
+  constants and the local workspace seed gains six scalar `SeedPropertySpec`
+  entries (59 emitted ops now, pinned). (3) The new `card.review` op
+  (strict payload: cardId/grade again|hard|good|easy/algorithm sm2|fsrs/
+  stateBefore/stateAfter — the strict `cardSrsState` records (due
+  YYYY-MM-DD|null, reps/interval numbers, ease/difficulty/stability
+  nullable numbers)/reviewedAt/sessionId) lands in the op registry with
+  factory + validators (`_cardSrsState` + the `_num` helpers, zod
+  `.strict()` parity) and an applier that is HISTORY-ONLY: one append-only
+  row per graded review in the new derived `card_review` table (local
+  schema v39, lockstep with the TS store schema v34→v35), NO LWW gate, NO
+  superseded path, never writes property values — validation is
+  membership-only (NodeNotFoundError / MoveGuardError, never applied).
+  `NodeCacheRepository` gains `insertCardReview` + `listCardReviews` (HLC
+  order, JSON-parsed snapshots, the TS `Store.listCardReviews` port). The
+  `card-review.json` fixture joins the byte-pinned corpus (sha256
+  `8e3b18c7…defe3`, identical to the monorepo copy — corpus 41→42) and
+  enters the fixtures parity gate; the replay suite pins the fixture's two
+  review rows (the AGAIN→SM-2-ease-2.5 initialization, the GOOD review's
+  2026-10-29 schedule as the surviving stateAfter, both sessions listed in
+  HLC order), the concurrent-reviews-are-ALL-history arm, the fail-loud
+  arms (missing node / non-card node / malformed payloads — none touches
+  state), and the no-property-values-written invariant. Coverage: the
+  payload suite pins the strict schema (each violation rejected
+  independently, protocol.test.ts parity); seed-parity pins the …0004-
+  block ids, the scalar/unpinned specs, the renamed title + icon, and the
+  59-op emission. Verified: `flutter analyze` clean + `flutter test` green.
+
+- **feat(seed): the `project` property constant joins the task UUID block
+  (plain-seed convergence follow-up).** Lockstep with the monorepo's
+  `project` property seed (TS ships first): the task→project membership
+  relation (`…0003-000000000012`) — object-typed `{nodeId}` refs, MULTI,
+  `targetClassFilter ["project"]` (extends-aware apply-time validation, the
+  `linkedAuthors` precedent), GLOBAL scope with the class-local BINDING ROW
+  on `task` the only task-specific piece (the `url`→source precedent),
+  UNPINNED (no declared pin set carries it), and the first seed to carry the
+  schema-level `hideWhenEmpty` contract (true — a task with no project shows
+  no empty row). The weblink-extends precedent's depth, no more: the mobile
+  app authors NO local row for it — the local seed's property-schema axis
+  stays the source creator slice (the documented divergence) and the
+  applier-side family ensure mirrors the TS `TASK_FAMILY_SEED` six (the TS
+  applier-side ensure kept six too; the seventh schema rides the server
+  seed + the web `ensureTaskFamily`); a server attach or the web ensure
+  converges the schema + binding through the shared log. Coverage: the seed
+  parity suite's task-block UUID pin gains the constant (block-clean
+  `…0003-` assertion covers it). The `workspace_features` family-ensure
+  pins stay at the six authored rows. Verified: `flutter analyze` clean +
+  `flutter test` green.
+- **feat(protocol)!: accept the retired `url` property type (url → text).**
+  Lockstep with the monorepo's url-type-retirement slice (TS ships first; the
+  Flutter branch is `url-type-retirement`, unmerged by design). The strict
+  `propertySchema.create` type enum loses `url` outright — a url-typed schema
+  payload fails loud at the validation layer (the retirement comment block
+  mirrors `op-types.ts`), mirroring the retired `date`/`date_range` handling.
+  The seeded `url` property (uuid …0000-000000000024) survives by name/uuid as
+  a `text`-typed schema per the TS seed manifest — the mobile seed delta never
+  declared it, so no seed change here. The value-shape arms follow the TS
+  `property-values.ts` port: the `url` cases drop out of
+  `isValidDefaultForType` / `assertScalarShapeForType` / the R2
+  validationRules applicability + pattern value check (text/email cover
+  everything url did; `email` is untouched), and the doc headers reword to
+  text/email. The alive `PropertyValueCell` editor drops its `url` arm (a
+  text-typed schema renders the default text field; bare URLs linkify through
+  the markdownLinks grammar, the only affordance). Coverage: the retired-type
+  rejection test gains `url`; the two PG6/R2 validation tests retype their
+  url schema to `email` (string-scalar coverage unchanged). The two corpus
+  fixtures the slice touches arrive verbatim (byte-pinned):
+  `property-validation-rules.json` (the Homepage schema retypes url → text,
+  its url-shaped pattern riding a text schema) and
+  `property-schema-update-fields.json` (the comment reword). The third
+  monorepo fixture diff, `property-assign.json`, stays unvendored — its
+  `property.assign` wire belongs to the node-property-assignment slice, not
+  yet ported to Flutter (that slice vendors it). Verified: `flutter analyze`
+  clean + `flutter test` green.
+
+## 2026-10-27
+
+- **test(sync): vendor the `tag-membership` fixture + replay expectations —
+  the tags wire converges on Flutter.** `test/fixtures/wire/tag-membership.json`
+  joins the byte-pinned corpus (sha256 `f3f8e4d0…57e5f0977`, identical to the
+  monorepo's `packages/protocol/fixtures/` copy — corpus 40→41) and enters the
+  fixtures parity gate list. The fixture pins the tags OR-Set end to end: two
+  parentless tag pages, the `object.create` `tagIds` seed, the re-issued
+  create assign carrier (accumulates B, `recomputeTagIds` sorted by tag_id,
+  the tree untouched), the `tag.unassign` tombstone, and the newer re-issued
+  create's add-wins resurrection (the tag add's strictly-greater `(hlc,
+  actor)` tiebreak — the deliberate asymmetry vs classIds' `>=`). The fixture
+  replay suite now asserts each stage's derived state, including the
+  `tag_member_set` end-state rows. The sync layer already carried this wire
+  (the tag-ui slice's foundation), so this is expectation coverage only — no
+  applier change. Verified: `flutter analyze` clean + `flutter test` green —
+  the parity sweep's "every fixture on disk is covered" assertion passes with
+  exactly the one new file.
+
+- **feat(editor): first-class tag management — tag pills on pages and
+  blocks (web TagsRow / BlockRow parity).** The Flutter UI had no tag
+  surface; the sync layer already carried tag membership (the re-issued
+  `object.create` `tagIds` OR-Set carrier and `tag.unassign`), so this slice
+  is UI + write wiring only — the appliers are untouched. The page header
+  now renders a tags row under the class pills: alphabetical pills tinted
+  with each tag's effective color (own color, else its classes', else the
+  theme accent — the web's `effectiveNodeColor`), a trailing × that
+  unassigns, and an "Add tag" chip; blocks carrying tags get a dedicated
+  indented row below the block row (the web's `nt-block-tags` visibility
+  rule: the row renders only when at least one tag is set). Assignment rides
+  the existing node-picker sheet — `NodePickerMode.tag` now actually lists
+  the page space (any page can act as a tag; the mode was a stub returning
+  nothing) — and both assign and remove enqueue `add_tag`/`remove_tag` on
+  the offline outbox, the exact queue class writes already use
+  (`_removeClass` is the remove mirror), applied to the local cache before
+  the push. The page's ⋮ menu and the per-block options menu carry the
+  assign affordance for the empty state. Verified: `flutter analyze` clean +
+  `flutter test` green — new `test/tag_ui_test.dart` (9 tests: alphabetical
+  ordering, effective-color resolution, the block-row visibility rule, pill
+  remove/add callbacks, and the outbox write path — assign flushes as
+  `object.create` with `tagIds` and unassign as `tag.unassign`, both applied
+  to the local cache).
+
+## 2026-10-26
+
+- **fix(store): `object.move` keeps a parentless main node a page — the
+  first parenting acquires the standalone claim (treat-as-main, Flutter
+  lockstep port of the monorepo fix, reference commit `867c25134`).** A node
+  left parentless with `is_embedded` still 1 (an extracted-to-page block, a
+  block un-parented via "Remove parent") renders as a page while parentless,
+  but the untouched bit silently demoted it to an embedded block the moment
+  a parent was assigned. The `_applyMove` applier now computes a
+  treat-as-main claim — the row was parentless, the new parent is not null,
+  the row is not a class, the stored bit is 1, and the node is NOT a member
+  of an effectively `parentlessRole "block"` class (extends-aware, the same
+  predicate the page-row guard reads for its parentless arm) — and on the
+  claim: (1) GUARD: the new parent must render with document chrome, else
+  the same `MoveGuardError` the standalone-move guard uses, with the TS
+  message (`node <id> renders as a main page while parentless; parenting it
+  requires a parent that renders with document chrome`); (2) APPLY: the move
+  additionally writes `is_embedded = 0` AND stringifies the node's content
+  in the same op — the same lossy flatten as the `object.update` promotion
+  (1→0), flattening the content AST to text-only via the content
+  stringifier. Parented→parented moves still never touch the flag;
+  unparenting is unchanged; the acquisition rides the existing row-level LWW
+  gate (a stale move still drops whole). No wire change — the fixture
+  corpus is untouched. Verified: `flutter analyze` clean + `flutter test`
+  green — four new pins mirror the TS tests (orphan parenting acquires the
+  claim, the acquisition stringifies a text+mention stream to a single text
+  token, parenting under an embedded block or a class throws and leaves the
+  flag untouched, a parentless `parentlessRole "block"` class member keeps
+  the bit and stays a block) and the pre-existing move-to-root test's
+  re-parent tail now asserts the acquired claim. Completes the
+  three-implementation lockstep (TS reference, GTK, Flutter).
+
+## 2026-10-24
+
+- **feat(protocol,store): class-level `parentlessRole` — the parentless
+  branch of the render cascade goes class-aware (Flutter lockstep port of
+  the owner-2026-10-24 change).** `class.create`/`class.update` gain the
+  OPTIONAL NULLABLE `parentlessRole` (`"page" | "block"`; absent/null =
+  `"page"`, the zero-migration default; presence writes, present-null
+  clears, exactly like `color` — strict payloads reject unknown keys, so the
+  lockstep law gates mixed writers). The canonical fixture
+  (`class-parentless-role.json`, sha256 `11779e2ce5a89…85cab494`,
+  byte-identical to the monorepo corpus) pins the payload shapes: Task seeds
+  flagged, Event is flagged then cleared by a present-null update, Errand
+  carries no flag of its own but extends the flagged Task. Derived store:
+  this client keeps class config in `class_cache` only (classes have no
+  node_cache row — the icon/color precedent), so the TS store's
+  node+registry two-column port lands as the single registry column
+  `parentless_role` (schema v38, the guarded-ALTER idempotent migration;
+  the TS store schema v31→v32 lockstep). The class.create applier maps
+  presence/present-null and a re-issued flag-less create PRESERVES the
+  stored flag (the TS COALESCE conflict arm). The cascade: the stored
+  `is_page` bit becomes flag-aware — a parentless non-class node renders
+  with document chrome UNLESS any carried class effectively carries
+  `"block"`, where effective is EXTENDS-AWARE (own flag OR any
+  extends-ancestor's via `class_cache` × `class_hierarchy`, one-way demote,
+  no per-level unflag) — re-derived at object.create/move/update, on
+  membership recomputation, swept over a class's parentless members when a
+  class.create/update writes the flag, and honored by the snapshot restore
+  (pre-v32 snapshot bytes guard to "nobody flagged", the zero-migration
+  default). The parent-page guard (`_isPageRow`) reads the same predicate,
+  so a standalone claim (object.create / promotion / object.move) under a
+  block-role parentless node fails loud with the same `MoveGuardError` — no
+  new error type. The local workspace seed emits `parentlessRole: "block"`
+  on class.create for the flagged roster (`systemClassParentlessRoleBlock`,
+  the TS `SYSTEM_CLASS_PARENTLESS_ROLE_BLOCK` port — quote, code, asset,
+  card, task, template, comment, table, cloze, highlight, query, definition,
+  idea, event; meeting/birthday deliberately absent — they inherit through
+  event's seeded extends edge); the applier-side task-family ensure path
+  matches the TS `ensureTaskFamilyRows`, which writes no flag. Page-role
+  surfaces (search page scope, the node picker's page filter, alias-target
+  guard) follow automatically — they read the `is_page` bit; the two
+  UI-side cascade re-derivations (the archived-screen subtitle and
+  `typeLabel`) now read the same bit instead of re-deriving
+  `parentless || standalone` by hand; no new surfaces invented. Verified:
+  `flutter analyze` clean + `flutter test`
+  green (the fixture replays through the acceptance suite; new pins cover
+  create-with-flag/absent-null, update set + present-null clear, flag-less
+  re-issue preservation, the Errand-extends-Task effective demote, the
+  flag-flip member sweep, and the flag-aware guard on create/promotion/
+  move).
+
+## 2026-10-23
+
+- **feat(protocol,store): `workspace.feature.set` settings payload —
+  whole-row LWW (Flutter lockstep port of the source-library slice-2 change).**
+  The op payload extends with an optional `settings` JSON record (strict
+  shape — the protocol pins only "a JSON object"; feature-scoped vocabulary,
+  no Flutter surface emits settings yet — convergence-only alignment). The
+  re-vendored canonical fixture (`workspace-feature-set.json`, sha256
+  `f8989a15…a94431`, byte-identical to the monorepo corpus) grew a
+  three-envelope tail exercising the semantics. The payload factory +
+  validator accept the optional record; the applier persists it on the same
+  whole-row LWW-by-(workspace, feature) comparator — a winning old-shape
+  write stores NULL (absent is distinct from `{}`), the derived
+  `workspace_feature` table gains the `settings` TEXT column (schema v37,
+  the TS store schema v29→v30 lockstep; the guarded ALTER backfills NULL,
+  which is exactly the pre-column meaning), and the repository exposes the
+  winning row's full state (`workspaceFeatureRow` — enabled + parsed
+  settings) alongside the winner-only comparator read. The store acceptance
+  pins the fixture's forward AND reversed replay landing on the identical
+  settings state (the final sources winner's record; the intermediate
+  old-shape re-enable cleared it to NULL; the old-shape tasks winner stores
+  NULL) plus the dedicated whole-row LWW lifecycle (set → old-shape win →
+  NULL; `{}` round-trips as a real value; a stale settings op loses and
+  leaves the row untouched).
+
+- **feat(protocol,store): the source library — seed-manifest lockstep
+  (Flutter port of the monorepo's source-library slice 1 tasks 3–5).** The
+  system-seed manifests align with the TS seed authority
+  (`packages/domain/src/seeds.ts` + `source-class-bindings.ts`): three
+  system class RENAMES keeping their fixed UUIDs — `article` →
+  `journal_article` (…0026), `weblink` → `web_page` (…0034), `movie` →
+  `film` (…0035) — and the `paper` class WITHDRAWN (…0025, never reused:
+  Zotero has no "paper"; nodes migrate to journal_article). The
+  source-library roster lands: 30 NEW source type-classes (UUIDs
+  …0048–…0065, alphabetical by key) ALL extending `source` — the
+  frozen-extends lock authority (`systemClassSeedUuids` /
+  `systemClassExtendsIds`), the sources-family cascade
+  (`familyClassNames('sources')` now 40 classes), the icons/display-titles
+  maps, and the gating walk all cover them; the 18-name
+  `SYSTEM_ARCHIVED_BY_DEFAULT_CLASSES` set ports as
+  `systemArchivedByDefaultClasses` (pure seed data — nothing consumes it
+  yet, exactly the core's slice-1 state). The property axis: `authors`
+  RETYPED object → text-multi (UUID …0012 unchanged, the agent filter
+  superseded), `linkedAuthors` REINSTATED at its new UUID …0006-…0001
+  (object-multi, targetClassFilter [agent] — the burned …0025 stays
+  unused), `editors` ADDED at …0006-…0002 (text-multi); the local
+  workspace seed's property slice is now the creator family
+  (authors + linkedAuthors + editors, each bound to `source`), replacing
+  the retired authors-object reversion. Structural divergences kept
+  deliberate: the local seed still emits its curated class subset (the
+  30-new roster is NOT locally seeded — a server attach converges it, and
+  the applier's family-bit derivation no-ops over absent registry rows),
+  and the rest of the bibliographic pool (the 80 non-creator properties),
+  the per-class `SYSTEM_SOURCE_CLASS_BINDINGS` table, and the Zotero
+  item-type manifest stay unported — no Flutter surface consumes them
+  until the citation-import slices. Two store applier fixes ride the same
+  slice (the core's `2441de071` "archival is
+  VISIBILITY state, not an absence"): the `class_hierarchy` closure
+  rebuild walks EVERY class row (the `active = 1` filter dropped an
+  archived class's entire extends closure on the next `class.setExtends`),
+  and the `class_cache` upsert's conflict arm never rewrites `active` (a
+  re-issued `class.create` — the seed/ensure idempotent re-run — no longer
+  revives an archived class). The vendored `object-create.json` fixture
+  keeps its …0025 classId (opaque to the appliers; the core left it
+  unchanged). **Verification:** `flutter analyze` clean; `flutter test`
+  green (seed-parity suite extended: the roster pins — fixed ids, static
+  maps, the frozen-extends lock coverage, the family cascade, the
+  archived set — the creator-spec and emission-count updates, plus the new
+  archival-semantics regressions: archived-survives-rebuild,
+  re-create-never-revives, archived-type resolves through extends).
+
+- **feat(protocol,store): external-id mappings — the `external_ref.*` op
+  family (Flutter lockstep port of the monorepo's SCHEMA.md "External-id
+  mappings" + TS store schema v30).** The plugin mapping substrate: a
+  durable, per-workspace, log-carried `externalId -> nodeId` map so
+  re-runs of an importer or a provider sync UPDATE the mapped node instead
+  of duplicating it. `external_ref.set {ref, nodeId}` writes one LIVE
+  mapping per (workspace, ref) — LWW by envelope (hlc, actor) on the ref
+  key, so a re-set MOVES the mapping (re-targeting is legal) and a racing
+  pair converges on the higher tuple under either delivery order; a stale
+  write (full tuple <= the standing record) is dropped. `external_ref.delete
+  {ref}` is the LWW delete side and keeps a TOMBSTONE per (workspace, ref)
+  — including a delete of an UNMAPPED ref — so a stale concurrent set
+  delivered after the winning delete is dropped on every replica and
+  wipe → replay converges under any delivery order; at most one of {live
+  row, tombstone} stands per key (a winning set deletes the tombstone, a
+  winning delete deletes the live row). `ref` is the caller-namespaced key
+  `<provider>:<kind>:<externalId>` (opaque to the protocol, 1..512 chars —
+  empty/oversize fail loud in the strict validator); `nodeId` is a bare
+  uuid with NO referential integrity (the property_value precedent — a
+  mapping may name a not-yet-synced node). Both ops join the op registry
+  (`OperationPayloads.knownOpTypes`) with strict factories
+  `externalRefSet`/`externalRefDelete`; the appliers route by op type
+  (the payload carries no addressed `objectId`), fail loud with
+  `EnvelopeValidationError` on malformed payloads, and never swallow a
+  write. Derived state: local schema v35→v36 (`external_ref` PK
+  (workspace_id, ref) + node_id index, `external_ref_tombstone` — purely
+  additive, the TS store's v29→v30 mirror) with the repository's
+  record/upsert/purge methods and the two TS-parity reads
+  `resolveExternalRef` (live table only — a tombstoned ref resolves null)
+  and `externalRefsOf` (sorted reverse read). A node's HARD delete purges
+  its live rows (the subtree purge in `NodeCacheRepository.hardDelete`,
+  riding trash.empty too); soft-trash keeps them (a restore re-activates
+  the node, mappings intact); ref tombstones survive their node's purge.
+  Fixture corpus: `external-ref.json` vendored byte-identical (sha256
+  9cf46b1b630be8db109cf999f451242ca880398eb43c2decc79068994145a47e)
+  and wired into the parity gate + the replay suite — the canonical
+  fixture converges forward AND with the mapping ops reversed (the
+  tombstones kill the stale sets), plus soft/hard-trash and fail-loud
+  payload suites. **Verification:** `flutter analyze` clean; `flutter
+  test` green (payload registry, fixture parity, fixture replay).
+
+## 2026-10-22
+
+- **feat(protocol,store): the classes gallery + retired `class.delete`
+  (Flutter lockstep port of the monorepo's 1423ce2c2).** Four wire/applier
+  changes land together: (1) `object.update` gains the optional `active`
+  boolean — `false` archives, `true` unarchives — a platform node field
+  like icon/color; the applier projects it to the node row's archived flag
+  and mirrors it to the class registry for class rows, with two archival
+  refusals failing loud (the locked system classes can never be archived;
+  family bases are toggle-managed — the Features setting is their single
+  archive path; unarchiving stays legal). (2) `workspace.feature.set`'s
+  feature enum gains `journal` — a SURFACES-only toggle (journal view +
+  Today-page management) that derives NO class archival bits
+  (`isFamilyFeature` is the applier guard). (3) `class.delete` is RETIRED
+  from the op registry — rejected outright like any unknown op type; a
+  replayed log entry is ignored. (4) `object.delete` on a class node routes
+  four ways, all a pure function of the class id: LOCKED system classes
+  (year, month, day, table, asset, query, code, template, comment — new
+  `lockedSystemClassNames`/`isLockedSystemClassId`/
+  `systemClassNameForId` in `workspace_features.dart`) fail loud with the
+  new `LockedSystemClassError`; family bases route to
+  `workspace.feature.set {enabled: false}`; other system classes archive
+  (`active = false`, no trash row — the unarchive path is the archival
+  write, never `object.restore`); user classes take the plain trash row.
+  Membership RIDES every removal path: the membership sweep is gone from
+  the delete arms and `trash.empty`, so `class_member_set` pairs survive
+  archive, trash, restore, and permanent delete (the dangling-reference
+  state); `object.restore` gained a class-only root path (registry
+  reactivation + subtree reactivation). `_deriveFamilyClassBits` now also
+  flips class node rows that exist. Fixture corpus: byte-identical sync
+  with the monorepo — `object-update-active.json` and
+  `object-delete-class-routing.json` added, `workspace-feature-set.json`
+  gains the journal pair, `class-delete-managed.json` deleted; the replay
+  gate excludes the routing fixture (its locked delete throws) and pins
+  all four arms, and the `workspace-feature-set` replay now expects the
+  `journal` row. **Verification:** `flutter analyze` clean; `flutter
+  test` green (payload registry, feature routing, fixture replay).
+
+- **feat(sync): WS auth moves to the `Authorization` upgrade header —
+  `?token=` retired (Flutter lockstep port of the monorepo's
+  0ea18fcd5, WIRE.md §2).** The relay now REJECTS `?token=` credential
+  query params on the entire API (401) — a bearer token in a URL lands in
+  every log along the path — and the WS upgrade `/api/relay/v2/ws/
+  {workspaceId}` admits auth as an `Authorization: Bearer <credential>`
+  header (native-client path; the `?ticket=` flow is browser-only and not
+  needed here). `buildRelayWsUrl(baseUrl, workspaceId)` loses its token
+  parameter entirely (the `/api` suffix-trim and http→ws mapping
+  unchanged); the credential now travels as
+  `{'Authorization': 'Bearer $apiKey'}` on every connect, including
+  backoff reconnects: `RelayWsClient` gains a `headers` field, the
+  `WsConnector` typedef becomes `(String url, Map<String, String>
+  headers) → Future<WsConnection>`, and `defaultWsConnector` switches
+  from `WebSocketChannel.connect` (cannot set headers) to
+  `IOWebSocketChannel.connect(uri, headers: …)` from
+  `package:web_socket_channel/io.dart` (pinned 3.0.3; dart:io is
+  available on Android/iOS/Linux). The `WsConnection` seam is untouched —
+  tests still inject scripted fakes. `SyncV2Service.startRealtime`
+  passes the header map; the Dio REST layer already attached
+  `Authorization`/`X-API-Key` via interceptors and needed no change.
+  Docstrings updated (`?token=` rationale recorded at each anchor).
+  **Verification:** `flutter analyze` clean; `flutter test` green —
+  URL assertions no longer expect a query string, a new unit proves the
+  URL carries no credential, the connector-fake suite asserts the
+  `Authorization` header reaches the connector on connect AND reconnect,
+  and the engine-level realtime test captures the header the production
+  connector would send. Shipped via CI APK on push to main.
+
+- **feat(protocol,store): the system-extends lock — a system class's
+  `extends` mapping is frozen to the seeded set (Flutter lockstep port of the
+  monorepo's SCHEMA.md "Class properties").**
+  `class.setExtends` on a SYSTEM class applies only when the payload's
+  `parentClassIds` set EQUALS the seeded parent set (order-insensitive — the
+  seed/ensure re-issue convergence path keeps working); every deviation fails
+  loud with the new `SystemExtendsLockError` and is never applied. The guard
+  runs after the class-node existence check, before the parent-existence and
+  cycle checks (TS ordering). Authority: `systemClassExtendsIds` in
+  `domain/models/relay/workspace_features.dart` — the Dart port of the TS
+  manifest `SYSTEM_CLASS_EXTENDS_IDS` (every system class UUID resolved to its
+  seeded parent UUIDs via the full `systemClassSeedUuids` map; classes absent
+  from the seeded edges are frozen to the empty set), with `isSystemClassId`
+  alongside. The full map needs the three seed UUIDs the mobile seed delta
+  never carried (`organization`/`collection`/`highlight`, …031–…033), added
+  to `core/constants/system.dart` — additive constants only, the seed delta
+  itself is untouched. User classes stay freely extensible, including onto
+  system bases. New vendored fixture `class-extends-system-lock.json`
+  (byte-pinned, sha256-verified against the monorepo corpus) — added to the
+  fixtures-test gate list and excluded from the all-fixtures replay; the
+  replay suite pins its accepting prefix (user class → meeting, meeting →
+  event re-issue) and its three-envelope rejecting tail (detach, extra
+  parent, empty-set deviate), each throwing the lock error and leaving
+  `class_extends` exactly at the two prefix edges. No local DB schema change.
+  **Verification:** `flutter analyze` clean; `flutter test` green. Shipped
+  via CI APK on push to main.
+
+## 2026-10-21
+
+- **fix(search,picker): diacritic folding — `video` finds the class
+  "Vídeo" (the web store's `foldSearchText` mirror).** The local search
+  index and the class-mode node picker compared raw lowercased text, so an
+  unaccented query missed accented names everywhere: the search screen, the
+  node picker (all modes — page/any ride the term index, class mode filtered
+  raw display names), and every `searchLocal` consumer. `tokenize()` now
+  strips diacritics (`diacritic` package — pure Dart; the SDK has no
+  Unicode normalization), folding BOTH the index build and every query in
+  one place (the index/query mirror pair by construction, same rule as the
+  web store's `foldSearchText`); the node picker's class mode folds both
+  sides of its substring match. Local DB schema v35 clears `search_index` —
+  the sync service's `shouldReindexSearch()` backfills with folded terms on
+  the next boot. Verification: `flutter analyze` clean; `flutter test`
+  green — new tokenize folding units (both directions), an index+query
+  mirror test, and a repository-level `searchNodes` test over the real
+  sqflite schema (unaccented query, accented query). Shipped via CI APK on
+  push to main.
+
+- **feat(protocol,render): the `external_link` retirement — links are
+  markdown spans inside `text` tokens, parsed at render time (Flutter
+  lockstep port of the monorepo ruling 2026-10-21, SCHEMA.md "Content
+  grammar").** The `external_link` token RETIRES: links live as markdown
+  `[label](href)` spans inside ordinary `text` tokens, parsed at render
+  time. `ExternalLinkToken` and its `fromJson` dispatch arm are gone —
+  unknown wire types already degrade to `UnsupportedToken`. Render grammar
+  (normative, ported 1:1 from `splitMarkdownLinks` in
+  `packages/domain/src/markdownLinks.ts` into
+  `domain/models/content/markdown_links.dart`): match
+  `\[([^\]\n]+)\]\(([^()\s]+)\)`; only `http:`/`https:`/`mailto:` hrefs
+  render as anchors (underlined, accent-colored, tappable via the existing
+  `onExternalLinkTap` handler); unclosed brackets, other schemes
+  (`javascript:`, relative paths) stay literal text. `AstRichText`'s text
+  span builder splits each run through the parser — link segments get the
+  same underline/accent look the old token arm had, and plain segments keep
+  their marks. Legacy conversion (`ast_stringifier.dart`): the `{url,
+  children}` pill now converts to a text token carrying `[text](href)`
+  (marks ride along), which `AstBuilder.toMarkdown` writes verbatim and
+  `parseInline` reads back as plain text — the editor text form
+  round-trips the shape; the retired type leaves `isFlatTokenStream`'s
+  vocabulary and `ast_builder.dart`'s dead serializer arm. **Verification:**
+  `flutter analyze` clean; `flutter test` green (674 tests). No fixture
+  bytes change (no fixture ever carried the token).
+
+## 2026-10-21
+
+- **feat(protocol,store): the readonly retirement — `readonly` derives from
+  the system list, not stored (Flutter lockstep port of the monorepo's owner
+  ruling 2026-10-21, a continuation of the property-definition surfaces
+  batch).** The `readonly` render contract RETIRES from
+  `propertySchema.create/update` — an enumeration of the seeds finds ZERO
+  system properties that ever carried the flag, so it was never user
+  configuration. The strict payload validator rejects the retired key on
+  both schema payloads like any unknown key; `hideWhenEmpty`/`display` stay.
+  Readonly-ness now DERIVES from the system property list —
+  `isReadonlyProperty(schemaId)` in `core/constants` (fixed seed UUIDs,
+  precise) covering the platform-provenance schemas `generatedFrom`
+  (…000000000027) + `alias` (…000000000028), mirroring the monorepo's
+  `isReadonlyProperty` in packages/domain. Data layer: local store bumps to
+  schema **v34** — the legacy NOT NULL `readonly` column on the local
+  `property_schema` cache table rebuilds away (same-table copy, the v26/v32
+  rebuild pattern; no data backfill); `PropertySchemaRow` and the
+  `EffectivePropertySchema`/`EffectiveProperty` read models drop the field.
+  **Verification:** `flutter analyze` clean; `flutter test` green (668
+  tests). No fixture bytes change (no fixture ever carried the flag). The
+  live log rewrite (`migrate-drop-schema-readonly.mts`) runs in the
+  monorepo after this port (the fixture gate law).
+
+## 2026-10-21
+
+- **feat(protocol,store): the binding-sequence retirement —
+  `class.property.set` is active-only (Flutter lockstep port of the
+  monorepo's continuation of the
+  property-definition surfaces batch).** `sequence` RETIRES from the
+  binding: class properties render as a PURE ALPHABETICAL list everywhere
+  (by property name, a read-time derivation), so panel order no longer
+  exists to configure; the binding keeps only the `active` soft-unbind flag.
+  The strict payload validator rejects the retired key like any unknown key
+  (the row carries ONLY the genuinely per-class mechanic). Data layer: local
+  store bumps to schema v33 — `class_property` REBUILDS without `sequence`
+  (the v26/v32 rebuild pattern; no data backfill — order metadata is
+  discarded; the historical v26/v32 migration views drop it too), the
+  snapshot reader guards the column for pre-v26 server snapshots, and the
+  effective-properties read orders PURE ALPHABETICALLY by property name,
+  unbound authored rows last, `(idx, elementId)` tiebreak — the
+  `EffectiveProperty.sequence` field is gone. The applier's binding upsert
+  is `active`-only; the task-family seed-ensure (and the local workspace
+  seed) bind sequence-less — `TaskFamilySeedEntry.sequence` is gone.
+  Fixtures: `class-property-defaults`/`class-property-active`/
+  `class-unassign`/`property-schema-scope` re-vendored byte-identical
+  (sha256-verified) from the monorepo. The block-bullet value button's
+  ordering rides the effective read's alphabetical order.
+
+  Verification: `flutter analyze` clean; `flutter test` green (see the run
+  on main). The live log rewrite
+  (`scripts/migrate-drop-binding-sequence.mts`) runs in the monorepo after
+  this port (the fixture gate law).
+
+## 2026-10-20
+
+- **feat(protocol,store): the binding-default batch — `defaultValue` moves
+  to the property schema, `required` retires (Flutter lockstep port of the
+  monorepo's property-definition surfaces
+  batch).** `class.property.set` is now STRICTLY `{classId,
+  propertySchemaId, sequence?, active?}` — `required` and `defaultValue`
+  RETIRE from the binding and the strict payload validator rejects both like
+  any unknown key (the row carries ONLY the genuinely per-class mechanics).
+  `propertySchema.create`/`update` gain `defaultValue` (any JSON value,
+  optional; the property's ONE GLOBAL default — the Logseq shape): PC2
+  typing is enforced fail loud at apply — string for text/url/email/image/
+  select, finite number for number, boolean for boolean, string array for
+  multi_select, JSON null only for datetime/object/asset ("a default that
+  links a node is meaningless") — validated against the payload's type at
+  CREATE and the schema's STORED type at UPDATE (keep/clear: absent keeps,
+  explicit null clears; a schema-less write stores unchecked). Data layer:
+  local store bumps to schema v32 — `class_property` REBUILDS without
+  `required`/`default_value` (the v26 rebuild pattern; `property_schema.
+  default_value` is the legacy column reused verbatim as the moved default's
+  home, guarded additive). Effective-properties read: a derived default row
+  materializes when a winning ACTIVE binding brings the property into the
+  node's context AND the schema row carries a non-null default — the VALUE
+  is schema-sourced (per-class default conflicts no longer exist), the
+  winning binding still supplies boundBy/sequence; `required` drops from
+  the effective-row read model. The default-mirror sweep (class.unassign)
+  sources defaults from the schema rows now and compares decoded JSON texts
+  (the old decodeDefault re-encode quirk inverts: an authored number sweeps
+  a number default, a string survives). UI: the block-bullet value button's
+  "None" row always shows (`required` hiding was mild enforcement —
+  suggestion only, never enforcement). Fixtures: `class-property-defaults.
+  json`, `class-property-active.json`, `class-unassign.json` re-vendored
+  byte-identical from the monorepo (sha256-verified; the defaults fixture
+  gains the trailing second class.property.unset). **Verification:** `flutter
+  analyze` clean; `flutter test` green (668 tests).**
+
+- **feat(protocol,store): the property-scope batch + validationRules value
+  enforcement + per-block listStyle (Flutter lockstep port of the
+  monorepo's 2026-10-20 slices, TS `b8548e0e` + `19baac4b` + the
+  list-style field).** `propertySchema.create` RETIRES the display-only
+  `scope` enum (rejected outright like any retired key — hand-rolled strict
+  validators pin the unknown-key reject) and gains `icon` (nullable MDI
+  name) + `scopeClassIds` (nullable non-empty uuid list — absent/null =
+  global, exactly one spelling of "global"); `propertySchema.update` gains
+  `icon`, `scopeClassIds`, `targetClassFilter`, `multi`, and
+  `validationRules` ({min?, max?, pattern?} — strict keys, numeric bounds,
+  min ≤ max at parse time; absent keeps / present-null clears throughout).
+  Wire semantics now enforced at apply time, fail loud, mirroring the TS
+  reference: **R3** — `property.set` fails loud (`MoveGuardError`) when the
+  node's class closure (its classes + extends ancestors) misses the schema's
+  scopeClassIds; **R5** — `class.property.set` on an out-of-scope binding is
+  rejected as dead config (the binding class's own extends closure counts);
+  **R2** — a schema carrying stored validationRules validates every
+  `property.set` value BEFORE the write (inclusive min/max on numbers after
+  the numeric-string normalization, full-string `^(?:…)$` pattern on
+  text/url/email scalars only — carrier {nodeId} refs and schema-less
+  writes ride unchecked, each multi element at its own add), and a
+  `propertySchema.update` carrying rules checks applicability against the
+  schema's STORED type plus pattern compilability at the rule write.
+  **R4** — the effective-properties read tags ineligible authored rows
+  `eligible: false` (narrowing is never retroactive) and never derives a
+  default for an ineligible node. `object.create`/`object.update` carry the
+  optional nullable `listStyle` ('numbered' | 'alpha' | 'roman'; absent/null
+  = the bullet default, present-null clears — the icon/color precedent); the
+  derived store projects it as `node_cache.list_style` (the marker number
+  stays render-time, never stored). Data layer: local store bumps to schema
+  v31 — `property_schema.scope_class_ids` (the v11-era `icon` /
+  `validation_rules` columns already carry the wire shape and are reused
+  verbatim) + `node_cache.list_style`, both guarded additive ALTERs; the
+  legacy display-only `scope` column stays (round-tripped, zero availability
+  semantics). Seeds: the tasks-enable task-family schemas seed at GLOBAL
+  scope (the seed-scope audit — the whole family is
+  reusable), and the local workspace seed's `authors` spec now seeds
+  `scopeClassIds: [source]` per the TS manifest. Fixtures: the corpus
+  re-vendors from the main repo (36 files, sha256-identical —
+  `object-list-style.json`, `property-schema-scope.json`,
+  `property-schema-update-fields.json`, `property-validation-rules.json`
+  added; `property-validation-rules.json` joins the replay-excluded set — its
+  rejecting tail throws on apply by design, each reject pinned in the replay
+  suite). **Verification:** `flutter analyze` clean; `flutter test` green
+  (664 tests).
+
+## 2026-10-16
+
+- **feat(model): node links carry their own `isEmbedded` flag — manual,
+  default false (main-repo lockstep).** The
+  `MentionToken` model accepts the optional `isEmbedded` boolean (absent/
+  false = an ordinary inline link); the local store bumps to schema v30 —
+  `edge` gains `is_embedded INTEGER NOT NULL DEFAULT 0` (TS store v22
+  parity, guarded additive ALTER). Embedding is a per-link USER choice:
+  only a link marked embedded — and sole in its block — presents the
+  target's content in place; every pre-existing link reads false. Also
+  lands the deferred merge of the Revision-12 embedding-model slice (this
+  repo's `main` now carries the rename, the parent-page guard, and local
+  schema v29). Fixtures: the corpus re-vendors from the main repo's slice
+  (32 files, sha256-identical, `link-embedded.json` added). **Verification:**
+  `flutter analyze` clean; `flutter test` green (642 tests).
+
+- **feat(model): the Revision-12 embedding model — `isEmbedded` replaces
+
+- **feat(model): the Revision-12 embedding model — `isEmbedded` replaces
+  `presentAsMain` (polarity inverted), the parent-page condition guard, and
+  the fixture corpus re-vendor (main-repo lockstep).** The
+  node model's three concerns are named separately: classification
+  (`is_class`), parent relationship (`parent_id`), and embedding
+  (`is_embedded` — whether the node's content belongs to the parent's body;
+  true = the Block role and the DEFAULT for parented nodes, false = the
+  standalone Page role). Wire: `objectCreate`/`objectUpdate` carry optional
+  `isEmbedded`; the strict validators reject the retired `presentAsMain`
+  key; the seed/sync payload builders emit the explicit standalone claim
+  for roots and journals. Appliers: defaults parentless → standalone,
+  parented → embedded; promotion = the false claim and still stringifies
+  the content. **The parent-page condition ships with this slice** (the
+  2026-10-15 lockstep debt): a standalone claim under a non-page parent
+  fails loud on create, promotion, and move; demotion of a parented page
+  is gated on its standalone children being gone; the recursive
+  `_isPageRow` chain walk enforces it. Data layer: the local store bumps
+  to schema v29 — `node_cache` rebuilds, renaming `present_as_main` →
+  `is_embedded` with polarity inversion (class rows converge to 0) and
+  recomputing the derived `is_page` flag (`is_class OR parentless OR
+  is_embedded = 0`); the v2 snapshot schema (exchanged with the TS store)
+  carries the v21-shaped `is_embedded` column. UI: the render-state
+  helpers and editor screens read the renamed flag (a page = parentless
+  or not embedded). Fixtures: the corpus re-vendors from the main repo's
+  landed slice (31 files, sha256-identical — the
+  `present-as-main-parent-page.json` → `is-embedded-parent-page.json`
+  rename plus `object-is-embedded.json` and `heading-content.json`); the
+  parent-page fixture joins the replay-excluded set. **Verification:**
+  `flutter analyze` clean; `flutter test` green (641 tests).
+
+## 2026-10-15
+
+- **feat(appliers): the no-divergence law — content-asserted membership,
+  the class.unassign content lock, and the class-delete membership sweep
+  (Flutter lockstep port of the monorepo's 2026-10-15 slice).** A
+  `class_link` token in a stored content stream IS a classing of its node:
+  the object create/update appliers OR-set-add the referenced classes (any
+  writer converges; document-chrome content still flattens, date-chain
+  nodes keep their fixed class). `class.unassign` refuses loud while the
+  stored content references the class (the removal gesture strips the links
+  first). Deleting a class node (trash or permanent, and trash.empty)
+  sweeps its memberships — trash tombstones the pairs, permanent purges
+  them — via the new `NodeCacheRepository.sweepClassMembership`. The
+  vendored wire corpus gains `class-link-assertion.json`. **Verification:**
+  `flutter test` — all 638 tests pass.
+
+## 2026-10-15
+
+- **refactor(protocol)!: `class_chip` → `class_link` — the Flutter lockstep
+  port of the monorepo's 2026-10-15 rename.** The render-only inline class
+  reference (a node link, class variant — wavy underline, no membership
+  effect) is renamed across the token model (`ClassLinkToken`, the
+  `'class_link'` wire string), the AST builder (quick-capture template
+  substitution), the stringifier, the rich-text renderer, and the inbox
+  card view; the vendored wire corpus gains `class-link.json` (gate list
+  updated). Render-only semantics are untouched. The strict schema rejects
+  the retired `class_chip` key outright — the monorepo's stored-log
+  migration rewrites live envelopes before clients re-sync. **Verification:**
+  `flutter test` — all 637 tests pass.
+
+## 2026-10-14
+
+- **feat(protocol): `trash.empty` bulk op — the Flutter lockstep port of
+  the monorepo's additive wire change (envelope v3, no protocol bump).**
+  The payload is a strict empty object (any key rejects like the relay's
+  422 gate), the op joins the registry, and the applier permanently
+  deletes every node carrying a non-permanent `trash_root` row: the root
+  set is an apply-time snapshot ordered by node_id, each root goes
+  through the same `NodeCacheRepository.hardDelete` body as
+  `object.delete {permanent: true}`, a root consumed by an earlier
+  iteration's subtree (an independently-trashed descendant) or a stale
+  nodeless row is swept, never fatal, and a second apply over an empty
+  trash no-ops. Concurrency is plain log order: a restore landing before
+  the empty leaves the apply-time set (survivor), one landing after is
+  LWW against the delete. Tombstone bookkeeping stays this store's
+  established permanent-delete behavior — hard-delete PURGES `trash_root`
+  rows rather than recording the TS reference's `is_permanent = 1`
+  tombstone — per the pre-existing divergence, not a new retention
+  behavior. The `trash-empty.json` fixture is byte-identical to the
+  monorepo corpus (sha256-verified) and is covered by the parity gate,
+  a dedicated replay assertion (A/B and their children hard-deleted, the
+  restored C active with no trash row), per-op applier tests, and the
+  all-fixtures replay sweep.
+
+## 2026-10-13
+
+- **feat(store): date-chain parent+class locks — the Flutter port of the
+  monorepo's parent-lock/class-lock slice (TS a35bb7c5), clearing the
+  LOCKSTEP-PENDING marker in the main repo's `SCHEMA.md`.** A date node's
+  parent IS its deterministic chain parent (year at the workspace root,
+  month under its year, day under its month) and its class set IS its
+  precision's system class — nothing else, never declared a class itself.
+  The guards land in `RelayAppliers`, matching the TS appliers' semantics
+  and error wording exactly so all three clients reject alike: `object.move`
+  with any other parent (parentless included for month/day) fails loud
+  BEFORE the row-LWW gate; `object.create` claiming a non-chain parent fails
+  after the parent-existence check, while a parentless create stays legal
+  (the standalone shape the chain self-heal adopts); `object.create`'s
+  classIds guard runs at the top of the applier — BEFORE the OR-Set
+  membership seeding and the first-create-wins early return — so the
+  re-issued-create carrier (this client has no `class.assign` op) cannot
+  sneak a foreign class onto a date id; `class.unassign` of the precision's
+  system class fails loud (foreign-class unassign stays legal as legacy
+  cleanup); `class.create` on a date id fails loud before the conversion
+  flip. All five throw the existing `MoveGuardError`, so the sync service's
+  `on StoreError` quarantine/skip-and-continue paths apply unchanged. New
+  domain helpers `dateChainParentId` / `dateChainClassId` in
+  `lib/core/utils/date_uuid.dart` derive the locked parent/class from the
+  date id via the existing deterministic encoders (the 1900..2200-window
+  `parseDateNodeId`, not the legacy-prefix `journalDateFromUuid`). Tests:
+  date_uuid unit round-trips + a full guard matrix in
+  `test/relay_appliers_test.dart` (rejected moves create nothing, chain-
+  correct moves/creates stay legal, the re-issued-create foreign-class
+  rejection, foreign-class unassign legal). No wire change — the vendored
+  fixtures are untouched. Verification: `flutter analyze` clean, `flutter
+  test` green.
+
+## 2026-10-09
+
+- **feat(packaging): the repo ships an Arch Linux PKGBUILD for the Linux
+  desktop client.** `packaging/arch/PKGBUILD` builds the Linux GTK bundle
+  from the release-tag tarball and packages it for pacman (`/opt/notees`
+  bundle, `notees` on PATH, `.desktop` + icon, runtime `depends` from the
+  bundle's `DT_NEEDED`). The operations skill and `releases.md` claimed
+  "no PKGBUILD/AUR" — corrected: the pacman flow is documented, including
+  the per-release `pkgver` + tarball-sha256 bump (the tarball exists only
+  once the tag is pushed, so it lands in a follow-up commit). Built and
+  installed locally with `makepkg` — never CI (no runner has the Flutter
+  Linux toolchain), not submitted to AUR; needs a local Flutter SDK
+  (`~/flutter`, `FLUTTER_ROOT` override). Verification: `makepkg -s` from
+  `packaging/arch/` green; package installed via `pacman -U` and the app
+  smoke-launched on the fleet workstation.
+- **fix(auth): the strict server bodies ride clean — `register` drops the
+  retired `remember_me` key, and the connect prompt says "a Notees sync
+  server".** The login path already sent exactly `{email, password}` (the
+  server's strict schema 422s extra keys), but `register` still shipped the
+  legacy `remember_me` field and would have failed the same way; the param
+  and the key are gone (session lifetime is server-owned — 30-day sliding
+  sessions). The dead "Remember me" checkbox and the ignored `rememberMe`
+  login parameter retire with it. The server-setup prompt reads "Enter a
+  Notees sync server URL" (owner wording ruling — the GTK and web clients
+  ship the same wording). Verification: `flutter analyze` clean, `flutter
+  test` 621 passed.
+- **feat(protocol,store): the unified Datetime property type — the
+  `date`/`date_range` retirement lockstep port.** Lockstep with the
+  monorepo's TS reference (the d58aeb1c + dbfd6d29 batch): the
+  `propertySchema.create` type enum retires `date`/`date_range` and adds
+  `datetime` — the strict validator (payload builder + apply-time
+  `validatePayload`) rejects the retired values outright, matching the zod.
+  The value union is one shape per value: a POINT `{ "nodeId": …, "time"?:
+  "HH:MM" }` (a legacy bare-uuid string normalizes to `{nodeId}`, the
+  archived `date` encoding) or a RANGE `{ "start": slot|null, "end":
+  slot|null }` with either side open and both-open legal; a value carrying
+  BOTH `nodeId` and `start`/`end` fails loud, and a `time` must be 24h
+  minute-precision `HH:MM` riding a DAY-precision date-node ref (a
+  month/year anchor or a non-date id has no wall-clock time). The PG6
+  graph checks mirror the old `date_range` arms per non-null slot
+  (existence / targetClassFilter / the datePrecision ceiling — a timed
+  day ref on a coarser-than-day ceiling claims finer granularity and
+  throws). PC2 stays node-typed: a `datetime` schema accepts only a null
+  binding default. The task-family seed manifest (Scheduled / Deadline /
+  Closed) and the fallback task property constants retype to `datetime`
+  (the Flutter seed carries three of the TS six — eventDate, meetingDate
+  and publicationDate are not locally seeded, by design); the legacy
+  property value cell routes `datetime` through the date picker.
+  `test/fixtures/wire/` re-vendors the canonical corpus — sha256-match
+  the TS reference 25/25 (gate 24→25, `property-datetime.json`), and the
+  fixture replay test now asserts the union values land (the timed range
+  end wins the 'When' LWW slot, the year-precision point rides the 'Year'
+  schema) plus the four fail-loud mirrors (mixed shape, malformed time,
+  timed value over a year ceiling, ghost slot ref). Verification:
+  `flutter analyze` + `flutter test` green (621 tests).
+- **feat(protocol): `object.update` gains the `description` wire node field
+  (the page subtitle, max 512 chars).** Lockstep with the monorepo's TS
+  store schema v17→v18: the optional nullable plain-text field joins
+  `coverAssetId` / `bannerAssetId` / `aliasedNodeId` — presence writes,
+  present-null clears (SQL NULL), absence preserves; `object.create`
+  still carries none (the strict validator rejects it there). The payload
+  builder takes the `_undefined`-sentinel parameter like the other wire
+  node fields; the strict validator admits the key and enforces the 512
+  cap (the zod `z.string().max(512).nullish()` port). The applier maps it
+  into the Node model; `node_cache` gains the `description` derived
+  column at local schema v28 (idempotent additive migration, `_migrateV28`,
+  bumping the v27 cover/banner/alias batch). The canonical fixture
+  `object-wire-fields.json` is copied byte-identical from the monorepo
+  (two new trailing envelopes: set `"Subtitle text"`, clear `null`), and
+  the fixture replay test now asserts the description set + clear land in
+  both the Node payload and the derived column. Verification:
+  `flutter analyze` + `flutter test` green.
+
+## 2026-10-08
+
+- **feat(launcher): Android and iOS carry the Margin Green mark.** The
+  launcher rasters are regenerated from `brand/assets/logo/app-icon-512.png`
+  (PIL, LANCZOS): the Android legacy `mipmap-*` set (48–192), the adaptive
+  foregrounds (108–432, the white symbol extracted onto transparent at the
+  62% safe zone), the themed-icon monochrome drawable (the margin + three
+  annotations as vector path data), and every size in the iOS
+  `AppIcon.appiconset` per its Contents.json. The adaptive background and
+  the widget palette (`notees_sage`, `widget_paper`) move to the brand
+  tokens (Advance Green `#2e5e46`, paper `#f7f4ec`). Verification: rasters
+  re-opened and dimension-checked; `flutter analyze` + `flutter test`
+  green.
+- **fix(editor): the header cover reads the `coverAssetId` wire node
+  field, not the retired cover property.** The wire-fields slice moved
+  the cover off the image-typed `cover` system property (uuid …0005)
+  onto the `coverAssetId` node field (the migration rewrote stored
+  values), and the plumbing here already projected it (payload builder +
+  strict validator, applier, `node_cache` columns, the Node model) — but
+  the editor header still extracted the asset uuid from the retired
+  property rows, so migrated covers silently did not render. The screen
+  now takes `_coverAssetUuid` from `page.coverAssetId` (the cached Node
+  the load path already holds); the retired-property extraction helper
+  is gone, along with the now-dead cover filters in the display-property
+  merge (nothing authors cover property rows) and the stale
+  re-extraction after property writes (a property write cannot change
+  the field). Doc comments updated (`node_editor_screen.dart`,
+  `cover_image_widget.dart`). Test: `node_cache_repository_test.dart`
+  pins the upsert/getByUuid round-trip of coverAssetId/bannerAssetId/
+  aliasedNodeId — the cached-model contract the header reads.
+
+- **feat(ui): align the Flutter client to the Margin Green brand — theme
+  tokens, icons.** The brand repo (`notees-brand`, tag `v1.0.0`) is consumed
+  as a git submodule at `brand/` (pin it; never commit inside). Theme: the
+  color constants and both schemes are remapped to the brand tokens
+  (`brand/assets/tokens/tokens.css` is authoritative) — light ground is paper
+  `#f7f4ec` with ink text `#221a13` and border `#d8d3c7`; dark ground is the
+  `#161412` family (`surface` `#221a13`, alt `#312a22`, border `#483f37`,
+  text `#f4f3f1`, muted `#a6a09a`); the seed and the functional accent are
+  Advance Green `#2e5e46` (the old sage `#5B7D5B` and cream `#F5F3EF` are
+  retired); error keeps its semantic role on the brand danger scale
+  (`#b4312b` light / `#fe8477` dark); the pure-black OLED scale is untouched.
+  Web identity: `web/favicon.png`, `web/icons/*.png` are replaced with the
+  brand favicon/app-icon assets (the 512 is the brand `app-icon-512`, the
+  192 is a LANCZOS resize, the maskables pull the symbol into the 80% safe
+  zone on the icon's own `#2e5e46` ground) and `web/manifest.json` carries
+  the brand `theme_color`/`background_color` instead of the stock Flutter
+  blue. Pending, deliberately out of this slice: (1) Android/iOS launcher
+  icons — the repo has no `flutter_launcher_icons` (or equivalent) config and
+  hand-editing platform rasters would bypass the canonical generator, so the
+  `mipmap-*`/`AppIcon.appiconset` rasters still show the old mark; adopt the
+  generator pointed at `brand/assets/logo/app-icon-512.png` and regenerate.
+  (2) Brand typefaces — the app bundles no fonts (system Roboto/Georgia
+  stacks); bundle Instrument Sans (chrome), Newsreader (reading), and
+  JetBrains Mono (data) per `brand/guidelines/fonts.md` (OFL via
+  `google_fonts`) in a follow-up. Verification: `flutter analyze` reports no
+  issues and `flutter test` passes (612/612) on the host SDK; theme/web
+  changes are value-for-value against tokens.css; generated PNGs re-opened
+  and dimension-checked (16/192/512, maskable safe zone confirmed).
+
+
+## 2026-10-07
+
+- **feat(editor): the node-alias chrome — the title-row aliases
+  affordance + the alias-side "Aliased node" row.** The minimal honest
+  set on the `aliasedNodeId` wire field (SCHEMA.md "Node aliases"),
+  composed from the client's own idioms (the properties card + the pages
+  node picker + a modal bottom sheet), not a literal port of the web
+  chrome. The title row gains an "Aliases · N" chip opening a sheet that
+  lists every page whose alias-terminal is this node (chains included —
+  the store's new recursive `aliasNodeIdsOf` read over
+  `aliased_node_id`) and authors new aliases through THE BACKWARD WRITE
+  (the picked page's `aliasedNodeId` becomes this node — one
+  `object.update` via the new `SyncV2Service.setAliasedNode`, applied
+  locally and pushed on the next flush); a sheet row returns the alias
+  uuid and the caller opens the ALIAS page itself (the app has no
+  redirect seam, so the plain push lands on the alias's own view). An
+  alias page's properties card gains ONE pseudo-property row naming the
+  main page — open / change (re-point: the carrier's OWN field) / clear
+  (present-null) through the same write, with a broken-reference state
+  when the target row is gone. The client-side pick guard (page-only, no
+  self-alias, never repointing a page that already is an alias — the
+  web's `aliasedNodeTargetError`) validates before writing; the applier's
+  write-time cycle check stays the final authority. Tests:
+  `alias_nodes_test.dart` (the guard, the write/listing round-trip, the
+  loud cycle rejection) + the recursive-read listing pins in the
+  fixture-replay alias-cycles group. Wire/fixtures untouched (the field
+  landed in the earlier alignment batch).
+
+- **feat(seed): the local seed authors display titles + the full events
+  family (seed convergence follow-up).** The local workspace seed's
+  class.create titles move from the raw keys (`tv_series`) to the display
+  wording (`TV series`): `workspace_features.dart`
+  `systemClassDisplayNames` grows from the #14 five to one entry per
+  seeded class (the seeds.ts `SYSTEM_CLASS_DISPLAY_NAMES` slice — the
+  server seed's exact shape, title-is-content) and the seed resolves
+  titles through it. The events family seeds as a UNIT — meeting + event
+  + birthday join trip (the server seed keeps the full family, so the
+  local subset mirrors it whole and the events/meetings toggles flip
+  real rows) — which restructures the emission into the server seed's
+  two-pass shape: every class.create lands before any class.setExtends,
+  so an edge may target a class declared later in the map (meeting
+  extends event). The property-schema axis stays the citations
+  revision's `authors` spec only — the documented divergence: the
+  meeting/event/birthday bindings (like the source family's bibliography
+  specs) are server-seeded and converge on attach. The emission count
+  moves 39 → 43 (33 class.create + 7 class.setExtends + the authors pair
+  + Inbox); the parity suites pin the display titles (wording + per-key
+  completeness, no raw keys), the meeting/birthday fixed ids + extends
+  edges + closures, and the class_cache display names end to end.
+
+- **feat(seed): port the #14 follow-up five — definition/idea/place/
+  project/trip seeds, the trip→event cascade (seed convergence).**
+  Mirrors the GTK lockstep commit fd50e5c and the monorepo's
+  `packages/domain/src/seeds.ts` (owner list, 2026-10-06 — plain seeds
+  per the meeting-system ruling, zero wire cost): `SystemClassUuids`
+  gains the five fixed class ids (…0043-…0047);
+  `workspace_features.dart` resolves them (`systemClassUuids`) with
+  their mdi icons + display titles (`systemClassIcons` /
+  `systemClassDisplayNames`, the seeds.ts slices) and the `trip → event`
+  extends edge — so the events-family cascade (family set, gating walk,
+  the applier's archival re-derivation) reaches trip exactly like
+  meeting/birthday, while the four plain seeds stay unmanaged (no
+  gating, not always-on — features.ts parity). The local workspace seed
+  (serverless mode) emits the five too (plus `event` as trip's extends
+  target — the calendar family root), so a locally seeded workspace
+  no longer misses classes the server seed authors. The parity suites
+  pin the manifest: `seed_parity_test.dart` gains the deploy-catalog
+  five group (fixed ids, the withdrawn …0001/…0042 slots untouched,
+  static-map coverage, the features.ts gating/family mirror) and the
+  seed-emission count moves 32 → 39 (31 class.create — event joins as
+  trip's extends target — + 5 class.setExtends + the authors pair +
+  Inbox);
+  `workspace_features_test.dart` pins the four-strong events family and
+  replays the toggle cascade with trip. Wire/fixtures untouched (the
+  seed change is server-side).
+
+- **feat(protocol,store): lockstep convergence with the main repo's
+  node-fields / class-convert / alias-validation / asset-type batches
+  (fixture-gated).** Ports the four protocol+store slices the monorepo
+  shipped today; the fixture corpus gains three files (24 total, all
+  sha256-identical to `packages/protocol/fixtures/`).
+  **Wire node fields:** `object.update` gains the optional nullable
+  `coverAssetId` / `bannerAssetId` / `aliasedNodeId` (presence writes,
+  present-null clears — the `_undefined` sentinel builder pattern, the
+  icon/color precedent); `object.create` still carries none (the strict
+  validator rejects the keys there). The local DB schema bumps to **v27**:
+  `node_cache` gains `cover_asset_id` / `banner_asset_id` /
+  `aliased_node_id` (guarded idempotent migration; the Node payload is the
+  read authority, the columns are the SQL projections — snapshots at store
+  schema v16+ map them, older snapshots read null). **Title applier:** the
+  `object.update` content path no longer flattens rich content to
+  text-only for main-presenting nodes — only class rows flatten on update
+  now (create-as-main and the promotion stringify keep the lossy
+  boundaries); a page title may carry inline rich tokens, display-name
+  derivation still flattens for labels. **class-convert:** `class.create`
+  on an EXISTING node now DECLARES it a class — the node row flips
+  `is_class`, a parented node is cut to a root (parent + fractional
+  position drop), the render bit clears, the registry adopts the node's
+  title, and absent icon/color/name PRESERVE on re-declaration (the upsert
+  used to wipe them with null); the registry never writes `description` on
+  create (TS parity — the payload key is accepted, the applier drops it;
+  storing it would break wipe→replay convergence); every declaration lands
+  the `class_hierarchy` self-row. **Alias write-time validation (M12):**
+  `object.update {aliasedNodeId}` walks the would-be chain — a revisit
+  (self-alias included) throws `CycleError` and the write is never
+  applied; clearing (null) skips the check; a stale-HLC write drops by the
+  row LWW before any check. The read helper `resolveAlias` walks a chain
+  to its terminal — cycle-safe (a revisit yields the starting id unchanged)
+  with a 32-link depth cap. **The `asset` property type (M38):** the
+  `propertySchema.create` type enum gains `"asset"` — a node-typed value
+  (`{nodeId}`) whose target must carry the asset class, the filter
+  implicit in the type (explicit filters ignored); node-typed defaults stay
+  unsupported. **Seeds:** the seeded `class` meta class (…0001) retires —
+  the local seed no longer emits it (the UUID is withdrawn, never reused);
+  `weblink` (…0034) joins the seeded source family with its
+  `mdiLinkVariant` icon and the `weblink extends source` edge. The alias
+  read-path repointing (redirect, roll-up) and the M38 UI are the main
+  repo's recorded follow-ons — same here. **Verification:** the fixture
+  gate lists the three new files; `fixture_replay_test` gains the
+  wire-fields set/clear + LWW/absence block, the class-convert
+  parentless/parented/re-declaration block, the asset-type rows +
+  implicit-filter value-validation block, and the six alias-cycle blocks;
+  `operation_payloads_test` pins the strict field semantics; the seed
+  parity + local-mode suites track the retirement and weblink; the full
+  gate green — `flutter analyze` clean, `flutter test`: **598 tests, all
+  passed**.
+- **chore(docs): the development skill's version-range keep-list tracks the
+  v27 schema bump.** Law 5's live-identifier parenthetical moves to
+  "local DB schema versions v16–v27".
+
+## 2026-10-06
+
+- **chore(sync): re-vendored the wire fixture corpus from the main repo
+  (lockstep convergence).** `test/fixtures/wire/` is byte-identical (sha256)
+  to the monorepo's `packages/protocol/fixtures/` again — 21 files, zero
+  mismatches / zero extras / zero missing in the pairwise sweep. Adds
+  `object-restore.json` (object.create → object.delete → object.restore,
+  picked up by the all-fixtures replay and the fixtures gate list) and
+  updates `class-property-defaults.json` (a ninth envelope appends an
+  unrelated number-format `propertySchema.create`; the first eight are
+  unchanged, so the prefix-replay acceptance only had to re-track the
+  envelope count — the same slicing the TS reference store tests use).
+  Wire models and appliers already carried `object.restore`,
+  `class.property.unset`, and the number-format schema fields, so no
+  implementation change was needed — the corpus was the only lag.
+- **chore(docs): record-keeping aligned with the main repo — plan-era
+  citations scrubbed, AGENTS.md aligned, per-client skill pair added.** Same
+  treatment the main Notees monorepo gave itself on this date: every §-citation
+  token removed from code comments, test titles, and docs (sentence kept, e.g.
+  "(owner review 2026-10-05): …"; "WIRE.md §2" → "WIRE.md"); all
+  `implementation-plan` / "main repo's plan" references deleted or made
+  self-contained; narrative v1/v2 history reworded minimally ("the v2 store"
+  → "the TS store", "legacy v1 ops" → "legacy ops", stale `v2/packages/…`
+  layout qualifiers dropped to the current monorepo paths); the 18 milestone
+  markers (M1–M3 prose labels) removed. Deliberate keeps: the vendored fixture
+  corpus stays byte-pinned (fixture comment strings are part of the
+  sha256-pinned convergence corpus — untouched, as in the monorepo), live
+  version identifiers (`protocol v2`, envelope v3, `/api/relay/v2`, WS framing
+  v2, `v2.0.0-mN`-style version tags, local DB schema versions v16–v26, the
+  fixture corpus paths, code symbols like `SyncV2Service`), and the
+  AGENTS.md release-pipeline docs (v*-tag → versionCode/APK mechanics).
+  Comments/docs/test-titles only — no logic, symbol, or assertion changes.
+- **chore(repo): legacy "v2" labels out of the fixture corpus — `test/fixtures/v2`
+  → `test/fixtures/wire`, `v2_fixtures_test.dart` → `fixtures_test.dart`,
+  `v2_fixture_replay_test.dart` → `fixture_replay_test.dart`; the three
+  completed plan docs deleted.** Fixture JSON bytes untouched (sha256-verified
+  before/after; the corpus stays pinned to the monorepo's
+  `packages/protocol/fixtures/`). No test-side symbols carried the label (no
+  `V2Fixtures`-style identifiers existed) so no symbol renames; protocol-version
+  logic (`protocolVersion` checks, relay protocol v2 semantics) deliberately
+  untouched. Every path reference updated (the seven fixture-loading test
+  files, the development skill + workflow reference, AGENTS.md records table).
+  `git rm docs/plan.md docs/plan-product-alignment.md docs/plan-sync-relay.md` —
+  the AGENTS.md docs listing now keeps only `flutter-audit.md` and
+  `gap-analysis-web-vs-mobile.md`.
+- **chore(docs): AGENTS.md becomes static guidance with a records index.**
+  Added the "Records" section (the changelog-is-the-record law + records
+  table), the "Project skills" tree, and made the Server Reference
+  host-agnostic ("a sibling clone of git@github.com:miquelrosell99/notees.git,
+  kept up to date" — no hardcoded sibling path).
+- **chore(docs): per-client skill pair created under `.agents/skills/`.**
+  `notees-flutter-development` (lockstep law, fixture byte-pin, the
+  build/test gate, changelog law, no-legacy-version-names rule; detail in
+  `references/development-workflow.md`) and `notees-flutter-operations`
+  (v*-tag → release.yml → GitHub Release APK pipeline, versionCode
+  derivation, CI artifacts vs release APKs, the never-re-tag law; detail in
+  `references/releases.md`).
+- **chore(docs): `CHANGELOG.md` created** as this repo's shipped-work record,
+  mirroring the main-repo format.

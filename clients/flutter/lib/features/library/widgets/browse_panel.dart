@@ -1,0 +1,281 @@
+import 'dart:async';
+
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:provider/provider.dart';
+
+import '../../../core/routing/router.dart';
+import '../../../core/utils/class_icon_resolver.dart';
+import '../../../core/utils/node_display_name.dart';
+import '../../../data/models/node.dart';
+import '../../../data/repositories/node_repository.dart';
+import '../../../native/widget_service.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../../shared/widgets/fleet_card.dart';
+import '../../../shared/widgets/motion.dart';
+import '../../../shared/widgets/skeletons.dart';
+
+/// Modal bottom sheet that mirrors the web sidebar: favorites, recent pages,
+/// pages shared with the current user, and the archive. All sections are
+/// backed by the local node cache through [NodeRepository]; "shared with me"
+/// reads the local `node_user_share` derived state and only appears when the
+/// current actor has shares.
+class BrowsePanel extends StatefulWidget {
+  const BrowsePanel({super.key, required this.repository});
+
+  final NodeRepository repository;
+
+  /// Opens the panel as a modal bottom sheet with haptic feedback.
+  static Future<void> show(BuildContext context, NodeRepository repository) {
+    HapticFeedback.lightImpact();
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => BrowsePanel(repository: repository),
+    );
+  }
+
+  @override
+  State<BrowsePanel> createState() => _BrowsePanelState();
+}
+
+class _BrowsePanelState extends State<BrowsePanel> {
+  late Future<_BrowseData> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<_BrowseData> _load() async {
+    final repo = widget.repository;
+    // Fetch 10 so the favorites home-screen widget snapshot (saved below)
+    // holds more than the five rows shown here.
+    final favorites = await _guarded(() => repo.fetchFavorites(limit: 10));
+    final recent = await _guarded(() => repo.fetchRecentPages(limit: 5));
+    final sharedWithMe = await _guarded(() => repo.fetchSharedWithMe(limit: 5));
+    final archived = await _guarded(() async {
+      final nodes = await repo.fetchArchived();
+      return nodes.take(5).toList();
+    });
+    final classes = await _guarded(() => repo.fetchClasses());
+    // Keep the favorites home-screen widget in sync with what the user sees.
+    unawaited(WidgetService.saveFavorites(favorites));
+    return _BrowseData(
+      favorites: favorites.take(5).toList(),
+      recent: recent,
+      sharedWithMe: sharedWithMe,
+      archived: archived,
+      classStyles: resolveClassStyles(classes),
+    );
+  }
+
+  /// Section queries are best-effort: a section whose cache query fails shows
+  /// as empty instead of breaking the whole panel.
+  Future<List<Node>> _guarded(Future<List<Node>> Function() query) async {
+    try {
+      return await query();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = context.watch<SettingsProvider>().dateFormat;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: FutureBuilder<_BrowseData>(
+          future: _future,
+          builder: (context, snapshot) {
+            final data = snapshot.data;
+            if (data == null) {
+              return const CardListSkeleton(
+                sectionCount: 2,
+                rowsPerSection: 3,
+              );
+            }
+            final cards = <Widget>[
+              if (data.favorites.isNotEmpty)
+                _BrowseCard(
+                  icon: MdiIcons.star,
+                  title: 'Favorites',
+                  nodes: data.favorites,
+                  dateFormat: dateFormat,
+                  classStyles: data.classStyles,
+                  highlightIcon: true,
+                ),
+              if (data.recent.isNotEmpty)
+                _BrowseCard(
+                  icon: MdiIcons.clockOutline,
+                  title: 'Recent',
+                  nodes: data.recent,
+                  dateFormat: dateFormat,
+                  classStyles: data.classStyles,
+                ),
+              if (data.sharedWithMe.isNotEmpty)
+                _BrowseCard(
+                  icon: MdiIcons.shareOutline,
+                  title: 'Shared with me',
+                  nodes: data.sharedWithMe,
+                  dateFormat: dateFormat,
+                  classStyles: data.classStyles,
+                ),
+              if (data.archived.isNotEmpty)
+                _BrowseCard(
+                  icon: MdiIcons.archiveOutline,
+                  title: 'Archive',
+                  nodes: data.archived,
+                  dateFormat: dateFormat,
+                  classStyles: data.classStyles,
+                ),
+            ];
+            if (cards.isEmpty) {
+              return const SizedBox(
+                height: 160,
+                child: Center(child: Text('Nothing to browse yet')),
+              );
+            }
+            return ListView.separated(
+              shrinkWrap: true,
+              itemCount: cards.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => staggered(index, cards[index]),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseData {
+  const _BrowseData({
+    required this.favorites,
+    required this.recent,
+    required this.sharedWithMe,
+    required this.archived,
+    required this.classStyles,
+  });
+
+  final List<Node> favorites;
+  final List<Node> recent;
+  final List<Node> sharedWithMe;
+  final List<Node> archived;
+
+  /// Resolved class styles, for effective node icons in the rows.
+  final Map<String, ResolvedClassStyle> classStyles;
+}
+
+/// One browse section: a titled card with a handful of page rows.
+class _BrowseCard extends StatelessWidget {
+  const _BrowseCard({
+    required this.icon,
+    required this.title,
+    required this.nodes,
+    required this.dateFormat,
+    required this.classStyles,
+    this.highlightIcon = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Node> nodes;
+  final String dateFormat;
+
+  /// Resolved class styles, forwarded to the rows for effective node icons.
+  final Map<String, ResolvedClassStyle> classStyles;
+
+  /// Renders the section icon in the accent color (favorites only).
+  final bool highlightIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return FleetCard(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 18,
+                  color: highlightIcon ? colors.primary : colors.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (final node in nodes)
+            _BrowseRow(
+              node: node,
+              dateFormat: dateFormat,
+              classStyles: classStyles,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single page row: node icon plus display name; tap opens the editor.
+class _BrowseRow extends StatelessWidget {
+  const _BrowseRow({
+    required this.node,
+    required this.dateFormat,
+    required this.classStyles,
+  });
+
+  final Node node;
+  final String dateFormat;
+
+  /// Resolved class styles, for the node's effective icon.
+  final Map<String, ResolvedClassStyle> classStyles;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        // Capture the router before popping: the sheet's context is
+        // deactivated once the sheet closes.
+        final router = GoRouter.of(context);
+        Navigator.of(context).pop();
+        router.push('${Routes.editor}/${node.uuid}');
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            EffectiveNodeIcon(node: node, classStyles: classStyles, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                resolveNodeDisplayName(node, dateFormat: dateFormat),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

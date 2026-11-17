@@ -1,0 +1,1796 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+
+import '../../../core/constants/system.dart';
+import '../../../core/utils/ast_builder.dart';
+import '../../../core/utils/ast_stringifier.dart';
+import '../../../core/utils/color_presets.dart';
+import '../../../core/utils/node_icon.dart';
+import '../../../core/utils/query_tokens.dart';
+import '../../../data/models/node.dart';
+import '../../../domain/query/builder_facts.dart';
+import '../../../domain/query/query_ast.dart';
+import '../../../domain/services/query_service.dart';
+import '../../../shared/widgets/node_picker.dart';
+import './asset_block_widget.dart';
+import './ast_rich_text.dart';
+import './query_builder_sheet.dart';
+import './query_node_section.dart';
+import './tag_pills.dart';
+
+/// One select option of a display-positioned property. [icon] is a
+/// camelCase MDI name (absent = the tinted dot fallback); [color] is a
+/// preset token or `#RRGGBB` hex.
+class BulletPropertyOption {
+  const BulletPropertyOption({
+    required this.id,
+    required this.label,
+    this.icon,
+    this.color,
+  });
+
+  final String id;
+  final String label;
+  final String? icon;
+  final String? color;
+}
+
+/// One multi_select element carrier — the option ids written at one
+/// property idx (the effective read splits multi elements into per-element
+/// rows; toggles address the carrying row).
+class BulletPropertyElement {
+  const BulletPropertyElement({required this.idx, required this.ids});
+
+  final int idx;
+  final List<String> ids;
+}
+
+/// One effective property value riding a block row. The host screen
+/// builds these from `getEffectiveProperties` for rows whose schema (the
+/// display contract is PROPERTY-level) positions the value at 'bullet' (next to the bullet) or 'inline' (before
+/// the content) and whose schema type is select/multi_select/boolean.
+class BulletPropertyValue {
+  const BulletPropertyValue({
+    required this.propertySchemaId,
+    required this.label,
+    required this.display,
+    required this.type,
+    required this.options,
+    required this.selectedIds,
+    required this.elements,
+  });
+
+  final String propertySchemaId;
+
+  /// Schema display name (the sheet header + tooltip prefix).
+  final String label;
+
+  /// 'bullet' | 'inline'.
+  final String display;
+
+  /// 'select' | 'multi_select' | 'boolean'.
+  final String type;
+
+  /// The schema's select options (empty in boolean mode — the two synthetic
+  /// true/false options replace them).
+  final List<BulletPropertyOption> options;
+
+  /// The chosen option ids in effective order ('true'/'false' for booleans);
+  /// empty = unset (renders the dimmed hollow circle).
+  final List<String> selectedIds;
+
+  /// Per-idx id carriers driving the multi_select toggles.
+  final List<BulletPropertyElement> elements;
+}
+
+/// One resolved bullet-button write: the button computes the exact
+/// write (single/boolean/clear at idx 0; multi merges/toggles per carrying
+/// element idx) and the host performs it through the sync service.
+class BulletPropertyWrite {
+  const BulletPropertyWrite.set(
+    this.propertySchemaId,
+    this.value, {
+    this.idx = 0,
+  }) : unset = false;
+
+  const BulletPropertyWrite.unset(
+    this.propertySchemaId, {
+    this.idx = 0,
+  })  : value = null,
+        unset = true;
+
+  final String propertySchemaId;
+  final dynamic value;
+  final int idx;
+  final bool unset;
+}
+
+/// A single editable block in the outliner tree.
+class BlockNode {
+  BlockNode({
+    required this.node,
+    required this.controller,
+    this.parent,
+    List<BlockNode>? children,
+    this.collapsed = false,
+    this.isNew = false,
+  }) : children = children ?? [];
+
+  Node node;
+  final TextEditingController controller;
+  BlockNode? parent;
+  final List<BlockNode> children;
+  bool collapsed;
+  final bool isNew;
+
+  int get id => node.id;
+
+  int get depth {
+    int d = 0;
+    BlockNode? p = parent;
+    // Guard against cyclic parent links in corrupt server data.
+    final seen = <BlockNode>{};
+    while (p != null && seen.add(p)) {
+      d++;
+      p = p.parent;
+    }
+    return d;
+  }
+}
+
+/// Where a dragged block should be inserted relative to a target block.
+enum DropPosition { before, after, child }
+
+/// Actions available from the long-press context menu on a node/class link.
+enum NodeLinkAction { open, edit, delete, unlink }
+
+class BlockTreeEditor extends StatefulWidget {
+  const BlockTreeEditor({
+    super.key,
+    required this.roots,
+    required this.classNames,
+    required this.dio,
+    required this.focusedNode,
+    required this.onFocus,
+    required this.onDelete,
+    required this.onMove,
+    required this.onAddSibling,
+    required this.onAddChild,
+    required this.onIndent,
+    required this.onOutdent,
+    required this.onToggleCollapse,
+    this.selectionMode = false,
+    this.selectedBlocks = const {},
+    this.onEnterSelection,
+    this.onToggleSelected,
+    this.onGhostRealize,
+    this.onInsertImage,
+    this.onInsertAudio,
+    this.onNodeLinkTap,
+    this.onNodeLinkAction,
+    this.onExternalLinkTap,
+    this.onContentChanged,
+    this.onToggleTask,
+    this.linkColors,
+    this.bulletProperties = const {},
+    this.onBulletPropertyWrite,
+    this.tagNodes = const {},
+    this.onOpenTag,
+    this.onRemoveTag,
+    this.onAddTag,
+    this.queryService,
+    this.hostNodeUuid,
+    this.onOpenQueryResult,
+    this.storeChanges,
+    this.queryFactsLoader,
+    this.queryNodePicker,
+    this.onCommitQuery,
+  });
+
+  final List<BlockNode> roots;
+  final Map<String, String> classNames;
+  final Dio dio;
+  final BlockNode? focusedNode;
+  final ValueChanged<BlockNode?> onFocus;
+  final ValueChanged<BlockNode> onDelete;
+  final void Function(BlockNode moved, BlockNode target, DropPosition position)
+  onMove;
+  final VoidCallback onAddSibling;
+  final ValueChanged<BlockNode> onAddChild;
+  final ValueChanged<BlockNode> onIndent;
+  final ValueChanged<BlockNode> onOutdent;
+  final ValueChanged<BlockNode> onToggleCollapse;
+
+  /// Whether multi-select mode is active. Rows render check circles and taps
+  /// toggle selection instead of focusing/reordering blocks.
+  final bool selectionMode;
+
+  /// The currently selected blocks (only relevant when [selectionMode]).
+  final Set<BlockNode> selectedBlocks;
+
+  /// Invoked when the user long-presses a block's content to enter
+  /// multi-select mode with that block selected.
+  final ValueChanged<BlockNode>? onEnterSelection;
+
+  /// Invoked when the user taps a row while [selectionMode] is active.
+  final ValueChanged<BlockNode>? onToggleSelected;
+
+  /// Invoked when the user taps the trailing ghost pseudo-block to append a
+  /// real empty block at the end of the page (web: `onGhostRealize`).
+  final VoidCallback? onGhostRealize;
+
+  final VoidCallback? onInsertImage;
+  final VoidCallback? onInsertAudio;
+  final ValueChanged<String>? onNodeLinkTap;
+
+  /// Invoked when the user long-presses a node/class link inside a block.
+  ///
+  /// The parent editor receives the affected block, the chosen action, the raw
+  /// link id and the rendered label. For [NodeLinkAction.edit], [newTarget]
+  /// and [newLabel] contain the values entered by the user.
+  final void Function(
+    BlockNode block,
+    NodeLinkAction action,
+    String linkId,
+    String label, {
+    String? newTarget,
+    String? newLabel,
+  })?
+  onNodeLinkAction;
+
+  final ValueChanged<String>? onExternalLinkTap;
+
+  /// Invoked whenever a block's text changes (for autosave).
+  final VoidCallback? onContentChanged;
+
+  /// Invoked when the user taps a task checkbox.
+  final ValueChanged<BlockNode>? onToggleTask;
+
+  /// Data colors for link targets (node/class uuid → color).
+  final Map<String, Color>? linkColors;
+
+  /// The display-positioned property values per block node uuid
+  /// ('bullet' rides next to the bullet, 'inline' before the content). The
+  /// host screen resolves these through `getEffectiveProperties`.
+  final Map<String, List<BulletPropertyValue>> bulletProperties;
+
+  /// Write path: invoked with the resolved write when the user picks
+  /// an option (or the None row) on a value button. Null = read-only
+  /// projection — the current icon renders but never opens the sheet.
+  final Future<void> Function(BlockNode node, BulletPropertyWrite write)?
+  onBulletPropertyWrite;
+
+  /// Resolved tag nodes (tag uuid → node) for the tags row: any page can
+  /// act as a tag, so the host screen fetches the tag uuid sets carried by
+  /// the page and its blocks and passes the resolved nodes here. Pill
+  /// colors are derived per tag (own color, else its classes', else the
+  /// theme primary) from [linkColors].
+  final Map<String, Node> tagNodes;
+
+  /// Invoked when the user taps a tag pill (open the tag's page).
+  final ValueChanged<String>? onOpenTag;
+
+  /// Invoked when the user taps a tag pill's × (unassign from the block).
+  final void Function(BlockNode node, String tagUuid)? onRemoveTag;
+
+  /// Invoked from the block options menu to assign a tag to the block.
+  final ValueChanged<BlockNode>? onAddTag;
+
+  /// The query run-site seam (slice 1). When set, a block whose content
+  /// carries a `query` token renders the live [QueryNodeSection] below its
+  /// row; null = read-only projection (no live sections — the existing
+  /// tests and any embed without the seam).
+  final QueryService? queryService;
+
+  /// The HOSTING PAGE's node uuid — the `self` anchor every live query run
+  /// in this tree threads into its compile options (required alongside
+  /// [queryService]).
+  final String? hostNodeUuid;
+
+  /// Render-cascade navigation for a query result row (open the node's page).
+  final ValueChanged<String>? onOpenQueryResult;
+
+  /// The store-change stream the live query sections ride. Null = the
+  /// global [StoreChangeBus] (tests inject a controllable stream).
+  final Stream<void>? storeChanges;
+
+  /// The builder's picker-source loader (slice 4) — the query builder's
+  /// facts derivation over the local store. Threaded alongside
+  /// [queryNodePicker] and [onCommitQuery]; all three or none.
+  final Future<BuilderFacts> Function()? queryFactsLoader;
+
+  /// The node-pick seam the builder's value controls ride (the production
+  /// surface opens the fleet NodePicker).
+  final Future<Node?> Function(NodePickerMode mode)? queryNodePicker;
+
+  /// The builder's write-back (slice 4): commit the popped AST for
+  /// [BlockNode] through the content-update op path (the caller owns the
+  /// op enqueue, the flush, and the in-memory block update).
+  final Future<void> Function(BlockNode block, QueryAst ast)? onCommitQuery;
+
+  @override
+  BlockTreeEditorState createState() => BlockTreeEditorState();
+}
+
+class BlockTreeEditorState extends State<BlockTreeEditor> {
+  BlockNode? _dragging;
+  final _focusNodes = <BlockNode, FocusNode>{};
+  final _rowKeys = <BlockNode, GlobalKey>{};
+
+  /// Block identities seen in the previous build, used to detect newly
+  /// inserted rows (add, duplicate, task conversion) and animate them in.
+  /// A shared tween instance prevents [TweenAnimationBuilder] from restarting
+  /// when unrelated rebuilds happen mid-animation.
+  final _knownNodes = <BlockNode>{};
+  final _entering = <BlockNode>{};
+  bool _hasBuiltOnce = false;
+  static final _entranceTween = Tween<double>(begin: 0, end: 1);
+
+  @override
+  void dispose() {
+    for (final focusNode in _focusNodes.values) {
+      focusNode.dispose();
+    }
+    super.dispose();
+  }
+
+  GlobalKey _rowKeyFor(BlockNode node) =>
+      _rowKeys.putIfAbsent(node, GlobalKey.new);
+
+  void scrollToBlock(BlockNode block) {
+    final key = _rowKeys[block];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 250),
+        alignment: 0.35,
+      );
+    }
+  }
+
+  void requestFocusFor(BlockNode block) {
+    _focusFor(block).requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <_VisibleRow>[];
+    _flatten(widget.roots, rows);
+
+    // Diff against the previous build to find inserted rows. The very first
+    // build (page load) is excluded so existing content does not animate.
+    // In-flight entrances stay in `_entering` until their animation ends so
+    // unrelated rebuilds do not cut them short.
+    final current = rows.map((row) => row.node).toSet();
+    _entering.removeWhere((node) => !current.contains(node));
+    if (_hasBuiltOnce) {
+      for (final row in rows) {
+        if (!_knownNodes.contains(row.node)) _entering.add(row.node);
+      }
+    } else {
+      _hasBuiltOnce = true;
+    }
+    _knownNodes
+      ..clear()
+      ..addAll(current);
+
+    // Trailing ghost pseudo-block (web parity): a "+ Add block" row that
+    // realizes a real block on tap. Hidden in multi-select mode so it can
+    // never interfere with selection.
+    final showGhost = widget.onGhostRealize != null && !widget.selectionMode;
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: rows.length + (showGhost ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == rows.length) return _buildGhostRow();
+        final row = rows[index];
+        return _buildRow(row, rows, index);
+      },
+    );
+  }
+
+  void _flatten(
+    List<BlockNode> nodes,
+    List<_VisibleRow> rows, [
+    Set<BlockNode>? visited,
+  ]) {
+    visited ??= <BlockNode>{};
+    for (final node in nodes) {
+      // Skip already-visited nodes: corrupt server data can contain cycles.
+      if (!visited.add(node)) continue;
+      rows.add(_VisibleRow(node: node));
+      if (!node.collapsed) {
+        _flatten(node.children, rows, visited);
+      }
+    }
+  }
+
+  /// Trailing pseudo-block ("ghost") that appends a real block on tap,
+  /// mirroring the web's `createGhostFlatNode` row. It is not a [BlockNode],
+  /// so it never participates in drag-and-drop, multi-select, or saving.
+  Widget _buildGhostRow() {
+    final colors = Theme.of(context).colorScheme;
+    final ghostColor = colors.onSurfaceVariant.withAlpha((0.6 * 255).round());
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onGhostRealize?.call();
+      },
+      child: Row(
+        children: [
+          // Muted bullet in the same 36x44 gutter as normal rows.
+          SizedBox(
+            width: 36,
+            height: 44,
+            child: Center(
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: ghostColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              '+ Add block',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: ghostColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRow(_VisibleRow row, List<_VisibleRow> rows, int index) {
+    final node = row.node;
+    final colors = Theme.of(context).colorScheme;
+    final selectionMode = widget.selectionMode;
+    final isSelected = selectionMode && widget.selectedBlocks.contains(node);
+    final isFocused = !selectionMode && widget.focusedNode == node;
+    final indent = node.depth * 24.0;
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+
+    Widget field;
+    if (node.node.isAsset) {
+      field = GestureDetector(
+        onTap: () => widget.onFocus(node),
+        onLongPress: selectionMode ? null : () => widget.onEnterSelection?.call(node),
+        child: AssetBlockWidget(
+          dio: widget.dio,
+          uuid: node.node.uuid,
+          filename: node.controller.text.isNotEmpty
+              ? node.controller.text
+              : null,
+        ),
+      );
+    } else if (isFocused) {
+      field = TextField(
+        controller: node.controller,
+        focusNode: _focusFor(node),
+        maxLines: null,
+        minLines: 1,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        style: _isCode(node)
+            ? TextStyle(
+                fontFamily: 'monospace',
+                fontFamilyFallback: const ['monospace'],
+                color: colors.onSurface,
+              )
+            : null,
+        decoration: InputDecoration(
+          hintText: _hintForBlock(node),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          isDense: true,
+        ),
+        onTap: () => widget.onFocus(node),
+        onChanged: (value) {
+          if (widget.focusedNode != node) {
+            widget.onFocus(node);
+          }
+          widget.onContentChanged?.call();
+        },
+      );
+
+      if (_calloutColor(node, colors) case final color?) {
+        field = Container(
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: color, width: 4)),
+            color: color.withAlpha((0.08 * 255).round()),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.only(left: 8),
+          child: field,
+        );
+      }
+    } else {
+      field = GestureDetector(
+        onTap: () => widget.onFocus(node),
+        onLongPress: () => widget.onEnterSelection?.call(node),
+        behavior: HitTestBehavior.translucent,
+        child: _buildReadOnlyContent(node, colors),
+      );
+    }
+
+    final isTask = node.node.isTask;
+    final isTaskDone = _isTaskDone(node);
+
+    // Value-display buttons: the bullet group hugs the bullet, the
+    // inline group hugs the content (mirrors the web BlockRow). In read-only
+    // projections (no write handler) the icons render but open nothing.
+    final displayProps = widget.bulletProperties[node.node.uuid] ??
+        const <BulletPropertyValue>[];
+    final bulletProps = displayProps
+        .where((p) => p.display == 'bullet')
+        .toList();
+    final inlineProps = displayProps
+        .where((p) => p.display == 'inline')
+        .toList();
+
+    Widget content = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SelectionCheckCircle(
+          visible: selectionMode,
+          selected: isSelected,
+          colors: colors,
+          disableAnimations: disableAnimations,
+        ),
+        SizedBox(width: indent),
+        _DragHandle(
+          node: node,
+          onDragStarted: () => setState(() => _dragging = node),
+          onDragEnded: () => setState(() => _dragging = null),
+          onIndent: () => widget.onIndent(node),
+          onOutdent: () => widget.onOutdent(node),
+          child: isTask
+              ? _TaskCheckbox(
+                  done: isTaskDone,
+                  onToggle: () => widget.onToggleTask?.call(node),
+                  colors: colors,
+                )
+              : _Bullet(
+                  collapsed: node.collapsed,
+                  hasChildren: node.children.isNotEmpty,
+                  onToggleCollapse: () => widget.onToggleCollapse(node),
+                  colors: colors,
+                ),
+        ),
+        for (final prop in bulletProps)
+          _BulletPropertyButton(
+            node: node,
+            value: prop,
+            onWrite: widget.onBulletPropertyWrite,
+            colors: colors,
+          ),
+        for (final prop in inlineProps)
+          _BulletPropertyButton(
+            node: node,
+            value: prop,
+            onWrite: widget.onBulletPropertyWrite,
+            colors: colors,
+          ),
+        Expanded(child: field),
+        if (isFocused)
+          IconButton(
+            icon: Icon(MdiIcons.dotsVertical, size: 20),
+            tooltip: 'Block options',
+            color: colors.onSurfaceVariant,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            padding: EdgeInsets.zero,
+            onPressed: () => _showBlockMenu(node),
+          ),
+      ],
+    );
+
+    // A block's own data color renders as a left border (mirrors the web
+    // app's BlockRow), independent of the theme accent.
+    final blockColor = ColorPresets.tryResolve(node.node.color);
+    if (blockColor != null) {
+      content = Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: blockColor, width: 3)),
+        ),
+        padding: const EdgeInsets.only(left: 6),
+        child: content,
+      );
+    }
+
+    // Tags: dedicated row below the block row, only when set (web BlockRow
+    // `nt-block-tags` parity — an untagged block renders no row). The pills
+    // indent under the block content, past the bullet column.
+    if (shouldShowTagRow(node.node.tagsUuid)) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          content,
+          Padding(
+            padding: EdgeInsets.only(left: indent + 30, top: 2, bottom: 2),
+            child: TagPills(
+              tagIds: node.node.tagsUuid,
+              nodesByUuid: widget.tagNodes,
+              colorsByUuid: widget.linkColors ?? const {},
+              fallbackColor: colors.primary,
+              compact: true,
+              onOpen: widget.onOpenTag == null
+                  ? null
+                  : (tag) => widget.onOpenTag!(tag.uuid),
+              onRemove: widget.onRemoveTag == null
+                  ? null
+                  : (tag) => widget.onRemoveTag!(node, tag.uuid),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Query token: the live result section rides below the block row (web
+    // QueryNodeSection parity — the block stays a normal row, the first
+    // `query` token's AST renders as the section below it). The section
+    // mounts for a block the query system class MARKS too, even without a
+    // payload token: that is the unspecified state ("Set a query to see
+    // results." — the class marks the block, the first Apply creates the
+    // token). Only with the service seam AND the hosting page id — the
+    // `self` anchor is part of every run's identity, so both thread
+    // together or not at all.
+    final isQuerySurface = _hasQueryToken(node) ||
+        _hasSystemClass(node, 'query');
+    if (widget.queryService != null &&
+        widget.hostNodeUuid != null &&
+        isQuerySurface) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          content,
+          Padding(
+            padding: EdgeInsets.only(left: indent + 30, top: 2, bottom: 2),
+            child: QueryNodeSection(
+              source: node.node.name,
+              selfNodeId: widget.hostNodeUuid!,
+              queryService: widget.queryService!,
+              onOpenNode: widget.onOpenQueryResult,
+              onEditQuery: _hasQueryAuthoring ? () => _editQuery(node) : null,
+              storeChanges: widget.storeChanges,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (isFocused) {
+      content = Container(
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest.withAlpha((0.35 * 255).round()),
+        ),
+        child: content,
+      );
+    }
+
+    if (isSelected) {
+      content = Container(
+        decoration: BoxDecoration(
+          color: colors.primary.withAlpha((0.08 * 255).round()),
+        ),
+        child: content,
+      );
+    }
+
+    // In selection mode the whole row toggles selection; inner gestures
+    // (focus, drag handle, checkbox) are disabled via IgnorePointer.
+    if (selectionMode) {
+      content = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onToggleSelected?.call(node),
+        child: IgnorePointer(child: content),
+      );
+    }
+
+    // Entrance animation for newly inserted rows (size + fade).
+    if (_entering.contains(node)) {
+      content = TweenAnimationBuilder<double>(
+        tween: _entranceTween,
+        duration: disableAnimations
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
+        curve: Curves.easeInOutCubic,
+        onEnd: () => _entering.remove(node),
+        builder: (context, value, child) => ClipRect(
+          child: Align(
+            heightFactor: value,
+            alignment: Alignment.topCenter,
+            child: Opacity(opacity: value, child: child),
+          ),
+        ),
+        child: content,
+      );
+    }
+
+    // Drop target: dropping on a row makes the dragged node a child.
+    // The builder runs after this assignment, so the pre-wrap content must be
+    // captured in a final local: reading `content` inside the closure would
+    // return the DragTarget itself and build an infinitely recursive tree.
+    final rowContent = content;
+    content = DragTarget<BlockNode>(
+      onWillAcceptWithDetails: (details) =>
+          details.data != node && !_isDescendant(details.data, node),
+      onAcceptWithDetails: (details) {
+        HapticFeedback.selectionClick();
+        widget.onMove(details.data, node, DropPosition.child);
+      },
+      builder: (context, candidateData, rejectedData) {
+        final active = candidateData.isNotEmpty;
+        return AnimatedContainer(
+          duration: disableAnimations
+              ? Duration.zero
+              : const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: active
+                ? colors.primaryContainer.withAlpha((0.2 * 255).round())
+                : null,
+          ),
+          child: rowContent,
+        );
+      },
+    );
+
+    return Column(
+      key: _rowKeyFor(node),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Drop targets appear only while a drag is in progress, so idle rows
+        // carry no extra vertical spacing.
+        if (_dragging != null)
+          _buildDropLine(node, DropPosition.before, colors),
+        content,
+        if (_dragging != null)
+          _buildDropLine(node, DropPosition.after, colors),
+      ],
+    );
+  }
+
+  /// Slim drop zone between rows; highlights as a 2px accent line when the
+  /// dragged block hovers it.
+  Widget _buildDropLine(
+    BlockNode node,
+    DropPosition position,
+    ColorScheme colors,
+  ) {
+    return DragTarget<BlockNode>(
+      onWillAcceptWithDetails: (details) =>
+          details.data != node && !_isDescendant(details.data, node),
+      onAcceptWithDetails: (details) {
+        HapticFeedback.selectionClick();
+        widget.onMove(details.data, node, position);
+      },
+      builder: (context, candidateData, rejectedData) {
+        return Container(
+          height: 8,
+          alignment: Alignment.center,
+          child: Container(
+            height: 2,
+            decoration: BoxDecoration(
+              color: candidateData.isNotEmpty
+                  ? colors.primary
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  FocusNode _focusFor(BlockNode node) {
+    return _focusNodes.putIfAbsent(node, () {
+      final focusNode = FocusNode();
+      focusNode.addListener(() {
+        if (focusNode.hasFocus) {
+          widget.onFocus(node);
+        } else {
+          // Sync the canonical AST with the edited Markdown text so the
+          // read-only rich-text view shows the latest content.
+          final ast = AstBuilder.parseInline(node.controller.text);
+          node.node = _copyNodeWithName(node.node, AstBuilder.serialize(ast));
+        }
+      });
+      return focusNode;
+    });
+  }
+
+  Node _copyNodeWithName(Node node, String name) {
+    return Node(
+      id: node.id,
+      uuid: node.uuid,
+      name: name,
+      displayName: node.displayName,
+      icon: node.icon,
+      color: node.color,
+      parentUuid: node.parentUuid,
+      pageUuid: node.pageUuid,
+      sequence: node.sequence,
+      isPage: node.isPage,
+      isTask: node.isTask,
+      isDaily: node.isDaily,
+      isMonthly: node.isMonthly,
+      isYearly: node.isYearly,
+      isTable: node.isTable,
+      isAsset: node.isAsset,
+      isComment: node.isComment,
+      classes: node.classes,
+      tags: node.tags,
+      properties: node.properties,
+      children: node.children,
+      createDate: node.createDate,
+      writeDate: node.writeDate,
+      isClass: node.isClass,
+      isEmbedded: node.isEmbedded,
+    );
+  }
+
+  /// Read-only view of a block's content. The content document is parsed up
+  /// front (outside the widget build) so a malformed or pathologically nested
+  /// AST degrades to a quiet inline placeholder — one bad block never takes
+  /// down the page body.
+  Widget _buildReadOnlyContent(BlockNode node, ColorScheme colors) {
+    List<Map<String, dynamic>> tokens;
+    try {
+      tokens = contentTokensFromSource(node.node.name);
+    } catch (_) {
+      tokens = const [];
+    }
+    if (tokens.isEmpty && node.node.name.trim().isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Text(
+          'Content unavailable',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+                fontStyle: FontStyle.italic,
+              ),
+        ),
+      );
+    }
+    return AstRichText(
+      source: tokens,
+      onNodeLinkTap: widget.onNodeLinkTap,
+      onNodeLinkLongPress: (linkId, label) =>
+          _showNodeLinkMenu(node, linkId, label),
+      onExternalLinkTap: widget.onExternalLinkTap,
+      linkColors: widget.linkColors,
+      style: _isCode(node)
+          ? TextStyle(
+              fontFamily: 'monospace',
+              fontFamilyFallback: const ['monospace'],
+              color: colors.onSurface,
+            )
+          : null,
+      maxLines: 100,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  bool _isDescendant(BlockNode ancestor, BlockNode candidate) {
+    BlockNode? current = candidate.parent;
+    // Guard against cyclic parent links in corrupt server data.
+    final seen = <BlockNode>{};
+    while (current != null && seen.add(current)) {
+      if (current == ancestor) return true;
+      current = current.parent;
+    }
+    return false;
+  }
+
+  String _hintForBlock(BlockNode node) {
+    if (node.node.isTable) return 'Table block';
+    if (node.node.isAsset) return 'Asset block';
+    if (_hasSystemClass(node, 'code')) return 'Code block';
+    return 'Start writing...';
+  }
+
+  bool _isCode(BlockNode node) =>
+      node.node.isTable || _hasSystemClass(node, 'code');
+
+  bool _isTaskDone(BlockNode node) {
+    final status =
+        node.node.properties[SystemPropertyUuids.taskStatus] as String?;
+    return status != null && TaskStatuses.closed.contains(status);
+  }
+
+  Color? _calloutColor(BlockNode node, ColorScheme colors) {
+    if (_hasSystemClass(node, 'warning')) return colors.error;
+    if (_hasSystemClass(node, 'danger')) return colors.error;
+    if (_hasSystemClass(node, 'success')) return colors.primary;
+    if (_hasSystemClass(node, 'info')) return colors.tertiary;
+    if (_hasSystemClass(node, 'tip')) return colors.outline;
+    if (_hasSystemClass(node, 'quote')) return colors.outline;
+    return null;
+  }
+
+  bool _hasSystemClass(BlockNode node, String name) {
+    final needle = name.toLowerCase();
+    for (final classUuid in node.node.classesUuid) {
+      if (widget.classNames[classUuid] == needle) return true;
+    }
+    return false;
+  }
+
+  /// Whether the block's content stream carries a `query` token (the live
+  /// section's payload). Malformed content degrades to no section — one bad
+  /// block never takes down the page body.
+  bool _hasQueryToken(BlockNode node) {
+    final List<Map<String, dynamic>> tokens;
+    try {
+      tokens = contentTokensFromSource(node.node.name);
+    } catch (_) {
+      return false;
+    }
+    return tokens.any((token) => token['type'] == 'query');
+  }
+
+  /// The authoring seam's presence: the builder rides only when the loader,
+  /// the picker, AND the commit callback are all threaded (the three travel
+  /// together, like the service seam and the host id).
+  bool get _hasQueryAuthoring =>
+      widget.queryFactsLoader != null &&
+      widget.queryNodePicker != null &&
+      widget.onCommitQuery != null;
+
+  /// The slice-4 authoring flow: load the picker facts, open the query
+  /// builder over the block's first query token (a fresh draft when the
+  /// block carries no payload yet), and commit the popped AST through the
+  /// caller's op-path write-back.
+  Future<void> _editQuery(BlockNode node) async {
+    final loader = widget.queryFactsLoader;
+    final picker = widget.queryNodePicker;
+    final commit = widget.onCommitQuery;
+    if (loader == null || picker == null || commit == null) return;
+
+    final facts = await loader();
+    if (!mounted) return;
+
+    final tokens = contentTokensFromSource(node.node.name);
+    final index = firstQueryTokenIndex(tokens);
+    QueryAst? initial;
+    if (index >= 0) {
+      try {
+        initial = QueryAst.parse(tokens[index]['queryAst']);
+      } catch (_) {
+        initial = null; // A malformed token opens a fresh draft.
+      }
+    }
+
+    if (!context.mounted) return;
+    final result = await QueryBuilderSheet.show(
+      context,
+      facts: facts,
+      pickNode: picker,
+      initialAst: initial,
+      selfNodeId: widget.hostNodeUuid,
+    );
+    if (result == null || !mounted) return;
+    await commit(node, result);
+  }
+
+  void _showBlockMenu(BlockNode node) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(MdiIcons.eyeOutline),
+              title: const Text('Focus view'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _showFocusedBlockView(node);
+              },
+            ),
+            if (node.children.isNotEmpty)
+              ListTile(
+                leading: Icon(
+                  node.collapsed ? MdiIcons.chevronDown : MdiIcons.chevronUp,
+                ),
+                title: Text(node.collapsed ? 'Expand' : 'Collapse'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  widget.onToggleCollapse(node);
+                },
+              ),
+            if (node.id > 0)
+              ListTile(
+                leading: Icon(MdiIcons.plus),
+                title: const Text('Add child'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  widget.onAddChild(node);
+                },
+              ),
+            ListTile(
+              leading: Icon(MdiIcons.formatIndentIncrease),
+              title: const Text('Indent'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                widget.onIndent(node);
+              },
+            ),
+            ListTile(
+              leading: Icon(MdiIcons.formatIndentDecrease),
+              title: const Text('Outdent'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                widget.onOutdent(node);
+              },
+            ),
+            if (widget.onAddTag != null)
+              ListTile(
+                leading: Icon(MdiIcons.tagOutline),
+                title: const Text('Add tag'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  widget.onAddTag!(node);
+                },
+              ),
+            ListTile(
+              leading: Icon(MdiIcons.deleteOutline),
+              title: const Text('Delete block'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                widget.onDelete(node);
+              },
+            ),
+            if (widget.onInsertImage != null)
+              ListTile(
+                leading: Icon(MdiIcons.image),
+                title: const Text('Insert image'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  widget.onInsertImage!();
+                },
+              ),
+            if (widget.onInsertAudio != null)
+              ListTile(
+                leading: Icon(MdiIcons.microphone),
+                title: const Text('Insert audio'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  widget.onInsertAudio!();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFocusedBlockView(BlockNode block) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        final colors = Theme.of(ctx).colorScheme;
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          minChildSize: 0.3,
+          maxChildSize: 0.9,
+          builder: (ctx, scrollController) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Focused view',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: colors.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView(
+                        controller: scrollController,
+                        children: [
+                          AstRichText(
+                            source: block.node.name,
+                            onNodeLinkTap: widget.onNodeLinkTap,
+                            onNodeLinkLongPress: (linkId, label) {
+                              Navigator.of(ctx).pop();
+                              _showNodeLinkMenu(block, linkId, label);
+                            },
+                            onExternalLinkTap: widget.onExternalLinkTap,
+                            linkColors: widget.linkColors,
+                            style: Theme.of(ctx).textTheme.bodyLarge,
+                          ),
+                          ..._buildFocusedChildren(ctx, block.children, 1),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        widget.onFocus(block);
+                      },
+                      icon: Icon(MdiIcons.pencilOutline),
+                      label: const Text('Edit this block'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildFocusedChildren(
+    BuildContext context,
+    List<BlockNode> children,
+    int depth, [
+    Set<BlockNode>? visited,
+  ]) {
+    visited ??= <BlockNode>{};
+    final rows = <Widget>[];
+    for (final child in children) {
+      // Cyclic parent links in corrupt data must not recurse forever.
+      if (!visited.add(child)) continue;
+      rows.add(
+        Padding(
+          padding: EdgeInsets.only(left: depth * 20.0, top: 8),
+          child: AstRichText(
+            source: child.node.name,
+            onNodeLinkTap: widget.onNodeLinkTap,
+            onNodeLinkLongPress: (linkId, label) {
+              Navigator.of(context).pop();
+              _showNodeLinkMenu(child, linkId, label);
+            },
+            onExternalLinkTap: widget.onExternalLinkTap,
+            linkColors: widget.linkColors,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      );
+      if (child.children.isNotEmpty) {
+        rows.addAll(
+          _buildFocusedChildren(context, child.children, depth + 1, visited),
+        );
+      }
+    }
+    return rows;
+  }
+
+  void _showNodeLinkMenu(BlockNode block, String linkId, String label) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(MdiIcons.openInApp),
+              title: const Text('Open'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                widget.onNodeLinkAction?.call(
+                  block,
+                  NodeLinkAction.open,
+                  linkId,
+                  label,
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(MdiIcons.pencilOutline),
+              title: const Text('Edit'),
+              onTap: () async {
+                Navigator.of(ctx).pop();
+                final result = await _showEditLinkDialog(linkId, label);
+                if (result == null || !mounted) return;
+                widget.onNodeLinkAction?.call(
+                  block,
+                  NodeLinkAction.edit,
+                  linkId,
+                  label,
+                  newTarget: result.target,
+                  newLabel: result.label,
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(MdiIcons.deleteOutline),
+              title: const Text('Delete'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                widget.onNodeLinkAction?.call(
+                  block,
+                  NodeLinkAction.delete,
+                  linkId,
+                  label,
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(MdiIcons.linkOff),
+              title: const Text('Unlink'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                widget.onNodeLinkAction?.call(
+                  block,
+                  NodeLinkAction.unlink,
+                  linkId,
+                  label,
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<({String target, String? label})?> _showEditLinkDialog(
+    String linkId,
+    String label,
+  ) async {
+    final target = linkId.split(':').first;
+    final targetController = TextEditingController(text: target);
+    final labelController = TextEditingController(text: label);
+
+    final result = await showDialog<({String target, String? label})>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Edit link'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: targetController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Target UUID',
+                  hintText: 'uuid or node id',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: labelController,
+                decoration: const InputDecoration(
+                  labelText: 'Label',
+                  hintText: 'Visible text',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final newTarget = targetController.text.trim();
+                if (newTarget.isEmpty) return;
+                final newLabel = labelController.text.trim();
+                Navigator.of(ctx).pop((
+                  target: newTarget,
+                  label: newLabel.isEmpty ? null : newLabel,
+                ));
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    targetController.dispose();
+    labelController.dispose();
+    return result;
+  }
+}
+
+class _VisibleRow {
+  _VisibleRow({required this.node});
+  final BlockNode node;
+}
+
+class _DragHandle extends StatefulWidget {
+  const _DragHandle({
+    required this.node,
+    required this.onDragStarted,
+    required this.onDragEnded,
+    required this.onIndent,
+    required this.onOutdent,
+    required this.child,
+  });
+
+  final BlockNode node;
+  final VoidCallback onDragStarted;
+  final VoidCallback onDragEnded;
+  final VoidCallback onIndent;
+  final VoidCallback onOutdent;
+
+  /// The gutter affordance (bullet dot or task checkbox).
+  final Widget child;
+
+  @override
+  State<_DragHandle> createState() => _DragHandleState();
+}
+
+class _DragHandleState extends State<_DragHandle> {
+  double _dragDelta = 0;
+  static const _threshold = 24.0;
+  // A shared tween instance prevents TweenAnimationBuilder from restarting
+  // the scale-in when unrelated rebuilds happen mid-drag.
+  static final _scaleTween = Tween<double>(begin: 1, end: 1.02);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    // Zero-elevation design: flat card with a subtle outline, scaling in
+    // from 1.0 to 1.02 over 100ms.
+    final feedback = TweenAnimationBuilder<double>(
+      tween: _scaleTween,
+      duration: disableAnimations
+          ? Duration.zero
+          : const Duration(milliseconds: 100),
+      curve: Curves.easeInOutCubic,
+      builder: (context, scale, child) =>
+          Transform.scale(scale: scale, child: child),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Container(
+          width: MediaQuery.of(context).size.width - 32,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: colors.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: colors.outline.withAlpha((0.10 * 255).round()),
+            ),
+          ),
+          child: Text(
+            widget.node.controller.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+        ),
+      ),
+    );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (details) {
+        _dragDelta += details.primaryDelta ?? 0;
+      },
+      onHorizontalDragEnd: (_) {
+        if (_dragDelta > _threshold) {
+          widget.onIndent();
+        } else if (_dragDelta < -_threshold) {
+          widget.onOutdent();
+        }
+        _dragDelta = 0;
+      },
+      child: LongPressDraggable<BlockNode>(
+        data: widget.node,
+        delay: const Duration(milliseconds: 250),
+        onDragStarted: () {
+          HapticFeedback.lightImpact();
+          widget.onDragStarted();
+        },
+        onDragEnd: (_) => widget.onDragEnded(),
+        feedback: feedback,
+        childWhenDragging: Opacity(opacity: 0.35, child: widget.child),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _TaskCheckbox extends StatelessWidget {
+  const _TaskCheckbox({
+    required this.done,
+    required this.onToggle,
+    required this.colors,
+  });
+
+  final bool done;
+  final VoidCallback onToggle;
+  final ColorScheme colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onToggle();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(
+          child: Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: done ? colors.primary : Colors.transparent,
+              border: Border.all(
+                color: done ? colors.primary : colors.outline,
+                width: 2,
+              ),
+            ),
+            child: done
+                ? Icon(MdiIcons.check, size: 14, color: colors.onPrimary)
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Bullet extends StatelessWidget {
+  const _Bullet({
+    required this.collapsed,
+    required this.hasChildren,
+    required this.onToggleCollapse,
+    required this.colors,
+  });
+
+  final bool collapsed;
+  final bool hasChildren;
+  final VoidCallback onToggleCollapse;
+  final ColorScheme colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: hasChildren
+          ? () {
+              HapticFeedback.lightImpact();
+              onToggleCollapse();
+            }
+          : null,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 36,
+        height: 44,
+        child: Center(
+          child: hasChildren && collapsed
+              ? Icon(
+                  MdiIcons.chevronRight,
+                  size: 18,
+                  color: colors.onSurfaceVariant,
+                )
+              : Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: colors.onSurfaceVariant,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Boolean mode: the owner-specified synthetic options — the checked
+/// circle (green) for true, the hollow circle (gray) for false. The option
+/// ids are the JSON boolean spelled out; writes translate back.
+const BulletPropertyOption _booleanTrueOption = BulletPropertyOption(
+  id: 'true',
+  label: 'True',
+  icon: 'mdiCheckCircle',
+  color: 'green',
+);
+const BulletPropertyOption _booleanFalseOption = BulletPropertyOption(
+  id: 'false',
+  label: 'False',
+  icon: 'mdiCircleOutline',
+  color: 'gray',
+);
+
+/// The block-row value button (the Logseq-DB "beginning of the
+/// block" port). Shows the FIRST selected option's MDI icon tinted with its
+/// color — the at-a-glance state read; an unset value renders a dimmed
+/// hollow circle so a fresh value can be given in place. Tapping opens the
+/// option sheet (icon tinted + label + checkmark; booleans list True/False;
+/// a None row clears whenever a value is set). Read-only projections (no
+/// [onWrite]) render the icon but never open the sheet.
+class _BulletPropertyButton extends StatelessWidget {
+  const _BulletPropertyButton({
+    required this.node,
+    required this.value,
+    required this.onWrite,
+    required this.colors,
+  });
+
+  final BlockNode node;
+  final BulletPropertyValue value;
+  final Future<void> Function(BlockNode node, BulletPropertyWrite write)?
+  onWrite;
+  final ColorScheme colors;
+
+  bool get _isBoolean => value.type == 'boolean';
+
+  List<BulletPropertyOption> get _displayOptions => _isBoolean
+      ? const [_booleanTrueOption, _booleanFalseOption]
+      : value.options;
+
+  BulletPropertyOption? get _currentOption {
+    if (value.selectedIds.isEmpty) return null;
+    final id = value.selectedIds.first;
+    for (final option in _displayOptions) {
+      if (option.id == id) return option;
+    }
+    return null;
+  }
+
+  /// The exact write one pick resolves to (mirrors the web
+  /// PropertyIconButton.choose): booleans and single-select replace at
+  /// idx 0; multi_select toggles within the carrying element's array
+  /// (clearing the element when the last id leaves).
+  BulletPropertyWrite _resolveWrite(String optionId) {
+    if (_isBoolean) {
+      return BulletPropertyWrite.set(
+        value.propertySchemaId,
+        optionId == 'true',
+        idx: 0,
+      );
+    }
+    if (value.type == 'multi_select') {
+      final carrying = value.elements
+          .where((e) => e.ids.contains(optionId))
+          .firstOrNull;
+      if (carrying != null) {
+        final remaining =
+            carrying.ids.where((id) => id != optionId).toList();
+        if (remaining.isNotEmpty) {
+          return BulletPropertyWrite.set(
+            value.propertySchemaId,
+            remaining,
+            idx: carrying.idx,
+          );
+        }
+        return BulletPropertyWrite.unset(
+          value.propertySchemaId,
+          idx: carrying.idx,
+        );
+      }
+      final merged = <String>[
+        for (final id in value.selectedIds)
+          if (id != optionId) id,
+        optionId,
+      ];
+      return BulletPropertyWrite.set(
+        value.propertySchemaId,
+        merged,
+        idx: value.elements.isEmpty ? 0 : value.elements.first.idx,
+      );
+    }
+    return BulletPropertyWrite.set(value.propertySchemaId, optionId, idx: 0);
+  }
+
+  /// The option glyph: its MDI icon tinted with the option color, or the
+  /// tinted dot when the option declares no icon.
+  Widget _glyph(BulletPropertyOption? option, {required bool unset}) {
+    if (unset) {
+      return Icon(
+        MdiIcons.circleOutline,
+        size: 18,
+        color: colors.onSurfaceVariant.withAlpha((0.45 * 255).round()),
+      );
+    }
+    if (option == null) return const SizedBox(width: 18, height: 18);
+    final color = ColorPresets.tryResolve(option.color) ?? colors.onSurfaceVariant;
+    final iconData = mdiFromName(option.icon);
+    if (iconData != null) {
+      return Icon(iconData, size: 18, color: color);
+    }
+    return Container(
+      width: 10,
+      height: 10,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+
+  void _openSheet(BuildContext context) {
+    final handler = onWrite;
+    if (handler == null) return;
+    HapticFeedback.lightImpact();
+    final tooltip = _currentOption == null
+        ? '${value.label}: none'
+        : '${value.label}: ${_currentOption!.label}';
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  tooltip,
+                  style: Theme.of(
+                    ctx,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            if (_displayOptions.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'No options.',
+                  style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            for (final option in _displayOptions)
+              Builder(
+                builder: (itemCtx) {
+                  final selected = value.selectedIds.contains(option.id);
+                  return ListTile(
+                    leading: _glyph(option, unset: false),
+                    title: Text(option.label),
+                    trailing: selected
+                        ? Icon(MdiIcons.check, color: colors.primary)
+                        : null,
+                    onTap: () async {
+                      Navigator.of(itemCtx).pop();
+                      await handler(node, _resolveWrite(option.id));
+                    },
+                  );
+                },
+              ),
+            // The None row always clears when a value is set — `required`
+            // retired outright: hiding it was
+            // mild enforcement, contradicting the render-contract law
+            // (suggestion only, never enforcement).
+            if (value.selectedIds.isNotEmpty)
+              Builder(
+                builder: (itemCtx) => ListTile(
+                  leading: _glyph(null, unset: true),
+                  title: const Text('None'),
+                  onTap: () async {
+                    Navigator.of(itemCtx).pop();
+                    await handler(
+                      node,
+                      BulletPropertyWrite.unset(value.propertySchemaId),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unset = value.selectedIds.isEmpty;
+    final tooltip = _currentOption == null
+        ? '${value.label}: none'
+        : '${value.label}: ${_currentOption!.label}';
+    final glyph = _glyph(_currentOption, unset: unset);
+    final handler = onWrite;
+    if (handler == null) {
+      return SizedBox(
+        width: 28,
+        height: 44,
+        child: Center(child: glyph),
+      );
+    }
+    return GestureDetector(
+      onTap: () => _openSheet(context),
+      behavior: HitTestBehavior.opaque,
+      child: Tooltip(
+        message: tooltip,
+        child: SizedBox(width: 28, height: 44, child: Center(child: glyph)),
+      ),
+    );
+  }
+}
+
+/// Check circle shown at the left of each row in multi-select mode. Appears
+/// with a 150ms size + fade and animates its checked state; the whole row is
+/// the tap target, so this circle is purely visual.
+class _SelectionCheckCircle extends StatelessWidget {
+  const _SelectionCheckCircle({
+    required this.visible,
+    required this.selected,
+    required this.colors,
+    required this.disableAnimations,
+  });
+
+  final bool visible;
+  final bool selected;
+  final ColorScheme colors;
+  final bool disableAnimations;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = disableAnimations
+        ? Duration.zero
+        : const Duration(milliseconds: 150);
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: duration,
+      curve: Curves.easeInOutCubic,
+      child: AnimatedSize(
+        duration: duration,
+        curve: Curves.easeInOutCubic,
+        alignment: Alignment.centerLeft,
+        child: SizedBox(
+          width: visible ? 36 : 0,
+          height: 44,
+          child: Center(
+            child: AnimatedContainer(
+              duration: duration,
+              curve: Curves.easeInOutCubic,
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? colors.primary : Colors.transparent,
+                border: Border.all(
+                  color: selected ? colors.primary : colors.outline,
+                  width: 2,
+                ),
+              ),
+              child: selected
+                  ? Icon(MdiIcons.check, size: 14, color: colors.onPrimary)
+                  : null,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

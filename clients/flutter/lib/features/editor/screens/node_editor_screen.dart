@@ -1,0 +1,2963 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../core/constants/system.dart';
+import '../../../core/routing/router.dart';
+import '../../../core/utils/ast_builder.dart';
+import '../../../core/utils/ast_stringifier.dart';
+import '../../../core/utils/class_icon_resolver.dart';
+import '../../../core/utils/color_presets.dart';
+import '../../../core/utils/node_display_name.dart';
+import '../../../core/utils/node_icon.dart';
+import '../../../core/utils/query_tokens.dart';
+import '../../../data/models/breadcrumb_item.dart';
+import '../../../data/models/linked_reference.dart';
+import '../../../data/models/node.dart';
+import '../../../domain/query/query_ast.dart';
+import '../../../data/models/property.dart';
+import '../../../data/repositories/node_cache_repository.dart';
+import '../../../data/repositories/node_repository.dart';
+import '../../../domain/services/query_service.dart';
+import '../../../domain/services/sync_v2_service.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../settings/providers/settings_provider.dart';
+import '../../../shared/views/node_list_view.dart';
+import '../selection_utils.dart';
+import '../widgets/aliased_node_row.dart';
+import '../widgets/aliases_sheet.dart';
+import '../widgets/alias_target_guard.dart';
+import '../widgets/block_tree_editor.dart';
+import '../widgets/cover_image_widget.dart';
+import '../widgets/editor_inline_toolbar.dart';
+import '../../../shared/widgets/fleet_card.dart';
+import '../../../shared/widgets/bottom_sheet_drag_handle.dart';
+import '../widgets/mention_picker.dart';
+import '../widgets/node_edit_modal.dart';
+import '../../../shared/widgets/node_picker.dart';
+import '../widgets/property_value_cell.dart';
+import '../../shares/widgets/shares_bottom_sheet.dart';
+import '../widgets/slash_command_palette.dart';
+import '../widgets/tag_pills.dart';
+
+/// Native page editor with a web-app-like bullet tree and breadcrumbs.
+///
+/// Child blocks are rendered as a nested, collapsible bullet list (via
+/// [BlockTreeEditor]). The title sits above the tree, and breadcrumbs sit
+/// below the app bar. Inline styles, node/class/tag links, slash commands and
+/// @ mentions are supported.
+class NodeEditorScreen extends StatefulWidget {
+  const NodeEditorScreen({super.key, required this.nodeUuid});
+
+  final String nodeUuid;
+
+  @override
+  State<NodeEditorScreen> createState() => _NodeEditorScreenState();
+}
+
+class _NodeEditorScreenState extends State<NodeEditorScreen> {
+  final _titleController = TextEditingController();
+  final _scrollController = ScrollController();
+  final _blockTreeKey = GlobalKey<BlockTreeEditorState>();
+  final List<BlockNode> _roots = [];
+  List<Node> _childPages = [];
+
+  List<BreadcrumbItem> _breadcrumbs = [];
+  List<NodePropertyValue> _properties = [];
+  Map<String, ClassProperty> _classProperties = {};
+  List<Property> _availableProperties = [];
+  List<Node> _classes = [];
+  Map<String, String> _classNames = {};
+  Map<String, Color> _linkColors = {};
+  Map<String, ResolvedClassStyle> _classStyles = {};
+  Map<dynamic, String> _propertyValueNames = {};
+
+  /// Display-positioned property values per block uuid — the source
+  /// of the block-bullet value buttons.
+  Map<String, List<BulletPropertyValue>> _bulletProperties = {};
+  String? _pageColor;
+  String? _pageIcon;
+  Node? _loadedPage;
+  bool _pageIsPrivate = false;
+  bool _isDaily = false;
+  bool _isMonthly = false;
+  bool _isYearly = false;
+  List<String> _pageClassUuids = const [];
+
+  /// Tag chrome (web TagsRow parity): the page's tag uuid set, and the
+  /// resolved tag nodes for the page AND its blocks (any page can act as a
+  /// tag, so the same map feeds the header row and the per-block rows).
+  List<String> _pageTagUuids = const [];
+  Map<String, Node> _tagNodes = const {};
+  final Set<String> _deletedBlockUuids = {};
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+  BlockNode? _focusedBlock;
+  List<LinkedReference> _linkedReferences = [];
+  int _linkedRefsTotal = 0;
+  bool _isFavorite = false;
+  bool _propertiesExpanded = false;
+
+  /// Asset node uuid from the page's `coverAssetId` wire node field,
+  /// rendered as a header thumbnail instead of a property row (web parity
+  /// with NodeView).
+  String? _coverAssetUuid;
+
+  /// Node-alias chrome (SCHEMA.md "Node aliases"): every page whose
+  /// alias-terminal is this one (the title-row affordance lists them) and,
+  /// when this page IS an alias, its main-page target (the pseudo-property
+  /// row shows/changes/clears it).
+  List<Node> _aliasNodes = const [];
+  String? _aliasedTargetId;
+  Node? _aliasedTargetNode;
+
+  /// Block multi-select mode: long-press a block's content to enter, tap rows
+  /// to toggle, batch actions run from the bottom selection bar.
+  bool _selectionMode = false;
+  final Set<BlockNode> _selectedBlocks = {};
+
+  /// Autosave: edits mark the page dirty and debounce a background save.
+  Timer? _autosaveTimer;
+  bool _dirty = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController.addListener(_markDirty);
+    _loadPage();
+  }
+
+  @override
+  void dispose() {
+    _autosaveTimer?.cancel();
+    _titleController.dispose();
+    _scrollController.dispose();
+    for (final block in _allBlocks()) {
+      block.controller.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Marks the page dirty and schedules a debounced autosave.
+  void _markDirty() {
+    if (_loading) return;
+    _dirty = true;
+    _autosaveTimer?.cancel();
+    _autosaveTimer = Timer(const Duration(seconds: 2), _autosave);
+  }
+
+  void _autosave() {
+    if (!_dirty || !mounted) return;
+    if (_saving) {
+      // A save is already in flight; retry shortly.
+      _autosaveTimer = Timer(const Duration(seconds: 2), _autosave);
+      return;
+    }
+    _save();
+  }
+
+  /// The query builder's write-back (slice 4): splice the committed AST
+  /// into the block's FIRST `query` token — appending the payload token
+  /// when the class-marked block carries none yet (the web's
+  /// `updateQueryTokenAst` / `appendQueryToken` seam) — and land it through
+  /// the SAME content-update op path the autosave rides (`update_content` →
+  /// `object.update {contentAst}`, applied locally, flushed, store-bus
+  /// notified). The in-memory block updates in step: the section re-runs on
+  /// the new AST, and the controller's `[query]` placeholder keeps the
+  /// token anchored through later text edits (the parse-preserving save
+  /// funnels re-attach the payloads).
+  Future<void> _commitQueryAst(BlockNode block, QueryAst ast) async {
+    final auth = context.read<AuthProvider>();
+    final service = auth.syncService;
+    if (service == null) return;
+
+    final tokens = contentTokensFromSource(block.node.name);
+    final index = firstQueryTokenIndex(tokens);
+    final next = index >= 0
+        ? withQueryTokenAst(tokens, index, ast.toJson())
+        : appendQueryToken(tokens, ast.toJson());
+    await service.enqueue(
+      type: 'update_content',
+      nodeUuid: block.node.uuid,
+      contentAst: next,
+    );
+    await service.flush();
+    if (!mounted) return;
+    setState(() {
+      block.node = _copyNodeWithName(block.node, jsonEncode(next));
+      block.controller.text = AstBuilder.toMarkdown(next);
+    });
+  }
+
+  Future<void> _loadPage() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+    final dateFormat = context.read<SettingsProvider>().dateFormat;
+
+    setState(() => _loading = true);
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio!,
+        syncService: auth.syncService,
+      );
+      final pageContent = await repo.fetchPageContent(widget.nodeUuid);
+      final page = pageContent.node;
+
+      for (final block in _allBlocks()) {
+        block.controller.dispose();
+      }
+      _roots.clear();
+      // Revision-11 render cascade for the children of the opened node:
+      // class children never exist (classes are always roots — they render
+      // from class_cache, not here); a parented child renders in the
+      // main-children ("Child pages") zone when its present_as_main bit is
+      // set, inline in the body otherwise (the bit is the one partition bit
+      // for every parent type).
+      _childPages = page.children
+          .where((b) => !b.isClass && b.isEmbedded == false)
+          .toList();
+      _roots.addAll(
+        _nodesToBlockTree(
+          page.children
+              .where((b) => b.isClass || b.isEmbedded != false)
+              .toList(),
+        ),
+      );
+
+      final properties = await repo.fetchNodeProperties(widget.nodeUuid);
+      final classes = await repo.fetchClasses();
+      final breadcrumbs = await repo.fetchBreadcrumbs(widget.nodeUuid);
+
+      // Class-level property bindings (hidden/required/default) for this node's classes.
+      final classProps = <String, ClassProperty>{};
+      for (final classUuid in page.classesUuid) {
+        try {
+          for (final cp in await repo.fetchClassProperties(classUuid)) {
+            classProps.putIfAbsent(cp.propertyUuid, () => cp);
+          }
+        } catch (_) {
+          // Ignore classes that fail to resolve; properties still render.
+        }
+      }
+      // Full property defs so required/default class props without a value still render.
+      List<Property> available = const [];
+      if (classProps.isNotEmpty) {
+        try {
+          available = await repo.fetchAvailableProperties(widget.nodeUuid);
+        } catch (_) {}
+      }
+
+      final propertyValueNames = await _buildPropertyValueNameMap(repo, properties, dateFormat);
+
+      // Bullet buttons: best-effort — a failure here must not take
+      // down the page load (the properties panel still works).
+      Map<String, List<BulletPropertyValue>> bulletProperties = const {};
+      try {
+        bulletProperties = await _loadBulletProperties(repo);
+      } catch (_) {}
+
+      // Node-alias chrome: best-effort the same way (non-critical).
+      List<Node> aliasNodes = const [];
+      Node? aliasedTarget;
+      String? aliasedTargetId;
+      try {
+        aliasNodes = await repo.fetchAliasNodesOf(widget.nodeUuid);
+        aliasedTargetId = page.aliasedNodeId;
+        if (aliasedTargetId != null) {
+          final targets = await repo.fetchNodesByUuids([aliasedTargetId]);
+          aliasedTarget = targets.firstOrNull;
+        }
+      } catch (_) {}
+
+      // Tag chrome: best-effort the same way (non-critical). Collect the
+      // tag uuids carried by the page and every block, then resolve the tag
+      // nodes in one read (the pills need display names, icons and colors).
+      Map<String, Node> tagNodes = const {};
+      try {
+        final tagUuids = <String>{...page.tagsUuid};
+        void collectTags(List<Node> nodes) {
+          for (final n in nodes) {
+            tagUuids.addAll(n.tagsUuid);
+            collectTags(n.children);
+          }
+        }
+        collectTags(page.children);
+        if (tagUuids.isNotEmpty) {
+          final fetched = await repo.fetchNodesByUuids(tagUuids.toList());
+          tagNodes = {for (final t in fetched) t.uuid: t};
+        }
+      } catch (_) {}
+
+      final classNames = {
+        for (final c in classes)
+          if (c.uuid.isNotEmpty) c.uuid: c.displayName.toLowerCase(),
+      };
+
+      // Data colors for link chips: the page's own blocks plus all classes.
+      final linkColors = <String, Color>{};
+      void collectColors(List<Node> nodes, [Set<String>? visited]) {
+        visited ??= <String>{};
+        for (final n in nodes) {
+          // Cyclic children graphs in corrupt data must not recurse forever.
+          if (!visited.add(n.uuid)) continue;
+          final color = ColorPresets.tryResolve(n.color);
+          if (color != null) linkColors[n.uuid] = color;
+          collectColors(n.children, visited);
+        }
+      }
+
+      collectColors(page.children);
+      for (final c in classes) {
+        final color = ColorPresets.tryResolve(c.color);
+        if (color != null) linkColors[c.uuid] = color;
+      }
+
+      if (mounted) {
+        setState(() {
+          _titleController.text = resolveNodeDisplayName(page);
+          _classProperties = classProps;
+          _availableProperties = available;
+          _properties = _buildDisplayProperties(
+            properties,
+            classProps,
+            available,
+          );
+          _classes = classes;
+          _classNames = classNames;
+          _linkColors = linkColors;
+          _classStyles = resolveClassStyles(classes);
+          _propertyValueNames = propertyValueNames;
+          _bulletProperties = bulletProperties;
+          _aliasNodes = aliasNodes;
+          _aliasedTargetId = aliasedTargetId;
+          _aliasedTargetNode = aliasedTarget;
+          _pageColor = page.color;
+          _pageIcon = page.icon;
+          _loadedPage = page;
+          _pageIsPrivate = page.isPrivate;
+          _isDaily = page.isDaily;
+          _isMonthly = page.isMonthly;
+          _isYearly = page.isYearly;
+          _pageClassUuids = page.classesUuid;
+          _pageTagUuids = page.tagsUuid;
+          _tagNodes = tagNodes;
+          _coverAssetUuid = page.coverAssetId;
+          _breadcrumbs = breadcrumbs;
+          _deletedBlockUuids.clear();
+          _error = null;
+          _focusedBlock = null;
+          // The block tree is rebuilt from scratch, so any selection would
+          // reference stale BlockNode identities — escape selection mode.
+          _selectionMode = false;
+          _selectedBlocks.clear();
+        });
+      }
+      if (mounted) {
+        await _loadFavoriteStatus();
+        await _loadLinkedReferences();
+      }
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final body = e.response?.data;
+      if (mounted) {
+        setState(
+          () => _error = 'Server error ${status ?? ""}\n$body\n${e.message}',
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadLinkedReferences() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio!,
+        syncService: auth.syncService,
+      );
+      final result = await repo.fetchLinkedReferences(widget.nodeUuid);
+      if (mounted) {
+        setState(() {
+          _linkedReferences = result.references;
+          _linkedRefsTotal = result.totalCount;
+        });
+      }
+    } catch (_) {
+      // Non-critical: hide the section on failure.
+      if (mounted) {
+        setState(() {
+          _linkedReferences = [];
+          _linkedRefsTotal = 0;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadFavoriteStatus() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio!,
+        syncService: auth.syncService,
+      );
+      final uuids = await repo.fetchFavoriteUuids();
+      if (mounted) {
+        setState(() => _isFavorite = uuids.contains(widget.nodeUuid));
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isFavorite = false);
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+    try {
+      if (_isFavorite) {
+        await repo.removeFavorite(widget.nodeUuid);
+      } else {
+        await repo.addFavorite(widget.nodeUuid);
+      }
+      if (mounted) setState(() => _isFavorite = !_isFavorite);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update favorite: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRenameTitleDialog() async {
+    final isJournalDatePage = _isDaily || _isMonthly || _isYearly;
+    if (isJournalDatePage) return;
+
+    final result = await NodeEditModal.show(
+      context,
+      title: 'Rename page',
+      initialName: _titleController.text,
+      initialIcon: _pageIcon,
+      initialColor: _pageColor,
+      allowIconColor: false,
+      confirmLabel: 'Rename',
+    );
+    if (result == null) return;
+    final name = result.name;
+    if (name.isEmpty || name == _titleController.text) return;
+    await _renamePage(name);
+  }
+
+  Future<void> _renamePage(String name) async {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    setState(() => _saving = true);
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio!,
+        syncService: auth.syncService,
+      );
+      final titleAst = AstBuilder.serialize(AstBuilder.parseInline(name));
+      await repo.updateNode(widget.nodeUuid, name: titleAst);
+      if (mounted) {
+        setState(() => _titleController.text = name);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Page renamed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not rename page: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _showPageOptionsMenu() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(_isFavorite ? MdiIcons.star : MdiIcons.starOutline),
+              title: Text(_isFavorite ? 'Remove favorite' : 'Add favorite'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _toggleFavorite();
+              },
+            ),
+            if (!context.read<AuthProvider>().isLocalMode)
+              ListTile(
+                leading: Icon(MdiIcons.shareOutline),
+                title: const Text('Share'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _openShareSheet();
+                },
+              ),
+            ListTile(
+              leading: Icon(MdiIcons.tagOutline),
+              title: const Text('Add tag'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _addPageTag();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openShareSheet() {
+    SharesBottomSheet.show(context, nodeUuid: widget.nodeUuid);
+  }
+
+  List<BlockNode> _nodesToBlockTree(
+    List<Node> nodes, {
+    BlockNode? parent,
+    Set<String>? visited,
+  }) {
+    visited ??= <String>{};
+    final sorted = List<Node>.from(nodes)
+      ..sort((a, b) => a.sequence.compareTo(b.sequence));
+    return sorted.map((node) {
+      final ast = _tryParseAst(node.name);
+      final markdown = AstBuilder.toMarkdown(ast);
+      final block = BlockNode(
+        node: node,
+        controller: TextEditingController(text: markdown),
+        parent: parent,
+        collapsed: false,
+      );
+      // Guard against cyclic children in corrupt server data.
+      if (visited!.add(node.uuid)) {
+        block.children.addAll(
+          _nodesToBlockTree(node.children, parent: block, visited: visited),
+        );
+      }
+      return block;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _tryParseAst(String name) {
+    try {
+      final parsed = jsonDecode(name);
+      if (parsed is List) {
+        // Stored names can carry the CRDT text wrapper; unwrap so the editor
+        // opens the real AST instead of a JSON-string title.
+        return unwrapCrdtContentAst(parsed).cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return AstBuilder.parseInline(name);
+  }
+
+  Future<void> _save() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+    if (_saving) return; // avoid overlapping saves
+
+    setState(() => _saving = true);
+    try {
+      final service = auth.syncService;
+      if (service == null) {
+        throw StateError('Sync service not available');
+      }
+
+      // Page title changes are handled explicitly via _renamePage; do not
+      // rewrite the title here so autosave cannot accidentally overwrite it.
+
+      // Ensure every focused block's AST is synced before serializing.
+      _syncAllBlockNames();
+      _assignSequences(_roots, 0);
+
+      // Identify new blocks before assigning UUIDs so we can emit create ops
+      // for them and update ops for existing blocks.
+      final newBlocks = _collectNewBlocks(_roots);
+
+      // Assign fresh UUIDs to every new block so creates can reference their
+      // own parent UUIDs and future saves treat them as updates.
+      _assignUuidsToNewBlocks(_roots);
+
+      // Enqueue updates for existing blocks and creates for new blocks.
+      await _enqueueBlockWrites(service, _roots, newBlocks);
+
+      for (final uuid in _deletedBlockUuids) {
+        await service.enqueue(type: 'delete', nodeUuid: uuid);
+      }
+      _deletedBlockUuids.clear();
+
+      await service.flush();
+      if (!mounted) return;
+      _dirty = false;
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        // Stay dirty and retry in the background.
+        _autosaveTimer?.cancel();
+        _autosaveTimer = Timer(const Duration(seconds: 5), _autosave);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _syncAllBlockNames() {
+    for (final block in _allBlocks()) {
+      final ast = AstBuilder.parseInlinePreservingQuery(
+        block.controller.text,
+        queryTokensOf(contentTokensFromSource(block.node.name)),
+      );
+      block.node = _copyNodeWithName(block.node, AstBuilder.serialize(ast));
+    }
+  }
+
+  double _assignSequences(List<BlockNode> nodes, double start) {
+    var sequence = start;
+    for (final node in nodes) {
+      node.node = _copyNodeWithSequence(node.node, sequence);
+      sequence += 1.0;
+      if (node.children.isNotEmpty) {
+        sequence = _assignSequences(node.children, sequence);
+      }
+    }
+    return sequence;
+  }
+
+  Set<BlockNode> _collectNewBlocks(List<BlockNode> nodes) {
+    final result = <BlockNode>{};
+    for (final block in nodes) {
+      if (block.node.uuid.isEmpty) {
+        result.add(block);
+      }
+      result.addAll(_collectNewBlocks(block.children));
+    }
+    return result;
+  }
+
+  void _assignUuidsToNewBlocks(List<BlockNode> nodes) {
+    for (final block in nodes) {
+      if (block.node.uuid.isEmpty) {
+        block.node = _copyNodeWithId(
+          block.node,
+          0,
+          const Uuid().v7(),
+        );
+      }
+      _assignUuidsToNewBlocks(block.children);
+    }
+  }
+
+  Future<void> _enqueueBlockWrites(
+    SyncV2Service service,
+    List<BlockNode> nodes,
+    Set<BlockNode> newBlocks,
+  ) async {
+    for (final block in nodes) {
+      final parentUuid = block.parent?.node.uuid ?? widget.nodeUuid;
+      final contentAst = AstBuilder.parseInlinePreservingQuery(
+        block.controller.text,
+        queryTokensOf(contentTokensFromSource(block.node.name)),
+      );
+      if (newBlocks.contains(block)) {
+        await service.enqueue(
+          type: 'create',
+          nodeUuid: block.node.uuid,
+          parentUuid: parentUuid,
+          contentAst: contentAst,
+        );
+      } else {
+        await service.enqueue(
+          type: 'update_content',
+          nodeUuid: block.node.uuid,
+          contentAst: contentAst,
+        );
+        if (block.node.parentUuid != parentUuid) {
+          await service.enqueue(
+            type: 'move',
+            nodeUuid: block.node.uuid,
+            parentUuid: parentUuid,
+          );
+        }
+      }
+      await _enqueueBlockWrites(service, block.children, newBlocks);
+    }
+  }
+
+  Node _copyNodeWithId(Node node, int id, String uuid) {
+    return Node(
+      id: id,
+      uuid: uuid,
+      name: node.name,
+      displayName: node.displayName,
+      icon: node.icon,
+      color: node.color,
+      parentUuid: node.parentUuid,
+      pageUuid: node.pageUuid,
+      sequence: node.sequence,
+      isPage: node.isPage,
+      isTask: node.isTask,
+      isDaily: node.isDaily,
+      isMonthly: node.isMonthly,
+      isYearly: node.isYearly,
+      isTable: node.isTable,
+      isAsset: node.isAsset,
+      isComment: node.isComment,
+      isPrivate: node.isPrivate,
+      classes: node.classes,
+      tags: node.tags,
+      properties: node.properties,
+      children: node.children,
+      createDate: node.createDate,
+      writeDate: node.writeDate,
+      isClass: node.isClass,
+      isEmbedded: node.isEmbedded,
+    );
+  }
+
+  Node _copyNodeWithName(Node node, String name) {
+    return Node(
+      id: node.id,
+      uuid: node.uuid,
+      name: name,
+      displayName: node.displayName,
+      icon: node.icon,
+      color: node.color,
+      parentUuid: node.parentUuid,
+      pageUuid: node.pageUuid,
+      sequence: node.sequence,
+      isPage: node.isPage,
+      isTask: node.isTask,
+      isDaily: node.isDaily,
+      isMonthly: node.isMonthly,
+      isYearly: node.isYearly,
+      isTable: node.isTable,
+      isAsset: node.isAsset,
+      isComment: node.isComment,
+      isPrivate: node.isPrivate,
+      classes: node.classes,
+      tags: node.tags,
+      properties: node.properties,
+      children: node.children,
+      createDate: node.createDate,
+      writeDate: node.writeDate,
+      isClass: node.isClass,
+      isEmbedded: node.isEmbedded,
+    );
+  }
+
+  Node _copyNodeWithSequence(Node node, double sequence) {
+    return Node(
+      id: node.id,
+      uuid: node.uuid,
+      name: node.name,
+      displayName: node.displayName,
+      icon: node.icon,
+      color: node.color,
+      parentUuid: node.parentUuid,
+      pageUuid: node.pageUuid,
+      sequence: sequence,
+      isPage: node.isPage,
+      isTask: node.isTask,
+      isDaily: node.isDaily,
+      isMonthly: node.isMonthly,
+      isYearly: node.isYearly,
+      isTable: node.isTable,
+      isAsset: node.isAsset,
+      isComment: node.isComment,
+      isPrivate: node.isPrivate,
+      classes: node.classes,
+      tags: node.tags,
+      properties: node.properties,
+      children: node.children,
+      createDate: node.createDate,
+      writeDate: node.writeDate,
+      isClass: node.isClass,
+      isEmbedded: node.isEmbedded,
+    );
+  }
+
+  void _addBlock() {
+    HapticFeedback.lightImpact();
+    final newBlock = BlockNode(
+      node: Node(id: 0, uuid: '', name: '', displayName: ''),
+      controller: TextEditingController(),
+      parent: null,
+      isNew: true,
+    );
+    setState(() {
+      _roots.add(newBlock);
+      _focusedBlock = newBlock;
+    });
+    _markDirty();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _blockTreeKey.currentState?.requestFocusFor(newBlock);
+    });
+  }
+
+  void _onAddChild(BlockNode parent) {
+    if (parent.node.uuid.isEmpty) return;
+    HapticFeedback.lightImpact();
+    final newBlock = BlockNode(
+      node: Node(id: 0, uuid: '', name: '', displayName: ''),
+      controller: TextEditingController(),
+      parent: parent,
+      isNew: true,
+    );
+    setState(() {
+      parent.collapsed = false;
+      parent.children.add(newBlock);
+      _focusedBlock = newBlock;
+    });
+    _markDirty();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _blockTreeKey.currentState?.requestFocusFor(newBlock);
+    });
+  }
+
+  void _onDelete(BlockNode block) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      if (block.node.uuid.isNotEmpty) {
+        _deletedBlockUuids.add(block.node.uuid);
+      }
+      _removeBlockFromTree(block);
+      if (_focusedBlock == block) {
+        _focusedBlock = null;
+      }
+      block.controller.dispose();
+    });
+    _markDirty();
+  }
+
+  void _removeBlockFromTree(BlockNode block) {
+    if (block.parent == null) {
+      _roots.remove(block);
+    } else {
+      block.parent!.children.remove(block);
+    }
+  }
+
+  void _onIndent(BlockNode block) {
+    HapticFeedback.lightImpact();
+    if (!_indentBlock(block)) return;
+    setState(() {});
+    _markDirty();
+  }
+
+  /// Moves [block] under its previous sibling. Returns false when the block
+  /// has no previous sibling (nothing changed).
+  bool _indentBlock(BlockNode block) {
+    final siblings = block.parent?.children ?? _roots;
+    final index = siblings.indexOf(block);
+    if (index <= 0) return false;
+
+    final newParent = siblings[index - 1];
+    siblings.removeAt(index);
+    block.parent = newParent;
+    newParent.children.add(block);
+    newParent.collapsed = false;
+    return true;
+  }
+
+  void _onOutdent(BlockNode block) {
+    HapticFeedback.lightImpact();
+    if (!_outdentBlock(block)) return;
+    setState(() {});
+    _markDirty();
+  }
+
+  /// Moves [block] after its parent. Returns false for root-level blocks.
+  bool _outdentBlock(BlockNode block) {
+    final parent = block.parent;
+    if (parent == null) return false;
+
+    final grandparent = parent.parent;
+    final siblings = grandparent?.children ?? _roots;
+    final parentIndex = siblings.indexOf(parent);
+    if (parentIndex < 0) return false;
+
+    parent.children.remove(block);
+    block.parent = grandparent;
+    siblings.insert(parentIndex + 1, block);
+    return true;
+  }
+
+  void _onMove(BlockNode moved, BlockNode target, DropPosition position) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _removeBlockFromTree(moved);
+      switch (position) {
+        case DropPosition.before:
+          moved.parent = target.parent;
+          final siblings = target.parent?.children ?? _roots;
+          siblings.insert(siblings.indexOf(target), moved);
+        case DropPosition.after:
+          moved.parent = target.parent;
+          final siblings = target.parent?.children ?? _roots;
+          siblings.insert(siblings.indexOf(target) + 1, moved);
+        case DropPosition.child:
+          moved.parent = target;
+          target.children.add(moved);
+          target.collapsed = false;
+      }
+    });
+    _markDirty();
+  }
+
+  void _onToggleCollapse(BlockNode block) {
+    HapticFeedback.lightImpact();
+    setState(() => block.collapsed = !block.collapsed);
+    _markDirty();
+  }
+
+  void _onEnterSelection(BlockNode block) {
+    HapticFeedback.selectionClick();
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _selectionMode = true;
+      _focusedBlock = null;
+      _selectedBlocks.add(block);
+    });
+  }
+
+  void _onToggleBlockSelected(BlockNode block) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (!_selectedBlocks.remove(block)) {
+        _selectedBlocks.add(block);
+      }
+      // Toggling off the last selected block exits selection mode.
+      if (_selectedBlocks.isEmpty) _selectionMode = false;
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedBlocks.clear();
+    });
+  }
+
+  /// Batch delete: reuses the single-block delete pathway (deleted uuids are
+  /// tracked and the tree is pruned) per effective selected block.
+  void _deleteSelected() {
+    final targets = effectiveSelection(_selectedBlocks);
+    if (targets.isEmpty) {
+      _exitSelection();
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    setState(() {
+      for (final block in targets) {
+        if (block.node.uuid.isNotEmpty) {
+          _deletedBlockUuids.add(block.node.uuid);
+        }
+        _removeBlockFromTree(block);
+        block.controller.dispose();
+      }
+      if (_focusedBlock != null && targets.contains(_focusedBlock)) {
+        _focusedBlock = null;
+      }
+      _selectionMode = false;
+      _selectedBlocks.clear();
+    });
+    _markDirty();
+  }
+
+  /// Batch indent: blocks stay selected afterwards (identities unchanged).
+  void _indentSelected() {
+    final ordered = orderBlocksByTree(_roots, _selectedBlocks);
+    var changed = false;
+    for (final block in ordered) {
+      if (_indentBlock(block)) changed = true;
+    }
+    if (!changed) return;
+    HapticFeedback.lightImpact();
+    setState(() {});
+    _markDirty();
+  }
+
+  /// Batch outdent: blocks stay selected afterwards (identities unchanged).
+  void _outdentSelected() {
+    final ordered = orderBlocksByTree(_roots, _selectedBlocks);
+    var changed = false;
+    for (final block in ordered) {
+      if (_outdentBlock(block)) changed = true;
+    }
+    if (!changed) return;
+    HapticFeedback.lightImpact();
+    setState(() {});
+    _markDirty();
+  }
+
+  /// Deep-copies [block] (including children) as new unsaved blocks: ids are
+  /// reset to 0 and uuids cleared so the next save emits create ops for them.
+  BlockNode _duplicateBlock(BlockNode block, {BlockNode? parent}) {
+    final copy = BlockNode(
+      node: _copyNodeWithId(block.node, 0, ''),
+      controller: TextEditingController(text: block.controller.text),
+      parent: parent,
+      isNew: true,
+    );
+    for (final child in block.children) {
+      copy.children.add(_duplicateBlock(child, parent: copy));
+    }
+    return copy;
+  }
+
+  /// Batch duplicate: each effective selected block is deep-copied right after
+  /// its original. Selection exits because the duplicates are new identities.
+  void _duplicateSelected() {
+    final ordered = orderBlocksByTree(_roots, _selectedBlocks);
+    if (ordered.isEmpty) {
+      _exitSelection();
+      return;
+    }
+    HapticFeedback.lightImpact();
+    setState(() {
+      for (final block in ordered) {
+        final copy = _duplicateBlock(block);
+        final siblings = block.parent?.children ?? _roots;
+        final index = siblings.indexOf(block);
+        siblings.insert(index >= 0 ? index + 1 : siblings.length, copy);
+      }
+      _selectionMode = false;
+      _selectedBlocks.clear();
+    });
+    _markDirty();
+  }
+
+  void _onFocus(BlockNode? block) {
+    setState(() => _focusedBlock = block);
+  }
+
+  void _onNodeLinkTap(String target) {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+    final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+    if (_looksLikeUuid(target)) {
+      repo
+          .fetchNodeByUuid(target)
+          .then((node) {
+            if (mounted) context.push('${Routes.editor}/${node.uuid}');
+          })
+          .catchError((_) {});
+    } else {
+      final id = int.tryParse(target);
+      if (id != null && mounted) {
+        context.push('${Routes.editor}/$id');
+      }
+    }
+  }
+
+  bool _looksLikeUuid(String value) {
+    return RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(value);
+  }
+
+  void _onNodeLinkAction(
+    BlockNode block,
+    NodeLinkAction action,
+    String linkId,
+    String label, {
+    String? newTarget,
+    String? newLabel,
+  }) {
+    final target = linkId.split(':').first;
+    switch (action) {
+      case NodeLinkAction.open:
+        _onNodeLinkTap(target);
+        return;
+      case NodeLinkAction.edit:
+        if (newTarget == null || newTarget.isEmpty) return;
+        final ast = AstBuilder.parseInline(block.controller.text);
+        final newLinkId = _replaceLinkTarget(linkId, newTarget);
+        final newAst = _mutateAstLinks(
+          ast,
+          matcher: (node) => _matchesNodeLink(node, linkId, label),
+          transformer: (node) {
+            final refType = node['ref_type'] as String? ?? 'node';
+            return AstBuilder.nodeLink(
+              targetId: newLinkId,
+              label: newLabel,
+              refType: refType,
+            );
+          },
+        );
+        _updateBlockFromAst(block, newAst);
+      case NodeLinkAction.delete:
+        final ast = AstBuilder.parseInline(block.controller.text);
+        final newAst = _mutateAstLinks(
+          ast,
+          matcher: (node) => _matchesNodeLink(node, linkId, label),
+          transformer: (_) => null,
+        );
+        _updateBlockFromAst(block, newAst);
+      case NodeLinkAction.unlink:
+        final ast = AstBuilder.parseInline(block.controller.text);
+        final text = label.isNotEmpty ? label : target;
+        final newAst = _mutateAstLinks(
+          ast,
+          matcher: (node) => _matchesNodeLink(node, linkId, label),
+          transformer: (_) => AstBuilder.text(text),
+        );
+        _updateBlockFromAst(block, newAst);
+    }
+    _markDirty();
+  }
+
+  String _replaceLinkTarget(String linkId, String newTarget) {
+    final colon = linkId.indexOf(':');
+    if (colon >= 0) {
+      return '$newTarget${linkId.substring(colon)}';
+    }
+    return newTarget;
+  }
+
+  bool _matchesNodeLink(
+    Map<String, dynamic> node,
+    String linkId,
+    String label,
+  ) {
+    if (node['type'] != 'node_link') return false;
+    final nodeLinkId = node['link_id'] as String? ?? '';
+    if (nodeLinkId == linkId) return true;
+    // Fall back to matching by visible target + label for links that do not
+    // carry a uuid suffix.
+    final nodeLabel = node['label'] as String? ?? '';
+    return nodeLinkId.split(':').first == linkId.split(':').first &&
+        nodeLabel == label;
+  }
+
+  void _updateBlockFromAst(BlockNode block, List<Map<String, dynamic>> ast) {
+    final markdown = AstBuilder.toMarkdown(ast);
+    block.controller.text = markdown;
+    block.node = _copyNodeWithName(block.node, AstBuilder.serialize(ast));
+  }
+
+  List<Map<String, dynamic>> _mutateAstLinks(
+    List<Map<String, dynamic>> ast, {
+    required bool Function(Map<String, dynamic> node) matcher,
+    required Map<String, dynamic>? Function(Map<String, dynamic> node)
+    transformer,
+  }) {
+    return ast
+        .map(
+          (block) => _mutateBlockLinks(
+            block,
+            matcher: matcher,
+            transformer: transformer,
+          ),
+        )
+        .toList();
+  }
+
+  Map<String, dynamic> _mutateBlockLinks(
+    Map<String, dynamic> block, {
+    required bool Function(Map<String, dynamic> node) matcher,
+    required Map<String, dynamic>? Function(Map<String, dynamic> node)
+    transformer,
+  }) {
+    final copy = Map<String, dynamic>.of(block);
+    final children = block['children'];
+    if (children is List) {
+      copy['children'] = _mutateInlineLinks(
+        children.cast<Map<String, dynamic>>(),
+        matcher: matcher,
+        transformer: transformer,
+      );
+    }
+    return copy;
+  }
+
+  List<Map<String, dynamic>> _mutateInlineLinks(
+    List<Map<String, dynamic>> nodes, {
+    required bool Function(Map<String, dynamic> node) matcher,
+    required Map<String, dynamic>? Function(Map<String, dynamic> node)
+    transformer,
+  }) {
+    final result = <Map<String, dynamic>>[];
+    for (final node in nodes) {
+      if (matcher(node)) {
+        final transformed = transformer(node);
+        if (transformed != null) {
+          result.add(transformed);
+        }
+        continue;
+      }
+      final copy = Map<String, dynamic>.of(node);
+      final children = node['children'];
+      if (children is List) {
+        copy['children'] = _mutateInlineLinks(
+          children.cast<Map<String, dynamic>>(),
+          matcher: matcher,
+          transformer: transformer,
+        );
+      }
+      result.add(copy);
+    }
+    return result;
+  }
+
+  Future<void> _onToolbarAction(EditorAction action) async {
+    switch (action) {
+      case EditorAction.slash:
+        await _onSlashTriggered();
+        return;
+      case EditorAction.mention:
+        await _onMentionTriggered();
+        return;
+      default:
+        break;
+    }
+
+    final block = _focusedBlock;
+    if (block == null) return;
+
+    await _applyEditorAction(block, action);
+  }
+
+  Future<void> _applyEditorAction(BlockNode block, EditorAction action) async {
+    final controller = block.controller;
+    final text = controller.text;
+    final selection = controller.selection;
+
+    String wrap(String marker, {String? defaultText}) {
+      final selected = selection.isValid && !selection.isCollapsed
+          ? text.substring(selection.start, selection.end)
+          : defaultText ?? marker;
+      final replacement = '$marker$selected$marker';
+      final newText = text.replaceRange(
+        selection.start,
+        selection.end,
+        replacement,
+      );
+      final newOffset = selection.start + replacement.length;
+      controller
+        ..text = newText
+        ..selection = TextSelection.collapsed(offset: newOffset);
+      return newText;
+    }
+
+    switch (action) {
+      case EditorAction.bold:
+        wrap('**');
+      case EditorAction.italic:
+        wrap('*');
+      case EditorAction.underline:
+        wrap('__');
+      case EditorAction.strikethrough:
+        wrap('~~');
+      case EditorAction.code:
+        wrap('`');
+      case EditorAction.highlight:
+        wrap('==');
+      case EditorAction.heading:
+        _applyHeadingCycle(controller);
+      case EditorAction.heading1:
+        _applyHeading(controller, 1);
+      case EditorAction.heading2:
+        _applyHeading(controller, 2);
+      case EditorAction.heading3:
+        _applyHeading(controller, 3);
+      case EditorAction.bullet:
+        _applyBullet(controller);
+      case EditorAction.date:
+        _insertDate(controller);
+      case EditorAction.link:
+      case EditorAction.classLink:
+      case EditorAction.tagLink:
+      case EditorAction.image:
+      case EditorAction.property:
+      case EditorAction.template:
+        await _insertNodeLink(block, action);
+        if (!mounted) return;
+      case EditorAction.task:
+        await _convertToTask(block);
+        if (!mounted) return;
+      case EditorAction.table:
+        final cursor = selection.isValid ? selection.start : 0;
+        const replacement =
+            '| Header | Header |\n| --- | --- |\n| Cell | Cell |';
+        final newText = text.replaceRange(cursor, cursor, replacement);
+        controller
+          ..text = newText
+          ..selection = TextSelection.collapsed(
+            offset: cursor + replacement.length,
+          );
+      case EditorAction.slash:
+      case EditorAction.mention:
+      case EditorAction.audio:
+        return;
+    }
+    _markDirty();
+  }
+
+  void _applyHeading(TextEditingController controller, int level) {
+    final text = controller.text;
+    final selection = controller.selection;
+    final prefix = '${'#' * level} ';
+    final cursor = selection.isValid ? selection.start : 0;
+    var lineStart = text.lastIndexOf('\n', cursor == 0 ? 0 : cursor - 1);
+    lineStart = lineStart == -1 ? 0 : lineStart + 1;
+    final afterLineStart = text.substring(lineStart);
+    final existing = RegExp(r'^#{1,6}\s*').firstMatch(afterLineStart);
+    String newText;
+    int newOffset;
+    if (existing != null) {
+      newText = text.replaceRange(lineStart, lineStart + existing.end, prefix);
+      newOffset = cursor - existing.end + prefix.length;
+    } else {
+      newText = text.replaceRange(lineStart, lineStart, prefix);
+      newOffset = cursor + prefix.length;
+    }
+    controller
+      ..text = newText
+      ..selection = TextSelection.collapsed(
+        offset: newOffset.clamp(0, newText.length),
+      );
+  }
+
+  void _applyHeadingCycle(TextEditingController controller) {
+    final text = controller.text;
+    final selection = controller.selection;
+    final cursor = selection.isValid ? selection.start : 0;
+    final lineStart = text.lastIndexOf('\n', cursor == 0 ? 0 : cursor - 1);
+    final start = lineStart == -1 ? 0 : lineStart + 1;
+    final afterLineStart = text.substring(start);
+    final existing = RegExp(r'^#{1,3}\s*').firstMatch(afterLineStart);
+    final level = existing != null
+        ? ((afterLineStart.split(' ').first.length) % 3) + 1
+        : 1;
+    _applyHeading(controller, level);
+  }
+
+  void _applyBullet(TextEditingController controller) {
+    final text = controller.text;
+    final selection = controller.selection;
+    final cursor = selection.isValid ? selection.start : 0;
+    final lineStart = text.lastIndexOf('\n', cursor == 0 ? 0 : cursor - 1);
+    final start = lineStart == -1 ? 0 : lineStart + 1;
+    const replacement = '- ';
+    final newText = text.replaceRange(start, start, replacement);
+    controller
+      ..text = newText
+      ..selection = TextSelection.collapsed(
+        offset: (cursor + replacement.length).clamp(0, newText.length),
+      );
+  }
+
+  void _insertDate(TextEditingController controller) {
+    final text = controller.text;
+    final selection = controller.selection;
+    final cursor = selection.isValid ? selection.start : 0;
+    final now = DateTime.now();
+    final replacement =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final newText = text.replaceRange(cursor, cursor, replacement);
+    controller
+      ..text = newText
+      ..selection = TextSelection.collapsed(
+        offset: (cursor + replacement.length).clamp(0, newText.length),
+      );
+  }
+
+  Future<void> _convertToTask(BlockNode block) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+    final text = block.controller.text.trim();
+    final parentUuid = block.parent?.node.uuid ?? widget.nodeUuid;
+    final isEmpty = text.isEmpty || block.node.uuid.isEmpty;
+
+    final created = await repo.createInboxBlock(
+      name: isEmpty ? '' : text,
+      isTask: true,
+      parentUuid: parentUuid,
+    );
+    if (!mounted) return;
+
+    // The Status schema's Pending default (seeds.ts `defaultValue` parity,
+    // 2026-11-02) derives at READ time once the task class binds it — the
+    // assign arm authors NO status row (the web taskCycle parity): an
+    // unchanged status disappears with the class instead of surviving as an
+    // orphaned authored row. The local copy below still carries 'Pending'
+    // optimistically — it mirrors the derived read for the immediate render.
+    const pendingStatus = 'Pending';
+    final taskNode = _copyNodeAsTask(created, status: pendingStatus);
+
+    if (isEmpty) {
+      if (block.node.uuid.isNotEmpty) {
+        _deletedBlockUuids.add(block.node.uuid);
+      }
+      block.node = taskNode;
+      block.controller.text = _nodeNameToMarkdown(taskNode);
+    } else {
+      final newBlock = BlockNode(
+        node: taskNode,
+        controller: TextEditingController(text: _nodeNameToMarkdown(taskNode)),
+        parent: block.parent,
+      );
+      final siblings = block.parent?.children ?? _roots;
+      final index = siblings.indexOf(block);
+      if (index >= 0) {
+        siblings.insert(index + 1, newBlock);
+      } else {
+        siblings.add(newBlock);
+      }
+      _focusedBlock = newBlock;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _blockTreeKey.currentState?.requestFocusFor(newBlock);
+      });
+    }
+
+    setState(() {});
+  }
+
+  Future<void> _onToggleTaskStatus(BlockNode block) async {
+    if (block.node.uuid.isEmpty) return;
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+    final current =
+        block.node.properties[SystemPropertyUuids.taskStatus] as String?;
+    final isDone = current != null && TaskStatuses.closed.contains(current);
+    final newStatus = isDone ? 'Pending' : 'Done';
+
+    try {
+      await repo.setNodeProperty(
+        block.node.uuid,
+        SystemPropertyUuids.taskStatus,
+        newStatus,
+      );
+      if (!mounted) return;
+      setState(() {
+        block.node = _copyNodeWithProperty(
+          block.node,
+          SystemPropertyUuids.taskStatus,
+          newStatus,
+        );
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update task: $e')));
+      }
+    }
+  }
+
+  String _nodeNameToMarkdown(Node node) {
+    final ast = _tryParseAst(node.name);
+    return AstBuilder.toMarkdown(ast);
+  }
+
+  Node _copyNodeAsTask(Node node, {String? status}) {
+    final props = Map<String, dynamic>.from(node.properties);
+    if (status != null) props[SystemPropertyUuids.taskStatus] = status;
+    return Node(
+      id: node.id,
+      uuid: node.uuid,
+      name: node.name,
+      displayName: node.displayName,
+      icon: node.icon,
+      color: node.color,
+      parentUuid: node.parentUuid,
+      pageUuid: node.pageUuid,
+      sequence: node.sequence,
+      isPage: node.isPage,
+      isTask: true,
+      isDaily: node.isDaily,
+      isMonthly: node.isMonthly,
+      isYearly: node.isYearly,
+      isTable: node.isTable,
+      isAsset: node.isAsset,
+      isComment: node.isComment,
+      isPrivate: node.isPrivate,
+      classes: node.classes,
+      classesUuid: node.classesUuid,
+      tags: node.tags,
+      tagsUuid: node.tagsUuid,
+      properties: props,
+      children: node.children,
+      createDate: node.createDate,
+      writeDate: node.writeDate,
+      isClass: node.isClass,
+      isEmbedded: node.isEmbedded,
+    );
+  }
+
+  Node _copyNodeWithProperty(Node node, String key, dynamic value) {
+    final props = Map<String, dynamic>.from(node.properties)..[key] = value;
+    return Node(
+      id: node.id,
+      uuid: node.uuid,
+      name: node.name,
+      displayName: node.displayName,
+      icon: node.icon,
+      color: node.color,
+      parentUuid: node.parentUuid,
+      pageUuid: node.pageUuid,
+      sequence: node.sequence,
+      isPage: node.isPage,
+      isTask: node.isTask,
+      isDaily: node.isDaily,
+      isMonthly: node.isMonthly,
+      isYearly: node.isYearly,
+      isTable: node.isTable,
+      isAsset: node.isAsset,
+      isComment: node.isComment,
+      isPrivate: node.isPrivate,
+      classes: node.classes,
+      classesUuid: node.classesUuid,
+      tags: node.tags,
+      tagsUuid: node.tagsUuid,
+      properties: props,
+      children: node.children,
+      createDate: node.createDate,
+      writeDate: node.writeDate,
+      isClass: node.isClass,
+      isEmbedded: node.isEmbedded,
+    );
+  }
+
+  Future<void> _insertNodeLink(BlockNode block, EditorAction action) async {
+    final mode = action == EditorAction.classLink
+        ? NodePickerMode.classNode
+        : action == EditorAction.tagLink
+        ? NodePickerMode.tag
+        : NodePickerMode.any;
+    if (!mounted) return;
+    final node = await NodePicker.show(context, mode: mode);
+    if (!mounted) return;
+    if (node == null) return;
+
+    final controller = block.controller;
+    final text = controller.text;
+    final selection = controller.selection;
+    final open = action == EditorAction.classLink ? '{{' : '[[';
+    final close = action == EditorAction.classLink ? '}}' : ']]';
+    final replacement = '$open${node.uuid}|${node.displayName}$close';
+    final newText = text.replaceRange(
+      selection.start,
+      selection.end,
+      replacement,
+    );
+    final newOffset = selection.start + replacement.length;
+    controller
+      ..text = newText
+      ..selection = TextSelection.collapsed(offset: newOffset);
+  }
+
+  Future<void> _onSlashTriggered([BlockNode? triggeredBlock]) async {
+    final block = triggeredBlock ?? _focusedBlock;
+    if (block == null) return;
+
+    setState(() => _focusedBlock = block);
+    final action = await SlashCommandPalette.show(context);
+    if (!mounted || action == null) return;
+
+    final controller = block.controller;
+    final text = controller.text;
+    final selection = controller.selection;
+    final cursor = selection.isValid ? selection.start : 0;
+    if (cursor > 0 && text.substring(cursor - 1, cursor) == '/') {
+      final newText = text.replaceRange(cursor - 1, cursor, '');
+      controller
+        ..text = newText
+        ..selection = TextSelection.collapsed(
+          offset: (cursor - 1).clamp(0, newText.length),
+        );
+    }
+
+    await _applyEditorAction(block, action);
+  }
+
+  Future<void> _onMentionTriggered([BlockNode? triggeredBlock]) async {
+    final block = triggeredBlock ?? _focusedBlock;
+    if (block == null) return;
+
+    setState(() => _focusedBlock = block);
+    final result = await MentionPicker.show(context);
+    if (!mounted || result == null) return;
+
+    final controller = block.controller;
+    final text = controller.text;
+    final selection = controller.selection;
+    final cursor = selection.isValid ? selection.start : 0;
+
+    final replacement = result.isUser
+        ? '@${result.displayName}'
+        : '[[${result.target}|${result.displayName}]]';
+
+    final String newText;
+    final int newOffset;
+    if (cursor > 0 && text.substring(cursor - 1, cursor) == '@') {
+      newText = text.replaceRange(cursor - 1, cursor, replacement);
+      newOffset = cursor - 1 + replacement.length;
+    } else {
+      newText = text.replaceRange(selection.start, selection.end, replacement);
+      newOffset = selection.start + replacement.length;
+    }
+    controller
+      ..text = newText
+      ..selection = TextSelection.collapsed(
+        offset: newOffset.clamp(0, newText.length),
+      );
+    _markDirty();
+  }
+
+  List<BlockNode> _allBlocks() {
+    final result = <BlockNode>[];
+    void visit(List<BlockNode> nodes) {
+      for (final node in nodes) {
+        result.add(node);
+        visit(node.children);
+      }
+    }
+
+    visit(_roots);
+    return result;
+  }
+
+  /// The chosen option ids of one effective row (single id, or the legacy
+  /// array shape — the effective projection splits multi elements into rows,
+  /// but archived rows may still carry an array). Mirrors the web
+  /// PropertyIconButton's valuesOf.
+  List<String> _bulletIdsOf(dynamic value) {
+    if (value is List) return value.whereType<String>().toList();
+    if (value is String && value.isNotEmpty) return [value];
+    return const [];
+  }
+
+  /// Resolves the block-bullet value buttons for every visible
+  /// block — the effective rows whose SCHEMA positions a
+  /// select/multi_select/boolean value at 'bullet'/'inline' (the display
+  /// contract is PROPERTY-level; the effective read sources it from the
+  /// schema row), with the schema options (the icon + color)
+  /// attached.
+  Future<Map<String, List<BulletPropertyValue>>> _loadBulletProperties(
+    NodeRepository repo,
+  ) async {
+    final schemaRows = <String, PropertySchemaRow?>{};
+    Future<PropertySchemaRow?> schemaOf(String schemaId) async {
+      if (!schemaRows.containsKey(schemaId)) {
+        schemaRows[schemaId] = await repo.fetchPropertySchemaRow(schemaId);
+      }
+      return schemaRows[schemaId];
+    }
+
+    final map = <String, List<BulletPropertyValue>>{};
+    for (final block in _allBlocks()) {
+      final uuid = block.node.uuid;
+      if (uuid.isEmpty) continue;
+      final rows = await repo.fetchEffectiveProperties(uuid);
+      final groups = <String, _BulletPropertyAccumulator>{};
+      for (final row in rows) {
+        final display = row.display;
+        if (display != 'bullet' && display != 'inline') continue;
+        final type = row.schema?.type;
+        if (type != 'select' && type != 'multi_select' && type != 'boolean') {
+          continue;
+        }
+        // Promote for the putIfAbsent closure (equality guards don't promote).
+        final position = display!;
+        final schemaType = type!;
+        final schemaId = row.propertySchemaId;
+        final group = groups.putIfAbsent(
+          schemaId,
+          () => _BulletPropertyAccumulator(
+            schemaId: schemaId,
+            label: row.schema?.name ?? schemaId,
+            display: position,
+            type: schemaType,
+          ),
+        );
+        final ids = schemaType == 'boolean'
+            ? row.value == true
+                  ? const ['true']
+                  : row.value == false
+                      ? const ['false']
+                      : const <String>[]
+            : _bulletIdsOf(row.value);
+        for (final id in ids) {
+          if (!group.selectedIds.contains(id)) group.selectedIds.add(id);
+        }
+        if (ids.isNotEmpty) {
+          group.elements.add(BulletPropertyElement(idx: row.idx, ids: ids));
+        }
+      }
+      if (groups.isEmpty) continue;
+      final values = <BulletPropertyValue>[];
+      for (final group in groups.values) {
+        final schema = await schemaOf(group.schemaId);
+        values.add(
+          BulletPropertyValue(
+            propertySchemaId: group.schemaId,
+            label: group.label,
+            display: group.display,
+            type: group.type,
+            options: [
+              for (final raw in schema?.options ?? const <Map<String, dynamic>>[])
+                if (raw['id'] != null && raw['label'] is String)
+                  BulletPropertyOption(
+                    id: raw['id'] as String,
+                    label: raw['label'] as String,
+                    icon: raw['icon'] as String?,
+                    color: raw['color'] as String?,
+                  ),
+            ],
+            selectedIds: group.selectedIds,
+            elements: group.elements,
+          ),
+        );
+      }
+      map[uuid] = values;
+    }
+    return map;
+  }
+
+  /// Write path for the block-bullet value buttons: performs the
+  /// resolved write through the sync service, then refreshes the buttons.
+  Future<void> _onBulletPropertyWrite(
+    BlockNode node,
+    BulletPropertyWrite write,
+  ) async {
+    final auth = context.read<AuthProvider>();
+    final sync = auth.syncService;
+    if (sync == null) return;
+    try {
+      if (write.unset) {
+        await sync.unsetPropertyValue(
+          objectId: node.node.uuid,
+          propertySchemaId: write.propertySchemaId,
+          idx: write.idx,
+        );
+      } else {
+        await sync.setPropertyValue(
+          objectId: node.node.uuid,
+          propertySchemaId: write.propertySchemaId,
+          value: write.value,
+          idx: write.idx,
+        );
+      }
+      if (!mounted) return;
+      await _refreshBulletProperties();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update property: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _refreshBulletProperties() async {
+    final auth = context.read<AuthProvider>();
+    final sync = auth.syncService;
+    if (sync == null || !mounted) return;
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio ?? Dio(),
+        syncService: sync,
+      );
+      final refreshed = await _loadBulletProperties(repo);
+      if (!mounted) return;
+      setState(() => _bulletProperties = refreshed);
+    } catch (_) {
+      // Best-effort refresh; the next page load converges.
+    }
+  }
+
+  void _openBreadcrumbNode(BreadcrumbItem item) {
+    context.push('${Routes.editor}/${item.uuid}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final settings = context.watch<SettingsProvider>();
+
+    return Scaffold(
+      appBar: AppBar(
+        // Saving is fully automatic (2s debounce); the app bar only exposes
+        // navigation and the overflow menu.
+        actions: [
+          IconButton(
+            icon: Icon(MdiIcons.dotsVertical),
+            tooltip: 'More options',
+            onPressed: _showPageOptionsMenu,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: AnimatedSwitcher(
+        duration: MediaQuery.of(context).disableAnimations
+            ? Duration.zero
+            : const Duration(milliseconds: 200),
+        child: _loading
+            ? const _EditorSkeleton()
+            : _buildLoadedBody(colors, settings),
+      ),
+    );
+  }
+
+  /// Breadcrumbs render only when they carry hierarchy. The chain is
+  /// self-inclusive (node itself + ancestors). Pages: show when there is at
+  /// least one ancestor page — the lone self crumb duplicates the title
+  /// header. Blocks: show only when the block has a BLOCK ancestor (nested
+  /// blocks); a top-level block's chain is just [page, itself] and must not
+  /// render (owner call: no breadcrumbs for top-level blocks).
+  bool get _showBreadcrumbs {
+    if (_breadcrumbs.isEmpty) return false;
+    final nonPages = _breadcrumbs.where((b) => !b.isPage).length;
+    final allPages = _breadcrumbs.every((b) => b.isPage);
+    return (allPages && _breadcrumbs.length > 1) || nonPages >= 2;
+  }
+
+  /// The loaded page body: breadcrumbs, title, properties and the block tree.
+  Widget _buildLoadedBody(ColorScheme colors, SettingsProvider settings) {
+    return Column(
+      children: [
+        if (_showBreadcrumbs)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: _buildBreadcrumbRow(),
+            ),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadPage,
+            child: ListView(
+              controller: _scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              children: [
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: FleetCard(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          _error!,
+                          style: TextStyle(color: colors.error),
+                        ),
+                      ),
+                    ),
+                  ),
+                _buildHeaderWithCover(),
+                _buildClassPills(colors),
+                _buildTagPillsRow(colors),
+                const SizedBox(height: 8),
+                _buildPropertiesSection(colors),
+                const SizedBox(height: 8),
+                // The block tree always renders: on an empty page its
+                // trailing ghost row ("+ Add block") is the primary creation
+                // affordance.
+                _buildBlockTree(colors),
+                const SizedBox(height: 80),
+                _buildChildPagesSection(colors, settings.dateFormat),
+                _buildLinkedReferencesSection(colors),
+              ],
+            ),
+          ),
+        ),
+        if (_selectionMode)
+          _buildSelectionActionBar(colors)
+        else if (_focusedBlock != null)
+          EditorInlineToolbar(onAction: _onToolbarAction),
+      ],
+    );
+  }
+
+  /// Bottom bar shown while block multi-select is active.
+  Widget _buildSelectionActionBar(ColorScheme colors) {
+    return Container(
+      color: colors.surfaceContainerHighest,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            IconButton(
+              icon: Icon(MdiIcons.close),
+              tooltip: 'Clear selection',
+              onPressed: _exitSelection,
+            ),
+            Text(
+              '${_selectedBlocks.length} selected',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const Spacer(),
+            IconButton(
+              icon: Icon(MdiIcons.formatIndentIncrease),
+              tooltip: 'Indent',
+              onPressed: _indentSelected,
+            ),
+            IconButton(
+              icon: Icon(MdiIcons.formatIndentDecrease),
+              tooltip: 'Outdent',
+              onPressed: _outdentSelected,
+            ),
+            IconButton(
+              icon: Icon(MdiIcons.contentDuplicate),
+              tooltip: 'Duplicate',
+              onPressed: _duplicateSelected,
+            ),
+            IconButton(
+              icon: Icon(MdiIcons.deleteOutline),
+              tooltip: 'Delete',
+              color: colors.error,
+              onPressed: _deleteSelected,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Left-aligned breadcrumb strip shown under the app bar.
+  Widget _buildBreadcrumbRow() {
+    final colors = Theme.of(context).colorScheme;
+    final dateFormat = context.read<SettingsProvider>().dateFormat;
+    final items = <Widget>[];
+
+    for (var i = 0; i < _breadcrumbs.length; i++) {
+      final item = _breadcrumbs[i];
+      final isLast = i == _breadcrumbs.length - 1;
+      final label = resolveNodeDisplayName(
+        Node(id: 0, uuid: item.uuid, name: item.name, displayName: item.displayName, icon: item.icon),
+        dateFormat: dateFormat,
+      );
+
+      items.add(
+        InkWell(
+          onTap: isLast ? null : () => _openBreadcrumbNode(item),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (item.icon?.isNotEmpty == true) ...[
+                  NodeIcon(
+                    iconField: item.icon,
+                    size: 16,
+                    fallbackColor: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: isLast ? colors.onSurface : colors.onSurfaceVariant,
+                    fontWeight: isLast ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (!isLast) {
+        items.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Icon(MdiIcons.chevronRight, size: 16, color: colors.outline),
+          ),
+        );
+      }
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: items),
+    );
+  }
+
+  /// Page header: the title block on the left and, when the page has a
+  /// cover asset, a fixed-height cover thumbnail pinned to the top right.
+  Widget _buildHeaderWithCover() {
+    final coverUuid = _coverAssetUuid;
+    final auth = context.read<AuthProvider>();
+    if (coverUuid == null || auth.dio == null) return _buildTitleHeader();
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: _buildTitleHeader()),
+          const SizedBox(width: 12),
+          CoverImageWidget(
+            dio: auth.dio!,
+            assetUuid: coverUuid,
+            width: constraints.maxWidth * 0.4,
+            height: 108,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Notion-style header: tappable icon and serif display title on one row
+  /// (mirrors the web's PageHeader).
+  Widget _buildTitleHeader() {
+    final colors = Theme.of(context).colorScheme;
+    final isJournalDatePage = _isDaily || _isMonthly || _isYearly;
+    final canRename = !isJournalDatePage;
+    final loadedPage = _loadedPage;
+    final pageStyle = loadedPage == null
+        ? null
+        : resolveNodeStyle(loadedPage, _classStyles);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        InkWell(
+          onTap: canRename ? _onTitleTap : null,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: NodeIcon(
+              iconField: pageStyle?.iconField ?? _pageIcon,
+              size: 32,
+              fallbackColor: colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: GestureDetector(
+            onTap: canRename ? _onTitleTap : null,
+            behavior: HitTestBehavior.opaque,
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _titleController,
+              builder: (context, value, _) {
+                final title = value.text.trim();
+                return Text(
+                  title.isEmpty ? 'Untitled' : value.text,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    color: title.isEmpty
+                        ? colors.onSurfaceVariant.withAlpha((0.6 * 255).round())
+                        : colors.onSurface,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        if (_loadedPage?.isPage == true) ...[
+          const SizedBox(width: 8),
+          _buildAliasesAffordance(colors),
+        ],
+        if (_pageIsPrivate) ...[
+          const SizedBox(width: 8),
+          Icon(
+            MdiIcons.lockOutline,
+            size: 18,
+            color: colors.onSurfaceVariant,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// The title-row aliases affordance (SCHEMA.md "Node aliases"): the count
+  /// of pages whose alias-terminal is this one, listed + added from the
+  /// ALIASED node's own title row (the sheet's ADD is the backward write —
+  /// the picked page's `aliasedNodeId` becomes this node).
+  Widget _buildAliasesAffordance(ColorScheme colors) {
+    return ActionChip(
+      avatar: Icon(
+        MdiIcons.repeat,
+        size: 16,
+        color: colors.onSurfaceVariant,
+      ),
+      label: Text(
+        'Aliases · ${_aliasNodes.length}',
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+      ),
+      backgroundColor: colors.onSurfaceVariant.withAlpha((0.08 * 255).round()),
+      side: BorderSide(
+        color: colors.onSurfaceVariant.withAlpha((0.25 * 255).round()),
+      ),
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      onPressed: _openAliasesSheet,
+    );
+  }
+
+  Future<void> _openAliasesSheet() async {
+    final openAlias = await AliasesSheet.show(
+      context,
+      nodeUuid: widget.nodeUuid,
+      onChanged: _refreshAliasState,
+    );
+    // The sheet's row tap returns the alias uuid: open the ALIAS page
+    // itself (no redirect seam exists, so the push lands on its own view).
+    if (openAlias != null && mounted) {
+      context.push('${Routes.editor}/$openAlias');
+    }
+  }
+
+  /// Re-reads the alias chrome after a write: the aliases listing (a
+  /// backward write adds one) and this page's own `aliasedNodeId` (a
+  /// change/clear from the pseudo-property row).
+  Future<void> _refreshAliasState() async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null || !mounted) return;
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio!,
+        syncService: auth.syncService,
+      );
+      final aliases = await repo.fetchAliasNodesOf(widget.nodeUuid);
+      final self =
+          (await repo.fetchNodesByUuids([widget.nodeUuid])).firstOrNull;
+      final targetId = self?.aliasedNodeId;
+      Node? target;
+      if (targetId != null) {
+        target = (await repo.fetchNodesByUuids([targetId])).firstOrNull;
+      }
+      if (!mounted) return;
+      setState(() {
+        _aliasNodes = aliases;
+        _aliasedTargetId = targetId;
+        _aliasedTargetNode = target;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _changeAliasedNode() async {
+    final picked = await NodePicker.show(context, mode: NodePickerMode.page);
+    if (picked == null || !mounted) return;
+    final guardError = aliasTargetError(picked, carrierUuid: widget.nodeUuid);
+    if (guardError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(guardError)),
+      );
+      return;
+    }
+    await _writeAliasedNodeId(picked.uuid);
+  }
+
+  Future<void> _clearAliasedNode() async {
+    await _writeAliasedNodeId(null);
+  }
+
+  Future<void> _writeAliasedNodeId(String? targetUuid) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null || !mounted) return;
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio!,
+        syncService: auth.syncService,
+      );
+      await repo.setAliasedNodeId(widget.nodeUuid, targetUuid);
+      await _refreshAliasState();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
+  void _onTitleTap() {
+    HapticFeedback.lightImpact();
+    _showRenameTitleDialog();
+  }
+
+  Widget _buildClassPills(ColorScheme colors) {
+    if (_pageClassUuids.isEmpty) return const SizedBox.shrink();
+
+    final classByUuid = {for (final c in _classes) c.uuid: c};
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _pageClassUuids.map((uuid) {
+          final cls = classByUuid[uuid];
+          final name = cls?.displayName ?? _classNames[uuid] ?? 'class';
+          final style = _classStyles[uuid];
+          final chipColor = style?.color ?? _linkColors[uuid] ?? colors.primary;
+          final icon = style?.icon;
+          return GestureDetector(
+            onLongPress: () => _onClassLongPress(uuid),
+            child: ActionChip(
+              avatar: icon != null && (icon.iconData != null || icon.emoji != null)
+                  ? _ResolvedClassAvatar(icon: icon, size: 16, color: chipColor)
+                  : Icon(MdiIcons.tagOutline, size: 16, color: chipColor),
+              label: Text(name),
+              labelStyle: TextStyle(color: chipColor),
+              backgroundColor: chipColor.withAlpha((0.10 * 255).round()),
+              side: BorderSide(color: chipColor.withAlpha((0.30 * 255).round())),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              onPressed: () => _onClassTap(uuid),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  /// The page's tags row (web PageHeader TagsRow parity): alphabetical
+  /// pills tinted with each tag's effective color, an × to unassign, and a
+  /// trailing "Add tag" chip. Hidden when the page carries no tags — the
+  /// page options menu carries the assign affordance for the empty state.
+  Widget _buildTagPillsRow(ColorScheme colors) {
+    if (_pageTagUuids.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: TagPills(
+        tagIds: _pageTagUuids,
+        nodesByUuid: _tagNodes,
+        colorsByUuid: _linkColors,
+        fallbackColor: colors.primary,
+        onOpen: (tag) => context.push('${Routes.editor}/${tag.uuid}'),
+        onRemove: _removePageTag,
+        onAdd: _addPageTag,
+      ),
+    );
+  }
+
+  Future<void> _addPageTag() => _assignTag(widget.nodeUuid, _pageTagUuids);
+
+  Future<void> _removePageTag(Node tag) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.syncService == null) return;
+
+    try {
+      await auth.syncService!.enqueue(
+        type: 'remove_tag',
+        nodeUuid: widget.nodeUuid,
+        tagUuid: tag.uuid,
+      );
+      await auth.syncService!.flush();
+      if (!mounted) return;
+      await _loadPage();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove tag: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _addBlockTag(BlockNode block) =>
+      _assignTag(block.node.uuid, block.node.tagsUuid);
+
+  Future<void> _removeBlockTag(BlockNode block, String tagUuid) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.syncService == null) return;
+
+    try {
+      await auth.syncService!.enqueue(
+        type: 'remove_tag',
+        nodeUuid: block.node.uuid,
+        tagUuid: tagUuid,
+      );
+      await auth.syncService!.flush();
+      if (!mounted) return;
+      // Update the row in place: drop the uuid from the block's local
+      // projection (the flush already applied the op to the cache).
+      block.node = _copyNodeWithTags(
+        block.node,
+        block.node.tagsUuid.where((t) => t != tagUuid).toList(),
+      );
+      setState(() {});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove tag: $e')),
+        );
+      }
+    }
+  }
+
+  /// Shared assign path (page header and block options menu): the tag
+  /// picker searches the page space (any page can act as a tag), the picked
+  /// page rides the offline outbox as an add-wins `add_tag` enqueue — the
+  /// same queue class writes use (`_removeClass` is the remove mirror).
+  Future<void> _assignTag(String carrierUuid, List<String> currentTagIds) async {
+    final picked = await NodePicker.show(context, mode: NodePickerMode.tag);
+    if (picked == null || !mounted) return;
+    if (currentTagIds.contains(picked.uuid)) return;
+    final sync = context.read<AuthProvider>().syncService;
+    if (sync == null) return;
+
+    try {
+      await sync.enqueue(
+        type: 'add_tag',
+        nodeUuid: carrierUuid,
+        tagUuid: picked.uuid,
+      );
+      await sync.flush();
+      if (!mounted) return;
+      if (carrierUuid == widget.nodeUuid) {
+        await _loadPage();
+      } else {
+        // Block carrier: update the row in place and keep the resolved tag
+        // node for the pill (the flush already applied the op to the cache).
+        final block = _allBlocks().where((b) => b.node.uuid == carrierUuid).firstOrNull;
+        if (block != null) {
+          block.node = _copyNodeWithTags(
+            block.node,
+            [...block.node.tagsUuid, picked.uuid],
+          );
+        }
+        _tagNodes = {..._tagNodes, picked.uuid: picked};
+        setState(() {});
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not add tag: $e')),
+        );
+      }
+    }
+  }
+
+  Node _copyNodeWithTags(Node node, List<String> tagsUuid) {
+    return Node(
+      id: node.id,
+      uuid: node.uuid,
+      name: node.name,
+      displayName: node.displayName,
+      icon: node.icon,
+      color: node.color,
+      parentUuid: node.parentUuid,
+      pageUuid: node.pageUuid,
+      sequence: node.sequence,
+      isPage: node.isPage,
+      isTask: node.isTask,
+      isDaily: node.isDaily,
+      isMonthly: node.isMonthly,
+      isYearly: node.isYearly,
+      isTable: node.isTable,
+      isAsset: node.isAsset,
+      isComment: node.isComment,
+      isPrivate: node.isPrivate,
+      classes: node.classes,
+      classesUuid: node.classesUuid,
+      tags: node.tags,
+      tagsUuid: tagsUuid,
+      properties: node.properties,
+      children: node.children,
+      createDate: node.createDate,
+      writeDate: node.writeDate,
+      isClass: node.isClass,
+      isEmbedded: node.isEmbedded,
+      aliasedNodeId: node.aliasedNodeId,
+      coverAssetId: node.coverAssetId,
+    );
+  }
+
+  void _onClassTap(String classUuid) {
+    HapticFeedback.lightImpact();
+    context.push('${Routes.editor}/$classUuid');
+  }
+
+  void _onClassLongPress(String classUuid) {
+    HapticFeedback.mediumImpact();
+    _showClassOptions(classUuid);
+  }
+
+  void _showClassOptions(String classUuid) {
+    final cls = _classes.where((c) => c.uuid == classUuid).firstOrNull;
+    if (cls == null) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BottomSheetDragHandle(),
+            ListTile(
+              leading: NodeIcon(
+                iconField: cls.icon,
+                size: 22,
+                fallbackIcon: MdiIcons.tagOutline,
+              ),
+              title: Text(cls.displayName),
+              subtitle: const Text('Class'),
+            ),
+            const Divider(),
+            ListTile(
+              leading: Icon(MdiIcons.openInApp),
+              title: const Text('Open'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _onClassTap(classUuid);
+              },
+            ),
+            ListTile(
+              leading: Icon(MdiIcons.pencilOutline),
+              title: const Text('Edit'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _editClass(classUuid);
+              },
+            ),
+            ListTile(
+              leading: Icon(MdiIcons.linkOff),
+              title: const Text('Remove'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _removeClass(classUuid);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editClass(String classUuid) async {
+    final cls = _classes.where((c) => c.uuid == classUuid).firstOrNull;
+    if (cls == null) return;
+
+    final result = await NodeEditModal.show(
+      context,
+      title: 'Edit class',
+      initialName: cls.displayName,
+      initialIcon: cls.icon,
+      initialColor: cls.color,
+      allowIconColor: true,
+      confirmLabel: 'Save',
+    );
+    if (result == null) return;
+    if (!mounted) return;
+
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+
+    setState(() => _saving = true);
+    try {
+      final repo = NodeRepository(
+        dio: auth.dio!,
+        syncService: auth.syncService,
+      );
+      // The modal seeds the selection from the stored color, so a null
+      // result.color unambiguously means the user picked "no color" —
+      // pass the explicit null through and the wire carries
+      // `"color": null` (a clear), not "leave the color untouched".
+      await repo.updateNode(
+        classUuid,
+        name: result.name,
+        icon: result.icon,
+        color: result.color,
+      );
+      if (!mounted) return;
+      await _loadPage();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Class updated')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update class: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _removeClass(String classUuid) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+    if (auth.syncService == null) return;
+
+    try {
+      await auth.syncService!.enqueue(
+        type: 'remove_class',
+        nodeUuid: widget.nodeUuid,
+        classUuid: classUuid,
+      );
+      await auth.syncService!.flush();
+      if (!mounted) return;
+      await _loadPage();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove class: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildBlockTree(ColorScheme colors) {
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return const SizedBox.shrink();
+
+    return BlockTreeEditor(
+      key: _blockTreeKey,
+      roots: _roots,
+      classNames: _classNames,
+      dio: auth.dio!,
+      focusedNode: _focusedBlock,
+      onFocus: _onFocus,
+      onDelete: _onDelete,
+      onMove: _onMove,
+      onAddSibling: _addBlock,
+      onAddChild: _onAddChild,
+      onGhostRealize: _addBlock,
+      onIndent: _onIndent,
+      onOutdent: _onOutdent,
+      onToggleCollapse: _onToggleCollapse,
+      selectionMode: _selectionMode,
+      selectedBlocks: _selectedBlocks,
+      onEnterSelection: _onEnterSelection,
+      onToggleSelected: _onToggleBlockSelected,
+      onNodeLinkTap: _onNodeLinkTap,
+      onNodeLinkAction: _onNodeLinkAction,
+      onContentChanged: _markDirty,
+      onToggleTask: _onToggleTaskStatus,
+      linkColors: _linkColors,
+      bulletProperties: _bulletProperties,
+      onBulletPropertyWrite: _onBulletPropertyWrite,
+      tagNodes: _tagNodes,
+      onOpenTag: (tagUuid) => context.push('${Routes.editor}/$tagUuid'),
+      onRemoveTag: _removeBlockTag,
+      onAddTag: _addBlockTag,
+      queryService: context.read<QueryService>(),
+      hostNodeUuid: widget.nodeUuid,
+      onOpenQueryResult: (uuid) => context.push('${Routes.editor}/$uuid'),
+      queryFactsLoader: () => context.read<QueryService>().buildFacts(),
+      queryNodePicker: (mode) => NodePicker.show(context, mode: mode),
+      onCommitQuery: _commitQueryAst,
+    );
+  }
+
+  Widget _buildChildPagesSection(ColorScheme colors, String dateFormat) {
+    if (_childPages.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Child pages',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        NodeListView(
+          nodes: _childPages,
+          onNodeTap: (node) => context.push('${Routes.editor}/${node.uuid}'),
+          shrinkWrap: true,
+          dateFormat: dateFormat,
+          classStyles: _classStyles,
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildPropertiesSection(ColorScheme colors) {
+    // The card also renders for the alias row alone (the pseudo-property
+    // over `aliasedNodeId` when the carrier is an alias — pages only, the
+    // document-chrome restriction).
+    final showAliasRow =
+        _aliasedTargetId != null && (_loadedPage?.isPage ?? false);
+    if (_properties.isEmpty && !showAliasRow) return const SizedBox.shrink();
+
+    final visible = <NodePropertyValue>[];
+    final hidden = <NodePropertyValue>[];
+    for (final p in _properties) {
+      final isHidden = _classProperties[p.property.uuid]?.hidden ?? false;
+      (isHidden ? hidden : visible).add(p);
+    }
+
+    return FleetCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (showAliasRow)
+              AliasedNodeRow(
+                target: _aliasedTargetNode,
+                brokenTargetUuid:
+                    _aliasedTargetNode == null ? _aliasedTargetId : null,
+                onOpen: () =>
+                    context.push('${Routes.editor}/${_aliasedTargetId!}'),
+                onChange: _changeAliasedNode,
+                onClear: _clearAliasedNode,
+              ),
+            InkWell(
+              onTap: () => setState(() => _propertiesExpanded = !_propertiesExpanded),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      _propertiesExpanded ? MdiIcons.chevronDown : MdiIcons.chevronRight,
+                      size: 18,
+                      color: colors.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Properties',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${visible.length}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_propertiesExpanded) ...[
+              const SizedBox(height: 12),
+              ...visible.map(_buildPropertyCell),
+              if (hidden.isNotEmpty)
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Hidden properties (${hidden.length})',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                  children: hidden.map(_buildPropertyCell).toList(),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPropertyCell(NodePropertyValue p) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: PropertyValueCell(
+        property: p.property,
+        values: p.values,
+        readOnly: p.property.isReadOnly,
+        required: _classProperties[p.property.uuid]?.required ?? false,
+        onChanged: (value) => _setPropertyValue(p.property, value),
+        onPickDate: _pickDateNode,
+        displayNameResolver: (value) => _propertyValueNames[value],
+      ),
+    );
+  }
+
+  /// Merges node property values with class-property bindings: drops internal
+  /// `_`-prefixed system props, and appends required/defaulted class props
+  /// that have no value yet so they render editable/empty (matches the web).
+  List<NodePropertyValue> _buildDisplayProperties(
+    List<NodePropertyValue> base,
+    Map<String, ClassProperty> classProps,
+    List<Property> available,
+  ) {
+    final display = base.where((p) => !p.property.isHiddenSystem).toList();
+    final present = display.map((p) => p.property.uuid).toSet();
+    final byUuid = {for (final p in available) p.uuid: p};
+    for (final cp in classProps.values) {
+      if (present.contains(cp.propertyUuid)) continue;
+      if (!(cp.required || cp.defaultValue != null)) continue;
+      final def = byUuid[cp.propertyUuid];
+      if (def == null || def.isHiddenSystem) continue;
+      display.add(NodePropertyValue(property: def, values: const []));
+    }
+    return display;
+  }
+
+  Future<void> _setPropertyValue(Property property, dynamic value) async {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return;
+    final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+    final dateFormat = context.read<SettingsProvider>().dateFormat;
+    try {
+      await repo.setNodeProperty(widget.nodeUuid, property.uuid, value);
+      final refreshed = await repo.fetchNodeProperties(widget.nodeUuid);
+      final refreshedNames = await _buildPropertyValueNameMap(repo, refreshed, dateFormat);
+      if (!mounted) return;
+      setState(() {
+        _properties = _buildDisplayProperties(
+          refreshed,
+          _classProperties,
+          _availableProperties,
+        );
+        _propertyValueNames = refreshedNames;
+      });
+    } on DioException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to save ${property.name}: ${e.message ?? 'error'}',
+          ),
+        ),
+      );
+    }
+  }
+
+  /// Builds a lookup table from raw property values (uuids/ids) to human-readable
+  /// node display names so relation, date, image and text properties do not
+  /// render as raw identifiers.
+  Future<Map<dynamic, String>> _buildPropertyValueNameMap(
+    NodeRepository repo,
+    List<NodePropertyValue> properties,
+    String dateFormat,
+  ) async {
+    final targetUuids = <String>{};
+    for (final p in properties) {
+      for (final v in p.values) {
+        final target = _extractPropertyTargetUuid(v);
+        if (target != null) targetUuids.add(target);
+      }
+    }
+    if (targetUuids.isEmpty) return const {};
+
+    final nodes = await repo.fetchNodesByUuids(targetUuids.toList());
+    return {
+      for (final node in nodes)
+        if (node.uuid.isNotEmpty) node.uuid: resolveNodeDisplayName(node, dateFormat: dateFormat),
+    };
+  }
+
+  String? _extractPropertyTargetUuid(dynamic value) {
+    if (value is String && _looksLikeUuid(value)) return value;
+    if (value is Map<String, dynamic>) {
+      final candidate = value['target_node_id'] ??
+          value['target_id'] ??
+          value['node_id'] ??
+          value['uuid'];
+      if (candidate is String && _looksLikeUuid(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  /// Resolves a date to its journal (day-page) node id for date-typed properties.
+  Future<int> _pickDateNode(DateTime date) async {
+    if (!mounted) return 0;
+    final auth = context.read<AuthProvider>();
+    if (auth.dio == null) return 0;
+    final repo = NodeRepository(dio: auth.dio!, syncService: auth.syncService);
+    final node = await repo.getOrCreateDailyJournal(date);
+    return node.id;
+  }
+
+  Widget _buildLinkedReferencesSection(ColorScheme colors) {
+    if (_linkedReferences.isEmpty) return const SizedBox.shrink();
+    final dateFormat = context.read<SettingsProvider>().dateFormat;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Linked References ($_linkedRefsTotal)',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          ..._linkedReferences.map((ref) {
+            final page = ref.sourcePage;
+            final subtitle = page != null && page.uuid != ref.sourceNode.uuid
+                ? resolveNodeDisplayName(page, dateFormat: dateFormat)
+                : null;
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: NodeIcon(
+                iconField: ref.sourceNode.icon,
+                fallbackColor: colors.onSurfaceVariant,
+                size: 22,
+              ),
+              title: Text(
+                resolveNodeDisplayName(ref.sourceNode, dateFormat: dateFormat),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: subtitle != null
+                  ? Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis)
+                  : null,
+              onTap: () =>
+                  context.push('${Routes.editor}/${ref.sourceNode.uuid}'),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResolvedClassAvatar extends StatelessWidget {
+  const _ResolvedClassAvatar({required this.icon, required this.size, required this.color});
+
+  final ParsedNodeIcon icon;
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (icon.emoji != null) {
+      return Text(icon.emoji!, style: TextStyle(fontSize: size * 0.9, height: 1.1));
+    }
+    return Icon(icon.iconData ?? MdiIcons.tagOutline, size: size, color: color);
+  }
+}
+
+
+
+/// Loading skeleton for the editor: a title bar placeholder followed by block
+/// line placeholders with a 1.4s pulse (no third-party shimmer packages).
+/// Replaces the former full-screen CircularProgressIndicator.
+class _EditorSkeleton extends StatefulWidget {
+  const _EditorSkeleton();
+
+  @override
+  State<_EditorSkeleton> createState() => _EditorSkeletonState();
+}
+
+class _EditorSkeletonState extends State<_EditorSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  bool _started = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (MediaQuery.of(context).disableAnimations) {
+      // Static mid-pulse placeholder instead of a looping animation.
+      _controller.value = 0.5;
+    } else {
+      _controller.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    const lineWidths = [0.9, 0.75, 0.85, 0.6, 0.8, 0.7, 0.88];
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) =>
+          Opacity(opacity: 0.4 + 0.5 * _controller.value, child: child),
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        children: [
+          _skeletonBar(colors, height: 28, widthFactor: 0.6),
+          const SizedBox(height: 28),
+          for (final width in lineWidths) ...[
+            _skeletonBar(colors, height: 16, widthFactor: width),
+            const SizedBox(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _skeletonBar(
+    ColorScheme colors, {
+    required double height,
+    required double widthFactor,
+  }) {
+    return FractionallySizedBox(
+      widthFactor: widthFactor,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+}
+
+/// Mutable accumulator for one display-positioned property while the
+/// per-block effective rows are grouped into [BulletPropertyValue]s.
+class _BulletPropertyAccumulator {
+  _BulletPropertyAccumulator({
+    required this.schemaId,
+    required this.label,
+    required this.display,
+    required this.type,
+  });
+
+  final String schemaId;
+  final String label;
+  final String display;
+  final String type;
+  final List<String> selectedIds = [];
+  final List<BulletPropertyElement> elements = [];
+}
