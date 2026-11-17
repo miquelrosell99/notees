@@ -16,26 +16,38 @@
 # file is the supported way to build the package yourself.
 
 pkgname=notees-cli
-pkgver=4.6.0
+pkgver=4.6.1
 pkgrel=1
 pkgdesc="The notees command-line client for Notees (object/property/search surface over the server's API)"
 arch=('any')
 url="https://github.com/miquelrosell99/notees"
 license=('AGPL-3.0-or-later')
 depends=('nodejs>=22')
+makedepends=('npm')
 source=("$url/releases/download/cli-v$pkgver/cli.mjs"
         "$url/releases/download/cli-v$pkgver/cli.mjs.sha256"
         "https://raw.githubusercontent.com/miquelrosell99/notees/cli-v$pkgver/clients/cli/LICENSE"
         "notees.png")
-sha256sums=('4445261250b005fa5503290ef3ecc51ce2118171a872d081184c839e84cc4c8c'
+sha256sums=('8695e9622a4ff421f5d3a08e0615deb919d7055b3da4a7af3fc0a35d1270698a'
             'SKIP'
             'SKIP'
-            '340e36f8a0e1c1402073c464a71d69bedfb61f4c71b5df959bab838c8c874769')
+            '340e36f8e0c1e1402073c464a71d69bedfb61f4c71b5df959bab838c8c874769')
+
+build() {
+  # The bundle lazy-loads the native better-sqlite3 at store-command time
+  # (standalone --version/help need nothing beside the bundle) — provision
+  # it into the node_modules next to cli.mjs, the same spot install.sh uses.
+  # A prebuilt binary is fetched for the host platform; python3 + base-devel
+  # are the source-build fallback when no prebuild exists yet.
+  npm install --prefix "$srcdir/better-sqlite3-mod" --no-save --no-fund --no-audit --omit=dev better-sqlite3@12
+}
 
 package() {
   # 0755: /usr/bin/notees symlinks straight at this file — the kernel must
   # find it executable for the shebang to run.
   install -Dm755 "$srcdir/cli.mjs" "$pkgdir/usr/lib/$pkgname/cli.mjs"
+  install -dm755 "$pkgdir/usr/lib/$pkgname/node_modules"
+  cp -a "$srcdir/better-sqlite3-mod/node_modules/." "$pkgdir/usr/lib/$pkgname/node_modules/"
   install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   # The brand app icon (vendored from the notees-brand repo) so desktop
   # environments and package managers show the Margin Green mark.

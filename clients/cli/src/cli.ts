@@ -2167,7 +2167,7 @@ async function runWordServe(command: Command, options: { port?: string; restart?
 }
 
 /** CLI release version — aligned with the server release train. */
-const CLI_VERSION = "4.6.0";
+const CLI_VERSION = "4.6.1";
 
 /** "3.0.0-m1" → [3, 0] (major, minor) for the drift comparison. */
 function versionMajorMinor(version: string): [number, number] {

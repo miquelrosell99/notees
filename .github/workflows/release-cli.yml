@@ -82,7 +82,7 @@ jobs:
     container: archlinux:latest
     steps:
       - name: Install the pacman toolchain
-        run: pacman -Sy --noconfirm --needed base-devel sudo curl
+        run: pacman -Sy --noconfirm --needed base-devel sudo curl python3
       - name: Fetch the PKGBUILD from the tag
         run: |
           mkdir -p /tmp/pkg
