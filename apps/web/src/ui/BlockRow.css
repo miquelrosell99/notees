@@ -255,20 +255,24 @@
   max-inline-size: 0;
   /* Cancels the row flex gap the zero-width wrapper would otherwise still
      earn between itself and the content: at rest the collapsed row's text
-     then aligns exactly with an uncollapsed sibling's; on hover the reveal
-     pushes the text right by exactly the pill's grown width. Reads the row's
-     own --nt-row-gap so the two sides can never drift apart. */
+     then aligns exactly with an uncollapsed sibling's. On hover the margin
+     rides the reveal back to 0, so the row's standard gap opens between
+     the grown pill and the text (the pill never sits flush against the
+     words). Reads the row's own --nt-row-gap so the two sides can never
+     drift apart. */
   margin-inline-end: calc(-1 * var(--nt-row-gap, var(--spacing-2)));
   opacity: 0;
   transform: translateX(calc(-1 * var(--spacing-1))) translateY(calc(-1 * var(--spacing-1)));
   transition:
     max-inline-size var(--motion-duration-short) var(--motion-easing-standard),
+    margin-inline-end var(--motion-duration-short) var(--motion-easing-standard),
     opacity var(--motion-duration-short) var(--motion-easing-standard),
     transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .nt-block-row:hover .nt-block-collapsed-count {
   max-inline-size: 6ch;
+  margin-inline-end: 0;
   opacity: 1;
   transform: translateX(0) translateY(calc(-1 * var(--spacing-1)));
 }
