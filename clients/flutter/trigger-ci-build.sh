@@ -11,5 +11,5 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-run_url=$(gh workflow run android.yml 2>&1 | tail -n 1)
+run_url=$(gh workflow run flutter-android.yml 2>&1 | tail -n 1)
 echo "Triggered: $run_url"

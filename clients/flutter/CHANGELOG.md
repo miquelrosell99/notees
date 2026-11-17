@@ -6,6 +6,34 @@ is where history goes; those stay static guidance. Before implementing a
 change, skim this file for recent related work. Anything before 2026-10-06
 lives in git history.
 
+## 2026-11-17
+
+- **chore(release,ci): monorepo reunification (ADR-002) — release tags are now
+  `flutter-v*`, the workflows live at the repo root, and the APK version
+  derivation is prefix-aware.** The five Notees client repos merged into
+  `miquelrosell99/notees` under `clients/`; the core keeps plain `v*` tags and
+  each client prefixes its own (`flutter-v*`, `gtk-v*`, ...). Concretely:
+  `.github/workflows/android.yml` → `.github/workflows/flutter-android.yml`
+  and `.github/workflows/release.yml` →
+  `.github/workflows/release-flutter.yml` at the monorepo root, with the PR
+  gate path-filtered to `clients/flutter/**` + `packages/**` (a package or
+  fixture-corpus change re-runs the Flutter gate — lockstep). The release
+  workflow gains a guard job that fails a `flutter-v*` tag whose commit
+  touches no `clients/flutter/` file, and the tag→version derivation strips
+  the component prefix before applying the documented rule (`flutter-v2.0.0-m11`
+  → versionName `2.0.0-m11`, versionCode `2000011` — byte-for-byte what
+  `v2.0.0-m11` produced). Production signing stays tag-only, now guarded
+  against `flutter-v*` refs; the keystore secrets are unchanged
+  (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+  `ANDROID_KEY_PASSWORD` — values migrate to the monorepo repo settings). The
+  `packaging/arch/` PKGBUILD builds from the monorepo (`flutter-v${pkgver}`
+  tag tarballs at `miquelrosell99/notees`, sources under `clients/flutter/`).
+  The new root `fixture-drift.yml` gate sha256-compares the canonical corpus
+  (`packages/protocol/fixtures/`) against `test/fixtures/wire/` on every
+  corpus-touching push/PR — a fixture change must land in all copies in one
+  commit. `trigger-ci-build.sh` dispatches the renamed `flutter-android.yml`.
+  No app code change.
+
 ## 2026-11-10
 
 - **feat(sync,settings): local-first derived rebuild — an offline rebuild

@@ -1,31 +1,34 @@
 # Maintainer: Miquel Rosell
 # Canonical Arch Linux packaging for the Notees Linux desktop client.
-# Lives in the app repo (packaging/arch/) — build from here, not from a copy.
+# Lives in the monorepo at clients/flutter/packaging/arch/ — build from here,
+# not from a copy.
 #
-#   Build:   cd packaging/arch && makepkg -s
+#   Build:   cd clients/flutter/packaging/arch && makepkg -s
 #   Install: sudo pacman -U notees-<pkgver>-1-x86_64.pkg.tar.zst
 #
 # Requires a locally installed Flutter SDK — Arch has no `flutter` package.
 # Override the SDK location with FLUTTER_ROOT if it does not live at ~/flutter.
 #
-# Release flow: after pushing a v* tag, bump pkgver and sha256sums here
-# (see .agents/skills/notees-flutter-operations/references/releases.md).
+# Release flow: after pushing a flutter-v* tag, bump pkgver and sha256sums
+# here (see .agents/skills/notees-flutter-operations/references/releases.md).
 
 pkgname=notees
 pkgver=4.6.0
 pkgrel=1
 pkgdesc="First-class Flutter client for Notees — self-hosted notes, journals, and tasks"
 arch=(x86_64)
-url="https://github.com/miquelrosell99/notees-flutter"
+url="https://github.com/miquelrosell99/notees"
 license=('custom')  # upstream repo ships no LICENSE file
 depends=(atk cairo fontconfig gdk-pixbuf2 glib2 gtk3 harfbuzz libepoxy libsecret pango zlib)
 makedepends=(clang cmake ninja pkgconf python)
 options=(!debug)  # flutter release libs carry no debuginfo
-source=("${pkgname}-${pkgver}.tar.gz::https://github.com/miquelrosell99/notees-flutter/archive/refs/tags/v${pkgver}.tar.gz")
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/miquelrosell99/notees/archive/refs/tags/flutter-v${pkgver}.tar.gz")
 sha256sums=('772aea68604ec390fd05310078e410342e91a1077970099b639b4aad7276f4e3')
 
 build() {
-  cd "${srcdir}/notees-flutter-${pkgver}"
+  # The monorepo tag tarball extracts to notees-flutter-v${pkgver}/; the app
+  # lives at clients/flutter/ inside it.
+  cd "${srcdir}/notees-flutter-v${pkgver}/clients/flutter"
 
   export PATH="${FLUTTER_ROOT:-${HOME}/flutter}/bin:${PATH}"
 
@@ -39,7 +42,7 @@ build() {
 }
 
 package() {
-  cd "${srcdir}/notees-flutter-${pkgver}"
+  cd "${srcdir}/notees-flutter-v${pkgver}/clients/flutter"
 
   install -d "${pkgdir}/opt/${pkgname}"
   cp -a build/linux/x64/release/bundle/. "${pkgdir}/opt/${pkgname}/"

@@ -1,0 +1,68 @@
+name: release-flutter
+
+# GitHub Releases of the Flutter client come ONLY from pushing a `flutter-v*`
+# tag. The build reuses flutter-android.yml (workflow_call); the guard job
+# fails the run unless the tag commit touches clients/flutter/ — a
+# component-prefixed tag must point at a Flutter-client commit. The APK
+# artifact + sha256 + `gh release create` flow is unchanged from the
+# standalone repo.
+# (History: clients/flutter/.github/workflows/release.yml.)
+
+on:
+  push:
+    tags:
+      - 'flutter-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  guard:
+    name: Guard Flutter component scope
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Enforce clients/flutter scope
+        run: |
+          set -euo pipefail
+          if ! git show --name-only --format= HEAD | grep -q '^clients/flutter/'; then
+            echo "::error::Tag '${{ github.ref_name }}' touches no files under clients/flutter/. flutter-v* tags must point at Flutter-client commits — re-tag a commit that changes clients/flutter/."
+            exit 1
+          fi
+          echo "Tag '${{ github.ref_name }}' touches clients/flutter/ — release build proceeds."
+
+  build:
+    name: Build signed APK
+    needs: guard
+    uses: ./.github/workflows/flutter-android.yml
+    with:
+      build-mode: release
+      sign-release: true
+    secrets: inherit
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: notees-android-apk
+          path: dist
+
+      - name: Create GitHub Release
+        run: |
+          apk=$(ls dist/notees-android-*.apk)
+          sha256sum "$apk" > "$apk.sha256"
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Notees $GITHUB_REF_NAME" \
+            --generate-notes \
+            "$apk" \
+            "$apk.sha256"
