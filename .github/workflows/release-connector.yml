@@ -1,0 +1,74 @@
+name: release-connector
+
+# GitHub Releases for the browser extension come ONLY from pushing a
+# `connector-v*` tag. The guard job fails the run unless the tagged commit
+# touches clients/connector/, so a stray tag on unrelated work cannot
+# publish. The build job installs, builds, and tests the extension, then zips
+# dist/ (run from clients/connector so the paths inside the zip are
+# dist/...); the release job attaches the zip to the tag's GitHub Release
+# (softprops, same pattern as the gtk pipeline).
+
+on:
+  push:
+    tags: ["connector-v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Enforce clients/connector/ scope
+        run: |
+          set -euo pipefail
+          if git show --name-only --format= HEAD | grep -q '^clients/connector/'; then
+            echo "Tag ${{ github.ref_name }} touches clients/connector/ — releasing."
+          else
+            echo "::error::Tag ${{ github.ref_name }} does not touch clients/connector/ — connector-v* tags must be cut on extension changes."
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-22.04
+    needs: guard
+    defaults:
+      run:
+        working-directory: clients/connector
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.0.0 --activate
+      - name: Install, build, test
+        run: pnpm install --frozen-lockfile && pnpm build && pnpm test
+      - name: Zip dist
+        run: zip -r "notees-connector-${{ github.ref_name }}.zip" dist/
+      - name: Upload release zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-zip
+          path: clients/connector/notees-connector-${{ github.ref_name }}.zip
+
+  release:
+    runs-on: ubuntu-22.04
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Download release zip
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: release-zip
+          path: release-assets
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3
+        with:
+          files: release-assets/*
