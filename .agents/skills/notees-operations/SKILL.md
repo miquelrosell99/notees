@@ -24,10 +24,11 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
    container first (or use the snapshot endpoints).
 2. **Compose carries the build contexts** — development flow: `docker compose
    build && docker compose up -d`, so the deployment always runs the LOCAL
-   codebase (no stray tags). Hosts that haven't built pull
-   `:latest` from ghcr (default pull policy, left alone). Releases are
-   published to ghcr per `docs/developers/deployment.md` for other users;
-   never re-tag.
+   codebase (no stray tags). Pull-based hosts track `:nightly` (the moving
+   per-push channel) or pin `:latest` for stable releases only (default pull
+   policy, left alone; channels per `docs/developers/deployment.md`).
+   Releases are published to ghcr per `docs/developers/deployment.md` for
+   other users; never re-tag.
 3. **After any log-rewriting migration:** bump the restore epoch **and**
    `docker compose restart notees-sync` — ingest alone does not reapply to the
    running derived store (learned 2026-10-05, `migrations.md`).

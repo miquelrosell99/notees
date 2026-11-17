@@ -1,17 +1,19 @@
 name: Nightly Docker images
 
 # Scheduled build of main's head (03:47 UTC, staggered 24 min after the
-# nightly CI's 03:23 so the two runs don't contend) — the `:nightly` channel
-# for hosts that want to track main without building
-# locally. Publishes `ghcr.io/miquelrosell99/notees-sync:nightly` and
-# `ghcr.io/miquelrosell99/notees-web:nightly` plus dated tags
-# (`nightly-YYYYMMDD`) and the short commit SHA of main's head
-# (`a1b2c3d`) — every nightly is immutable and roll-back-able, and a
-# host can pin an exact build via `NOTEES_*_IMAGE` without tracking the
-# moving `:nightly`. NEVER `:latest` — that tag belongs
-# to stable semver releases only (see release-docker.yml). Uses the
-# workflow's GITHUB_TOKEN (packages: write); manual dispatch reruns the
-# nightly build on demand.
+# nightly CI's 03:23 so the two runs don't contend). Since the per-push
+# publish started moving `:nightly` (publish-docker.yml, thin gate), this
+# cron is the DAILY FULLY-GATED snapshot: it publishes the dated tags
+# (`ghcr.io/miquelrosell99/notees-sync:nightly-YYYYMMDD`,
+# `ghcr.io/miquelrosell99/notees-web:nightly-YYYYMMDD`) plus the short
+# commit SHA of main's head (`a1b2c3d`) — every snapshot is immutable and
+# roll-back-able, and a host can pin an exact build via `NOTEES_*_IMAGE`
+# without tracking the moving `:nightly`. It deliberately does NOT claim
+# the `nightly` name — per-push publishes own the moving channel, this
+# cron owns the dated artifacts and the full gate. NEVER `:latest` — that
+# tag belongs to stable semver releases only (see release-docker.yml).
+# Uses the workflow's GITHUB_TOKEN (packages: write); manual dispatch
+# reruns the nightly build on demand.
 #
 # (Re-merged 2026-11-12 per ADR-001: one workflow builds both images from
 # this repo. Image names are unchanged — existing deployments keep working.)
@@ -83,7 +85,6 @@ jobs:
         with:
           images: ghcr.io/miquelrosell99/${{ matrix.image }}
           tags: |
-            type=raw,value=nightly
             type=schedule,pattern=nightly-{{date 'YYYYMMDD'}}
             type=sha,format=short
 

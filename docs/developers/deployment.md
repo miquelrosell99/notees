@@ -251,7 +251,7 @@ own repo (context = that repo's root):
 
 **Image channels + the CI publish path.** All ghcr publishes use the
 workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
-(the host's ghcr login stays read-only). Three tag shapes:
+(the host's ghcr login stays read-only). Three tag shapes, two workflows:
 
 - `:latest` — the latest **stable** semver release, published by
   `release-docker.yml` on a `v*` tag push. Prereleases (any tag with a `-`,
@@ -259,12 +259,20 @@ workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
   sonarly semantics (fleet ruling): the workflow's manual dispatch is
   build-verify only and never pushes images.
 - `:vX.Y.Z` (+ `X.Y`) — the release tags from the same tag push.
-- `:nightly` (+ `nightly-YYYYMMDD`, + the short commit SHA of main's head) —
-  the scheduled build of main's head
-  (`nightly-docker.yml`, cron `47 3 * * *`, manual dispatch too). Main is
-  not built per push: CI gates PRs and runs the same nightly cron against
-  main's head (`ci.yml`). The per-push-main CI trigger was retired: the
-  nightly cron covers main's head, and per-push failures were the noise.
+- `:nightly` — the moving development channel: published **per main push**
+  by `publish-docker.yml` (paths-filtered to shippable source, gated on the
+  thin tier — typecheck + the fast package suites), so a host tracking
+  `:nightly` sees every merged slice as soon as its publish run is green.
+  Alongside it every publish stamps the immutable per-commit `sha-<sha>`
+  (short form) — the rollback pin via `NOTEES_*_IMAGE`.
+- `nightly-YYYYMMDD` (+ that build's short SHA) — the scheduled
+  fully-gated snapshot of main's head (`nightly-docker.yml`, cron
+  `47 3 * * *`, manual dispatch too): the nightly CI's heavy web/server
+  suites gate it, and it no longer claims the `nightly` name. Rapid merges
+  coalesce into one per-push build at the newest head (concurrency cancels
+  the stale run; a cancelled run never half-pushes). The heavy per-push CI
+  trigger stays retired — the thin publish gate plus the nightly cron's
+  full gate are the aligned budget endpoint.
 
 **Deploy: plain Docker Compose.** The baseline is the `docker` CLI — every
 operation below is a plain `docker compose` command from the checkout.
@@ -282,10 +290,11 @@ cp compose.example.yaml compose.yaml && cp .env.example .env   # then adjust .en
 ```
 
 The compose **project name derives from the folder name** (convention — no
-`name:` pin), so keep the repo folder named `notees` on production hosts;
-a dev instance gets its own folder (e.g. `notees-dev`) so the two projects
-never collide. Keep `compose.example.yaml` in sync with the live file by
-hand. The **data dir** binds `${NOTEES_DATA_DIR:-./config/notees/sync}` —
+`name:` pin), so keep the repo folder named `notees` on production hosts
+(the dev box's checkout carries the same name — it lives on its own host,
+so the two projects never collide; a host running both would give the dev
+instance its own folder). Keep `compose.example.yaml` in sync with the live
+file by hand. The **data dir** binds `${NOTEES_DATA_DIR:-./config/notees/sync}` —
 fresh hosts default repo-local; a host that keeps its data outside the
 checkout sets `NOTEES_DATA_DIR=<stack-data-dir>` in `.env` (e.g.
 `/opt/notees/config/notees/sync` — the borgmatic backup source), keeping

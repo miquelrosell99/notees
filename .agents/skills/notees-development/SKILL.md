@@ -121,12 +121,15 @@ instead of building a checkout see every landed slice as soon as CI
 publishes it. Publishing is per-push and paths-filtered: `publish-docker.yml`
 runs on every main push that touched shippable source, gates on a thin tier
 (typecheck + the fast package suites — deliberately not the heavy web/server
-suites), and pushes immutable `sha-<sha>` tags for the CHANGED image(s) only
-(rapid merges coalesce into one build at the newest head; docs-only pushes
-publish nothing). `:latest` still moves only on a stable `v*` tag;
-`:nightly` + `nightly-YYYYMMDD` stay on the nightly cron; the weekly
-`ghcr-retention` sweep keeps the Packages storage budget flat (moving +
-release tags forever, 10 newest dated nightlies, `sha-*` for 30 days).
+suites), and pushes immutable `sha-<sha>` tags PLUS the moving `:nightly`
+tag for the CHANGED image(s) only (rapid merges coalesce into one build at
+the newest head; docs-only pushes publish nothing). A host tracking
+`:nightly` gets every merged slice the moment its publish run is green;
+`nightly-YYYYMMDD` remains the nightly cron's fully-gated dated snapshot
+(it no longer claims the moving name), `:latest` still moves only on a
+stable `v*` tag, and the weekly `ghcr-retention` sweep keeps the Packages
+storage budget flat (moving + release tags forever, 10 newest dated
+nightlies, `sha-*` for 30 days).
 **Follow the push run to completion** (`gh run watch <id> --exit-status` /
 the run list for the merge commit) **and report the outcome to the owner
 before ending the session** — green moves the tags, red is a failed publish:

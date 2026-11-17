@@ -10,12 +10,17 @@ name: Publish Docker images (per-push SHA)
 # web/server suites, which the local full gate and ci's nightly already
 # cover) must be green first, so a red push never publishes.
 #
-# Channels: this workflow owns ONLY the per-commit SHA tags. `:latest` is
-# release-docker.yml's (stable semver tags); `:nightly` + `nightly-YYYYMMDD`
-# remain the nightly cron's. Budget context (Free plan, 2000 Actions
+# Channels: this workflow owns the per-commit SHA tags AND the moving
+# `:nightly` tag (per-push, thin gate — the pullable "latest changes"
+# channel for hosts that deploy published images). `:latest` is
+# release-docker.yml's (stable semver tags); `nightly-YYYYMMDD` (the daily
+# FULLY-gated snapshot) remains the nightly cron's, which no longer claims
+# the moving `nightly` name. Budget context (Free plan, 2000 Actions
 # minutes/month private): warm-cache per-push builds are the aligned
-# "every commit is an immutable artifact" endpoint; the paths filter and the
-# coalescing keep the minute spend proportional to real source changes.
+# "every commit is an immutable artifact" endpoint; the paths filter and
+# the coalescing keep the minute spend proportional to real source changes.
+# The extra `nightly` tag costs no extra build — one more tag on the same
+# push.
 
 on:
   push:
@@ -103,6 +108,7 @@ jobs:
       dockerfile: apps/server/Dockerfile
       tags: |
         type=sha,format=short
+        type=raw,value=nightly
 
   web:
     needs: [changes, gate]
@@ -113,3 +119,4 @@ jobs:
       dockerfile: apps/web/Dockerfile
       tags: |
         type=sha,format=short
+        type=raw,value=nightly

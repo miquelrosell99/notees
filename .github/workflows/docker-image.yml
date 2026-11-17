@@ -5,7 +5,9 @@ name: Docker image build+push (reusable)
 # tag spec. Shares the `nightly-<image>` gha cache scope with the nightly
 # workflow, so a warm nightly makes pushes cheap and a warm push makes the
 # nightly cheap. NEVER publishes `:latest` — that tag belongs to stable
-# semver releases only (see release-docker.yml). Uses the workflow's
+# semver releases only (see release-docker.yml). Per-push callers also move
+# `:nightly` — the moving newest-main channel (thin gate); the dated
+# fully-gated snapshots stay the nightly cron's. Uses the workflow's
 # GITHUB_TOKEN (packages: write).
 
 on:
