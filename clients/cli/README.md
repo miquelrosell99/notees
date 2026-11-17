@@ -1,43 +1,42 @@
 # Notees CLI
 
-The `notees` command-line client for [Notees](https://github.com/miquelrosell99/notees) — the object/property/search surface over the server's public API. Split out of the main monorepo (`apps/cli`) to live alongside the other first-class clients ([GTK](https://github.com/miquelrosell99/notees-gtk), [Flutter](https://github.com/miquelrosell99/notees-flutter)).
+The `notees` command-line client for [Notees](https://github.com/miquelrosell99/notees) — the object/property/search surface over the server's public API. It lives in the Notees monorepo at `clients/cli`, alongside the other first-class clients (`clients/gtk`, `clients/flutter`, `clients/word`, `clients/connector`); releases ship under `cli-v*` tags.
 
-The CLI is **local-first like the other clients**: it syncs a workspace through the relay wire protocol (the vendored `@notees/sync` engine) into a local derived SQLite store (the vendored `@notees/store`, better-sqlite3 backend, one file per workspace under `~/.notees/stores/`), and serves every content read — objects, children, backlinks, search/FTS, the query language — from that store. Writes author op envelopes (protocol v3), apply locally through the store appliers, and push through the engine's outbox; a write that can't push stays durable in the local op log and syncs on the next successful `notees sync`. The server retired its content REST API (plan 07), so no content command makes a server round-trip beyond the sync cycle itself. `notees help` prints the full command overview; `notees help <command> [subcommand]` prints the full help for one command — see Command reference below.
+The CLI is **local-first like the other clients**: it syncs a workspace through the relay wire protocol (the `@notees/sync` engine) into a local derived SQLite store (the `@notees/store` package, better-sqlite3 backend, one file per workspace under `~/.notees/stores/`), and serves every content read — objects, children, backlinks, search/FTS, the query language — from that store. Writes author op envelopes (protocol v3), apply locally through the store appliers, and push through the engine's outbox; a write that can't push stays durable in the local op log and syncs on the next successful `notees sync`. The server retired its content REST API (plan 07), so no content command makes a server round-trip beyond the sync cycle itself. `notees help` prints the full command overview; `notees help <command> [subcommand]` prints the full help for one command — see Command reference below.
 
 Encrypted (keyed) workspaces: the CLI unwraps the workspace key like any other client — with a user credential (from `notees auth login`) plus `NOTEES_EMAIL` and `NOTEES_PASSWORD` set, the master key re-derives via `/auth/unlock` and the stored wrapped key unwraps. The first successful unlock CACHES the master key in the CLI state file (mode 0600 — the web client's persisted-custody parity), so later commands need no password until `notees auth lock` (or `notees auth logout`) clears it; `notees auth unlock` runs the unlock explicitly and doubles as a sync warm-up. A MACHINE key (minted with custody in the app's API-keys settings) needs none of this: the token itself unwraps the master key (`GET /api-keys/self/custody`), so every keyed command rides the key alone — no password, no cache. An operator credential can never read a workspace key (user custody by design), and a keyed workspace is refused loudly when no key is derivable.
 
 ## Layout
 
 ```
-notees-cli/
-├── src/                 # the CLI (commander; `notees` bin)
-├── test/                # vitest suite (boots a real server from @notees/server)
-├── scripts/install.sh   # release-bundle installer (curl | bash)
-├── packaging/arch/      # PKGBUILD for pacman (Arch; built from the release assets)
-├── vendor/notees/       # git submodule → miquelrosell99/notees (pinned commit)
-├── vendor/word/         # vendored Word add-in dist (built snapshot; see "Syncing")
-└── pnpm-workspace.yaml  # consumes @notees/* from the submodule checkout
+notees/                  # the Notees monorepo (this repo)
+├── clients/cli/         # this CLI (a pnpm workspace project)
+│   ├── src/             # the CLI (commander; `notees` bin)
+│   ├── test/            # vitest suite (boots a real server from @notees/server)
+│   ├── scripts/install.sh   # release-bundle installer (curl | bash)
+│   ├── packaging/arch/  # PKGBUILD for pacman (Arch; built from the release assets)
+│   └── word-snapshot/   # committed Word add-in build (see `notees word serve`)
+├── packages/            # the @notees/* core packages (protocol/domain/store/sync/query/export)
+└── apps/server          # the sync relay — @notees/server, used by the test suite
 ```
 
-The CLI imports the TypeScript protocol packages (`@notees/protocol`, `@notees/domain`, `@notees/store`, `@notees/sync`, `@notees/query`, `@notees/export`) and uses `@notees/server` in tests to boot a real server. They are consumed from the `vendor/notees` submodule as pnpm workspace packages — no npm publishing involved (the SDK-publish track is archived in the main repo).
+The CLI imports the TypeScript protocol packages (`@notees/protocol`, `@notees/domain`, `@notees/store`, `@notees/sync`, `@notees/query`, `@notees/export`) and uses `@notees/server` in tests to boot a real server. They are consumed as pnpm workspace projects straight from the monorepo — no submodule, no npm publishing involved (the SDK-publish track is archived).
 
 ## Getting started
 
+From the monorepo root:
+
 ```bash
-git clone --recurse-submodules git@github.com:miquelrosell99/notees-cli.git
-cd notees-cli
+git clone git@github.com:miquelrosell99/notees.git
+cd notees
 corepack enable && corepack prepare pnpm@9.0.0 --activate
 pnpm install
-pnpm build        # tsup bundle → dist/cli.js (the `notees` bin)
-pnpm test         # vitest (189 tests)
-pnpm dev -- --help    # run from source via tsx
+pnpm --filter "@notees/cli" build        # tsup bundle → clients/cli/dist/cli.js (the `notees` bin)
+pnpm --filter "@notees/cli" test         # vitest (309 tests)
+pnpm --filter "@notees/cli" dev -- --help    # run from source via tsx
 ```
 
-If you cloned without `--recurse-submodules`:
-
-```bash
-git submodule update --init
-```
+(Running `pnpm install`/`build`/`test` from inside `clients/cli` works too — pnpm resolves the root workspace.) The CLI suite is the lockstep consumer of the core packages: `.github/workflows/ci-cli.yml` runs it on every `clients/cli/**` or `packages/**` change.
 
 ## Configuration
 
@@ -122,62 +121,54 @@ The Notees-for-Word task pane is no longer served by the Notees sync server; `no
 
     notees word serve [--port 8471] [--restart]
 
-- **Statics: dist → embedded fallback.** It serves the `notees-word` localhost flavor read-only at the root of `http://localhost:<port>`, bound to `127.0.0.1` only (post-listen address check, like the bridge). `GET /` is the pane, `GET /manifest.xml` is the sideload manifest re-rendered for the actual port. The statics come from, in order: `NOTEES_WORD_DIST` (explicit override), a `vendor/word/dist` found walking up from the CLI (the repo checkout), or — the release bundle's case — the copy **embedded in `cli.mjs` itself** at build time (`scripts/gen-word-embedded.mjs` generates `src/word/embedded.generated.ts` from `vendor/word`, including the raw manifest template; the build/typecheck/test/dev scripts regenerate it, and it is gitignored so a bundle can never embed a stale snapshot). The embedded fallback needs no on-disk files at all.
+- **Statics: dist → embedded fallback.** It serves the `notees-word` localhost flavor read-only at the root of `http://localhost:<port>`, bound to `127.0.0.1` only (post-listen address check, like the bridge). `GET /` is the pane, `GET /manifest.xml` is the sideload manifest re-rendered for the actual port. The statics come from, in order: `NOTEES_WORD_DIST` (explicit override), a `clients/word/dist` found walking up from the CLI (a built in-tree add-in checkout), the committed `clients/cli/word-snapshot/dist`, or — the release bundle's case — the copy **embedded in `cli.mjs` itself** at build time (`scripts/gen-word-embedded.mjs` generates `src/word/embedded.generated.ts` from whichever source won, including the raw manifest template; the build/typecheck/test/dev scripts regenerate it, and it is gitignored so a bundle can never embed a stale snapshot). The embedded fallback needs no on-disk files at all.
 - **Same-origin API gateway.** Every `/api/*` request (any method) relays to the configured sync server — the same `--server` / `NOTEES_SERVER` / `notees config set server` resolution every command uses (`NOTEES_WORD_UPSTREAM` overrides the base URL). The credential comes only from the CLI config (`--key` / `NOTEES_API_KEY` / stored credential) and is injected server-side as `x-api-key`; the configured workspace becomes a default `x-workspace-id` when the pane does not send one. Client-supplied auth headers (`x-api-key`, `authorization`, `cookie`) are dropped, never forwarded — the pane holds nothing and cannot retarget the proxy: one fixed origin, `/api/*` paths only. The relay WebSocket (`/api/relay/v2/ws/:workspaceId`) is tunneled at the upgrade layer with the same injection. No CORS headers anywhere: the pane is same-origin.
 - **Streaming, not buffering.** Request and response bodies relay chunk-for-chunk (relay snapshots, any future SSE-style feed); long-lived responses get no client-side cutoff.
 - **Sideload manifest.** The manifest is written to the per-user cache dir — `~/.cache/notees/word/manifest.xml` on Linux/macOS (`$XDG_CACHE_HOME` respected), `%LOCALAPPDATA%\notees\word\manifest.xml` on Windows. Point Word's shared-folder catalog at that folder (Windows trusted-catalog registry value; Word for Mac copies it into the wef folder).
 - **One serve per cache dir.** A second `notees word serve` exits 4 (conflict) with a `--restart` hint; `--restart` SIGTERMs the live holder and waits it out. The lock records the holder pid; a stale lock from a dead process is stolen.
 - **Port.** `--port` > `NOTEES_WORD_PORT` > 8471.
 - **Server + credential required.** Unlike the statics-only early shape, the gateway resolves the sync server and credential at startup (the standard global options) — without them there is nothing to proxy to. For citation pairing, run `notees serve --origin http://localhost:<port>` so the pane's cross-origin bridge fetches are allowed.
-- **Release bundles.** The single-file `cli.mjs` is fully self-contained: the word statics ride inside it (embedded fallback above), so `word serve` works from an installed bundle with nothing beside the binary. To refresh what future bundles embed, update `vendor/word` (`node scripts/sync-word-dist.mjs`) and rebuild.
+- **Release bundles.** The single-file `cli.mjs` is fully self-contained: the word statics ride inside it (embedded fallback above), so `word serve` works from an installed bundle with nothing beside the binary. To refresh what future bundles embed, build the add-in (`cd clients/word && pnpm build:localhost`) or refresh the committed `word-snapshot/` from that build, then rebuild.
 
 ## Installing
 
-Every `v*` tag carries a prebuilt bundle (`cli.mjs`, ESM with a `node` shebang, sha256 sidecar) on its GitHub Release, built by `.github/workflows/release.yml`. The install script fetches it, verifies the checksum, and links `notees` into `~/.local/bin` (override with `NOTEES_INSTALL_DIR`):
+Every `cli-v*` tag carries a prebuilt bundle (`cli.mjs`, ESM with a `node` shebang, sha256 sidecar) on its GitHub Release, built by `.github/workflows/release-cli.yml`. The install script resolves the newest `cli-v*` release, fetches it, verifies the checksum, and links `notees` into `~/.local/bin` (override with `NOTEES_INSTALL_DIR`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash
-curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash -s -- v3.2.1   # pin a version
+curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees/main/clients/cli/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees/main/clients/cli/scripts/install.sh | bash -s -- 4.6.0   # pin a version
 ```
 
-Requirements: bash, curl, node ≥ 22. The bundle is standalone — no pnpm toolchain, no `vendor/` checkout. Installing from source (above) is the other supported path; there is no npm or docker distribution.
+Requirements: bash, curl, node ≥ 22. The bundle is standalone — no pnpm toolchain, no monorepo checkout. Building from source (above) is the other supported path; there is no npm or docker distribution.
 
 **On Windows:** the installer also writes a `notees.cmd` shim next to the installed files, so cmd/PowerShell can run `notees` directly (Git Bash/MSYS executes the extensionless `notees` via its shebang either way).
 
-**On Arch (pacman):** `packaging/arch/PKGBUILD` builds an installable package from the same release assets — checksum-verified by pacman itself:
+**On Arch (pacman):** `clients/cli/packaging/arch/PKGBUILD` builds an installable package from the same release assets — checksum-verified by pacman itself:
 
 ```bash
-git clone --depth 1 --branch v3.2.3 https://github.com/miquelrosell99/notees-cli.git
-cd notees-cli/packaging/arch
+curl -fsSL -o PKGBUILD https://raw.githubusercontent.com/miquelrosell99/notees/cli-v4.6.0/clients/cli/packaging/arch/PKGBUILD
+curl -fsSL -o notees.png https://raw.githubusercontent.com/miquelrosell99/notees/cli-v4.6.0/clients/cli/packaging/arch/notees.png
 makepkg -si        # installs notees-cli + its nodejs>=22 dependency
 ```
 
 Every tag's `pacman-smoke` CI job build-installs this exact PKGBUILD on Arch before the release is trusted. AUR publication is deliberately deferred — the in-repo PKGBUILD is the supported way to build the package.
 
-## Syncing the vendored packages
+## The core packages
 
-The submodule pin is the lockstep boundary: bump it after the main repo ships protocol/store changes the CLI needs.
+The CLI consumes the monorepo's `@notees/*` workspace projects directly — the submodule pin and its vendor-bump automation are retired (ADR-002). Wire/applier/model changes land in `packages/*` and the CLI's `ci-cli` gate runs on every `packages/**` change, so lockstep breakage surfaces the moment it exists; there is no pin to bump and no separate sync step.
 
-Bumps normally arrive as **automated PRs**: `.github/workflows/vendor-bump.yml` runs every hour, pins `vendor/notees` at the core repo's (`miquelrosell99/notees`) newest main, and opens the bump PR (gate green → squash-merge). The manual recipe below remains for exceptional pins.
+### Refreshing the committed Word add-in snapshot (`word-snapshot/`)
 
-```bash
-cd vendor/notees && git fetch origin && git checkout origin/main && cd ../..
-pnpm install
-pnpm -r --filter "@notees/*" build   # rebuild the vendored packages' dists
-pnpm build && pnpm test
-```
-
-Commit the submodule bump — CI installs with `--frozen-lockfile`, so run `pnpm install` once locally to refresh `pnpm-lock.yaml` and commit that too.
-
-### Refreshing the vendored Word add-in (`vendor/word`)
-
-`vendor/word` is a built snapshot of the `notees-word` repo's `pnpm build:localhost` output (statics + the raw manifest template + `PROVENANCE.json` recording the source commit). Refresh it from a notees-word checkout — never edit it by hand:
+`clients/cli/word-snapshot/` is a built snapshot of the `clients/word` add-in's `pnpm build:localhost` output (statics + the raw manifest template + `PROVENANCE.json` recording the source commit). It exists so fresh checkouts, CI, and the embed gate always have statics without building the add-in. Refresh it from a built in-tree add-in when the add-in ships — never edit it by hand:
 
 ```bash
-node scripts/sync-word-dist.mjs [--from <notees-word checkout>] [--no-build]
+cd clients/word && pnpm build:localhost
+rm -rf ../cli/word-snapshot/dist && cp -r dist ../cli/word-snapshot/dist
+cp manifest.xml ../cli/word-snapshot/manifest.xml   # the raw ${HOST}/${BASE_PATH} template
+# update PROVENANCE.json (source commit + build command)
 ```
 
-Unlike the `vendor/notees` submodule there is no lockstep law — the snapshot moves when the add-in ships, not on the core repo's fixture gate.
+Unlike the retired core-pin there is no lockstep law — the snapshot moves when the add-in ships.
 
 ## Versioning
 

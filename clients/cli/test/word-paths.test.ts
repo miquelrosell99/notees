@@ -41,12 +41,20 @@ describe("resolveWordDistDir", () => {
     expect(resolveWordDistDir({ NOTEES_WORD_DIST: "/tmp/dist" }, "/nonexistent")).toBe("/tmp/dist");
   });
 
-  it("walks up from a nested start dir to the vendor tree", () => {
+  it("walks up from a nested start dir to the committed snapshot", () => {
     const root = makeRoot();
-    mkdirSync(join(root, "vendor", "word", "dist"), { recursive: true });
+    mkdirSync(join(root, "word-snapshot", "dist"), { recursive: true });
     const nested = join(root, "src", "word");
     mkdirSync(nested, { recursive: true });
-    expect(resolveWordDistDir({}, nested)).toBe(join(root, "vendor", "word", "dist"));
+    expect(resolveWordDistDir({}, nested)).toBe(join(root, "word-snapshot", "dist"));
+  });
+
+  it("walks up from a nested start dir to a built in-tree add-in dist", () => {
+    const root = makeRoot();
+    mkdirSync(join(root, "clients", "word", "dist"), { recursive: true });
+    const nested = join(root, "clients", "cli", "src", "word");
+    mkdirSync(nested, { recursive: true });
+    expect(resolveWordDistDir({}, nested)).toBe(join(root, "clients", "word", "dist"));
   });
 
   it("a usage error names the way out when nothing is found", () => {
@@ -56,7 +64,7 @@ describe("resolveWordDistDir", () => {
       expect.unreachable("expected resolution to fail");
     } catch (error) {
       expect((error as { exitCode: number }).exitCode).toBe(EXIT.usage);
-      expect((error as Error).message).toContain("sync-word-dist.mjs");
+      expect((error as Error).message).toContain("pnpm build:localhost");
     }
   });
 

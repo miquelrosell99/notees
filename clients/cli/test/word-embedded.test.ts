@@ -1,18 +1,28 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 import { EXIT } from "../src/exit-codes.js";
 import { EMBEDDED_WORD_ASSETS, EMBEDDED_WORD_MANIFEST_TEMPLATE } from "../src/word/embedded.generated.js";
 import { resolveWordStatics } from "../src/word/paths.js";
 import { startWordServe, type EmbeddedWordStatics, type WordServeSession } from "../src/word/serve.js";
+import { resolveWordDistSource } from "../scripts/word-dist-source.mjs";
 
-/** The real bundle fallback: generated from vendor/word at test time. */
+/** The real bundle fallback: generated from the in-tree add-in at test time. */
 const EMBEDDED: EmbeddedWordStatics = {
   assets: EMBEDDED_WORD_ASSETS,
   manifestTemplate: EMBEDDED_WORD_MANIFEST_TEMPLATE,
 };
+
+// The same rule the generator used — the freshness gate compares against
+// exactly the source the embed was generated from.
+const cliRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const wordSource = resolveWordDistSource(cliRoot);
+if (wordSource === undefined) {
+  throw new Error("no Word add-in statics — build clients/word or restore the committed word-snapshot/");
+}
 
 const roots: string[] = [];
 let cacheCounter = 0;
@@ -46,14 +56,15 @@ afterAll(() => {
 });
 
 describe("embedded statics generation", () => {
-  it("mirrors vendor/word/dist exactly (a stale embed fails here, not in the field)", () => {
-    const index = readFileSync("vendor/word/dist/index.html", "utf8");
+  it("mirrors the on-disk add-in dist exactly (a stale embed fails here, not in the field)", () => {
+    const distDir = join(wordSource, "dist");
+    const index = readFileSync(join(distDir, "index.html"), "utf8");
     expect(EMBEDDED_WORD_ASSETS["/index.html"]).toEqual({ content: index, encoding: "utf8" });
     expect(EMBEDDED_WORD_ASSETS["/lib/office.js"]?.encoding).toBe("utf8");
-    const icon = readFileSync("vendor/word/dist/assets/icon-32.png");
+    const icon = readFileSync(join(distDir, "assets", "icon-32.png"));
     expect(EMBEDDED_WORD_ASSETS["/assets/icon-32.png"]?.content).toBe(icon.toString("base64"));
     expect(EMBEDDED_WORD_ASSETS["/assets/icon-32.png"]?.encoding).toBe("base64");
-    expect(EMBEDDED_WORD_MANIFEST_TEMPLATE).toBe(readFileSync("vendor/word/manifest.xml", "utf8"));
+    expect(EMBEDDED_WORD_MANIFEST_TEMPLATE).toBe(readFileSync(join(wordSource, "manifest.xml"), "utf8"));
     expect(EMBEDDED_WORD_MANIFEST_TEMPLATE).toContain("${HOST}");
   });
 });
@@ -66,7 +77,7 @@ describe("serve from the embedded map (no on-disk dist)", () => {
     const index = await fetch(`${base}/`);
     expect(index.status).toBe(200);
     expect(index.headers.get("content-type")).toContain("text/html");
-    expect(await index.text()).toBe(readFileSync("vendor/word/dist/index.html", "utf8"));
+    expect(await index.text()).toBe(readFileSync(join(wordSource, "dist", "index.html"), "utf8"));
 
     const office = await fetch(`${base}/lib/office.js`);
     expect(office.status).toBe(200);
@@ -94,7 +105,7 @@ describe("serve from the embedded map (no on-disk dist)", () => {
     const session = await startEmbedded();
     const base = `http://127.0.0.1:${session.port}`;
     expect((await fetch(`${base}/missing.js`)).status).toBe(404);
-    expect((await fetch(`${base}/%2e%2e/%2e%2e/vendor/word/manifest.xml`)).status).toBe(404);
+    expect((await fetch(`${base}/%2e%2e/%2e%2e/word-snapshot/manifest.xml`)).status).toBe(404);
   });
 });
 
@@ -106,14 +117,28 @@ describe("statics resolution order", () => {
     });
   });
 
-  it("walks up to a vendor/word/dist before falling back to embedded", () => {
+  it("walks up to a built clients/word/dist before falling back to embedded", () => {
     const root = tempRoot();
-    mkdirSync(join(root, "vendor", "word", "dist"), { recursive: true });
+    mkdirSync(join(root, "clients", "word", "dist"), { recursive: true });
     const nested = join(root, "deeply", "nested");
     mkdirSync(nested, { recursive: true });
-    expect(resolveWordStatics({}, nested)).toEqual({ kind: "dir", distDir: join(root, "vendor", "word", "dist") });
+    expect(resolveWordStatics({}, nested)).toEqual({
+      kind: "dir",
+      distDir: join(root, "clients", "word", "dist"),
+    });
     const empty = tempRoot();
     expect(resolveWordStatics({}, empty)).toEqual({ kind: "embedded" });
+  });
+
+  it("walks up to the committed word-snapshot/dist before falling back to embedded", () => {
+    const root = tempRoot();
+    mkdirSync(join(root, "word-snapshot", "dist"), { recursive: true });
+    const nested = join(root, "repo", "clients", "cli", "src", "word");
+    mkdirSync(nested, { recursive: true });
+    expect(resolveWordStatics({}, nested)).toEqual({
+      kind: "dir",
+      distDir: join(root, "word-snapshot", "dist"),
+    });
   });
 
   it("an empty NOTEES_WORD_DIST is not a directive — falls through", () => {

@@ -10,7 +10,7 @@ export interface WordServeConfig {
  * Flag/env resolution for `notees word serve`. Like the citation bridge,
  * the loopback bind is the command's reason to exist — `host` is a
  * constant, not an option. Port precedence: --port > NOTEES_WORD_PORT >
- * 8471 (the fixed default the vendored manifest template is built for).
+ * 8471 (the fixed default the add-in manifest template is built for).
  */
 export function resolveWordServeConfig(
   options: { port?: string; restart?: boolean },

@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Install the `notees` CLI from a release bundle.
 #
-#   curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees-cli/main/scripts/install.sh | bash -s -- v3.2.1
+#   curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees/main/clients/cli/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees/main/clients/cli/scripts/install.sh | bash -s -- 4.6.0
 #
-# The script downloads the tag's `cli.mjs` bundle (+ sha256, verified before
-# install), places it as `notees.mjs` in the install dir, and symlinks
-# `notees` next to it. It also always writes a `notees.cmd` shim next to it
-# so cmd/PowerShell can invoke the CLI on Windows (a unix-shebang extensionless
-# script is not executable there). Requires bash, curl, and node (>= 22) on PATH.
+# The CLI lives in the Notees monorepo and releases under `cli-v*` tags (the
+# monorepo publishes every component from one repo). The script resolves the
+# newest `cli-v*` release, downloads the tag's `cli.mjs` bundle (+ sha256,
+# verified before install), places it as `notees.mjs` in the install dir,
+# and symlinks `notees` next to it. It also always writes a `notees.cmd`
+# shim next to it so cmd/PowerShell can invoke the CLI on Windows (a
+# unix-shebang extensionless script is not executable there). Requires bash,
+# curl, and node (>= 22) on PATH.
 #
 # Since the local-first rewrite the bundle needs the NATIVE better-sqlite3
 # module at runtime (the per-workspace derived store) — it cannot be bundled.
@@ -24,13 +27,14 @@
 #                         override for mirrors or file-based testing)
 set -euo pipefail
 
-REPO="miquelrosell99/notees-cli"
+REPO="miquelrosell99/notees"
 
 VERSION="${1:-${NOTEES_VERSION:-latest}}"
 case "$VERSION" in
   latest) ;;
-  v*) ;;
-  *) VERSION="v$VERSION" ;;
+  cli-v*) ;;
+  v*) VERSION="cli-$VERSION" ;;
+  *) VERSION="cli-v$VERSION" ;;
 esac
 
 INSTALL_DIR="${NOTEES_INSTALL_DIR:-$HOME/.local/bin}"
@@ -45,11 +49,27 @@ node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 22 ? 0 : 1)
   || die "node >= 22 is required (found $(node --version))"
 
 if [ "$VERSION" = "latest" ]; then
-  # /releases/latest redirects to the newest tag — the final URL carries it,
-  # no JSON parsing needed.
-  resolved="$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/$REPO/releases/latest")" \
-    || die "cannot resolve the latest release (network or repo unreachable)"
-  VERSION="${resolved##*/}"
+  # The monorepo publishes every component, so /releases/latest no longer
+  # resolves to a CLI release — list the newest releases and take the first
+  # cli-v* tag (GitHub returns them newest-first). node is already a hard
+  # requirement of this installer, so the JSON parse rides on it (no jq).
+  resolved="$(
+    curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=100" \
+      | node -e '
+        let body = "";
+        process.stdin.on("data", (chunk) => { body += chunk; });
+        process.stdin.on("end", () => {
+          const releases = JSON.parse(body);
+          const cli = Array.isArray(releases)
+            ? releases.find((release) => /^cli-v[0-9]/.test(release.tag_name ?? ""))
+            : undefined;
+          if (cli === undefined) process.exit(1);
+          process.stdout.write(cli.tag_name);
+        });
+        process.stdin.on("error", () => process.exit(1));
+      '
+  )" || die "cannot resolve the latest CLI release (network or repo unreachable)"
+  VERSION="$resolved"
 fi
 [ -n "$VERSION" ] && [ "$VERSION" != "latest" ] || die "could not resolve a release version"
 

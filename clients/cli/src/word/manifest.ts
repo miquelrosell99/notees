@@ -12,7 +12,7 @@ export function renderWordManifest(template: string, port: number): string {
   if (manifest.includes("${")) {
     throw new CliError(
       EXIT.domain,
-      "vendored Word manifest template has unresolved placeholders — refresh vendor/word (scripts/sync-word-dist.mjs)",
+      "Word manifest template has unresolved placeholders — refresh the add-in statics (rebuild clients/word or restore the committed word-snapshot/)",
     );
   }
   return manifest;

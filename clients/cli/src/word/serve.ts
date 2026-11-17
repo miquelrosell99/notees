@@ -40,10 +40,11 @@ export interface EmbeddedWordAsset {
 }
 
 /**
- * The add-in statics embedded in the release bundle — generated from
- * vendor/word by scripts/gen-word-embedded.mjs (`embedded.generated.ts`).
- * The manifest template carries the raw `${HOST}`/`${BASE_PATH}`
- * placeholders, rendered per port exactly like the on-disk template.
+ * The add-in statics embedded in the release bundle — generated from the
+ * in-tree add-in (clients/word, or the committed word-snapshot fallback) by
+ * scripts/gen-word-embedded.mjs (`embedded.generated.ts`). The manifest
+ * template carries the raw `${HOST}`/`${BASE_PATH}` placeholders, rendered
+ * per port exactly like the on-disk template.
  */
 export interface EmbeddedWordStatics {
   readonly assets: Record<string, EmbeddedWordAsset>;
@@ -52,10 +53,11 @@ export interface EmbeddedWordStatics {
 
 export interface WordServeOptions {
   /**
-   * Directory of built add-in statics (the vendored `vendor/word/dist`).
-   * Optional now that the bundle carries the embedded fallback: when set it
-   * wins (NOTEES_WORD_DIST / the dev walk-up); when unset the embedded map
-   * serves. At least one of distDir/embedded is required.
+   * Directory of built add-in statics (a built `clients/word/dist` or the
+   * committed `word-snapshot/dist`). Optional now that the bundle carries
+   * the embedded fallback: when set it wins (NOTEES_WORD_DIST / the dev
+   * walk-up); when unset the embedded map serves. At least one of
+   * distDir/embedded is required.
    */
   readonly distDir?: string;
   /** Per-user cache dir: the rendered manifest and the serve lock live here. */
@@ -168,7 +170,7 @@ export async function startWordServe(options: WordServeOptions): Promise<WordSer
   if (!useDisk && options.embedded === undefined) {
     throw new CliError(
       EXIT.usage,
-      "no Word add-in statics available: neither an on-disk dist (NOTEES_WORD_DIST / vendor/word) nor the embedded bundle copy",
+      "no Word add-in statics available: neither an on-disk dist (NOTEES_WORD_DIST / clients/word / word-snapshot) nor the embedded bundle copy",
     );
   }
   const distRoot = useDisk ? resolve(options.distDir!) : null;
@@ -300,7 +302,7 @@ async function respond(
   }
 
   // The rendered sideload manifest tracks the actual port, so it is served
-  // from the cache-dir render, not the vendored dist copy.
+  // from the cache-dir render, not the on-disk dist copy.
   if (pathname === `/${MANIFEST_FILE_NAME}`) {
     sendBytes(res, req.method, readFileSync(manifestPath), "application/xml; charset=utf-8");
     return;
@@ -358,12 +360,12 @@ async function respond(
   });
 }
 
-/** Disk template read, with the vendored-snapshot diagnostic. */
+/** Disk template read, with the incomplete-snapshot diagnostic. */
 function readTemplateFromDisk(templatePath: string): string {
   if (!existsSync(templatePath)) {
     throw new CliError(
       EXIT.domain,
-      `Word manifest template not found at ${templatePath} — the vendored snapshot is incomplete; re-run scripts/sync-word-dist.mjs`,
+      `Word manifest template not found at ${templatePath} — the add-in statics are incomplete; rebuild the add-in (cd clients/word && pnpm build:localhost) or restore the committed word-snapshot/`,
     );
   }
   return readFileSync(templatePath, "utf8");

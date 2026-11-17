@@ -22,10 +22,11 @@ export function wordCacheDir(env: NodeJS.ProcessEnv = process.env, plat: NodeJS.
 }
 
 /**
- * The vendored add-in dist (`vendor/word/dist`), REQUIRED on disk:
- * NOTEES_WORD_DIST > the nearest `vendor/word/dist` found walking up from
- * this module. Throws when absent — prefer `resolveWordStatics` at call
- * sites that can fall back to the bundle's embedded copy.
+ * The built add-in dist, REQUIRED on disk: NOTEES_WORD_DIST > the nearest
+ * `clients/word/dist` (a built in-tree add-in checkout) or
+ * `word-snapshot/dist` (the committed snapshot beside the CLI) found walking
+ * up from this module. Throws when absent — prefer `resolveWordStatics` at
+ * call sites that can fall back to the bundle's embedded copy.
  */
 export function resolveWordDistDir(
   env: NodeJS.ProcessEnv = process.env,
@@ -37,15 +38,22 @@ export function resolveWordDistDir(
   if (walked !== undefined) return walked;
   throw new CliError(
     EXIT.usage,
-    "the Word add-in dist is not available (no vendor/word/dist found) — run scripts/sync-word-dist.mjs from a source checkout, or set NOTEES_WORD_DIST to a built dist directory",
+    "the Word add-in dist is not available (no clients/word/dist or word-snapshot/dist found) — " +
+      "build the add-in (cd clients/word && pnpm build:localhost), or set NOTEES_WORD_DIST to a built dist directory",
   );
 }
 
 function walkUpToWordDist(startDir: string): string | undefined {
   let dir = startDir;
   for (;;) {
-    const candidate = join(dir, "vendor", "word", "dist");
-    if (existsSync(candidate)) return candidate;
+    // The monorepo layout: the add-in client lives at clients/word and
+    // serves its dist/ in place once built. The committed snapshot beside
+    // the CLI (word-snapshot/dist) keeps fresh checkouts and CI working
+    // without an add-in build.
+    const inTree = join(dir, "clients", "word", "dist");
+    if (existsSync(inTree)) return inTree;
+    const snapshot = join(dir, "word-snapshot", "dist");
+    if (existsSync(snapshot)) return snapshot;
     const parent = dirname(dir);
     if (parent === dir) return undefined;
     dir = parent;
@@ -54,9 +62,10 @@ function walkUpToWordDist(startDir: string): string | undefined {
 
 /**
  * Where `notees word serve` reads its statics, in precedence order:
- * NOTEES_WORD_DIST > a `vendor/word/dist` found walking up from this module
- * (the repo checkout) > the bundle's embedded copy (the release bundle is a
- * single cli.mjs with no vendor tree — the embedded map always exists there).
+ * NOTEES_WORD_DIST > a `clients/word/dist` or `word-snapshot/dist` found
+ * walking up from this module (the monorepo checkout) > the bundle's
+ * embedded copy (the release bundle is a single cli.mjs with no snapshot —
+ * the embedded map always exists there).
  */
 export type WordStaticsResolution = { kind: "dir"; distDir: string } | { kind: "embedded" };
 

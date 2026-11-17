@@ -1462,7 +1462,7 @@ async function tagMembership(
 // (D2: one definition, two executors — `planWorkflowToggle` from
 // @notees/domain), existence-checking each step against the REST read
 // surface and skipping what already holds (the deploySystemClass idiom,
-// mirrored from vendor/apps/web/src/features/workflows/materialize.ts).
+// mirrored from apps/web/src/features/workflows/materialize.ts).
 // Nothing reconciles drift: a re-run re-plans the same creates, which no-op
 // on existing rows, so user renames and option edits survive (D1).
 
@@ -2097,7 +2097,7 @@ async function runServe(ctx: CommandContext, options: {
 }
 
 /**
- * `notees word serve` — the Word add-in's local gateway: serve the vendored
+ * `notees word serve` — the Word add-in's local gateway: serve the add-in
  * dist on 127.0.0.1, render the sideload manifest for
  * http://localhost:<port>, and relay the pane's same-origin `/api/*` calls
  * to the configured sync server with the credential injected server-side
@@ -2113,8 +2113,9 @@ async function runWordServe(command: Command, options: { port?: string; restart?
   const io = (root.getOptionValue("__io") as CliIo | undefined) ?? defaultIo;
   const ctx = ctxOf(command);
   const config = resolveWordServeConfig(options);
-  // Statics: NOTEES_WORD_DIST > a walk-up vendor/word/dist > the copy
-  // embedded in this bundle at build time (always there for cli.mjs).
+  // Statics: NOTEES_WORD_DIST > a walk-up clients/word/dist (or the
+  // committed word-snapshot/dist) > the copy embedded in this bundle at
+  // build time (always there for cli.mjs).
   const statics = resolveWordStatics();
   const upstream = process.env.NOTEES_WORD_UPSTREAM ?? ctx.client.server;
   // Best-effort, exactly what the CLI's own requests resolve: a workspace

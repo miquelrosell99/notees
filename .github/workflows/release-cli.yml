@@ -1,0 +1,99 @@
+name: release-cli
+
+# The CLI ships as source + git tags (no npm publication, no docker image).
+# It lives in the Notees monorepo and releases under `cli-v*` tags (the
+# monorepo publishes every component from one repo): this workflow builds
+# the bundle on every cli-v* tag and attaches it to the tag's GitHub
+# Release. Consumers install it with clients/cli/scripts/install.sh (or
+# from source per the README).
+
+on:
+  push:
+    tags: ["cli-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  # A component tag must point at a commit that actually changes the
+  # component — otherwise tagging an unrelated monorepo commit would
+  # publish a bundle identical to the previous release.
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag must touch clients/cli
+        run: |
+          if ! git show --name-only --format= HEAD | grep -q '^clients/cli/'; then
+            echo "::error::${GITHUB_REF_NAME} does not touch clients/cli/ — cli-v* tags must point at a commit that changes the CLI"
+            exit 1
+          fi
+
+  bundle:
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.0.0 --activate
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Gate + build the bundle
+        # The recursive build compiles the core packages' dists and the CLI
+        # bundle (test/release-bundle.test.ts gates dist/cli.js); typecheck
+        # + test then run against it.
+        run: |
+          pnpm -r --workspace-concurrency=1 build
+          pnpm --filter "@notees/cli" typecheck
+          pnpm --filter "@notees/cli" test
+      - name: Stage the release asset
+        run: |
+          # The bundle is ESM; a bare .js file without a package.json beside
+          # it loads as CommonJS and fails on the import statements. Ship it
+          # as .mjs so the standalone artifact keeps its module type.
+          cp clients/cli/dist/cli.js cli.mjs
+          sha256sum cli.mjs > cli.mjs.sha256
+      - name: Check the PKGBUILD records this bundle's checksum
+        run: |
+          # clients/cli/packaging/arch/PKGBUILD is versioned with static
+          # checksums; the release must not publish a bundle the package
+          # would reject. The build is deterministic, so the tree's
+          # sha256sums entry must match.
+          grep -qF "$(sha256sum cli.mjs | cut -d' ' -f1)" clients/cli/packaging/arch/PKGBUILD
+      - name: Attach the bundle to the tag's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Notees CLI $GITHUB_REF_NAME. Install: \`curl -fsSL https://raw.githubusercontent.com/miquelrosell99/notees/$GITHUB_REF_NAME/clients/cli/scripts/install.sh | bash\` (or from source — see the README)." \
+            cli.mjs cli.mjs.sha256
+
+  # Build the pacman package from the just-published assets on Arch, install
+  # it, and run the packaged binary — the PKGBUILD is only trustworthy if the
+  # real makepkg/pacman pipeline accepts it. (The checkout action is unusable
+  # here: the archlinux container has no node; the PKGBUILD comes from raw.)
+  pacman-smoke:
+    needs: bundle
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install the pacman toolchain
+        run: pacman -Sy --noconfirm --needed base-devel sudo curl
+      - name: Fetch the PKGBUILD from the tag
+        run: |
+          mkdir -p /tmp/pkg
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/clients/cli/packaging/arch/PKGBUILD" -o /tmp/pkg/PKGBUILD
+          # The icon is a plain-file source: makepkg needs it beside the PKGBUILD.
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/clients/cli/packaging/arch/notees.png" -o /tmp/pkg/notees.png
+      - name: Build and install as an unprivileged user (makepkg refuses root)
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chown -R builder:builder /tmp/pkg
+          sudo -u builder bash -c 'cd /tmp/pkg && makepkg -si --noconfirm'
+      - name: The packaged binary runs
+        run: notees --version
