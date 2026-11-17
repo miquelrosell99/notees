@@ -1,12 +1,16 @@
-name: ci
+name: ci-word
 
-# Gating: PRs + a nightly run of main's head (fleet trigger matrix). The
-# `push: [main]` trigger is retired — the nightly cron covers main's head,
-# and per-push CI on main was a recurring failure source. A manual dispatch
-# runs whatever ref the operator picks in the UI.
+# Gating: PRs touching the Word add-in + a nightly run of main's head (fleet
+# trigger matrix). The `push: [main]` trigger is retired — the nightly cron
+# covers main's head, and per-push CI on main was a recurring failure source.
+# A manual dispatch runs whatever ref the operator picks in the UI. Moved to
+# the monorepo root (ADR-002); the pull_request trigger is path-filtered to
+# the add-in so work elsewhere in the repo does not spend this gate's runner.
+# (History: clients/word/.github/workflows/ci.yml.)
 
 on:
   pull_request:
+    paths: ["clients/word/**"]
   schedule:
     - cron: "23 3 * * *"   # nightly main-head cover, off the :00 mark
   workflow_dispatch:
@@ -18,6 +22,9 @@ concurrency:
 jobs:
   build-test:
     runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: clients/word
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

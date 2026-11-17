@@ -1,0 +1,73 @@
+name: release-word
+
+# GitHub Releases for the Word add-in come ONLY from pushing a `word-v*` tag.
+# The guard job fails the run unless the tagged commit touches clients/word/,
+# so a stray tag on unrelated work cannot publish. The build job installs,
+# builds, and tests the add-in, then zips dist/ (run from clients/word so the
+# paths inside the zip are dist/...); the release job attaches the zip to the
+# tag's GitHub Release (softprops, same pattern as the gtk pipeline).
+
+on:
+  push:
+    tags: ["word-v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Enforce clients/word/ scope
+        run: |
+          set -euo pipefail
+          if git show --name-only --format= HEAD | grep -q '^clients/word/'; then
+            echo "Tag ${{ github.ref_name }} touches clients/word/ — releasing."
+          else
+            echo "::error::Tag ${{ github.ref_name }} does not touch clients/word/ — word-v* tags must be cut on Word add-in changes."
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-22.04
+    needs: guard
+    defaults:
+      run:
+        working-directory: clients/word
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.0.0 --activate
+      - name: Install, build, test
+        run: pnpm install --frozen-lockfile && pnpm build && pnpm test
+      - name: Zip dist
+        run: zip -r "notees-word-${{ github.ref_name }}.zip" dist/
+      - name: Upload release zip
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-zip
+          path: clients/word/notees-word-${{ github.ref_name }}.zip
+
+  release:
+    runs-on: ubuntu-22.04
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Download release zip
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: release-zip
+          path: release-assets
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3
+        with:
+          files: release-assets/*

@@ -1,0 +1,5 @@
+# Fences this client off from the monorepo root workspace: without this file,
+# pnpm ascends to the root pnpm-workspace.yaml and installs the core
+# workspace (packages/*, apps/*) instead of this client's own lockfile.
+# This client stays a standalone pnpm project with its own pnpm-lock.yaml.
+packages: []
