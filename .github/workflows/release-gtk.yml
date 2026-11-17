@@ -105,11 +105,9 @@ jobs:
     runs-on: ubuntu-22.04
     container: archlinux:latest
     needs: guard
-    defaults:
-      run:
-        working-directory: clients/gtk
     steps:
       - name: Prepare build environment
+        working-directory: /
         run: |
           pacman-key --init
           pacman-key --populate archlinux
@@ -121,6 +119,7 @@ jobs:
           ref: ${{ inputs.git-ref || github.ref }}
 
       - name: Build package as non-root user
+        working-directory: clients/gtk
         run: |
           chown -R builder:builder .
           su builder -c makepkg

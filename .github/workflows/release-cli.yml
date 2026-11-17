@@ -91,9 +91,16 @@ jobs:
       - name: Fetch the PKGBUILD from the tag
         run: |
           mkdir -p /tmp/pkg
-          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/clients/cli/packaging/arch/PKGBUILD" -o /tmp/pkg/PKGBUILD
-          # The icon is a plain-file source: makepkg needs it beside the PKGBUILD.
-          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/clients/cli/packaging/arch/notees.png" -o /tmp/pkg/notees.png
+          base="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/clients/cli/packaging/arch"
+          # --retry: transient CDN hiccups must not burn a version number.
+          curl -fsSL --retry 3 "$base/PKGBUILD" -o /tmp/pkg/PKGBUILD
+          curl -fsSL --retry 3 "$base/notees.png" -o /tmp/pkg/notees.png
+          # Fail HERE with the actual bytes visible, not deep inside makepkg.
+          echo "fetched:"; ls -la /tmp/pkg
+          echo "hashes:"; sha256sum /tmp/pkg/PKGBUILD /tmp/pkg/notees.png
+          # Self-consistency: the fetched icon must hash to the value the
+          # fetched PKGBUILD records (340e36f8… today).
+          grep -qF "$(sha256sum /tmp/pkg/notees.png | cut -d' ' -f1)" /tmp/pkg/PKGBUILD
       - name: Build and install as an unprivileged user (makepkg refuses root)
         run: |
           useradd -m builder

@@ -8,6 +8,9 @@ history.
 
 ## 2026-11-17
 
+- **fix(ci): two release-pipeline fixes — the pacman-smoke fetch verifies its bytes (retries, prints actual hashes, self-checks the icon against the fetched PKGBUILD), and this component's releases move to cli-v4.6.2.** The cli-v4.6.1 pacman-smoke failed twice inside makepkg at the icon's sha256 with bytes that reproduce correctly in a local archlinux container — the fetch step now fails loud with the actual hashes visible instead of burning versions deep in makepkg. The cli-v4.6.1 bundle assets are published and good (the standalone-fix release); 4.6.2 re-publishes identical bits plus this smoke hardening.
+  - Files: root `.github/workflows/release-cli.yml`, `CHANGELOG.md`.
+
 - **chore(release): cli-v4.6.1 — the standalone-bundle regression ships its fix.** The cli-v4.6.0 bundle statically imported better-sqlite3 (the store adapter's top-level import, inlined into the bundle) — `notees --version`/`--help` died with ERR_MODULE_NOT_FOUND wherever the native module wasn't provisioned; the pacman-smoke caught it (the GitHub assets published fine, so install.sh users — better-sqlite3 provisioned — were unaffected). Fixed in `packages/store`'s adapter (lazy cached `createRequire`), and the pacman package now provisions better-sqlite3 into `/usr/lib/notees-cli/node_modules` so store commands work from a makepkg install. `CLI_VERSION` 4.6.0 → 4.6.1; the PKGBUILD records the new deterministic bundle hash.
   - Files: `src/cli.ts` (CLI_VERSION), `packaging/arch/PKGBUILD` (+ better-sqlite3 provisioning, `makedepends=('npm')`), root `.github/workflows/release-cli.yml` (smoke toolchain gains python3); the adapter fix is the root `CHANGELOG.md` 2026-11-17 entry.
   - Verification: the rebuilt bundle prints `--version` standalone in a clean dir; the full-workspace gate is green on the fix (store/server/web/cli suites).
