@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Notees Connector settings</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Notees Connector</h1>
+      <form id="settings-form">
+        <label>
+          Notees server URL
+          <input id="server-url" type="url" placeholder="https://your-host" autocomplete="off" />
+        </label>
+        <p class="hint">The connection permission prompt that follows grants this extension access to <em>only</em> this origin.</p>
+        <label>
+          API key (optional — minted in Notees settings with the <code>capture.write</code> scope)
+          <input id="api-key" type="password" placeholder="nk_…" autocomplete="off" />
+        </label>
+        <fieldset>
+          <legend>Capture features</legend>
+          <label><input id="feat-bibliography" type="checkbox" /> Bibliography capture</label>
+          <label><input id="feat-readlater" type="checkbox" /> Read later</label>
+        </fieldset>
+        <button id="save" type="submit">Save</button>
+        <button id="test" type="button">Test connection</button>
+        <p id="status" role="status"></p>
+      </form>
+    </main>
+    <script type="module" src="./options.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "name": "notees-connector",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build:scripts": "vite build --mode background && vite build --mode bridge && vite build --mode options",
+    "build:static": "node scripts/copy-static.mjs",
+    "icons": "node scripts/render-icons.mjs",
+    "build": "pnpm clean && pnpm build:scripts && pnpm build:static",
+    "dev": "pnpm build && vite build --mode background --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "start": "web-ext run -s dist --target firefox-desktop",
+    "lint:ext": "pnpm build && web-ext lint -s dist",
+    "pack": "pnpm build && web-ext build -s dist --overwrite-dest"
+  },
+  "devDependencies": {
+    "@types/webextension-polyfill": "^0.12.3",
+    "@webext-core/fake-browser": "^1.3.4",
+    "jsdom": "^26.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0",
+    "web-ext": "^9.0.0",
+    "webextension-polyfill": "^0.12.0"
+  }
+}
