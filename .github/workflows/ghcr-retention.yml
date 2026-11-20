@@ -2,10 +2,13 @@ name: ghcr retention
 
 # Keeps the Free plan's 500 MB Packages budget flat. ghcr accumulates a full
 # tag set per publish: moving tags (latest, nightly) and release tags stay
-# forever; dated nightlies (`nightly-YYYYMMDD`) keep the newest 10; per-push
-# `sha-*` tags keep a 30-day rollback window, then go. Runs weekly + manual
-# dispatch (dry-run by default — inspect the deletion list before the first
-# real sweep).
+# forever; dated nightlies (`nightly-YYYYMMDD`) keep the newest 10. The
+# per-commit `sha-*` tags retired 2026-11-20 — nothing publishes them
+# anymore, and the 30-day window below only DRAINS the existing backlog
+# (a pinned host has the window to move its pin to a dated snapshot); drop
+# the sha clause once the registry is clean. Runs weekly + manual dispatch
+# (dry-run by default — inspect the deletion list before the first real
+# sweep).
 #
 # Deleting package versions needs the versions to have been published by a
 # workflow GITHUB_TOKEN (they are — every image here publishes in-workflow),
@@ -48,13 +51,21 @@ jobs:
             jq -s --arg img "$img" --argjson now "$now" --argjson window "$window" -r '
               flatten as $vs
               | ($vs
-                  | map(select([.metadata.container.tags[]? | test("^nightly-[0-9]{8}$")] | length > 0))
+                  # The dated-nightly detection needs the INNER select — a
+                  # bare `test` still emits `false` into the array, and
+                  # `[false] | length` is 1 (caught by the fixture harness:
+                  # the un-inner-selected form pollutes the keep-list with
+                  # every tagged version and prunes dated nightlies early).
+                  | map(select([.metadata.container.tags[]? | select(test("^nightly-[0-9]{8}$"))] | length > 0))
                   | sort_by(.created_at) | reverse | .[0:10] | map(.id)) as $keepdated
               | $vs[]
               | . as $v
               | ($v.metadata.container.tags // []) as $tags
               | select([$tags[] | select(. == "latest" or . == "nightly" or test("^v?[0-9]+\\.[0-9]+(\\.[0-9]+)?$"))] | length == 0)
               | select(
+                  # LEGACY sha backlog drain (sha tags retired 2026-11-20):
+                  # cut sha-tagged versions past the 30-day window; the
+                  # clause is obsolete once the backlog is gone.
                   (([$tags[] | select(test("^sha-"))] | length > 0)
                     and (($now - ($v.created_at | fromdateiso8601)) > $window))
                   or (([$tags[] | select(test("^nightly-[0-9]{8}$"))] | length > 0)

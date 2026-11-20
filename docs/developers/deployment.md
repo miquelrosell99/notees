@@ -263,16 +263,20 @@ workflow's `GITHUB_TOKEN` (`packages: write`) — no personal registry token
   by `publish-docker.yml` (paths-filtered to shippable source, gated on the
   thin tier — typecheck + the fast package suites), so a host tracking
   `:nightly` sees every merged slice as soon as its publish run is green.
-  Alongside it every publish stamps the immutable per-commit `sha-<sha>`
-  (short form) — the rollback pin via `NOTEES_*_IMAGE`.
-- `nightly-YYYYMMDD` (+ that build's short SHA) — the scheduled
-  fully-gated snapshot of main's head (`nightly-docker.yml`, cron
-  `47 3 * * *`, manual dispatch too): the nightly CI's heavy web/server
-  suites gate it, and it no longer claims the `nightly` name. Rapid merges
-  coalesce into one per-push build at the newest head (concurrency cancels
-  the stale run; a cancelled run never half-pushes). The heavy per-push CI
-  trigger stays retired — the thin publish gate plus the nightly cron's
-  full gate are the aligned budget endpoint.
+  The OCI labels (`org.opencontainers.image.revision`) carry the source
+  commit for traceability. The per-commit `sha-*` tags retired
+  2026-11-20 — the dated nightly snapshot is the immutable pin.
+- `nightly-YYYYMMDD` — the scheduled fully-gated snapshot of main's head
+  (`nightly-docker.yml`, cron `47 3 * * *`, manual dispatch too): the
+  nightly CI's heavy web/server suites gate it, and it no longer shares
+  its publish with a SHA tag. It is the **immutable, roll-back-able pin** —
+  a host sets `NOTEES_*_IMAGE=…:nightly-YYYYMMDD` to freeze a build (the
+  newest 10 dated snapshots are kept; older rollback is a checkout rebuild
+  at the commit, which the compose build contexts always allow). Rapid
+  merges coalesce into one per-push build at the newest head (concurrency
+  cancels the stale run; a cancelled run never half-pushes). The heavy
+  per-push CI trigger stays retired — the thin publish gate plus the
+  nightly cron's full gate are the aligned budget endpoint.
 
 **Deploy: plain Docker Compose.** The baseline is the `docker` CLI — every
 operation below is a plain `docker compose` command from the checkout.

@@ -5,13 +5,14 @@ name: Nightly Docker images
 # publish started moving `:nightly` (publish-docker.yml, thin gate), this
 # cron is the DAILY FULLY-GATED snapshot: it publishes the dated tags
 # (`ghcr.io/miquelrosell99/notees-sync:nightly-YYYYMMDD`,
-# `ghcr.io/miquelrosell99/notees-web:nightly-YYYYMMDD`) plus the short
-# commit SHA of main's head (`a1b2c3d`) — every snapshot is immutable and
-# roll-back-able, and a host can pin an exact build via `NOTEES_*_IMAGE`
-# without tracking the moving `:nightly`. It deliberately does NOT claim
-# the `nightly` name — per-push publishes own the moving channel, this
-# cron owns the dated artifacts and the full gate. NEVER `:latest` — that
-# tag belongs to stable semver releases only (see release-docker.yml).
+# `ghcr.io/miquelrosell99/notees-web:nightly-YYYYMMDD`) — every snapshot is
+# immutable and roll-back-able, and a host can pin an exact build via
+# `NOTEES_*_IMAGE` without tracking the moving `:nightly`. (Per-commit
+# `sha-*` tags retired 2026-11-20; the dated snapshot is the immutable pin
+# and the OCI labels carry the source revision.) It deliberately does NOT
+# claim the `nightly` name — per-push publishes own the moving channel,
+# this cron owns the dated artifacts and the full gate. NEVER `:latest` —
+# that tag belongs to stable semver releases only (see release-docker.yml).
 # Uses the workflow's GITHUB_TOKEN (packages: write); manual dispatch
 # reruns the nightly build on demand.
 #
@@ -86,7 +87,6 @@ jobs:
           images: ghcr.io/miquelrosell99/${{ matrix.image }}
           tags: |
             type=schedule,pattern=nightly-{{date 'YYYYMMDD'}}
-            type=sha,format=short
 
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0

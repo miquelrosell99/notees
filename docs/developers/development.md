@@ -87,18 +87,19 @@ images instead of building a checkout see every landed slice as soon as CI
 publishes it. Publishing is per-push and paths-filtered: `publish-docker.yml`
 runs on every main push that touched shippable source, gates on a thin tier
 (typecheck + the fast package suites — deliberately not the heavy web/server
-suites, which the local full gate and ci's nightly cover), and pushes
-immutable `sha-<sha>` tags PLUS the moving `:nightly` tag for the CHANGED
-image(s) only — web-only slices build web alone, rapid merges coalesce into
-one build at the newest head (concurrency cancels the stale run; a cancelled
-run never half-pushes), and docs-only pushes publish nothing. A host
-tracking `:nightly` therefore gets every merged slice the moment its publish
-run is green; `nightly-YYYYMMDD` remains the nightly cron's fully-gated
-dated snapshot (it no longer claims the moving name), `:latest` still moves
-only on a stable `v*` tag, and the weekly `ghcr-retention` sweep keeps the
-Packages storage budget flat (moving + release tags forever, 10 newest dated
-nightlies, `sha-*` for 30 days). A publish is never fire-and-forget: follow
-the push run to completion
+suites, which the local full gate and ci's nightly cover), and moves the
+`:nightly` tag for the CHANGED image(s) only — web-only slices build web
+alone, rapid merges coalesce into one build at the newest head (concurrency
+cancels the stale run; a cancelled run never half-pushes), and docs-only
+pushes publish nothing. A host tracking `:nightly` therefore gets every
+merged slice the moment its publish run is green; `nightly-YYYYMMDD`
+remains the nightly cron's fully-gated dated snapshot — the immutable,
+roll-back-able pin (the per-commit `sha-*` tags retired 2026-11-20; the OCI
+labels carry the source revision), `:latest` still moves only on a stable
+`v*` tag, and the weekly `ghcr-retention` sweep keeps the Packages storage
+budget flat (moving + release tags forever, 10 newest dated nightlies, and —
+until the backlog drains — the legacy `sha-*` for 30 days). A publish is
+never fire-and-forget: follow the push run to completion
 (`gh run watch <id> --exit-status`) and report the outcome to the owner
 before ending the session — green moves the tags, red is a failed publish:
 diagnose from the logs, never re-run blindly over red. The session's local
@@ -106,8 +107,8 @@ redeploy above covers this host; fleet hosts update with
 `scripts/deploy-prod.sh` (pull + recreate + verify-min as ONE command — the
 smoke is non-skippable) or a hand-rolled `docker compose pull && docker
 compose up -d` — the pull matters: the default policy is `missing`. A
-`NOTEES_*_IMAGE` pin to `sha-<sha>` is the immutable, roll-back-able ref off
-the same publish.
+`NOTEES_*_IMAGE` pin to a dated `nightly-YYYYMMDD` snapshot is the immutable,
+roll-back-able ref.
 
 Landing a worktree slice: with several worktree branches
 in flight, slices land one at a time in the main checkout — fetch, rebase

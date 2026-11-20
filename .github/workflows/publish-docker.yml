@@ -1,26 +1,25 @@
-name: Publish Docker images (per-push SHA)
+name: Publish Docker images (per-push nightly)
 
-# Every main push that touched shippable source publishes immutable
-# `sha-<sha>` tags for the CHANGED image(s) only — web-only slices build web
-# alone (~half the minutes), docs-only pushes never reach this workflow (the
-# `paths:` trigger). A burst of merges coalesces into one build at the newest
-# head (concurrency cancels the stale run; a cancelled run never half-pushes —
-# buildx pushes only the finished manifest). The publish is GATED: the thin
-# tier (typecheck + the fast package suites — deliberately not the heavy
-# web/server suites, which the local full gate and ci's nightly already
-# cover) must be green first, so a red push never publishes.
+# Every main push that touched shippable source moves the `:nightly` tag for
+# the CHANGED image(s) — web-only slices build web alone (~half the minutes),
+# docs-only pushes never reach this workflow (the `paths:` trigger). A burst
+# of merges coalesces into one build at the newest head (concurrency cancels
+# the stale run; a cancelled run never half-pushes — buildx pushes only the
+# finished manifest). The publish is GATED: the thin tier (typecheck + the
+# fast package suites — deliberately not the heavy web/server suites, which
+# the local full gate and ci's nightly already cover) must be green first,
+# so a red push never publishes.
 #
-# Channels: this workflow owns the per-commit SHA tags AND the moving
-# `:nightly` tag (per-push, thin gate — the pullable "latest changes"
-# channel for hosts that deploy published images). `:latest` is
-# release-docker.yml's (stable semver tags); `nightly-YYYYMMDD` (the daily
-# FULLY-gated snapshot) remains the nightly cron's, which no longer claims
-# the moving `nightly` name. Budget context (Free plan, 2000 Actions
-# minutes/month private): warm-cache per-push builds are the aligned
-# "every commit is an immutable artifact" endpoint; the paths filter and
-# the coalescing keep the minute spend proportional to real source changes.
-# The extra `nightly` tag costs no extra build — one more tag on the same
-# push.
+# Channels: this workflow owns the moving `:nightly` tag (per-push, thin
+# gate — the pullable "latest changes" channel for hosts that deploy
+# published images). Immutable pins are the dated nightly snapshots'
+# (`nightly-YYYYMMDD`, the nightly cron's, fully gated); per-commit `sha-*`
+# tags retired 2026-11-20 — traceability rides the image labels, rollback
+# rides the dated snapshots (or a checkout rebuild at the commit). `:latest`
+# is release-docker.yml's (stable semver tags). Budget context (Free plan,
+# 2000 Actions minutes/month private): warm-cache per-push builds are the
+# aligned "main always pullable" endpoint; the paths filter and the
+# coalescing keep the minute spend proportional to real source changes.
 
 on:
   push:
@@ -107,7 +106,6 @@ jobs:
       image: notees-sync
       dockerfile: apps/server/Dockerfile
       tags: |
-        type=sha,format=short
         type=raw,value=nightly
 
   web:
@@ -118,5 +116,4 @@ jobs:
       image: notees-web
       dockerfile: apps/web/Dockerfile
       tags: |
-        type=sha,format=short
         type=raw,value=nightly
