@@ -24,13 +24,14 @@
  *. One home, no duplication.
  */
 
-import { useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { DayPageHeader } from "../features/calendar/DayPageHeader.js";
 import { OutlinerContext } from "./outliner-context.js";
+import { consumeTitleFocus } from "./titleFocusRequest.js";
 import { ClassesRow, TagsRow } from "../features/metadata/index.js";
 import { AliasNodePicker } from "../features/metadata/AliasNodePicker.js";
 import { IconPickerPopup } from "../features/icon-picker/IconPickerPopup.js";
@@ -283,6 +284,16 @@ export function PageHeaderChrome({
   const [aliasPickerOpen, setAliasPickerOpen] = useState(false);
   /** Description subtitle editor (the "Add description" action / click-edit). */
   const [descriptionEditing, setDescriptionEditing] = useState(false);
+  /**
+   * The create-first New flow's title hand-off: a just-created node opens
+   * with the title editor auto-entered (requestTitleFocus). Consumed once —
+   * the effect re-checks when the page id changes, so a remount on the same
+   * page never re-triggers and a stale request never hijacks a later page.
+   */
+  const [autoEditTitle, setAutoEditTitle] = useState(false);
+  useEffect(() => {
+    if (!preview && consumeTitleFocus(pageId)) setAutoEditTitle(true);
+  }, [pageId, preview]);
   const description =
     page.description !== null && page.description.trim() !== "" ? page.description : null;
 
@@ -490,13 +501,22 @@ export function PageHeaderChrome({
                  below): display renders the content's inline tokens (links,
                  mentions), a click swaps in the full block editor. The
                  preview surface passes readOnly — the click navigates to the
-                 full view instead (the trampoline contract). */
+                 full view instead (the trampoline contract). A just-created
+                 node (the create-first New flow) opens with the editor
+                 auto-entered (requestTitleFocus — the empty title gets the
+                 caret immediately); the key REMOUNTS the row for the flip,
+                 because autoEdit only seeds the editor's INITIAL state — a
+                 same-instance prop change would land on the initialized
+                 read-mode state. The flip happens on a fresh empty-title
+                 page, so the remount loses nothing. */
               <BlockRow
+                key={autoEditTitle ? "title-autoedit" : "title"}
                 variant="title"
                 tree={{ node: page, children: [] }}
                 client={client}
                 resolveName={resolveName}
                 readOnly={preview}
+                autoEdit={autoEditTitle}
               />
             )}
             </span>

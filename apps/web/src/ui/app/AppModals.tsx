@@ -22,6 +22,7 @@ import { PropertyView } from "../../features/metadata/PropertyView.js";
 import { PropertyCreateHost } from "../../features/metadata/PropertyCreateHost.js";
 import { QuickCreateFab } from "../../features/block-editor/QuickCreateFab.js";
 import { AddSourceHost, requestAddSource } from "../../features/sources/AddSourceHost.js";
+import { ClassFieldsStepHost } from "../../features/modals/ClassFieldsStepHost.js";
 import { ImportHost } from "../../features/import/ImportHost.js";
 import { DeckView } from "../presentation/DeckView.js";
 
@@ -161,6 +162,12 @@ export function AppModals(props: AppModalsProps) {
         onCreated={openPage}
         onOpenNode={openPage}
       />
+      {/* The create-first flow's class-fields step host: the New flow's
+          continue and every class-filtered picker create row request the
+          fields modal through the module-level queue — the requesting
+          picker may unmount the moment the pick lands, so the modal must
+          outlive it. */}
+      <ClassFieldsStepHost client={client} onOpenNode={openPage} />
       {/* The unified import modal's app-level host: the palette's "Import…"
           row (and later the sidebar/settings entries) request the modal
           through the module-level queue; the workspace-creating sources

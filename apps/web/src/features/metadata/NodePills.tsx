@@ -29,11 +29,15 @@
  * and any class whose pill the derived view hides (a class_link token in
  * the content already marks it inline — membership is untouched, and the
  * ×/drag gestures work there the same). A trailing add-class entry (the
- * dashed AddPill) opens the same class picker, anchored at itself; a footer
- * names the two rules — drag to reorder, the first class rides the block
- * row. The block column also passes `addAtStart`: the "+" picker rides
- * LEFT of the pills there — the right-pinned row-end group grows leftward
- * on hover-reveal, so the pills never shift.
+ * dashed AddPill) opens the same class picker, anchored at itself — in the
+ * GLOBAL MULTI-SELECT variant (2026-11-20): picks append and the picker
+ * stays open, the assigned classes render as the picker's top pill section
+ * (drag to reorder, × to remove — each diff commits the matching write:
+ * assign / unassign / reorder), and a checkmarked row pick toggles the
+ * class off; a footer names the two rules — drag to reorder, the first
+ * class rides the block row. The block column also passes `addAtStart`: the
+ * "+" picker rides LEFT of the pills there — the right-pinned row-end
+ * group grows leftward on hover-reveal, so the pills never shift.
  */
 
 import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
@@ -377,10 +381,6 @@ export function NodePills({
     onClose: () => setColorMenu(null),
   });
 
-  const assignedClasses = classIds
-    .map((classId) => client.getNode(classId))
-    .filter((node): node is ClientNode => node !== undefined);
-
   // Inline-linked classes hide their pill: the
   // classes pills are a DERIVED VIEW — a class referenced by a class_link
   // token in the node's own content is already visible inline (the link IS
@@ -564,14 +564,32 @@ export function NodePills({
         <NodeSelector
           client={client}
           searchMode="classes"
-          nodes={assignedClasses}
+          value={classIds}
+          multiSelect
           excludeNodeId={excludePickerNodeId}
           anchorEl={addButtonRef.current}
           onClose={() => setPickerOpen(false)}
           searchPlaceholder="Search classes"
-          onAdd={(node) => {
-            onAdd(node.id);
-            setPickerOpen(false);
+          onChange={(next) => {
+            // The multi-select contract (2026-11-20): the picker stays open
+            // for consecutive picks; the diff between the reported selection
+            // and the node's assigned classes names the write — an addition
+            // assigns, a removal unassigns (dissolving inline links), and an
+            // unchanged set with a new order is a reorder commit.
+            const nextIds = Array.isArray(next) ? next : next !== null && next !== undefined ? [next] : [];
+            const prev = new Set(classIds);
+            const nextSet = new Set(nextIds);
+            const added = nextIds.filter((id) => !prev.has(id));
+            const removed = classIds.filter((id) => !nextSet.has(id));
+            if (removed.length > 0) {
+              for (const id of removed) onRemove(id);
+              return;
+            }
+            if (added.length > 0) {
+              for (const id of added) onAdd(id);
+              return;
+            }
+            commitOrder(nextIds);
           }}
           onCreateNew={(name) => {
             // The modal takes over; the picker closes. The promise resolves

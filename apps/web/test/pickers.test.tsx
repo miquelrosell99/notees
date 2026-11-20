@@ -19,7 +19,7 @@
  *    shared NodePill element tinted with the linked node's effective color.
  */
 
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -33,20 +33,71 @@ import { ColorButton } from "../src/components/ui/kit/ColorButton.js";
 import { IconPickerPopup } from "../src/features/icon-picker/IconPickerPopup.js";
 import { NodeResultItem } from "../src/features/pickers/NodeResultItem.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
-import { createNodesWithClasses } from "../src/features/templates/createNodesWithClasses.js";
+import { createNodeWithClasses } from "../src/features/modals/quickCreate.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
 
 let sqlModule: SqlJsStatic;
 
+// jsdom has no PointerEvent: dnd-kit's PointerSensor activator rejects events
+// without isPrimary — a minimal polyfill makes pointer events first-class
+// (the same harness idiom as workspace-dnd.test.tsx).
+class PointerEventPolyfill extends MouseEvent {
+  pointerId: number;
+  pointerType: string;
+  isPrimary: boolean;
+
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 0;
+    this.pointerType = init.pointerType ?? "mouse";
+    this.isPrimary = init.isPrimary ?? true;
+  }
+}
+
+const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+
 beforeAll(async () => {
   sqlModule = await initSqlJs();
+  window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
+  // Synthetic layout for the multi-select selection pills (jsdom has none):
+  // stacked 32px apart in document order so the dnd collision math has real
+  // centers to compare.
+  Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
+    if (this instanceof HTMLElement && this.classList.contains("node-selector__selection-pill")) {
+      const pills = Array.from(document.querySelectorAll(".node-selector__selection-pill"));
+      const index = Math.max(0, pills.indexOf(this));
+      const top = index * 32;
+      return {
+        x: 0,
+        y: top,
+        left: 0,
+        top,
+        width: 120,
+        height: 24,
+        right: 120,
+        bottom: top + 24,
+        toJSON: () => ({}),
+      } as DOMRect;
+    }
+    return originalGetBoundingClientRect.call(this);
+  };
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => undefined);
+  window.scrollBy = window.scrollBy ?? (() => undefined);
+});
+
+afterAll(() => {
+  Element.prototype.getBoundingClientRect = originalGetBoundingClientRect;
 });
 
 const clients: WorkspaceClient[] = [];
 
-afterEach(() => {
+afterEach(async () => {
+  // dnd-kit's pointer sensor detaches its document listeners on a 50ms timer
+  // (a capture-phase click stopPropagation among them) — settle past it so
+  // the NEXT test's clicks aren't swallowed.
+  await new Promise((resolve) => setTimeout(resolve, 60));
   while (clients.length > 0) clients.pop()!.close();
 });
 
@@ -85,7 +136,7 @@ async function createTitledClass(client: WorkspaceClient, title: string): Promis
 }
 
 describe("metadata pickers (ported popups)", () => {
-  it("the class picker lists classes, filters, picks, and creates", async () => {
+  it("the class picker lists classes, filters, picks, and creates (the multi-select variant)", async () => {
     const client = await seedClient();
     const fictionId = await createTitledClass(client, "Fiction");
     const poetryId = await createTitledClass(client, "Poetry");
@@ -97,12 +148,17 @@ describe("metadata pickers (ported popups)", () => {
     expect(screen.getByRole("button", { name: "Remove class Poetry" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add class" }));
 
-    // Both remaining classes list; the compact search input narrows.
+    // The multi-select picker: the assigned Poetry rides the top selection
+    // section; the results list only the unassigned classes.
     const dialog = screen.getByRole("dialog", { name: "Select node" });
     const search = within(dialog).getByLabelText("Search classes");
     expect(search.closest(".search-field")).toHaveClass("search-field--sm");
     expect(within(dialog).getByText("Fiction")).not.toBeNull();
-    expect(within(dialog).queryByText("Poetry")).toBeNull(); // already assigned
+    expect(
+      within(dialog.querySelector(".node-selector__selection") as HTMLElement).getByText("Poetry"),
+    ).not.toBeNull();
+    const optionsList = dialog.querySelector(".node-selector__options") as HTMLElement;
+    expect(within(optionsList).queryByText("Poetry")).toBeNull(); // already assigned
     fireEvent.change(search, { target: { value: "fic" } });
     expect(within(dialog).getByText("Fiction")).not.toBeNull();
     expect(within(dialog).queryByText("No matches found")).toBeNull();
@@ -111,7 +167,8 @@ describe("metadata pickers (ported popups)", () => {
     // ResultsList behavior — the create option replaces the empty state).
     expect(within(dialog).getByText('Create "zz"')).not.toBeNull();
 
-    // Pick Fiction → assigned; the pill renders and the picker closes.
+    // Pick Fiction → assigned; the picker STAYS OPEN (the multi-select
+    // contract) and the section lists both classes.
     fireEvent.change(within(dialog).getByLabelText("Search classes"), { target: { value: "fic" } });
     fireEvent.click(within(dialog).getByText("Fiction"));
     await flushWrites();
@@ -119,8 +176,15 @@ describe("metadata pickers (ported popups)", () => {
     expect(classIds).toHaveLength(2);
     expect(classIds).toEqual(expect.arrayContaining([poetryId, fictionId]));
     expect(screen.getByRole("button", { name: "Remove class Fiction" })).not.toBeNull();
-    expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Select node" })).not.toBeNull();
+    const sectionNow = dialog.querySelector(".node-selector__selection") as HTMLElement;
+    expect(within(sectionNow).getByText("Fiction")).not.toBeNull();
+    expect(within(sectionNow).getByText("Poetry")).not.toBeNull();
     expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(2);
+
+    // Escape closes the picker.
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
 
     // The "Create" row routes through the class-creation modal (#14): the
     // typed query carries in as the blank mode's name, and creating there
@@ -137,7 +201,7 @@ describe("metadata pickers (ported popups)", () => {
     expect(client.getNode(pageId)?.classIds).toContain(essays!.id);
   });
 
-  it("an already-assigned class resurfaces on an exact query; Ctrl+Enter closes idempotently (no create-class modal)", async () => {
+  it("an already-assigned class resurfaces on an exact query and toggles off on pick", async () => {
     const client = await seedClient();
     const poetryId = await createTitledClass(client, "Poetry");
     const pageId = await client.createObject({ isEmbedded: false, name: "Book" });
@@ -147,24 +211,29 @@ describe("metadata pickers (ported popups)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add class" }));
     const dialog = screen.getByRole("dialog", { name: "Select node" });
 
-    // Browsing keeps the assigned class hidden (the candidate set is the
-    // UNASSIGNED pool)…
-    expect(within(dialog).queryByText("Poetry")).toBeNull();
+    // Browsing keeps the assigned class out of the RESULTS (the candidate set
+    // is the UNASSIGNED pool) — it rides the top selection section instead…
+    const optionsList = dialog.querySelector(".node-selector__options") as HTMLElement;
+    expect(within(optionsList).queryByText("Poetry")).toBeNull();
+    expect(
+      within(dialog.querySelector(".node-selector__selection") as HTMLElement).getByText("Poetry"),
+    ).not.toBeNull();
 
     // …but an exact search for it resurfaces the row, checkmark-marked —
-    // picking it acknowledges the already-set state instead of dead-ending
-    // into the create row (which routes to the create-class modal).
+    // picking it TOGGLES it off (the multi-select contract), it does not
+    // dead-end into the create row (which routes to the create-class modal).
     fireEvent.change(within(dialog).getByLabelText("Search classes"), { target: { value: "Poetry" } });
-    const row = within(dialog).getByText("Poetry").closest(".node-result-item")!;
+    const row = within(optionsList).getByText("Poetry").closest(".node-result-item")!;
     expect(row.querySelector(".node-result-item__check")).not.toBeNull();
 
     fireEvent.keyDown(within(dialog).getByLabelText("Search classes"), { key: "Enter", ctrlKey: true });
     await flushWrites();
 
-    expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
+    // The toggle removed the class; the picker stays open.
+    expect(client.getNode(pageId)?.classIds).toEqual([]);
+    expect(screen.getByRole("dialog", { name: "Select node" })).not.toBeNull();
     expect(screen.queryByRole("dialog", { name: "New class" })).toBeNull();
-    expect(client.getNode(pageId)?.classIds).toEqual([poetryId]); // no duplicate write
-    expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(1);
+    expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(0);
   });
 
   it("right-clicking a class pill opens the node menu; Change color leads to the swatches", async () => {
@@ -622,102 +691,176 @@ describe("NodeSelector empty-query recents", () => {
   });
 });
 
-describe("New-node class picker", () => {
-  it("an empty class list creates one standalone class-less page", async () => {
+describe("New-node class picker — the multi-select variant", () => {
+  it("an empty class list creates one standalone class-less page (the no-class create)", async () => {
     const client = await seedClient();
-    const opened: string[] = [];
-    createNodesWithClasses(client, [], (id) => {
-      opened.push(id);
-    });
-    await flushWrites();
-
-    expect(opened).toHaveLength(1);
-    const page = client.getNode(opened[0]!);
+    const id = await createNodeWithClasses(client, []);
+    const page = client.getNode(id);
     expect(page).not.toBeUndefined();
     expect(page!.isEmbedded).toBe(false);
     expect(page!.classIds).toEqual([]);
   });
 
-  it("the empty-query option renders before the classes and picks No class", async () => {
-    const client = await seedClient();
-    await createTitledClass(client, "Fiction");
-    const onPick = vi.fn();
-    render(
-      <NodeSelector
-        client={client}
-        trigger="inline"
-        searchMode="classes"
-        searchPlaceholder="Search classes"
-        emptyQueryOption={{ label: "No class", onPick }}
-        onAdd={() => {}}
-      />,
-    );
-
-    const rows = document.querySelectorAll(".node-result-item");
-    expect(rows).toHaveLength(2);
-    expect(within(rows[0] as HTMLElement).getByText("No class")).not.toBeNull();
-    expect(within(rows[1] as HTMLElement).getByText("Fiction")).not.toBeNull();
-    fireEvent.click(rows[0]!);
-    expect(onPick).toHaveBeenCalledTimes(1);
-  });
-
-  it("typing hides No class so Enter keeps answering the class query", async () => {
-    const client = await seedClient();
-    await createTitledClass(client, "Fiction");
-    render(
-      <NodeSelector
-        client={client}
-        trigger="inline"
-        searchMode="classes"
-        searchPlaceholder="Search classes"
-        emptyQueryOption={{ label: "No class", onPick: vi.fn() }}
-        onAdd={() => {}}
-      />,
-    );
-
-    fireEvent.change(screen.getByLabelText("Search classes"), { target: { value: "Fic" } });
-    expect(screen.queryByText("No class")).toBeNull();
-    expect(screen.getByText("Fiction")).not.toBeNull();
-  });
-
-  it("Enter on the empty picker picks No class", async () => {
-    const client = await seedClient();
-    await createTitledClass(client, "Fiction");
-    const onPick = vi.fn();
-    render(
-      <NodeSelector
-        client={client}
-        trigger="inline"
-        searchMode="classes"
-        searchPlaceholder="Search classes"
-        emptyQueryOption={{ label: "No class", onPick }}
-        onAdd={() => {}}
-      />,
-    );
-
-    fireEvent.keyDown(screen.getByLabelText("Search classes"), { key: "Enter" });
-    expect(onPick).toHaveBeenCalledTimes(1);
-  });
-
-  it("ArrowDown from No class reaches the first class", async () => {
+  it("picks append to the selection and the picker stays open; the selection renders as pills above the results", async () => {
     const client = await seedClient();
     const fictionId = await createTitledClass(client, "Fiction");
-    const onAdd = vi.fn();
+    const poetryId = await createTitledClass(client, "Poetry");
+    const selected: string[][] = [];
     render(
       <NodeSelector
         client={client}
         trigger="inline"
         searchMode="classes"
         searchPlaceholder="Search classes"
-        emptyQueryOption={{ label: "No class", onPick: vi.fn() }}
-        onAdd={onAdd}
+        multiSelect
+        onChange={(next) => selected.push(Array.isArray(next) ? next : [])}
+        onContinue={() => {}}
       />,
     );
-    const search = screen.getByLabelText("Search classes");
 
-    fireEvent.keyDown(search, { key: "ArrowDown" });
-    fireEvent.keyDown(search, { key: "Enter" });
-    expect(onAdd.mock.calls[0]?.[0]).toMatchObject({ id: fictionId });
+    // Pick Fiction: the picker stays open, the pill section shows the pick.
+    fireEvent.click(screen.getByText("Fiction"));
+    expect(selected).toEqual([[fictionId]]);
+    const sectionText = () =>
+      document.querySelector(".node-selector__selection")?.textContent ?? "";
+    expect(sectionText()).toContain("Fiction");
+
+    // The query cleared: Poetry is listed again (search box empty).
+    fireEvent.click(screen.getByText("Poetry"));
+    expect(selected[1]).toEqual([fictionId, poetryId]);
+    expect(sectionText()).toContain("Poetry");
+  });
+
+  it("a checkmarked row pick toggles the entry off", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    const selected: string[][] = [];
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        multiSelect
+        value={[fictionId]}
+        onChange={(next) => selected.push(Array.isArray(next) ? next : [])}
+        onContinue={() => {}}
+      />,
+    );
+    // The assigned class renders as the section pill…
+    expect(
+      within(document.querySelector(".node-selector__selection") as HTMLElement).getByText("Fiction"),
+    ).not.toBeNull();
+    // …and as a checkmarked row; clicking the row removes it (the toggle).
+    fireEvent.change(screen.getByLabelText("Search classes"), { target: { value: "Fic" } });
+    const options = document.querySelector(".node-selector__options") as HTMLElement;
+    fireEvent.click(within(options).getByText("Fiction"));
+    expect(selected).toEqual([[]]);
+  });
+
+  it("the pill's × removes the entry from the selection", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    const selected: string[][] = [];
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        multiSelect
+        value={[fictionId]}
+        onChange={(next) => selected.push(Array.isArray(next) ? next : [])}
+        onContinue={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove Fiction" }));
+    expect(selected).toEqual([[]]);
+  });
+
+  it("the continue arrow reports the selection ids; an empty selection reads No class", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    const continued: string[][] = [];
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        multiSelect
+        value={[fictionId]}
+        onContinue={(ids) => continued.push(ids)}
+      />,
+    );
+    expect(screen.getByText("1 selected")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(continued).toEqual([[fictionId]]);
+  });
+
+  it("an empty selection's continue reads No class", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Fiction");
+    const continued: string[][] = [];
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        multiSelect
+        value={[]}
+        onContinue={(ids) => continued.push(ids)}
+      />,
+    );
+    expect(screen.getByText("No class")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(continued).toEqual([[]]);
+  });
+
+  it("a drag reorder in the selection section commits the reordered ids", async () => {
+    const client = await seedClient();
+    const fictionId = await createTitledClass(client, "Fiction");
+    const poetryId = await createTitledClass(client, "Poetry");
+    const reorders: string[][] = [];
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="classes"
+        searchPlaceholder="Search classes"
+        multiSelect
+        value={[fictionId, poetryId]}
+        onChange={() => {}}
+        onReorder={(ids) => reorders.push(ids)}
+        onContinue={() => {}}
+      />,
+    );
+    const pillOf = (label: string): HTMLElement => {
+      const pill = Array.from(
+        document.querySelectorAll<HTMLElement>(".node-selector__selection-pill"),
+      ).find((el) => el.textContent?.includes(label));
+      if (pill === undefined) throw new Error(`no selection pill for ${label}`);
+      return pill;
+    };
+    // A pointer drag of the Fiction pill onto Poetry's slot (the rects ride
+    // the getBoundingClientRect mock: 32px apart, Poetry's center at y=44).
+    fireEvent.pointerDown(pillOf("Fiction"), {
+      clientX: 40,
+      clientY: 12,
+      button: 0,
+      pointerId: 1,
+    });
+    // First move beyond the 4px activation distance so the drag starts…
+    fireEvent.pointerMove(document, { clientX: 42, clientY: 16, buttons: 1, pointerId: 1 });
+    // …then stream over Poetry's center (dnd-kit's over state trails the
+    // collision by one event, so each position is sent repeatedly).
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.pointerMove(document, { clientX: 40, clientY: 44 + i, buttons: 1, pointerId: 1 });
+    }
+    fireEvent.pointerUp(document, { clientX: 40, clientY: 46, button: 0, pointerId: 1 });
+    await waitFor(() => expect(reorders.length).toBeGreaterThan(0));
+    expect(reorders[0]).toEqual([poetryId, fictionId]);
   });
 });
 

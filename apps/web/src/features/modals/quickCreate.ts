@@ -1,17 +1,21 @@
 /**
  * Quick-create — the class-driven create resolution + creator behind the
- * QuickCreateModal (EVERY class picked from the quick-create
- * flow opens the modal — the source/agent family specializations retired).
- * The modal's properties form loads dynamically from the picked class's
- * bound properties (extends-aware, alphabetical — the design law), values
- * STAGED in modal state and flushed to the op log only on Create (cancel
- * leaves zero log entries). Title-is-content: the title is the node's
- * initial text content.
+ * class-fields step (EVERY class picked from the quick-create
+ * flow opens the form — the source/agent family specializations retired).
+ * The form loads dynamically from the picked classes' bound properties
+ * (multi-class aggregate: the union across classes, extends-aware,
+ * alphabetical — the design law), values STAGED in modal state and flushed
+ * to the op log only on Save. Create-first contract (2026-11-20): the node
+ * is created BEFORE the form opens — createNodeWithClasses creates one node
+ * carrying every picked class (an empty list is the honest "no class"
+ * create), the app opens it, and the title is edited on the page's own
+ * title editor (title-is-content); the form only lands the class fields
+ * (flushClassedProperties). Cancel leaves the created node with its title.
  *
  * The citation-family behaviors (auto-citekey, the duplicate warning, the
  * publicationDate date-chain write) key off the class LINEAGE
  * (collectSelfAndAncestors vs SYSTEM_CLASS_UUIDS.source), never hardcoded
- * field sets: the staged form renders whatever the class binds, and the
+ * field sets: the staged form renders whatever the classes bind, and the
  * family logic reads the staged rows by their system schema ids.
  *
  * The module is client-agnostic (composes only the shared client surface)
@@ -79,6 +83,9 @@ export interface QuickCreateClient {
    */
   getClassBindings(classId: string): ClassBinding[];
   createObject(partial: CreateObjectInput): Promise<string>;
+  /** The archival bit write (the create-first flow re-enables an archived
+   *  picked class BEFORE the create) — absent on minimal hosts. */
+  updateObject?(id: string, fields: { active?: boolean }): Promise<void>;
   setProperty(
     objectId: string,
     propertySchemaId: string,
@@ -192,31 +199,6 @@ export function collectSelfAndAncestors(client: AnyClient, classId: string): Set
 /** True when the class's lineage reaches the citation family base. */
 export function isCitationFamilyClass(client: AnyClient, classId: string): boolean {
   return collectSelfAndAncestors(client, classId).has(SYSTEM_CLASS_UUIDS.source);
-}
-
-/**
- * The New-popup class-pick routing: EVERY class pick
- * opens the class-driven QuickCreateModal — the source family is no longer
- * special (the resolver's magic-wand door is the command palette's "Add
- * source…" row and the picker's paste-URL row). Two carve-outs:
- * - `asset` → the asset upload modal (uploading IS creating an asset);
- * - the bare `source` family base → its designed everyday default (`book`),
- *   the citation analogue of the retired superclass defaults.
- */
-export type NewNodeRoute =
-  | { kind: "quick-create"; classId: string }
-  | { kind: "asset-upload"; classId: string }
-  | { kind: "plain" };
-
-export function routeNewNodeClass(client: AnyClient, classId: string): NewNodeRoute {
-  const lineage = collectSelfAndAncestors(client, classId);
-  if (lineage.has(SYSTEM_CLASS_UUIDS.asset)) {
-    return { kind: "asset-upload", classId: SYSTEM_CLASS_UUIDS.asset };
-  }
-  if (classId === SYSTEM_CLASS_UUIDS.source) {
-    return { kind: "quick-create", classId: SYSTEM_CLASS_UUIDS.book };
-  }
-  return { kind: "quick-create", classId };
 }
 
 /**
@@ -348,6 +330,65 @@ export function stagedBindingsOf(client: AnyClient, classId: string): StagedProp
   return [...byId.values()].sort((a, b) =>
     stagedLabelOf(a).localeCompare(stagedLabelOf(b)),
   );
+}
+
+/**
+ * The multi-class aggregate behind the class-fields step: the union of every
+ * picked class's staged rows (extends-aware per class), ONE row per property
+ * schema — the first class carrying a binding wins (all classes bind the
+ * same property to the same schema; the per-class binding config only gates
+ * visibility) — alphabetical by property name (the read-time derivation law).
+ */
+export function stagedBindingsForClasses(
+  client: AnyClient,
+  classIds: readonly string[],
+): StagedPropertyBinding[] {
+  const byId = new Map<string, StagedPropertyBinding>();
+  for (const classId of classIds) {
+    for (const row of stagedBindingsOf(client, classId)) {
+      if (!byId.has(row.binding.propertySchemaId)) byId.set(row.binding.propertySchemaId, row);
+    }
+  }
+  return [...byId.values()].sort((a, b) =>
+    stagedLabelOf(a).localeCompare(stagedLabelOf(b)),
+  );
+}
+
+/** True when ANY of the picked classes' lineages reaches the citation family base. */
+export function anyCitationFamilyClass(client: AnyClient, classIds: readonly string[]): boolean {
+  return classIds.some((classId) => isCitationFamilyClass(client, classId));
+}
+
+/** True when the classes' aggregate stages at least one form row — the create-first hosts skip the fields step for row-less classes (a whiteboard has nothing to fill). */
+export function hasStagedClassFields(client: AnyClient, classIds: readonly string[]): boolean {
+  return stagedBindingsForClasses(client, classIds).length > 0;
+}
+
+/**
+ * createNodeWithClasses — the create-first New flow's write: ONE node
+ * carrying every picked class (the multi-select contract — an empty list is
+ * the honest "no class" create, no sentinel row). An archived picked class
+ * is re-enabled BEFORE the create (the modal-era un-archive contract, moved
+ * to the create site). Title-is-content: with no `title` the node opens
+ * with an empty title and the page's own title editor owns it (the New
+ * flow); the add-source manual path passes the RESOLVED title upfront.
+ */
+export async function createNodeWithClasses(
+  client: AnyClient,
+  classIds: readonly string[],
+  opts?: { title?: string },
+): Promise<string> {
+  for (const classId of classIds) {
+    if (client.updateObject !== undefined && isArchivedClass(client, classId)) {
+      await client.updateObject(classId, { active: true });
+    }
+  }
+  const title = opts?.title?.trim() ?? "";
+  return client.createObject({
+    isEmbedded: false,
+    ...(title !== "" ? { name: title } : {}),
+    ...(classIds.length > 0 ? { classIds: [...classIds] } : {}),
+  });
 }
 
 /**
@@ -737,6 +778,103 @@ export async function flushClassedCreate(
 }
 
 /**
+ * flushClassedProperties — the class-fields step's write (the create-first
+ * contract): the node ALREADY EXISTS (created by createNodeWithClasses,
+ * opened, its title edited on the page) — this flush only lands the staged
+ * class fields on it. Same pipeline shape as flushClassedCreate: date/number
+ * validation BEFORE anything writes, the citation self-heal (any picked
+ * class in the family triggers it; the venue rows bind to the first picked
+ * class), the staged-kind re-derivation against the fresh schema set, the
+ * auto-citekey fill reading the node's LIVE title (the page editor owns the
+ * title — no staged copy), then the property writes + the optional PDF
+ * attach. Returns `{ok: false, error}` for validation failures and THROWS
+ * for write failures (callers map to their surface's message).
+ */
+export async function flushClassedProperties(
+  client: AnyClient,
+  input: {
+    nodeId: string;
+    classIds: readonly string[];
+    entries: ReadonlyArray<{ row: StagedPropertyBinding; value: StagedPropertyValue }>;
+    prefill?: { values: Record<string, string>; pdf?: { file: Blob; filename: string } | null } | undefined;
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  for (const { row, value } of input.entries) {
+    const label = row.schema?.name ?? row.binding.name;
+    if (value.kind === "date" && value.text.trim() !== "" && parseStagedDateText(value.text) === null) {
+      return { ok: false, error: `${label} must be a date (YYYY, YYYY-MM, or YYYY-MM-DD).` };
+    }
+    if (
+      value.kind === "number" &&
+      value.text.trim() !== "" &&
+      !Number.isFinite(Number(value.text.trim()))
+    ) {
+      return { ok: false, error: `${label} must be a number.` };
+    }
+  }
+  const citationFamily = anyCitationFamilyClass(client, input.classIds);
+  if (citationFamily) {
+    await ensureCitationFamily(
+      client,
+      input.prefill !== undefined ? venueKeysOfPrefill(input.prefill) : [],
+      input.classIds[0],
+    );
+  }
+  const entries = input.entries.map((entry) => ({ row: entry.row, value: entry.value }));
+  // Re-derive the scalar staged kinds against the POST-ensure schema set —
+  // the same fresh-read re-derivation flushClassedCreate runs (a caller that
+  // staged rows before the self-heal typed unknown schemas as text).
+  {
+    const fresh = client.listPropertySchemasFresh;
+    const schemas = new Map(
+      (await (fresh !== undefined ? fresh.call(client) : client.listPropertySchemas())).map(
+        (schema) => [schema.id, schema],
+      ),
+    );
+    for (const entry of entries) {
+      const schema = schemas.get(entry.row.binding.propertySchemaId);
+      if (schema === undefined) continue;
+      const kind =
+        schema.type === "datetime" ? "date" : schema.type === "number" ? "number" : "text";
+      if (
+        entry.value.kind !== kind &&
+        (entry.value.kind === "text" || entry.value.kind === "date" || entry.value.kind === "number")
+      ) {
+        entry.value = { kind, text: entry.value.text } as StagedPropertyValue;
+      }
+    }
+  }
+  if (citationFamily) {
+    // Auto-citekey: the empty staged citekey rides the generated value — the
+    // draft renders the pattern against the node's LIVE title.
+    const liveTitle = displayNameOf(client.getNode?.(input.nodeId));
+    const draft = citationDraftOf(client, entries, liveTitle);
+    if (draft.citekey !== "") {
+      const citekeyId = SYSTEM_PROPERTY_UUIDS.citekey;
+      const citekeyEntry = entries.find(
+        (entry) => entry.row.binding.propertySchemaId === citekeyId,
+      );
+      if (citekeyEntry !== undefined && stagedTextOf(citekeyEntry.value).trim() === "") {
+        citekeyEntry.value = { kind: "text", text: draft.citekey };
+      }
+    }
+  }
+  const properties = await expandStagedValues(client, entries);
+  for (const write of properties) {
+    await client.setProperty(input.nodeId, write.propertySchemaId, write.value, write.idx);
+  }
+  const pdf = input.prefill?.pdf ?? null;
+  if (pdf !== null) {
+    if (client.uploadAsset === undefined || client.attachAsset === undefined) {
+      throw new Error("flushClassedProperties: this client cannot attach assets");
+    }
+    const asset = await client.uploadAsset(pdf.file, pdf.filename);
+    await client.attachAsset(input.nodeId, asset);
+  }
+  return { ok: true };
+}
+
+/**
  * Author the citation property schemas + class bindings the quick-create
  * writes need, when missing; a complete no-op once present (the
  * ensureTaskFamily idiom — fresh/offline workspaces self-heal; server-seeded
@@ -1102,10 +1240,13 @@ export function findClassMemberByTitle(
   client: AnyClient,
   classId: string,
   title: string,
+  /** A node to skip — the create-first flow's own just-created node is a member of the class. */
+  excludeId?: string,
 ): ClientNode | null {
   const trimmed = title.trim();
   if (trimmed === "") return null;
   for (const node of client.getClassMembers(classId)) {
+    if (excludeId !== undefined && node.id === excludeId) continue;
     if (displayNameOf(node) === trimmed) return node;
   }
   return null;

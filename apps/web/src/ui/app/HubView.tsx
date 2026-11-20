@@ -37,7 +37,8 @@ import {
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { titleOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
-import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
+import { createNodeWithClasses } from "../../features/modals/quickCreate.js";
+import { requestTitleFocus } from "../titleFocusRequest.js";
 import { ensureTemplateProperty, listClassTemplates } from "../../features/templates/templateFamily.js";
 import { TemplatePickerModal } from "../../features/templates/TemplatePickerModal.js";
 import { instantiateTemplate } from "@/core/clone.js";
@@ -489,11 +490,11 @@ export function HubView({
               client.listPages().filter((page) => !sectionIds.has(page.id))
             : pages.filter((page) => !sectionIds.has(page.id));
   // The shared hub's header creation button: each mode's idiom — Classes
-  // opens the class-creation modal; Whiteboards reuses the "New" flow's write
-  // with the whiteboard system class picked. The created node opens. Pages
-  // (and Inbox) carry none: plain-page creation is the top bar's "New" flow
-  // (the "No class" pick), the palette's New-page command, and Ctrl/Cmd+N —
-  // one canonical entry point, not a per-surface duplicate.
+  // opens the class-creation modal; Whiteboards rides the create-first write
+  // with the whiteboard system class picked (the new node opens with its
+  // title editor auto-entered). Pages (and Inbox) carry none: plain-page
+  // creation is the top bar's "New" flow, the palette's New-page command,
+  // and Ctrl/Cmd+N — one canonical entry point, not a per-surface duplicate.
   const headerAction =
     nav === "classes" ? (
       <Button
@@ -509,9 +510,12 @@ export function HubView({
         size="sm"
         variant="ghost"
         icon="mdiPresentation"
-        onClick={() =>
-          createNodesWithClasses(client, [SYSTEM_CLASS_UUIDS.whiteboard], onOpenNode)
-        }
+        onClick={() => {
+          void createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.whiteboard]).then((id) => {
+            requestTitleFocus(id);
+            onOpenNode(id);
+          });
+        }}
       >
         New whiteboard
       </Button>

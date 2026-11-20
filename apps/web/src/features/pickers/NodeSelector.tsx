@@ -26,10 +26,14 @@
  * state instead). The create row hoists ABOVE the results while the query
  * has no partial-exact candidate ("gmi" prefixes "GMI Dental", so the row
  * stays below; a query nothing starts with puts creation first — no
- * scrolling). A query shaped like a DOI, an arXiv id/URL, an ISBN, or
- * an http(s) URL additionally offers "Create source from link" below the
- * create row (source-library task 6) — the gesture routes into the
- * add-source dialog via the app-level queue (or the host's
+ * scrolling). Under a class filter the create row is CREATE-FIRST
+ * (2026-11-20): the object is created immediately (the query is its title),
+ * the pick resolves on the RPC, and the class-fields step (the
+ * QuickCreateModal — the multi-class aggregate of the effective filter set)
+ * opens for the new node. A query shaped like a DOI, an arXiv id/URL, an
+ * ISBN, or an http(s) URL additionally offers "Create source from link"
+ * below the create row (source-library task 6) — the gesture routes into
+ * the add-source dialog via the app-level queue (or the host's
  * `onCreateSourceFromLink` override). With `scopeTabs`
  * the picker adds Main/Blocks tabs scoping the results to document-chrome
  * nodes vs inline child blocks. `searchMode="blocks"` is the block-
@@ -67,6 +71,21 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import {
   chainNodeIds,
@@ -86,6 +105,8 @@ import {
   rendersWithDocumentChromeOf,
 } from "../../ui/renderStateLabel.js";
 import { Icon } from "../../ui/Icon.js";
+import { coloredPillStyle } from "../../components/ui/kit/colorPresets.js";
+import "../../components/ui/kit/Pill.css";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import { NodePill } from "../metadata/NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
@@ -97,13 +118,17 @@ import {
 import { registerPendingCreatedName } from "./pendingCreatedName.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
-import { QuickCreateModal } from "../modals/QuickCreateModal.js";
 import { classifySourceInput } from "../sources/resolver.js";
 import { requestAddSource } from "../sources/AddSourceHost.js";
 import { enableArchivedSystemClass } from "../classview/systemClassDeploy.js";
 import { classClosureFrom } from "../metadata/schemaEligibility.js";
 import type { QuickCreateClient } from "../modals/quickCreate.js";
-import { collectSelfAndAncestors } from "../modals/quickCreate.js";
+import {
+  collectSelfAndAncestors,
+  createNodeWithClasses,
+  hasStagedClassFields,
+} from "../modals/quickCreate.js";
+import { requestClassFieldsStep } from "../modals/ClassFieldsStepHost.js";
 import { Tabs } from "../../components/ui/kit/Tabs.js";
 import { FilterChips } from "../../components/ui/kit/FilterChips.js";
 import { FilterMenu } from "../../components/ui/kit/FilterMenu.js";
@@ -158,6 +183,10 @@ export interface NodeSelectorClient extends QuickCreateClient {
    */
   searchPending?(query: string): boolean;
   createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
+  /** The class-chain effective color (the multi-select section's colored fill). */
+  effectiveClassColor?(classId: string): string | null;
+  /** The class-chain effective icon (the multi-select section's left icon). */
+  effectiveClassIcon?(classId: string): string | null;
   /** The archival bit (the archived-class Enable row, 2026-10-22). */
   updateObject(id: string, fields: { active?: boolean }): Promise<void>;
   /**
@@ -273,11 +302,30 @@ interface NodeSelectorProps {
   /** Placeholder + aria-label of the search input. */
   searchPlaceholder?: string;
   /**
-   * Optional row pinned before every result while the query is empty. The
-   * New-node class picker uses this for "No class"; typing hides it so the
-   * keyboard path keeps answering the class query.
+   * Multi-selection variant (2026-11-20): picks APPEND to the selection and
+   * the picker STAYS OPEN — the current selection renders as a pill section
+   * (standard class pills: effective color, hover-reveal ×, drag to reorder)
+   * in a dedicated top section above the results. Selection rides the
+   * value/onChange array API (or onAdd/onRemove/onReorder); a checkmarked
+   * row picks toggles it OFF. Used by the New-node creator (with
+   * `onContinue`) and the add-class button.
    */
-  emptyQueryOption?: { label: string; icon?: string; onPick: () => void } | undefined;
+  multiSelect?: boolean;
+  /**
+   * The multi-select continue affordance: an arrow button at the picker's
+   * footer reporting the current selection ids — the creator's "make the
+   * node" gesture. An empty list is meaningful (the caller's no-class path),
+   * so the button is always enabled.
+   */
+  onContinue?: ((ids: string[]) => void) | undefined;
+  /** The continue button's accessible name (default "Continue"). */
+  continueLabel?: string;
+  /**
+   * Multi-select reorder commit (a drag-drop in the selection section):
+   * the full reordered id list. Defaults to `onChange` with the reordered
+   * array when only the value API is given.
+   */
+  onReorder?: ((orderedIds: string[]) => void) | undefined;
   /** Callback when clicking a pill. */
   onNodeClick?: ((node: ClientNode) => void) | undefined;
   /** Callback when removing a node (shows the pill's remove button). */
@@ -368,6 +416,77 @@ function toIso(year: number, month: number, day: number): string {
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/** Move `activeId` to `overId`'s position (the dnd-kit drag-end idiom). */
+function reorderIds(ids: string[], activeId: string, overId: string): string[] {
+  const next = ids.slice();
+  const from = next.indexOf(activeId);
+  const to = next.indexOf(overId);
+  if (from === -1 || to === -1 || from === to) return ids;
+  next.splice(to, 0, ...next.splice(from, 1));
+  return next;
+}
+
+/**
+ * The multi-select section's pill markup — the standard class-pill look
+ * (effective color fill with contrast text, left icon, hover-reveal ×).
+ * Extracted so the sortable and static variants render identically.
+ */
+function SelectionPillInner({
+  node,
+  color,
+  icon,
+  onRemove,
+}: {
+  node: ClientNode;
+  color: string | null;
+  icon: string | null;
+  onRemove: (() => void) | undefined;
+}) {
+  const label = titleOfNode(node) ?? node.id;
+  return (
+    <span className="pill pill--hover-reveal-right" style={coloredPillStyle(color)}>
+      {icon !== null && (
+        <span className="pill__left-icon">
+          <Icon path={icon} size={0.7} />
+        </span>
+      )}
+      <span className="pill__text">{label}</span>
+      {onRemove !== undefined && (
+        <button
+          type="button"
+          className="pill__right-button"
+          aria-label={`Remove ${label}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+        >
+          <Icon path="mdi-close" size={0.6} />
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** One sortable selected pill — the pill surface is the drag handle. */
+function SortableSelectionPill(props: Parameters<typeof SelectionPillInner>[0]) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.node.id,
+  });
+  return (
+    <span
+      ref={setNodeRef}
+      className={`node-selector__selection-pill${isDragging ? " node-selector__selection-pill--dragging" : ""}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+    >
+      <SelectionPillInner {...props} />
+    </span>
+  );
+}
+
 export function NodeSelector({
   nodes: nodesProp,
   value,
@@ -380,7 +499,10 @@ export function NodeSelector({
   placeholder = "Select node...",
   emptyText = "Add",
   searchPlaceholder = "Search...",
-  emptyQueryOption,
+  multiSelect = false,
+  onContinue,
+  continueLabel = "Continue",
+  onReorder,
   onNodeClick,
   onRemove,
   onColorChange,
@@ -474,6 +596,19 @@ export function NodeSelector({
     return Array.isArray(value) ? value : [value];
   }, [value]);
 
+  /**
+   * The multi-select selection: the controlled `value` array when the host
+   * provides one, an internal selection otherwise (the uncontrolled variant
+   * — hosts like the creator control it; lightweight hosts let the picker
+   * own the list and read it through onContinue/onChange).
+   */
+  const [internalSelection, setInternalSelection] = useState<string[]>([]);
+  const selectionIds = useMemo(
+    () => (multiSelect ? (value !== undefined ? valueIds : internalSelection) : valueIds),
+    [multiSelect, value, valueIds, internalSelection],
+  );
+  const selectedNodeSet = useMemo(() => new Set(selectionIds), [selectionIds]);
+
   // Resolve nodes from the value ids when no nodes prop is given.
   const resolvedNodesFromValue = useMemo(
     () =>
@@ -493,6 +628,33 @@ export function NodeSelector({
   }, [nodes, valueIds]);
 
   const handleAdd = (node: ClientNode, withLabel = false): void => {
+    if (multiSelect) {
+      // The multi-select contract: a pick appends and the picker STAYS OPEN
+      // (the query clears so the next pick searches fresh); a checkmarked
+      // row pick toggles the entry OFF. The internal selection mutates only
+      // when the host does NOT control `value`; onChange/onAdd/onRemove are
+      // reports either way.
+      if (selectedNodeSet.has(node.id)) {
+        const next = selectionIds.filter((id) => id !== node.id);
+        if (value === undefined) setInternalSelection(next);
+        onChange?.(next);
+        if (value === undefined) onRemove?.(node);
+        setSearchQuery("");
+        resetFilters();
+        return;
+      }
+      const next = [...selectionIds, node.id];
+      if (value === undefined) setInternalSelection(next);
+      if (onChange !== undefined) {
+        onChange(next);
+      } else {
+        const query = searchQuery.trim();
+        onAdd?.(node, { withLabel: withLabel && query.length > 0, query });
+      }
+      setSearchQuery("");
+      resetFilters();
+      return;
+    }
     if (assignedIds.has(node.id)) {
       if (onAssignedPick !== undefined) {
         // The caller owns assigned-row semantics (the editor's toggle).
@@ -531,6 +693,15 @@ export function NodeSelector({
   };
 
   const handleRemove = (node: ClientNode): void => {
+    if (multiSelect) {
+      // The selection-section ×: drops the entry from the selection (the
+      // toggle contract — same write as a checkmarked-row pick).
+      const next = selectionIds.filter((id) => id !== node.id);
+      if (value === undefined) setInternalSelection(next);
+      onChange?.(next);
+      if (value === undefined) onRemove?.(node);
+      return;
+    }
     if (onChange) {
       if (Array.isArray(value)) {
         onChange(value.filter((valueId) => valueId !== node.id));
@@ -645,30 +816,13 @@ export function NodeSelector({
   }, [classFilters, classRefine, chipClassIds]);
 
   /**
-   * The class-aware create request: when the picker's
-   * create row runs under a class filter, the class-driven QuickCreateModal
-   * opens with that class (the dynamic properties form) instead of silently
-   * creating a plain page. The modal completes the create and hands the id
-   * back through resolveCreateResult.
+   * The class-aware create request: when the picker's create row runs under
+   * a class filter, the create-first contract applies (2026-11-20) — the
+   * object is created IMMEDIATELY (the query becomes its title,
+   * title-is-content), the pick resolves on the RPC, and the class-fields
+   * step opens for the new node through the app-level host (the picker's
+   * own popup may unmount on the pick — the modal must outlive it).
    */
-  const [quickCreate, setQuickCreate] = useState<{
-    classId: string;
-    name: string;
-  } | null>(null);
-
-  // Built-in create: pages pickers create a page (carrying the effective
-  // class filters), classes pickers create a class. Callers override via
-  // onCreateNew. A single class filter reroutes to the class-driven
-  // quick-create modal (the dynamic properties form); a multi-class filter
-  // set keeps the plain create (the modal carries one class).
-  //, class lock retired round 4
-  // (2026-10-26): a source-family filter whose typed query IS an
-  // identifier/link (DOI/ISBN/arXiv/URL) reroutes further — the create row
-  // opens the add-source dialog through the app-level requestAddSource
-  // seam; the resolved record's own type picks the prefill class. A PLAIN
-  // typed title keeps the create modal: the dialog resolves identifiers,
-  // it has no honest path for a non-resolvable title. An asset-family
-  // filter keeps the plain create (an asset create rides the upload flow).
   const defaultCreateNew = (name: string): Promise<string> | void => {
     if (searchMode === "classes") {
       return client.createClass(name);
@@ -693,15 +847,30 @@ export function NodeSelector({
         });
         return;
       }
-      if (!inFamily(SYSTEM_CLASS_UUIDS.asset) && effectiveClassIds.length === 1) {
+      if (!inFamily(SYSTEM_CLASS_UUIDS.asset)) {
         // The bare source family base resolves to its book default (the
-        // routeNewNodeClass carve-out — the citation analogue of the retired
+        // create row's carve-out — the citation analogue of the retired
         // superclass defaults).
-        const classId =
-          effectiveClassIds[0] === SYSTEM_CLASS_UUIDS.source
-            ? SYSTEM_CLASS_UUIDS.book
-            : effectiveClassIds[0]!;
-        setQuickCreate({ classId, name });
+        const classIds =
+          effectiveClassIds.length === 1 && effectiveClassIds[0] === SYSTEM_CLASS_UUIDS.source
+            ? [SYSTEM_CLASS_UUIDS.book]
+            : [...effectiveClassIds];
+        void (async () => {
+          try {
+            // The query IS the new node's title (title-is-content).
+            const id = await createNodeWithClasses(client, classIds, { title: name });
+            // The pick lands immediately — the query IS the title (the node
+            // may not be readable until the change notify lands, so the
+            // optimistic stand-in carries the name).
+            registerPendingCreatedName(id, name);
+            handleAdd(optimisticCreatedPick(id, name));
+            if (hasStagedClassFields(client, classIds)) {
+              requestClassFieldsStep({ nodeId: id, classIds });
+            }
+          } catch (error) {
+            console.warn("[node-selector] classed create failed:", error);
+          }
+        })();
         return;
       }
     }
@@ -1273,16 +1442,14 @@ export function NodeSelector({
       ? visibleResults.findIndex((node) => !recentsCreatedIds.has(node.id))
       : -1;
 
-  /** The pinned escape owns index 0 only while the query is empty. */
-  const emptyQueryOptionActive =
-    emptyQueryOption !== undefined && classRefine.query.trim() === "";
-
   // Assigned-row gesture hint: rides the picker's bottom while a checkmarked
   // row is on screen (the gestures apply to it). Callers with onAssignedPick
   // own the assigned-row semantics (the editor's `+` toggle) and show the
   // unassigned-row hint too (their Ctrl/Cmd+Enter adds the class inline);
   // everywhere else a checkmarked pick acknowledges idempotently.
-  const assignedVisible = visibleResults.some((node) => assignedIds.has(node.id));
+  const assignedVisible =
+    visibleResults.length > 0 &&
+    visibleResults.some((node) => (multiSelect ? selectedNodeSet.has(node.id) : assignedIds.has(node.id)));
   const assignedHintFooter =
     onAssignedPick !== undefined ? (
       <div className="node-selector__assigned-hint">
@@ -1323,14 +1490,10 @@ export function NodeSelector({
   // exempted — clicking the add button / a real anchor toggles instead of
   // dismissing. The virtual rect anchor (editor caret popups) has no
   // element, so any outside press closes, exactly the old contract.
-  // While the class-aware quick-create modal is open it owns the
-  // interaction (its backdrop is outside the picker): the picker's
-  // dismissal stands down so a backdrop press or Escape reaches only the
-  // modal's own overlay stack.
   usePopupDismissal({
     popupRef: pickerRef,
     anchorRefs: isAnchored ? (anchorEl != null ? [dismissalAnchorRef] : []) : [buttonRef],
-    isOpen: isPickerOpen && quickCreate === null,
+    isOpen: isPickerOpen,
     onClose: handleClosePicker,
   });
 
@@ -1350,9 +1513,9 @@ export function NodeSelector({
   // query the create row takes one slot right after the exact title matches
   // — right after the leading rows when there are none — shifting the
   // results below it down by one.
-  const leadingOffset = (emptyQueryOptionActive ? 1 : 0) + (dateSuggestion ? 1 : 0);
+  const leadingOffset = dateSuggestion ? 1 : 0;
   const archivedCount = archivedMatches.length;
-  // Row order: [emptyQueryOption] [dateSuggestion] ([create — hoisted])
+  // Row order: [dateSuggestion] ([create — hoisted])
   // results (the create row spliced in after the partial-exact matches
   // when there are any), then the archived-class Enable rows, the create
   // row (only on an empty-query listing), the paste-URL source row, the
@@ -1387,11 +1550,7 @@ export function NodeSelector({
       if (option !== undefined) applyFilterOption(option);
       return;
     }
-    if (emptyQueryOptionActive && index === 0) {
-      emptyQueryOption.onPick();
-      return;
-    }
-    if (dateSuggestion && index === (emptyQueryOptionActive ? 1 : 0)) {
+    if (dateSuggestion && index === 0) {
       dateSuggestion.onSelect();
       return;
     }
@@ -1500,19 +1659,6 @@ export function NodeSelector({
 
   const renderResults = (emptyClassName: string, createIconSize: number) => (
     <>
-      {emptyQueryOptionActive && emptyQueryOption !== undefined && (
-        <NodeResultItem
-          key="__empty-query-option"
-          node={{ name: emptyQueryOption.label }}
-          isHighlighted={selectedIndex === 0}
-          onClick={emptyQueryOption.onPick}
-          onMouseEnter={() => setSelectedIndex(0)}
-          className="node-result-item--empty-query"
-          iconOverride={
-            <Icon path={emptyQueryOption.icon ?? "mdi-file-outline"} size={createIconSize} />
-          }
-        />
-      )}
       {recentsCreatedCaptionVisible && (
         <div className="node-selector__recent-caption" aria-hidden="true">
           Recently created
@@ -1522,9 +1668,9 @@ export function NodeSelector({
         <NodeResultItem
           key={dateSuggestion.key}
           node={{ name: dateSuggestion.label }}
-          isHighlighted={selectedIndex === (emptyQueryOptionActive ? 1 : 0)}
+          isHighlighted={selectedIndex === 0}
           onClick={dateSuggestion.onSelect}
-          onMouseEnter={() => setSelectedIndex(emptyQueryOptionActive ? 1 : 0)}
+          onMouseEnter={() => setSelectedIndex(0)}
           className="node-result-item--date"
           iconOverride={<Icon path="mdi-calendar" size={0.7} />}
         />
@@ -1551,7 +1697,7 @@ export function NodeSelector({
               }
               displayClasses={getDisplayClasses(client, node)}
               isHighlighted={globalIndex === selectedIndex}
-              isSelected={assignedIds.has(node.id)}
+              isSelected={multiSelect ? selectedNodeSet.has(node.id) : assignedIds.has(node.id)}
               onClick={() => handleAdd(node)}
               onCtrlClick={() => handleAdd(node, true)}
               onMouseEnter={() => setSelectedIndex(globalIndex)}
@@ -1632,6 +1778,114 @@ export function NodeSelector({
     </>
   );
 
+  // --- multi-select: the selection pill section + the continue bar ---------
+
+  const selectionSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    // The keyboard contract: focus a pill, Space picks it up, the arrows
+    // move it, Space drops — drag-and-drop without a pointer.
+    useSensor(KeyboardSensor, {}),
+  );
+
+  const selectionColorOf = (node: ClientNode): string | null =>
+    client.effectiveClassColor?.(node.id) ?? node.color ?? null;
+  const selectionIconOf = (node: ClientNode): string | null =>
+    client.effectiveClassIcon?.(node.id) ?? node.icon ?? null;
+
+  const handleSelectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over === null || active.id === over.id) return;
+    const ordered = reorderIds(selectionIds, String(active.id), String(over.id));
+    if (value === undefined) setInternalSelection(ordered);
+    if (onReorder !== undefined) onReorder(ordered);
+    else onChange?.(ordered);
+  };
+
+  /**
+   * The multi-select selection section: the current selection as standard
+   * class pills (effective color, hover-reveal ×, drag to reorder) in a
+   * dedicated top section above the results.
+   */
+  const renderSelectionSection = () => {
+    if (!multiSelect || selectionIds.length === 0) return null;
+    const selectedNodes = selectionIds
+      .map((id) => client.getNode(id))
+      .filter((node): node is ClientNode => node !== undefined);
+    if (selectedNodes.length === 0) return null;
+    const removable = !readOnly && (onRemove !== undefined || onChange !== undefined);
+    const sortable =
+      !readOnly &&
+      selectedNodes.length > 1 &&
+      (onReorder !== undefined || onChange !== undefined || value === undefined);
+    const section = (
+      <div className="node-selector__selection" aria-label="Selected">
+        {selectedNodes.map((node) =>
+          sortable ? (
+            <SortableSelectionPill
+              key={node.id}
+              node={node}
+              color={selectionColorOf(node)}
+              icon={selectionIconOf(node)}
+              onRemove={removable ? () => handleRemove(node) : undefined}
+            />
+          ) : (
+            <span key={node.id} className="node-selector__selection-pill">
+              <SelectionPillInner
+                node={node}
+                color={selectionColorOf(node)}
+                icon={selectionIconOf(node)}
+                onRemove={removable ? () => handleRemove(node) : undefined}
+              />
+            </span>
+          ),
+        )}
+      </div>
+    );
+    if (!sortable) return section;
+    return (
+      <DndContext
+        sensors={selectionSensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleSelectionDragEnd}
+      >
+        <SortableContext items={selectedNodes.map((node) => node.id)} strategy={verticalListSortingStrategy}>
+          {section}
+        </SortableContext>
+      </DndContext>
+    );
+  };
+
+  /**
+   * The multi-select continue bar: the arrow button reporting the current
+   * selection ids (the creator's "make the node" gesture). An empty selection
+   * reads "No class" — the honest no-class path, not a disabled state.
+   */
+  const renderContinueBar = () =>
+    onContinue === undefined ? null : (
+      <div className="node-selector__continue">
+        <span className="node-selector__continue-count" aria-hidden="true">
+          {selectionIds.length === 0 ? "No class" : `${selectionIds.length} selected`}
+        </span>
+        <button
+          type="button"
+          className="node-selector__continue-btn"
+          aria-label={continueLabel}
+          title={continueLabel}
+          onClick={() => onContinue(selectionIds)}
+        >
+          <Icon path="mdi-arrow-right" size={0.7} />
+        </button>
+      </div>
+    );
+
+  /** The picker panel: search + results (+ the multi-select chrome). */
+  const renderPanel = (createIconSize: number) => (
+    <>
+      {renderBody(createIconSize)}
+      {renderContinueBar()}
+    </>
+  );
+
   /**
    * Search input + results. With scopeTabs the body wraps in a Tabs root:
    * the tablist scopes the results (the shared search input sits between
@@ -1641,6 +1895,7 @@ export function NodeSelector({
   const renderBody = (createIconSize: number) =>
     scopeTabs && searchMode !== "classes" ? (
       <Tabs value={scope} onChange={handleScopeChange} className="node-selector__scope-tabs">
+        {multiSelect && renderSelectionSection()}
         <Tabs.List variant="ghost" className="node-selector__scope-tablist">
           <Tabs.Tab value="main">Main</Tabs.Tab>
           <Tabs.Tab value="blocks">Blocks</Tabs.Tab>
@@ -1683,6 +1938,7 @@ export function NodeSelector({
       </Tabs>
     ) : (
       <>
+        {multiSelect && renderSelectionSection()}
         {hint !== undefined && hint !== "" && (
           <div className="node-selector__mode-hint">{hint}</div>
         )}
@@ -1723,17 +1979,7 @@ export function NodeSelector({
   if (trigger === "inline") {
     return (
       <div id={id} className={`node-selector node-selector--inline ${className}`} data-editor-companion>
-        {renderBody(0.7)}
-        {quickCreate !== null && (
-          <QuickCreateModal
-            isOpen
-            client={client}
-            classId={quickCreate.classId}
-            initialName={quickCreate.name}
-            onClose={() => setQuickCreate(null)}
-            onCreated={(createdId) => resolveCreateResult(createdId)}
-          />
-        )}
+        {renderPanel(0.7)}
       </div>
     );
   }
@@ -1755,19 +2001,9 @@ export function NodeSelector({
                 : { visibility: "hidden" }
             }
           >
-            {renderBody(0.55)}
+            {renderPanel(0.55)}
           </div>,
           document.body,
-        )}
-        {quickCreate !== null && (
-          <QuickCreateModal
-            isOpen
-            client={client}
-            classId={quickCreate.classId}
-            initialName={quickCreate.name}
-            onClose={() => setQuickCreate(null)}
-            onCreated={(createdId) => resolveCreateResult(createdId)}
-          />
         )}
       </>
     );
@@ -1821,20 +2057,10 @@ export function NodeSelector({
                   : { visibility: "hidden" }
               }
             >
-              {renderBody(0.55)}
+              {renderPanel(0.55)}
             </div>
           )}
         </div>
-      )}
-      {quickCreate !== null && (
-        <QuickCreateModal
-          isOpen
-          client={client}
-          classId={quickCreate.classId}
-          initialName={quickCreate.name}
-          onClose={() => setQuickCreate(null)}
-          onCreated={(createdId) => resolveCreateResult(createdId)}
-        />
       )}
     </div>
   );

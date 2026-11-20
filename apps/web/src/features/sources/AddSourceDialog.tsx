@@ -39,10 +39,14 @@
  * rides the drop zone with the AssetUploadModal selected-file row (the
  * document icon + name + category chip + size).
  *
- * The create form (QuickCreateModal) remains the MANUAL path's surface —
- * flushClassedCreate is the one pipeline both paths run, so the citation
- * self-heal, the archived-class auto-enable (un-archive + create + property
- * writes in ONE undo batch), and the auto-citekey live in the one place.
+ * The manual path is CREATE-FIRST since 2026-11-20 (the global create-first
+ * contract): the node is created with the resolved title the moment the
+ * manual form opens (the app opens the page), and the class-fields step
+ * (QuickCreateModal with the prefill's staged values + the PDF attach)
+ * opens over it — Save flushes via flushClassedProperties; Cancel keeps the
+ * created source with its title. The resolver path keeps the headless
+ * flushClassedCreate pipeline (validation-before-writes, citation
+ * self-heal, auto-citekey, CAS upload, one undo batch).
  */
 
 import { useEffect, useId, useRef, useState } from "react";
@@ -69,8 +73,11 @@ import {
   displayNameOf,
   findSourceByIdentifier,
   flushClassedCreate,
+  createNodeWithClasses,
+  hasStagedClassFields,
   stagedEntriesOfValues,
 } from "../modals/quickCreate.js";
+import { Spinner } from "../../components/ui/kit/Spinner.js";
 import "./AddSourceDialog.css";
 
 export interface AddSourceDialogProps {
@@ -93,6 +100,8 @@ export interface AddSourceDialogProps {
 interface PrefilledState {
   classId: string;
   prefill: QuickCreatePrefill;
+  /** The create-first node id; null while the create is in flight. */
+  nodeId: string | null;
 }
 
 interface FetchedState {
@@ -170,7 +179,10 @@ export function AddSourceDialog({
   const [error, setError] = useState<string | null>(null);
   const [fetched, setFetched] = useState<FetchedState | null>(null);
   const [oaDismissed, setOaDismissed] = useState(false);
-  /** The manual path's prefilled form (the resolver path creates directly). */
+  // The manual path's create-first hand-off (the resolver path creates
+  // directly). `nodeId` fills in once the create lands: null = the spinner
+  // state. The create rides the CLICK (event handlers never double-fire
+  // under StrictMode — an effect would, creating the node twice in dev).
   const [prefilled, setPrefilled] = useState<PrefilledState | null>(null);
   /** The resolved identifiers already live in the library (Create pauses). */
   const [duplicate, setDuplicate] = useState<ReturnType<typeof findSourceByIdentifier>>(null);
@@ -253,6 +265,7 @@ export function AddSourceDialog({
         values: {},
         ...(picked !== null ? { pdf: { file: picked, filename: picked.name } } : {}),
       },
+      nodeId: null,
     };
     const classified = classifySourceInput(raw);
     if (classified === null) {
@@ -288,6 +301,7 @@ export function AddSourceDialog({
       case "url":
         // The weblink convention: the URL is the title.
         return {
+          ...base,
           classId: SYSTEM_CLASS_UUIDS.web_page,
           prefill: {
             ...base.prefill,
@@ -298,20 +312,29 @@ export function AddSourceDialog({
     }
   };
 
-  // Step two is the prefilled QuickCreateModal (same dialog stack: close
-  // this shell first so the modal's overlay owns the surface).
+  // Step two is the create-first fields step (2026-11-20): the node was
+  // created by the "Add manually" click (the app opens the page); the
+  // spinner shell rides while the create is in flight. Same dialog stack:
+  // this shell yields so the modal's overlay owns the surface.
   if (prefilled !== null) {
+    if (prefilled.nodeId === null) {
+      return (
+        <Modal isOpen onClose={onClose} title="Add source" size="md">
+          <div className="add-source-dialog__creating">
+            <Spinner size="md" label="Creating source…" centered />
+          </div>
+        </Modal>
+      );
+    }
     return (
       <QuickCreateModal
         isOpen
         client={client}
-        classId={prefilled.classId}
+        nodeId={prefilled.nodeId}
+        classIds={[prefilled.classId]}
         prefill={prefilled.prefill}
         onClose={onClose}
-        onCreated={(nodeId) => {
-          onClose();
-          onCreated?.(nodeId);
-        }}
+        onDone={onClose}
         onOpenExisting={onOpenNode}
       />
     );
@@ -555,7 +578,37 @@ export function AddSourceDialog({
               variant="outline"
               size="sm"
               disabled={busy || (input.trim() === "" && file === null)}
-              onClick={() => setPrefilled(manualPrefillOf(input, file))}
+              onClick={() => {
+                // Create-first: the node is created NOW (event handlers never
+                // double-fire under StrictMode), the app opens it, and the
+                // fields step lands the staged values on Save. A failure
+                // returns to this dialog with an honest error.
+                const state = manualPrefillOf(input, file);
+                setPrefilled(state);
+                void (async () => {
+                  try {
+                    const nodeId = await createNodeWithClasses(client, [state.classId], {
+                      title: state.prefill.title,
+                    });
+                    onCreated?.(nodeId);
+                    // Nothing to stage (no class rows, no prefill values): the
+                    // fields step would be an empty shell — release the
+                    // dialog (the created source is already open).
+                    if (
+                      !hasStagedClassFields(client, [state.classId]) &&
+                      Object.keys(state.prefill.values).length === 0
+                    ) {
+                      setPrefilled(null);
+                      onClose();
+                      return;
+                    }
+                    setPrefilled({ ...state, nodeId });
+                  } catch {
+                    setPrefilled(null);
+                    setError("Failed to create the source. Please try again.");
+                  }
+                })();
+              }}
             >
               Add manually
             </Button>

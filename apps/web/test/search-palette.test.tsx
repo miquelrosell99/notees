@@ -543,7 +543,7 @@ describe("NodeSelector class refine", () => {
     expect(screen.queryByText(/^Create "/)).toBeNull();
   });
 
-  it("spaced class names resolve greedily; the create row opens the class modal", async () => {
+  it("spaced class names resolve greedily; the create row is create-first with the refined class", async () => {
     const client = await seedClient();
     const myClassId = await createTitledClass(client, "My Class");
     await client.createObject({ isEmbedded: false, name: "Ada Lovelace", classIds: [myClassId] });
@@ -555,16 +555,15 @@ describe("NodeSelector class refine", () => {
     // The create row answers the REST of the query, not the raw prefix.
     const createRow = await screen.findByText('Create "lovelace"');
     fireEvent.click(createRow);
-    // The class pick opens the class-driven modal: the
-    // typed remainder seeds the title, the refined class is fixed.
-    const dialog = await screen.findByRole("dialog", { name: /new my class/i });
-    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("lovelace");
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    // Create-first: the node lands immediately (the remainder is its title)
+    // carrying the refined class; "My Class" binds no properties, so no
+    // fields step opens.
     await waitFor(() => {
       const created = client.listPages().find((n) => deriveDisplayName(n) === "lovelace");
       expect(created).not.toBeUndefined();
       expect(created!.classIds).toContain(myClassId);
     });
+    expect(screen.queryByRole("dialog", { name: /new my class/i })).toBeNull();
   });
 });
 
@@ -770,18 +769,18 @@ describe("NodeSelector `/` filter mode", () => {
     // The empty-query member listing: only the class's members.
     expect(await screen.findByText("Dune")).not.toBeNull();
     expect(screen.queryByText("Gardening Annual")).toBeNull();
-    // The create row carries the chip's class into the modal.
+    // The create row carries the chip's class into the create-first write:
+    // the node lands immediately (the query IS its title) and the pick
+    // resolves. Fiction binds no properties, so no fields step opens.
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Dune Messiah" } });
     const createRow = await screen.findByText('Create "Dune Messiah"');
     fireEvent.click(createRow);
-    const dialog = await screen.findByRole("dialog", { name: /new fiction/i });
-    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("Dune Messiah");
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => {
       const created = client.listPages().find((n) => deriveDisplayName(n) === "Dune Messiah");
       expect(created).not.toBeUndefined();
       expect(created!.classIds).toContain(fictionId);
     });
+    expect(screen.queryByRole("dialog", { name: /new fiction/i })).toBeNull();
   });
 
   it("a Blocks chip composes with a text search (pages drop out)", async () => {

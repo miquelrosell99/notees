@@ -96,6 +96,12 @@
   color: var(--md-sys-color-error);
 }
 
+/* The manual path's create-first hand-off: the brief create before the
+   class-fields step takes the surface. */
+.add-source-dialog__creating {
+  padding: var(--spacing-6) 0;
+}
+
 /* The failure row: the honest error beside the manual
    path — never a dead-end. */
 .add-source-dialog__error-row {

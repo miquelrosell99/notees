@@ -2,14 +2,25 @@
  * AppTopBar — the shell's top region: the TopBar (breadcrumbs, history
  * arrows, calendar/undo/history buttons, layout + focus + condensed
  * toggles, the workspace switcher) plus the popups and pickers it anchors
- * (the New-class NodeSelector, the history menu, the calendar popup).
+ * (the New-node class picker, the history menu, the calendar popup).
  * Pure composition: every behavior arrives via props from App.
+ *
+ * The New flow (2026-11-20, create-first): the New button opens the class
+ * picker in the GLOBAL MULTI-SELECT variant — picks append (the selection
+ * renders as reorderable class pills above the results), an arrow button at
+ * the picker's foot continues. Continue creates ONE node carrying every
+ * selected class (createNodeWithClasses — an empty selection IS the no-class
+ * create; the retired "No class" row is gone), opens it, auto-enters the
+ * title editor (requestTitleFocus — the full editor owns the title, the
+ * modal's plain title field is gone), and opens the class-fields step when
+ * the classes stage property rows. A lone asset-family pick rides the
+ * upload modal instead (uploading IS creating an asset).
  */
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useState } from "react";
 
-import { dayNodeId } from "@notees/domain";
+import { dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { UndoUiState } from "@/core/undo-journal.js";
 import { rememberWorkspaceName } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, readStored } from "./storage.js";
@@ -18,13 +29,17 @@ import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
 import { TopBar } from "./TopBar.js";
 import { Breadcrumbs } from "../../features/node-menu/Breadcrumbs.js";
 import { WorkspaceSwitcher } from "../../features/workspaces/WorkspaceSwitcher.js";
-import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
 import { HistoryMenuPopup } from "../../features/page-sections/HistoryMenuPopup.js";
 import { CalendarPopup } from "../../features/calendar/TopBarCalendarPopup.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
-import { QuickCreateModal } from "../../features/modals/QuickCreateModal.js";
-import { routeNewNodeClass } from "../../features/modals/quickCreate.js";
+import { requestClassFieldsStep } from "../../features/modals/ClassFieldsStepHost.js";
+import {
+  collectSelfAndAncestors,
+  createNodeWithClasses,
+  hasStagedClassFields,
+} from "../../features/modals/quickCreate.js";
+import { requestTitleFocus } from "../../ui/titleFocusRequest.js";
 
 export interface AppTopBarProps {
   client: AnyClient;
@@ -112,12 +127,38 @@ export function AppTopBar(props: AppTopBarProps) {
     setManagerOpen,
     setWorkspaceName,
   } = props;
-  // the New flow's class-pick routing,
-  // generalized 2026-10-26: EVERY class pick opens the class-driven
-  // QuickCreateModal (the picked class id); the asset pick rides the upload
-  // flow. Null = the modal is closed.
-  const [quickCreateClassId, setQuickCreateClassId] = useState<string | null>(null);
+  // The New flow's continue routing, create-first (2026-11-20): the picker
+  // is a MULTI-SELECT (one node carries every picked class); the class-fields
+  // step rides the app-level host (the picker unmounts on continue).
+  const [newClassIds, setNewClassIds] = useState<string[]>([]);
   const [assetUploadClassId, setAssetUploadClassId] = useState<string | null>(null);
+
+  /** The picker's arrow: create ONE node with the selection (empty = no class), open it. */
+  const handleNewContinue = (classIds: string[]): void => {
+    setNewPickerOpen(false);
+    setNewClassIds([]);
+    void (async () => {
+      try {
+        // A lone asset-family pick rides the upload modal (uploading IS
+        // creating an asset); any other selection is one node with all classes.
+        if (
+          classIds.length === 1 &&
+          collectSelfAndAncestors(client, classIds[0]!).has(SYSTEM_CLASS_UUIDS.asset)
+        ) {
+          setAssetUploadClassId(SYSTEM_CLASS_UUIDS.asset);
+          return;
+        }
+        const nodeId = await createNodeWithClasses(client, classIds);
+        requestTitleFocus(nodeId);
+        openPage(nodeId);
+        if (hasStagedClassFields(client, classIds)) {
+          requestClassFieldsStep({ nodeId, classIds });
+        }
+      } catch (error) {
+        console.warn("[new-node] creation failed:", error);
+      }
+    })();
+  };
   return (
     <>
       <TopBar
@@ -187,31 +228,16 @@ export function AppTopBar(props: AppTopBarProps) {
           anchorEl={newButtonRef.current}
           searchMode="classes"
           searchPlaceholder="Search classes…"
-          emptyQueryOption={{
-            label: "No class",
-            onPick: () => {
-              setNewPickerOpen(false);
-              createNodesWithClasses(client, [], openPage);
-            },
-          }}
-          onClose={() => setNewPickerOpen(false)}
-          onAdd={(picked) => {
-            // Single-pick contract: one class, one page —
-            // "create a person", "create a project". routes the pick, generalized 2026-10-26: EVERY
-            // class opens the class-driven create modal (the dynamic
-            // properties form), an asset class opens the upload modal
-            // (uploading IS creating).
+          multiSelect
+          value={newClassIds}
+          onChange={(next) =>
+            setNewClassIds(Array.isArray(next) ? next : next !== null && next !== undefined ? [next] : [])
+          }
+          continueLabel="Create node"
+          onContinue={handleNewContinue}
+          onClose={() => {
             setNewPickerOpen(false);
-            const route = routeNewNodeClass(client, picked.id);
-            if (route.kind === "quick-create") {
-              setQuickCreateClassId(route.classId);
-              return;
-            }
-            if (route.kind === "asset-upload") {
-              setAssetUploadClassId(route.classId);
-              return;
-            }
-            createNodesWithClasses(client, [picked.id], openPage);
+            setNewClassIds([]);
           }}
         />
       )}
@@ -243,21 +269,6 @@ export function AppTopBar(props: AppTopBarProps) {
           onSelectYear={(year) => {
             void client.ensureDateChain(`${year}-01-01`).then(({ year: yearId }) => openPage(yearId));
             setCalendarOpen(false);
-          }}
-        />
-      )}
-      {quickCreateClassId !== null && (
-        /* The New flow's class pick: the class-driven create modal (every
-           class — the dynamic properties form loads from the class's
-           bound properties). */
-        <QuickCreateModal
-          isOpen
-          client={client}
-          classId={quickCreateClassId}
-          onClose={() => setQuickCreateClassId(null)}
-          onCreated={(nodeId) => {
-            setQuickCreateClassId(null);
-            openPage(nodeId);
           }}
         />
       )}

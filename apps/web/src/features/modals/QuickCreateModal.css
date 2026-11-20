@@ -1,7 +1,8 @@
 /**
- * QuickCreateModal styles — the class-driven create dialog's form: the title
- * field, the dynamic staged-properties form, the archived-class note, the
- * duplicate warning, the error in the token error color. Token-only.
+ * QuickCreateModal styles — the class-fields step's form: the dynamic
+ * staged-properties form, the duplicate warning, the error in the token
+ * error color. Token-only. (The title field retired with the create-first
+ * contract — the page's own title editor owns the title.)
  */
 
 .quick-create-modal {
@@ -9,12 +10,6 @@
   flex-direction: column;
   gap: var(--spacing-3);
   padding: var(--spacing-1) 0;
-}
-
-.quick-create-modal__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
 }
 
 .quick-create-modal__error {
@@ -37,12 +32,6 @@
   color: var(--md-sys-color-primary);
   text-decoration: underline;
   cursor: pointer;
-}
-
-.quick-create-modal__note {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
 }
 
 .quick-create-modal__icon {

@@ -27,6 +27,7 @@ import { PageView } from "../src/ui/PageView.js";
 import { proseFromAst } from "../src/editor/prose.js";
 import { computeCandidateSpans, withCandidateSpans } from "../src/editor/capture.js";
 import { isTriggerBoundary } from "../src/features/block-editor/captureModel.js";
+import { ClassFieldsStepHost } from "../src/features/modals/ClassFieldsStepHost.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -866,7 +867,7 @@ describe("capture: create-from-@ (async completion)", () => {
     });
   });
 
-  it("the class-aware modal's completion links the created source at the trigger", async () => {
+  it("the class-aware create row links the created source at the trigger; the fields step Save closes it", async () => {
     const client = await seedClient();
     // The server-seed shape for the source family.
     await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
@@ -874,64 +875,92 @@ describe("capture: create-from-@ (async completion)", () => {
     await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = render(
+      <>
+        <PageView client={client} pageId={pageId} />
+        {/* The fields step rides the app-level host: the mention popup
+            unmounts on the pick, the modal must outlive it. */}
+        <ClassFieldsStepHost client={client} />
+      </>,
+    );
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "@");
-    // A `class:` refine routes the create row to the citation modal.
+    // A `class:` refine routes the create row into the create-first pipeline.
     typeInPicker("class:source Dune");
     fireEvent.click(within(picker()!).getByText('Create "Dune"'));
-
-    const dialog = await screen.findByRole("dialog", { name: /new book/i });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await act(async () => {});
     await act(async () => {});
 
+    // Create-first: the node EXISTS with the query as its title and the pick
+    // links the mention at the trigger immediately.
     const created = client
       .listPages()
       .filter((p) => deriveDisplayName(p) === "Dune" && p.classIds.includes(SYSTEM_CLASS_UUIDS.book));
     expect(created).toHaveLength(1);
-    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    let ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[0]).toMatchObject({
       type: "mention",
       targetNodeId: created[0]!.id,
     });
     expect(editor.textContent).toBe("Dune");
+
+    // The class-fields step opens over the new source; Save (nothing staged)
+    // lands and closes it. The mention and the node stand.
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { name: /new book/i })).toBeNull();
+    ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
   });
 
-  it("create cancellation leaves the plain trigger text (no mention ever lands)", async () => {
+  it("create-first cancellation keeps the created node and the mention — the fields step never un-creates", async () => {
     const client = await seedClient();
     await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
     await client.createClass("Book", { id: SYSTEM_CLASS_UUIDS.book });
     await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
     const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = render(
+      <>
+        <PageView client={client} pageId={pageId} />
+        <ClassFieldsStepHost client={client} />
+      </>,
+    );
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "@");
     typeInPicker("class:source Dune");
     fireEvent.click(within(picker()!).getByText('Create "Dune"'));
-    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+    await act(async () => {});
+    await act(async () => {});
 
-    // Cancel the modal: nothing is created, the trigger char stays plain.
+    // The node exists and the mention already landed (create-first).
+    const created = client
+      .listPages()
+      .filter((p) => deriveDisplayName(p) === "Dune" && p.classIds.includes(SYSTEM_CLASS_UUIDS.book));
+    expect(created).toHaveLength(1);
+    let ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+    });
+
+    // Cancel the FIELDS step: the created node, its title and the mention
+    // stand — cancel never un-creates (the title and the link are the
+    // user's, only the unstaged fields wrote nothing).
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await act(async () => {});
     expect(screen.queryByRole("dialog", { name: /new book/i })).toBeNull();
-    expect(client.listPages().some((p) => deriveDisplayName(p) === "Dune")).toBe(false);
-    expect(editor.textContent).toBe("@");
-    let ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
-
-    // Abandoning the capture (backspacing the trigger) keeps plain text —
-    // no late mention can appear, the create never happened. Blur flushes
-    // the emptied draft (and clears the debounce timer) before teardown.
-    typeWithCaret(editor, "");
-    fireEvent.blur(editor);
-    await act(async () => {});
-    for (let i = 0; i < 6; i += 1) await act(async () => {});
+    expect(client.listPages().some((p) => deriveDisplayName(p) === "Dune")).toBe(true);
+    expect(editor.textContent).toBe("Dune");
     ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
+    expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(true);
   });
 });
 

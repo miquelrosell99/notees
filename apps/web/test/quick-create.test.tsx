@@ -1,19 +1,23 @@
 /**
- * Quick-create tests: the class-driven create modal —
- * routeNewNodeClass's every-class routing (source subclass → the modal with
- * that class; bare source → book default; user classes → the modal; asset →
- * the upload flow), the staged-bindings resolution (extends-aware,
+ * Quick-create tests: the class-fields step of the create-first flow —
+ * the multi-class aggregate rows (stagedBindingsForClasses — extends-aware,
  * alphabetical, the staged-type filter — object/asset excluded), the staged
  * value expansion (multi text splits into one element per entry; the staged
  * date resolves through the date chain to `{ nodeId }`; numbers parse;
- * untouched booleans/options write nothing), the createClassedObject flush
- * (un-archive + create + property writes in ONE undo batch), auto-citekey
- * with the deterministic a/b/c collision suffix, the duplicate DOI/ISBN/
- * citekey warning, the archived-class auto-enable, the resolver prefill, and
- * the picker integration — every class-filtered NodeSelector create row
- * opens the modal with the typed query as the title (no subclass switch, no
- * agent toggle), an identifier-shaped query under a source filter still
- * reroutes to the add-source dialog, and a filter-less create stays plain.
+ * untouched booleans/options write nothing), the createNodeWithClasses write
+ * (ONE node carrying every picked class; an empty list is the honest
+ * no-class create; an archived pick re-enables BEFORE the create), the
+ * flushClassedProperties write (validation-before-writes, citation
+ * self-heal, auto-citekey with the deterministic a/b/c collision suffix
+ * rendered against the node's LIVE title, the CAS PDF attach), the
+ * duplicate DOI/ISBN/citekey/title warnings (the just-created node excluded
+ * from the title match), the archived-class auto-enable at the create site,
+ * the resolver prefill, and the picker integration — every class-filtered
+ * NodeSelector create row is CREATE-FIRST: the node is created immediately
+ * (the query is its title), the pick resolves on the RPC, and the fields
+ * step opens over the new node; an identifier-shaped query under a source
+ * filter still reroutes to the add-source dialog, and a filter-less create
+ * stays plain.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -26,9 +30,11 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS, parseDateNodeId } from "@not
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
 import { QuickCreateModal } from "../src/features/modals/QuickCreateModal.js";
+import { ClassFieldsStepHost } from "../src/features/modals/ClassFieldsStepHost.js";
 import {
   collectSelfAndAncestors,
   createClassedObject,
+  createNodeWithClasses,
   ensureCitationFamily,
   existingCitekeys,
   expandStagedValues,
@@ -36,9 +42,9 @@ import {
   generateCitekey,
   initialStagedValue,
   parseStagedDateText,
-  routeNewNodeClass,
   splitAuthorList,
   stagedBindingsOf,
+  stagedBindingsForClasses,
 } from "../src/features/modals/quickCreate.js";
 import { deriveDisplayName } from "@notees/domain";
 import { AddSourceHost } from "../src/features/sources/AddSourceHost.js";
@@ -114,46 +120,48 @@ async function stagedInput(
     });
 }
 
-describe("routeNewNodeClass — the New-popup class-pick routing", () => {
-  it("EVERY class pick routes to the modal with that class (source family no longer special)", async () => {
+describe("createNodeWithClasses — the create-first write", () => {
+  it("creates ONE node carrying every picked class; an empty list is the no-class create", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.journal_article)).toEqual({
-      kind: "quick-create",
-      classId: SYSTEM_CLASS_UUIDS.journal_article,
-    });
-    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.person)).toEqual({
-      kind: "quick-create",
-      classId: SYSTEM_CLASS_UUIDS.person,
-    });
-    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.organization)).toEqual({
-      kind: "quick-create",
-      classId: SYSTEM_CLASS_UUIDS.organization,
-    });
-    // User classes route too — the modal is class-driven, not family-driven.
     const userClass = await client.createClass("project");
-    expect(routeNewNodeClass(client, userClass)).toEqual({
-      kind: "quick-create",
-      classId: userClass,
-    });
+
+    const multi = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book, userClass]);
+    const multiNode = client.getNode(multi);
+    expect(multiNode?.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    expect(multiNode?.classIds).toContain(userClass);
+    expect(client.listPages().length).toBe(1);
+
+    const plain = await createNodeWithClasses(client, []);
+    const plainNode = client.getNode(plain);
+    expect(plainNode?.classIds).toEqual([]);
+    expect(client.listPages().length).toBe(2);
   });
 
-  it("the bare source base resolves to its designed book default", async () => {
+  it("re-enables an archived picked class BEFORE the create", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.source)).toEqual({
-      kind: "quick-create",
-      classId: SYSTEM_CLASS_UUIDS.book,
-    });
+    await client.setArchived(SYSTEM_CLASS_UUIDS.book, false);
+    expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.book)?.isActive).toBe(false);
+    const id = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book]);
+    expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.book)?.isActive).toBe(true);
+    expect(client.getNode(id)?.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
   });
 
-  it("an asset pick routes to the asset upload", async () => {
+  it("the multi-class aggregate unions the staged rows across classes, one row per property", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    expect(routeNewNodeClass(client, SYSTEM_CLASS_UUIDS.asset)).toEqual({
-      kind: "asset-upload",
-      classId: SYSTEM_CLASS_UUIDS.asset,
-    });
+    const cls = await client.createClass("project");
+    const status = await client.createPropertySchema({ name: "Status", type: "text" });
+    await client.setClassProperty(cls, status, {});
+    const rows = stagedBindingsForClasses(client, [SYSTEM_CLASS_UUIDS.book, cls]);
+    const labels = rows.map((row) => row.schema?.name ?? row.binding.name);
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
+    expect(labels).toContain("Status");
+    expect(labels).toContain("Authors");
+    // One row per property schema even when several classes bind it.
+    const ids = rows.map((row) => row.binding.propertySchemaId);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("collectSelfAndAncestors falls back to the static system extends", async () => {
@@ -476,19 +484,24 @@ describe("creators — createClassedObject flush", () => {
   });
 });
 
-describe("QuickCreateModal via the picker create row", () => {
-  it("a book-filtered picker create row opens the class modal and links the result", async () => {
+describe("the picker create row is create-first", () => {
+  it("a book-filtered create row creates the node immediately, links the result, and opens the fields step", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     const added: string[] = [];
     render(
-      <NodeSelector
-        client={client}
-        trigger="inline"
-        searchMode="all"
-        classFilters={[SYSTEM_CLASS_UUIDS.book]}
-        onAdd={(node) => added.push(node.id)}
-      />,
+      <>
+        <NodeSelector
+          client={client}
+          trigger="inline"
+          searchMode="all"
+          classFilters={[SYSTEM_CLASS_UUIDS.book]}
+          onAdd={(node) => added.push(node.id)}
+        />
+        {/* The fields step rides the app-level host (the picker's popup may
+            unmount on the pick — the modal must outlive it). */}
+        <ClassFieldsStepHost client={client} />
+      </>,
     );
 
     // Type a query with no match; the create row answers it.
@@ -496,10 +509,17 @@ describe("QuickCreateModal via the picker create row", () => {
     fireEvent.change(search, { target: { value: "Dune" } });
     fireEvent.click(screen.getByText('Create "Dune"'));
 
-    // The modal opens with the title prefilled (NOT a silent plain create).
+    // Create-first: the pick lands immediately (the query IS the title,
+    // title-is-content) and the fields step opens over the new node — NOT
+    // a silent plain create, NOT a stage-and-wait modal.
+    await waitFor(() => expect(added.length).toBe(1));
+    const created = client.getNode(added[0]!);
+    expect(created?.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
+    expect(deriveDisplayName(created!)).toBe("Dune");
+
     const dialog = await screen.findByRole("dialog", { name: /new book/i });
-    const titleField = within(dialog).getByLabelText("Title") as HTMLInputElement;
-    expect(titleField.value).toBe("Dune");
+    // No title field — the page's own title editor owns the title.
+    expect(within(dialog).queryByLabelText("Title")).toBeNull();
     expect(within(dialog).getByLabelText("Authors")).not.toBeNull();
     expect(within(dialog).getByLabelText("Publication date")).not.toBeNull();
     expect(within(dialog).getByLabelText("DOI")).not.toBeNull();
@@ -512,33 +532,36 @@ describe("QuickCreateModal via the picker create row", () => {
     fireEvent.change(within(dialog).getByLabelText("Publication date"), {
       target: { value: "1965" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
 
-    // The modal creates the node and hands it back through the picker's add
-    // path (inline mode keeps no dialog role — assert the callback).
-    await waitFor(() => expect(added.length).toBe(1));
-    const created = client.getNode(added[0]!);
-    expect(created?.classIds).toContain(SYSTEM_CLASS_UUIDS.book);
-    expect(deriveDisplayName(created!)).toBe("Dune");
-    // The picker's own plain-create path never ran (no plain page with the name).
+    // Save lands the staged fields on the ALREADY-created node.
+    await waitFor(() => {
+      const authors = client
+        .getEffectiveProperties(added[0]!)
+        .filter((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.authors);
+      expect(authors.map((row) => row.value)).toEqual(["Frank Herbert"]);
+    });
+    // Exactly one "Dune" node (the create-first write — no plain-create twin).
     expect(
       client.listPages().filter((page) => deriveDisplayName(page) === "Dune").length,
     ).toBe(1);
   });
 
-  it("cancel leaves ZERO log entries — nothing created, nothing journaled", async () => {
+  it("cancel leaves the created node with its title — only the create journaled", async () => {
     const client = await seedClient();
     await seedFamilies(client);
+    const nodeId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Dune",
+    });
     const pagesBefore = client.listPages().length;
     const depthBefore = client.undoDepth().undo;
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
-        initialName="Dune"
+        nodeId={nodeId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={() => {}}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /new book/i });
@@ -549,51 +572,71 @@ describe("QuickCreateModal via the picker create row", () => {
       target: { value: "1965" },
     });
     fireEvent.click(within(dialog).getByRole("button", { name: /^cancel$/i }));
+    // Create-first: the node EXISTS with its title; the cancelled fields
+    // wrote nothing and journaled nothing.
     expect(client.listPages().length).toBe(pagesBefore);
+    expect(deriveDisplayName(client.getNode(nodeId)!)).toBe("Dune");
+    expect(
+      client.getEffectiveProperties(nodeId).filter((row) => row.source === "authored"),
+    ).toEqual([]);
     expect(client.undoDepth().undo).toBe(depthBefore);
   });
 
-  it("a person-filtered picker opens the person modal — no agent toggle, title seeded", async () => {
+  it("a person-filtered picker creates the person immediately and opens the person fields — no agent toggle", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     render(
-      <NodeSelector
-        client={client}
-        trigger="inline"
-        searchMode="all"
-        classFilters={[SYSTEM_CLASS_UUIDS.person]}
-        onAdd={() => {}}
-      />,
+      <>
+        <NodeSelector
+          client={client}
+          trigger="inline"
+          searchMode="all"
+          classFilters={[SYSTEM_CLASS_UUIDS.person]}
+          onAdd={() => {}}
+        />
+        <ClassFieldsStepHost client={client} />
+      </>,
     );
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Frank Herbert" } });
     fireEvent.click(screen.getByText('Create "Frank Herbert"'));
 
+    // Create-first: the person EXISTS with the query as its title.
+    const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.person);
+    expect(members.length).toBe(1);
+    expect(deriveDisplayName(members[0]!)).toBe("Frank Herbert");
+
     const dialog = await screen.findByRole("dialog", { name: /new person/i });
     // The retired person/organization toggle is gone; the given/family rows
-    // render from the person's bound properties, the typed query seeds the
-    // TITLE (title-is-content — no name splitting).
+    // render from the person's bound properties; NO title field — the page's
+    // own title editor owns the title (no name splitting).
     expect(within(dialog).queryByLabelText("Type")).toBeNull();
-    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("Frank Herbert");
+    expect(within(dialog).queryByLabelText("Title")).toBeNull();
     expect(within(dialog).getByLabelText("Given name")).not.toBeNull();
     expect(within(dialog).getByLabelText("Family name")).not.toBeNull();
   });
 
-  it("a user-class filter opens the modal with that class", async () => {
+  it("a user-class filter creates the node with that class and opens its fields", async () => {
     const client = await seedClient();
     const cls = await client.createClass("project");
     const schema = await client.createPropertySchema({ name: "Status", type: "text" });
     await client.setClassProperty(cls, schema, {});
     render(
-      <NodeSelector
-        client={client}
-        trigger="inline"
-        searchMode="all"
-        classFilters={[cls]}
-        onAdd={() => {}}
-      />,
+      <>
+        <NodeSelector
+          client={client}
+          trigger="inline"
+          searchMode="all"
+          classFilters={[cls]}
+          onAdd={() => {}}
+        />
+        <ClassFieldsStepHost client={client} />
+      </>,
     );
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Fleet revamp" } });
     fireEvent.click(screen.getByText('Create "Fleet revamp"'));
+    const members = client.getClassMembers(cls);
+    expect(members.length).toBe(1);
+    expect(deriveDisplayName(members[0]!)).toBe("Fleet revamp");
     const dialog = await screen.findByRole("dialog", { name: /new project/i });
     expect(within(dialog).getByLabelText("Status")).not.toBeNull();
   });
@@ -743,57 +786,64 @@ describe("QuickCreateModal citation behaviors", () => {
     await client.setFeatureSettings("sources", {
       citekeyPattern: "[auth:lower][year]",
     });
-    let createdId = "";
+    // Create-first: the node exists with its title; the modal lands the fields.
+    const firstId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Dune",
+    });
+    let doneId = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
+        nodeId={firstId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={(id) => {
-          createdId = id;
+        onDone={(id) => {
+          doneId = id;
         }}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /new book/i });
-    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Dune" } });
     fireEvent.change(within(dialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank" },
     });
     fireEvent.change(within(dialog).getByLabelText("Publication date"), {
       target: { value: "1965" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(createdId).not.toBe(""));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(doneId).toBe(firstId));
 
     const citekey = client
-      .getEffectiveProperties(createdId)
+      .getEffectiveProperties(firstId)
       .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
     expect(citekey?.value).toBe("herbert1965");
 
     // A second identical source takes the deterministic collision suffix.
-    let secondId = "";
+    const secondId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Dune",
+    });
+    let secondDone = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
+        nodeId={secondId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={(id) => {
-          secondId = id;
+        onDone={(id) => {
+          secondDone = id;
         }}
       />,
     );
     const secondDialog = await screen.findByRole("dialog", { name: /new book/i });
-    fireEvent.change(within(secondDialog).getByLabelText("Title"), { target: { value: "Dune" } });
     fireEvent.change(within(secondDialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank" },
     });
     fireEvent.change(within(secondDialog).getByLabelText("Publication date"), {
       target: { value: "1965" },
     });
-    fireEvent.click(within(secondDialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(secondId).not.toBe(""));
+    fireEvent.click(within(secondDialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(secondDone).toBe(secondId));
     const secondCitekey = client
       .getEffectiveProperties(secondId)
       .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
@@ -803,20 +853,23 @@ describe("QuickCreateModal citation behaviors", () => {
   it("a manually typed citekey wins over the generation; the feature off suppresses it entirely", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    let createdId = "";
+    const firstId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Dune",
+    });
+    let doneId = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
+        nodeId={firstId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={(id) => {
-          createdId = id;
+        onDone={(id) => {
+          doneId = id;
         }}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /new book/i });
-    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Dune" } });
     fireEvent.change(within(dialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank" },
     });
@@ -824,35 +877,38 @@ describe("QuickCreateModal citation behaviors", () => {
       target: { value: "1965" },
     });
     fireEvent.change(within(dialog).getByLabelText("Citekey"), { target: { value: "my-key" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(createdId).not.toBe(""));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(doneId).toBe(firstId));
     const citekey = client
-      .getEffectiveProperties(createdId)
+      .getEffectiveProperties(firstId)
       .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
     // A manual value overrides the generation.
     expect(citekey?.value).toBe("my-key");
 
     // The Sources feature OFF (the family toggle): no generation at all.
     await client.setFeatureEnabled("sources", false);
-    let secondId = "";
+    const secondId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Dune",
+    });
+    let secondDone = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
+        nodeId={secondId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={(id) => {
-          secondId = id;
+        onDone={(id) => {
+          secondDone = id;
         }}
       />,
     );
     const secondDialog = await screen.findByRole("dialog", { name: /new book/i });
-    fireEvent.change(within(secondDialog).getByLabelText("Title"), { target: { value: "Dune" } });
     fireEvent.change(within(secondDialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank" },
     });
-    fireEvent.click(within(secondDialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(secondId).not.toBe(""));
+    fireEvent.click(within(secondDialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(secondDone).toBe(secondId));
     const secondCitekey = client
       .getEffectiveProperties(secondId)
       .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
@@ -862,27 +918,30 @@ describe("QuickCreateModal citation behaviors", () => {
   it("splits the authors input on ';' — each entry is one plain text element", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    let createdId = "";
+    const nodeId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Dune",
+    });
+    let doneId = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
+        nodeId={nodeId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={(id) => {
-          createdId = id;
+        onDone={(id) => {
+          doneId = id;
         }}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /new book/i });
-    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Dune" } });
     fireEvent.change(within(dialog).getByLabelText("Authors"), {
       target: { value: "Herbert, Frank; Lovelace, Ada" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(createdId).not.toBe(""));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(doneId).toBe(nodeId));
     const authors = client
-      .getEffectiveProperties(createdId)
+      .getEffectiveProperties(nodeId)
       .filter((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.authors);
     expect(authors.map((row) => row.value)).toEqual(["Herbert, Frank", "Lovelace, Ada"]);
     expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.person).length).toBe(0);
@@ -893,30 +952,33 @@ describe("QuickCreateModal citation behaviors", () => {
     await seedFamilies(client);
     // A [year]-only pattern with no year renders EMPTY — nothing is written.
     await client.setFeatureSettings("sources", { citekeyPattern: "[year]" });
-    let createdId = "";
+    const nodeId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Undated",
+    });
+    let doneId = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
+        nodeId={nodeId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={(id) => {
-          createdId = id;
+        onDone={(id) => {
+          doneId = id;
         }}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /new book/i });
-    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Undated" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(createdId).not.toBe(""));
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(doneId).toBe(nodeId));
     const citekeyRows = client
-      .getEffectiveProperties(createdId)
+      .getEffectiveProperties(nodeId)
       .filter((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.citekey);
     // No AUTHORED citekey row — a default/bound virtual row may read empty.
     expect(citekeyRows.every((row) => row.source !== "authored")).toBe(true);
   });
 
-  it("warns 'Already in your library' on a duplicate DOI but still creates on override", async () => {
+  it("warns 'Already in your library' on a duplicate DOI but still saves on override", async () => {
     const client = await seedClient();
     await seedFamilies(client);
     await createClassedObject(client, {
@@ -928,12 +990,18 @@ describe("QuickCreateModal citation behaviors", () => {
     });
 
     const opened: string[] = [];
-    let createdId = "";
+    // Create-first: the node exists before the form opens; Save lands the
+    // staged fields on it (no second create).
+    const nodeId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.journal_article], {
+      title: "Duplicate import",
+    });
+    let doneId = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.journal_article}
+        nodeId={nodeId}
+        classIds={[SYSTEM_CLASS_UUIDS.journal_article]}
         prefill={{
           title: "Duplicate import",
           values: {
@@ -942,8 +1010,8 @@ describe("QuickCreateModal citation behaviors", () => {
           },
         }}
         onClose={() => {}}
-        onCreated={(id) => {
-          createdId = id;
+        onDone={(id) => {
+          doneId = id;
         }}
         onOpenExisting={(id) => opened.push(id)}
       />,
@@ -954,12 +1022,17 @@ describe("QuickCreateModal citation behaviors", () => {
     fireEvent.click(existingLink);
     expect(opened.length).toBe(1);
 
-    // The explicit override: Create still works.
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(createdId).not.toBe(""));
-    expect(createdId).not.toBe(opened[0]);
+    // The explicit override: Save still works — on the SAME node.
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(doneId).toBe(nodeId));
+    expect(nodeId).not.toBe(opened[0]);
     const sources = client.getClassMembers(SYSTEM_CLASS_UUIDS.source);
     expect(sources.length).toBe(2);
+    // The staged DOI landed on the node.
+    const doi = client
+      .getEffectiveProperties(nodeId)
+      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.doi);
+    expect(doi?.value).toBe("10.1000/xyz");
   });
 
   it("warns on an exact title match (same class) with the open-existing affordance; a near-match does not", async () => {
@@ -970,26 +1043,30 @@ describe("QuickCreateModal citation behaviors", () => {
       classId: SYSTEM_CLASS_UUIDS.book,
       values: [],
     });
+    // The create-first node carries the same title — the check excludes it.
+    const nodeId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "  Dune  ",
+    });
 
     const opened: string[] = [];
-    let createdId = "";
-    render(
+    // A fresh element per rerender: React skips a commit when the root
+    // element is referentially identical.
+    const renderModal = () => (
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
+        nodeId={nodeId}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={(id) => {
-          createdId = id;
-        }}
+        onDone={() => {}}
         onOpenExisting={(id) => opened.push(id)}
-      />,
+      />
     );
+    const { rerender } = render(renderModal());
     const dialog = await screen.findByRole("dialog", { name: /new book/i });
 
-    // The exact title (whitespace tolerated) warns — live, as the title
-    // changes — and offers the existing node.
-    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "  Dune  " } });
+    // The exact title warns — the node's OWN title is what the page editor
+    // holds (trim-only compare) — and offers the OTHER member, never itself.
     expect(
       within(dialog).getByText(/titled "Dune" already exists/i),
     ).not.toBeNull();
@@ -997,16 +1074,20 @@ describe("QuickCreateModal citation behaviors", () => {
     expect(opened).toEqual([existingId]);
 
     // A near-match (case differs — the compare is exact) does NOT warn, and
-    // Create proceeds.
-    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "dune" } });
-    expect(within(dialog).queryByText(/already exists/i)).toBeNull();
-    fireEvent.change(within(dialog).getByLabelText("Title"), {
-      target: { value: "Dune Messiah" },
-    });
-    expect(within(dialog).queryByText(/already exists/i)).toBeNull();
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(createdId).not.toBe(""));
-    expect(createdId).not.toBe(existingId);
+    // Save proceeds. The title lives on the node: rename it to re-check.
+    // The modal reads the title at render — rerender after the store write
+    // (in the app the client subscription drives the same re-render).
+    await client.updateObject(nodeId, { contentAst: [{ type: "text", text: "dune" }] });
+    rerender(renderModal());
+    await waitFor(() =>
+      expect(within(dialog).queryByText(/already exists/i)).toBeNull(),
+    );
+    await client.updateObject(nodeId, { contentAst: [{ type: "text", text: "Dune Messiah" }] });
+    rerender(renderModal());
+    await waitFor(() =>
+      expect(within(dialog).queryByText(/already exists/i)).toBeNull(),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
   });
 
   it("warns on a duplicate ISBN and on a duplicate CITEKEY", async () => {
@@ -1022,14 +1103,17 @@ describe("QuickCreateModal citation behaviors", () => {
     });
 
     // Duplicate ISBN (digit-normalized compare).
+    const isbnNode = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "Another copy",
+    });
     const { unmount: unmountIsbn } = render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
-        initialName="Another copy"
+        nodeId={isbnNode}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={() => {}}
+        onDone={() => {}}
       />,
     );
     const isbnDialog = await screen.findByRole("dialog", { name: /new book/i });
@@ -1041,14 +1125,17 @@ describe("QuickCreateModal citation behaviors", () => {
 
     // Duplicate citekey (case-insensitive compare) on a manual value — the
     // auto-generator would have suffixed, so the warning is the typed key's.
+    const citekeyNode = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.book], {
+      title: "A different edition",
+    });
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.book}
-        initialName="A different edition"
+        nodeId={citekeyNode}
+        classIds={[SYSTEM_CLASS_UUIDS.book]}
         onClose={() => {}}
-        onCreated={() => {}}
+        onDone={() => {}}
       />,
     );
     const citekeyDialog = await screen.findByRole("dialog", { name: /new book/i });
@@ -1058,17 +1145,23 @@ describe("QuickCreateModal citation behaviors", () => {
     expect(within(citekeyDialog).getByText(/already in your library/i)).not.toBeNull();
   });
 
-  it("prefills from a resolver record and auto-enables an archived class in the same batch", async () => {
+  it("prefills from a resolver record and auto-enables an archived class at the create site", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    // Archive the journal_article type-class before the resolver-created prefill.
+    // Archive the journal_article type-class BEFORE the create — the
+    // create-first write re-enables it (the un-archive contract moved here).
     await client.setArchived(SYSTEM_CLASS_UUIDS.journal_article, false);
-    let createdId = "";
+    const nodeId = await createNodeWithClasses(client, [SYSTEM_CLASS_UUIDS.journal_article], {
+      title: "Resolved paper",
+    });
+    expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.journal_article)?.isActive).toBe(true);
+    let doneId = "";
     render(
       <QuickCreateModal
         isOpen
         client={client}
-        classId={SYSTEM_CLASS_UUIDS.journal_article}
+        nodeId={nodeId}
+        classIds={[SYSTEM_CLASS_UUIDS.journal_article]}
         prefill={{
           title: "Resolved paper",
           values: {
@@ -1080,15 +1173,16 @@ describe("QuickCreateModal citation behaviors", () => {
           },
         }}
         onClose={() => {}}
-        onCreated={(id) => {
-          createdId = id;
+        onDone={(id) => {
+          doneId = id;
         }}
       />,
     );
     const dialog = await screen.findByRole("dialog", { name: /new journal_article/i });
     // The prefill's venue fields render as staged rows (synthesized off the
-    // prefill on a fresh workspace) and carry the seeded values.
-    expect((within(dialog).getByLabelText("Title") as HTMLInputElement).value).toBe("Resolved paper");
+    // prefill on a fresh workspace) and carry the seeded values. No title
+    // field — the node already carries the resolved title.
+    expect(within(dialog).queryByLabelText("Title")).toBeNull();
     expect((within(dialog).getByLabelText("Authors") as HTMLInputElement).value).toBe(
       "Lovelace, Ada; Turing, Alan",
     );
@@ -1097,19 +1191,18 @@ describe("QuickCreateModal citation behaviors", () => {
     );
     expect((within(dialog).getByLabelText("Volume") as HTMLInputElement).value).toBe("7");
 
-    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
-    await waitFor(() => expect(createdId).not.toBe(""));
-    expect(client.getNodeRaw(SYSTEM_CLASS_UUIDS.journal_article)?.isActive).toBe(true);
-    const node = client.getNode(createdId);
+    fireEvent.click(within(dialog).getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(doneId).toBe(nodeId));
+    const node = client.getNode(nodeId);
     expect(node?.classIds).toContain(SYSTEM_CLASS_UUIDS.journal_article);
     const authors = client
-      .getEffectiveProperties(createdId)
+      .getEffectiveProperties(nodeId)
       .filter((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.authors);
     expect(authors.map((row) => row.value)).toEqual(["Lovelace, Ada", "Turing, Alan"]);
     // The venue values flushed too (the flush-time self-heal authored the
     // schemas + class-local bindings before the property writes).
     const venue = client
-      .getEffectiveProperties(createdId)
+      .getEffectiveProperties(nodeId)
       .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.publicationTitle);
     expect(venue?.value).toBe("The Example Journal");
   });
