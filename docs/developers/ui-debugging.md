@@ -185,3 +185,27 @@ at a workspace with data in it, and the throwaway pair has none).
   serializers over content-stream spelunking.
 - **Reading an exported PDF back**: `pdftotext` if available, else inflate
   the streams as above; text in subsetted fonts may be hex-encoded per-run.
+- **"It flashes and reverts" — the auto-unset pass vs. an editor hand-off
+  (2026-11-20, the text-property ghost realize).** `TextPropertyRow`'s pass
+  reaps contentless carrier values whenever focus is outside the row; a
+  realize click mints an EMPTY carrier and opens the block editor via a
+  programmatic content click, and in a real browser the caret is nowhere in
+  the row until the editor mounts (the focused ghost button unmounted; a
+  click on a plain `div` focuses nothing) — so the pass reaped the fresh
+  carrier in the mint's own flush. The test suite was GREEN through all of
+  it: under vitest's `act()` interleaving the ghost button can still be
+  mounted and focused at the critical pass, which the browser never does.
+  Diagnosis recipe: instrument `cleanupEmptyValues` with a console probe
+  (rowHasFocus / activeElement / live authored rows), then write the
+  browser-case spec — a SUBSCRIBING host (the row renders values from the
+  host's `rows` prop; a non-subscribing host never shows the just-minted
+  carrier) with the caret parked on an outside button BEFORE the click — and
+  confirm it fails pre-fix. The fix's shape (freshCarriers map, pass effect
+  BEFORE the hand-off effect, reap only after initiation) and the three
+  dead-ends (a `.nt-block--editing` DOM guard — parent effects never run on
+  child-only editing commits and the class is still present at the blur
+  pass; dropping the mark when the click dispatches — the same flush's pass
+  then reaps before the editing commit lands focus; reaping an unrendered
+  mint without a focus check — breaks the trailing-ghost focus contract) are
+  pinned by the four ghost-hand-off specs in
+  `apps/web/test/text-property-blocks.test.tsx`.

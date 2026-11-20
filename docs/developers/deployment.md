@@ -334,6 +334,22 @@ ships at `scripts/screenshots/`), run against the live stack,
 with `NOTEES_ADMIN_EMAIL`/`NOTEES_ADMIN_PASSWORD` (`NOTEES_ADMIN_PASSWORD`, or
 `.admin_password` inside the stack's `config/` on a split host; `config/notees/.admin_password` on a repo-root deployment).
 
+**The dev pair on a development box is not verify-min-shaped.** The
+dev-variant stack (`compose.dev.example.yaml`: ports 8379/8380, data under
+`config/notees-dev/`) carries no admin password and no `.admin_password`
+file, and the smoke's password read is unconditional — so verify-min runs
+against the production-shaped stack only. Against the dev pair, verify with
+what exists: both containers' healthchecks, `GET /healthz` on the sync port,
+the authenticated canary (`GET /api/workspaces` with the operator key from
+the dev data dir's `api_key.txt` — a file pointer, never printed), and the
+web root + its referenced JS bundle. To run the smoke shape anyway, point
+`NOTEES_API`/`NOTEES_WEB` at the dev ports and `NOTEES_API_KEY_FILE` at the
+dev data dir's key. When a parallel session rebuilt the stack before you
+could, prove your commit is in the running image without a rebuild:
+`docker image inspect notees-web:dev --format '{{.Created}}'` against the
+commit timestamps, plus `git merge-base --is-ancestor <your-commit> <built-HEAD>` —
+an image built from a HEAD that has your commit as an ancestor contains it.
+
 Headless UI probes (playwright; the screenshot tooling in
 `scripts/screenshots/`): sign in through the bootstrap's **API-key tab** with
 the operator key when the admin password is not at hand, and never
