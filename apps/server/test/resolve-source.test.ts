@@ -147,16 +147,134 @@ describe("GET /api/resolve — metadata branch", () => {
     expect(res.json().pdf).toBeUndefined();
   });
 
-  it("a provider 404 answers 404 not_found", async () => {
+  it("a DOI unknown to Crossref AND doi.org answers 404 not_found", async () => {
     server = await makeTestServer();
-    stubFetch({
+    const fetchMock = stubFetch({
       "https://api.crossref.org/works/": () =>
         new Response("not found", { status: 404 }),
+      // Crossref's 404 delegates to doi.org content negotiation — an
+      // unknown DOI 404s there too.
+      "https://doi.org/": () => new Response("not found", { status: 404 }),
     });
 
     const res = await api("GET", "/api/resolve?doi=10.9999/nothing");
     expect(res.statusCode).toBe(404);
     expect(res.json().error.code).toBe("not_found");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]![0]).toBe("https://api.crossref.org/works/10.9999%2Fnothing");
+    expect(fetchMock.mock.calls[1]![0]).toBe("https://doi.org/10.9999%2Fnothing");
+  });
+
+  it("a Crossref 404 falls back to doi.org content negotiation (mEDRA journal article)", async () => {
+    server = await makeTestServer();
+    const fetchMock = stubFetch({
+      // The mEDRA case: a VALID doi.org DOI Crossref has never heard of.
+      "https://api.crossref.org/works/": () => new Response("not found", { status: 404 }),
+      "https://doi.org/": (_url, init) => {
+        expect(init?.headers).toMatchObject({ Accept: "application/vnd.citationstyles.csl+json" });
+        return jsonResponse({
+          type: "article-journal",
+          title: "The Fallback Article",
+          author: [
+            { family: "Almarghlani", given: "A." },
+            { family: "Kutbi", given: "A." },
+          ],
+          "container-title": "European Review for Medical and Pharmacological Sciences",
+          volume: "30",
+          issue: "2",
+          page: "53-61",
+          // CSL joins multiple ISSNs into ONE comma-joined string.
+          ISSN: "1128-3602, 2284-0729",
+          DOI: "10.26355/eurrev_202602_37687",
+          URL: "https://doi.org/10.26355/eurrev_202602_37687",
+          issued: { "date-parts": [[2026, 2]] },
+          publisher: "Verduci Editore s.r.l.",
+          "publisher-place": "IT",
+        });
+      },
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
+    });
+
+    const res = await api("GET", "/api/resolve?doi=10.26355/eurrev_202602_37687");
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      classKey: "journal_article",
+      title: "The Fallback Article",
+      authors: ["Almarghlani, A.", "Kutbi, A."],
+      editors: [],
+      fields: {
+        // The comma-joined CSL ISSN string splits to ONE value.
+        issn: "1128-3602",
+        issue: "2",
+        pages: "53-61",
+        // CSL publisher-place → the class's place binding.
+        place: "IT",
+        publicationTitle: "European Review for Medical and Pharmacological Sciences",
+        volume: "30",
+      },
+      doi: "10.26355/eurrev_202602_37687",
+      url: "https://doi.org/10.26355/eurrev_202602_37687",
+      year: 2026,
+      publisher: "Verduci Editore s.r.l.",
+    });
+    // Crossref → doi.org → Unpaywall, in that order.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("a CSL book maps to the book class (fallback type bridge)", async () => {
+    server = await makeTestServer();
+    stubFetch({
+      "https://api.crossref.org/works/": () => new Response("not found", { status: 404 }),
+      "https://doi.org/": () =>
+        jsonResponse({
+          type: "book",
+          title: "The Fallback Book",
+          author: [{ family: "Curie", given: "Marie" }],
+          issued: { "date-parts": [[1903]] },
+          publisher: "Fallback Press",
+        }),
+    });
+
+    const res = await api("GET", "/api/resolve?doi=10.9999/fallback-book");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().classKey).toBe("book");
+  });
+
+  it("a fallback provider failure answers 502 resolver_unavailable (Crossref's 404 already delegated)", async () => {
+    server = await makeTestServer();
+    stubFetch({
+      "https://api.crossref.org/works/": () => new Response("not found", { status: 404 }),
+      "https://doi.org/": () => new Response("boom", { status: 500 }),
+    });
+
+    const res = await api("GET", "/api/resolve?doi=10.26355/eurrev_202602_37687");
+    expect(res.statusCode).toBe(502);
+    expect(res.json().error.code).toBe("resolver_unavailable");
+  });
+
+  it("a fallback-resolved record caches like any other (no second fetch)", async () => {
+    server = await makeTestServer();
+    const fetchMock = stubFetch({
+      "https://api.crossref.org/works/": () => new Response("not found", { status: 404 }),
+      "https://doi.org/": () =>
+        jsonResponse({
+          type: "article-journal",
+          title: "The Fallback Article",
+          author: [{ family: "Almarghlani", given: "A." }],
+          DOI: "10.26355/eurrev_202602_37687",
+          issued: { "date-parts": [[2026, 2]] },
+        }),
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
+    });
+
+    const first = await api("GET", "/api/resolve?doi=10.26355/eurrev_202602_37687");
+    const second = await api("GET", "/api/resolve?doi=10.26355/eurrev_202602_37687");
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(second.json()).toEqual(first.json());
+    // Three fetches for the first resolve (Crossref 404 + doi.org +
+    // Unpaywall), ZERO more for the cached second.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("a provider 500 answers 502 resolver_unavailable", async () => {

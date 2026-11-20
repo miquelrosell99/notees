@@ -23,6 +23,12 @@
  * providers then see only the extracted DOI, never the URL or the bytes.
  *
  *  - Crossref    https://api.crossref.org/works/{doi}          (DOI)
+ *  - doi.org CN  https://doi.org/{doi} (Accept: CSL JSON)       (DOI
+ *                fallback — Crossref answers 404 for DOIs registered
+ *                with OTHER registration agencies: mEDRA, and any RA
+ *                that serves the CSL content negotiation; only ever
+ *                asked after a Crossref 404, and then ONLY about the
+ *                queried DOI — same egress contract as Crossref)
  *  - OpenLibrary https://openlibrary.org/isbn/{isbn}.json      (ISBN)
  *  - arXiv       http://export.arxiv.org/api/query?id_list={id} (arXiv id)
  *  - PubMed      https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi
@@ -113,6 +119,15 @@ export interface SourceMetadataRecord {
 export const RESOLVE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const CROSSREF_WORKS = "https://api.crossref.org/works";
+/**
+ * The DOI fallback endpoint: doi.org CONTENT NEGOTIATION (one GET, the
+ * Accept header asking for CSL JSON) — the RA-agnostic lookup for DOIs
+ * Crossref has never heard of (mEDRA-registered journals, other agencies).
+ * A DOI resolving here redirects to the registering agency's metadata
+ * service (e.g. data.medra.org) and answers CSL JSON; unknown DOIs 404.
+ */
+const DOI_CONTENT_NEGOTIATION = "https://doi.org";
+const CSL_JSON_ACCEPT = "application/vnd.citationstyles.csl+json";
 const OPENLIBRARY_ISBN = "https://openlibrary.org/isbn";
 const ARXIV_API = "http://export.arxiv.org/api/query";
 
@@ -202,11 +217,15 @@ export function normalizeIdentifier(kind: IdentifierKind, raw: string): string {
  * resolver_unavailable on timeout/network failure; the CALLER maps the
  * response status (404 → not resolved, other errors → 502).
  */
-async function fetchProvider(url: string, timeoutMs: number): Promise<Response> {
+async function fetchProvider(
+  url: string,
+  timeoutMs: number,
+  headers: Record<string, string> = {},
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, { signal: controller.signal, headers });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new AppError(502, "resolver_unavailable", `metadata provider timed out (${url})`);
@@ -365,15 +384,23 @@ function crossrefContributors(value: unknown): string[] {
   return names;
 }
 
+/**
+ * The DOI provider chain: Crossref FIRST (the rich, primary index), and
+ * on its 404 — the DOI is registered with a DIFFERENT registration agency
+ * — doi.org content negotiation (CSL JSON), which proxies to the DOI's own
+ * agency (mEDRA's data.medra.org, and any RA serving the negotiation).
+ * Crossref provider ERRORS stay loud 502s; only its 404 delegates.
+ */
 async function resolveDoi(
   doi: string,
   timeoutMs: number,
 ): Promise<SourceMetadataRecord | null> {
+  const normalized = normalizeIdentifier("doi", doi);
   const res = await fetchProvider(
-    `${CROSSREF_WORKS}/${encodeURIComponent(normalizeIdentifier("doi", doi))}`,
+    `${CROSSREF_WORKS}/${encodeURIComponent(normalized)}`,
     timeoutMs,
   );
-  if (res.status === 404) return null;
+  if (res.status === 404) return resolveDoiViaContentNegotiation(normalized, timeoutMs);
   if (!res.ok) throw providerError("Crossref", res.status);
   let body: { message?: Record<string, unknown> };
   try {
@@ -404,7 +431,106 @@ async function resolveDoi(
       issn: firstString(work.ISSN),
       place: str(work["publisher-location"]),
     },
-    doi: str(work.DOI) ?? normalizeIdentifier("doi", doi),
+    doi: str(work.DOI) ?? normalized,
+    url: str(work.URL),
+    year: yearFromDateParts(work.issued),
+    publisher: str(work.publisher),
+  });
+}
+
+// --- doi.org content negotiation (the Crossref-404 DOI fallback) ------------------
+
+/**
+ * CSL type → Zotero citable type (CSL names, not Crossref's: article-journal
+ * not journal-article). manuscript is the CSL preprint shape. Anything
+ * unmapped falls to document, the same default the Crossref arm uses.
+ */
+const CSL_TYPE_TO_ZOTERO: Record<string, ZoteroItemType> = {
+  "article-journal": "journalArticle",
+  chapter: "bookSection",
+  book: "book",
+  "paper-conference": "conferencePaper",
+  report: "report",
+  thesis: "thesis",
+  "article-magazine": "magazineArticle",
+  "article-newspaper": "newspaperArticle",
+  "entry-encyclopedia": "encyclopediaArticle",
+  "entry-dictionary": "dictionaryEntry",
+  manuscript: "preprint",
+};
+
+interface CslRecord {
+  type?: unknown;
+  title?: unknown;
+  author?: unknown;
+  editor?: unknown;
+  "container-title"?: unknown;
+  volume?: unknown;
+  issue?: unknown;
+  page?: unknown;
+  ISSN?: unknown;
+  DOI?: unknown;
+  URL?: unknown;
+  issued?: unknown;
+  publisher?: unknown;
+  "publisher-place"?: unknown;
+}
+
+/** CSL venue/title fields are bare strings at doi.org but arrays from some RAs. */
+function stringOrFirst(value: unknown): string | undefined {
+  return str(value) ?? firstString(value);
+}
+
+/**
+ * The Crossref-404 fallback: ONE doi.org GET asking for CSL JSON. doi.org
+ * redirects to the registering agency's own metadata endpoint (the Accept
+ * header rides the redirect) — the server talks only to doi.org and the
+ * agency's data host, about the DOI alone. A 404 here means the DOI exists
+ * nowhere any agency serves → null (404 not_found downstream); any other
+ * failure answers 502, never a half-record. The CSL JSON field names match
+ * Crossref's closely enough to share the year/contributor helpers.
+ */
+async function resolveDoiViaContentNegotiation(
+  normalized: string,
+  timeoutMs: number,
+): Promise<SourceMetadataRecord | null> {
+  const res = await fetchProvider(
+    `${DOI_CONTENT_NEGOTIATION}/${encodeURIComponent(normalized)}`,
+    timeoutMs,
+    { Accept: CSL_JSON_ACCEPT },
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw providerError("doi.org", res.status);
+  let work: CslRecord;
+  try {
+    work = (await res.json()) as CslRecord;
+  } catch {
+    throw new AppError(502, "resolver_unavailable", "doi.org returned an unparsable payload");
+  }
+  const typeName = str(work.type);
+  const zoteroType: ZoteroItemType =
+    (typeName !== undefined ? CSL_TYPE_TO_ZOTERO[typeName] : undefined) ?? "document";
+  const title = stringOrFirst(work.title);
+  if (title === undefined) {
+    throw new AppError(502, "resolver_unavailable", "doi.org record carried no title");
+  }
+  // CSL joins multiple ISSNs into ONE comma-joined string — the unified
+  // record carries ONE issn value (the Crossref first-element precedent).
+  const issn = stringOrFirst(work.ISSN);
+  return buildRecord({
+    classKey: ZOTERO_ITEM_TYPE_TO_CLASS[zoteroType],
+    title: collapseWhitespace(title),
+    authors: crossrefContributors(work.author),
+    editors: crossrefContributors(work.editor),
+    candidates: {
+      publicationTitle: stringOrFirst(work["container-title"]),
+      volume: str(work.volume),
+      issue: str(work.issue),
+      pages: str(work.page),
+      issn: issn === undefined ? undefined : issn.split(",")[0]!.trim(),
+      place: str(work["publisher-place"]),
+    },
+    doi: str(work.DOI) ?? normalized,
     url: str(work.URL),
     year: yearFromDateParts(work.issued),
     publisher: str(work.publisher),
