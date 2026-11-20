@@ -51,7 +51,11 @@
  * or a dead cell. The pass runs on every store-synced render and when focus
  * leaves the row; a carrier is skipped while focus is inside the row (an
  * Add/Enter just minted an empty value the user may be about to type into)
- * — and unsetting trashes the carrier — "Unset deletes the carrier".
+ * and while it is a row-minted carrier whose editor hand-off has not even
+ * been initiated yet (the realize click's caret lands only when the editor
+ * mounts — reaping it first snaps the cell back to the ghost, the
+ * flash-of-editor bug) — and unsetting trashes the carrier — "Unset deletes
+ * the carrier".
  *
  * Assigned-empty rows: the row renders the same ghost row as a
  * bound-but-empty row; the realize click mints the carrier block and
@@ -350,22 +354,24 @@ export function TextPropertyRow({
 
   const rootRef = useRef<HTMLLIElement | null>(null);
   /**
-   * The carrier a scalar-string edit just minted: once it mounts in the
-   * locked collection its content is clicked to open the block editor (the
-   * TextCell autoEdit precedent — the collection rows take no autoEdit prop,
-   * so the DOM click is the opener). Cleared after the click; the effect
-   * retries on later renders while the carrier has not mounted yet.
+   * Carriers this row minted whose editor hand-off is still in flight. The
+   * realize click mints an EMPTY carrier and opens the block editor on it —
+   * but between the mint's store commit and the editor's mount the caret
+   * lives nowhere in the row: the ghost button that held focus unmounted
+   * (focus falls to the body), and the programmatic content click focuses
+   * nothing (a plain div in a real browser). The focus guard alone cannot
+   * protect the fresh value through that window — the auto-unset pass would
+   * reap the carrier in the very flush that minted it, snapping the cell
+   * back to the ghost (the flash-of-editor bug). The map records each
+   * row-minted carrier and whether its editor hand-off has been INITIATED
+   * (the fresh-carrier click dispatched): a contentless carrier is skipped
+   * while its hand-off is not yet initiated. Once initiated, the normal
+   * rules apply — the editor's mount lands the caret inside the row (the
+   * focus guard covers the typing session), and leaving the row empty
+   * reclaims the slot as always. The entry drops the moment the carrier
+   * gains content or children (or is unset).
    */
-  const [freshCarrierId, setFreshCarrierId] = useState<string | null>(null);
-  useEffect(() => {
-    if (freshCarrierId === null) return;
-    const content = rootRef.current?.querySelector<HTMLElement>(
-      `[data-block-id="${freshCarrierId}"] .nt-block-content`,
-    );
-    if (content === null || content === undefined) return;
-    setFreshCarrierId(null);
-    content.click();
-  });
+  const freshCarriersRef = useRef(new Map<string, boolean>());
   /** Fallback cells (dead) by `${schema}:${idx}` — the pass skips a
    *  cell while IT holds the caret (its writes commit on blur). */
   const fallbackInputsRef = useRef(new Map<string, HTMLInputElement>());
@@ -424,9 +430,22 @@ export function TextPropertyRow({
         if (node === undefined) continue;
         const contentless =
           plainTextExcerpt(node.contentAst).trim() === "" && client.getChildren(state.id).length === 0;
-        if (!contentless) continue;
+        if (!contentless) {
+          // The carrier gained content or children — the mint hand-off no
+          // longer needs the fresh-carrier protection.
+          freshCarriersRef.current.delete(state.id);
+          continue;
+        }
         if (rowHasFocus) continue;
+        // A carrier this row JUST minted whose editor hand-off has not even
+        // been initiated is mid-realize — reaping it would eat the value the
+        // realize click is still delivering (and snap the cell back to the
+        // ghost). Once the hand-off click dispatched, leaving the row empty
+        // reclaims the slot through the normal rule below.
+        const handOff = freshCarriersRef.current.get(state.id);
+        if (handOff === false) continue;
         void client.unsetProperty(nodeId, propertySchemaId, row.idx);
+        freshCarriersRef.current.delete(state.id);
         continue;
       }
       if (fallbackInputsRef.current.get(`${propertySchemaId}:${row.idx}`) === document.activeElement) {
@@ -462,21 +481,65 @@ export function TextPropertyRow({
     if (!readOnly) cleanupEmptyValues();
   });
 
-  const addValue = async (): Promise<void> => {
-    setAddError(null);
-    try {
-      const carrier = await client.createObject({
-        parentId: nodeId,
-        contentAst: [{ type: "text", text: "" }],
-      });
-      await client.setProperty(nodeId, propertySchemaId, { nodeId: carrier }, nextIdx, manualEditMetadata);
-      // The realize hand-off (the ghost contract): the fresh-carrier effect
-      // opens the block editor on the minted value, like Enter/Add today.
-      setFreshCarrierId(carrier);
-    } catch (error) {
-      setAddError(error instanceof Error ? error.message : String(error));
+  /**
+   * The carrier a ghost/scalar realize just minted: once it mounts in the
+   * locked collection its content is clicked to open the block editor (the
+   * TextCell autoEdit precedent — the collection rows take no autoEdit prop,
+   * so the DOM click is the opener). Cleared after the click; the effect
+   * retries on later renders while the carrier has not mounted yet.
+   *
+   * Declared AFTER the auto-unset pass effect on purpose: in the realize
+   * commit's flush the pass runs FIRST, while the hand-off is still
+   * uninitiated (the freshCarriers map says false — the pass must not reap
+   * the value the click below is about to deliver); this effect then marks
+   * the hand-off initiated and dispatches the click. The editing commit
+   * that follows mounts the editor and lands the caret inside the row (its
+   * child effects run before the row's pass in that flush), so from then on
+   * the pass sees focus in the row and the initiated carrier answers to the
+   * normal rules — leaving it empty reclaims the slot.
+   */
+  const [freshCarrierId, setFreshCarrierId] = useState<string | null>(null);
+  useEffect(() => {
+    if (freshCarrierId === null) return;
+    const content = rootRef.current?.querySelector<HTMLElement>(
+      `[data-block-id="${freshCarrierId}"] .nt-block-content`,
+    );
+    // The hand-off is ATTEMPTED either way: from here on the fresh carrier
+    // answers to the normal auto-unset rules — the focus guard covers an
+    // in-row caret, and leaving the row reclaims an empty value.
+    freshCarriersRef.current.set(freshCarrierId, true);
+    if (content === null || content === undefined) {
+      // The row isn't rendering the carrier (a stale host snapshot renders
+      // rows from old props): while the row holds focus the user may still
+      // be mid-realize — keep retrying on later renders. With the caret
+      // already outside the row, an empty mint is abandoned — reclaim it
+      // now (the pass may never run again in this host); a CONTENTFUL
+      // carrier (the scalar mint) keeps retrying and reaps through the
+      // pass like any value.
+      if (rootRef.current?.contains(document.activeElement) === true) return;
+      const node = client.getNode(freshCarrierId);
+      if (node === undefined) return;
+      const contentless =
+        plainTextExcerpt(node.contentAst).trim() === "" &&
+        client.getChildren(freshCarrierId).length === 0;
+      if (!contentless) return;
+      const row = client
+        .getEffectiveProperties(nodeId)
+        .filter(
+          (r) => r.propertySchemaId === propertySchemaId && r.source === "authored",
+        )
+        .find((r) => {
+          const s = carrierStateOf(client, r.value);
+          return s.kind === "carrier" && s.id === freshCarrierId;
+        });
+      if (row !== undefined) void client.unsetProperty(nodeId, propertySchemaId, row.idx);
+      return;
     }
-  };
+    setFreshCarrierId(null);
+    content.click();
+  });
+
+  const addValue = (): Promise<string | null> => mintCarrierFor("", nextIdx);
 
   /**
    * Mint-on-edit for a legacy scalar string: the established create-carrier
@@ -498,6 +561,13 @@ export function TextPropertyRow({
         contentAst: [{ type: "text", text }],
       });
       await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, idx, manualEditMetadata);
+      // The realize hand-off (the ghost contract): the fresh-carrier effect
+      // opens the block editor on the minted value, like Enter/Add today.
+      // The freshCarriers entry (hand-off not yet initiated) covers the
+      // still-empty carrier until that hand-off's click dispatches — the
+      // auto-unset pass must not reap the value while the editor is mounting
+      // (the caret is nowhere in the row yet).
+      freshCarriersRef.current.set(carrierId, false);
       if (opts.editor !== false) setFreshCarrierId(carrierId);
       return carrierId;
     } catch (error) {

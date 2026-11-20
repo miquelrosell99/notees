@@ -395,6 +395,158 @@ describe("auto-unset of contentless text values", () => {
   });
 });
 
+describe("the ghost realize hand-off (the browser focus reality)", () => {
+  /** The real PageView/NodeView hosts subscribe and re-render the panel on
+   *  store changes — the carrier mounts in the same commit that authors the
+   *  value, which is what makes the editor hand-off possible at all. */
+  function subscribingHost(client: WorkspaceClient, nodeId: string) {
+    function SubscribingHost() {
+      const [, bump] = useState(0);
+      useEffect(() => client.subscribe(() => bump((v) => v + 1)), [client]);
+      return <PropertiesTable client={client} nodeId={nodeId} />;
+    }
+    return SubscribingHost;
+  }
+
+  it("realizing the empty-cell ghost keeps the minted carrier even with the caret outside the row", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "DOI", type: "text" });
+    await client.assignProperty(pageId, schemaId);
+
+    const Host = subscribingHost(client, pageId);
+    const { container } = render(<Host />);
+
+    // Park the caret OUTSIDE the row — a real browser hands focus to the
+    // ghost button on click but the mint unmounts it (the caret falls to the
+    // body); jsdom skips the click-focus entirely, arriving at the same
+    // state. The auto-unset pass must not reap the freshly minted carrier
+    // while its editor hand-off is still in flight — the flash-of-editor
+    // bug snapped the cell back to the ghost here.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    act(() => {
+      outside.focus();
+    });
+
+    const realize = container.querySelector<HTMLButtonElement>(
+      ".nt-property-textcell .nt-ghost-row__add",
+    )!;
+    fireEvent.click(realize);
+    await flushWrites();
+    await flushWrites();
+
+    // The value survives the hand-off…
+    const rows = authoredTextRows(client, pageId, schemaId);
+    expect(rows).toHaveLength(1);
+    const carrier = (rows[0]!.value as { nodeId: string }).nodeId;
+    // …the new BLOCK renders as the property value in the cell…
+    expect(
+      container.querySelector(`.nt-property-textcell [data-block-id="${carrier}"]`),
+    ).not.toBeNull();
+    // …and the block editor opened on it — no snap back to the ghost.
+    expect(container.querySelector(".nt-property-textcell .nt-block--editing")).not.toBeNull();
+    expect(container.querySelector(".nt-property-textcell .nt-ghost-row__add")).toBeNull();
+  });
+
+  it("multi: Enter in the realized carrier's editor adds the SIBLING value in the cell", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+
+    const Host = subscribingHost(client, pageId);
+    const { container } = render(<Host />);
+    fireEvent.click(
+      container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!,
+    );
+    await flushWrites();
+    await flushWrites();
+
+    const editor = container.querySelector<HTMLElement>(
+      ".nt-property-textcell .nt-block--editing .nt-block-text",
+    )!;
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await flushWrites();
+    await flushWrites();
+
+    // carrierA (idx 0) + the realized carrier (idx 1) + the Enter sibling.
+    const rows = authoredTextRows(client, pageId, schemaId);
+    expect(rows).toHaveLength(3);
+    const second = rows.find((row) => row.idx === 2)!;
+    const secondId = (second.value as { nodeId: string }).nodeId;
+    // The new value is a SIBLING block (a child of the page, not of the
+    // carrier)…
+    expect(client.getNode(secondId)?.parentId).toBe(pageId);
+    // …rendered in the property value cell.
+    expect(
+      container.querySelector(`.nt-property-textcell [data-block-id="${secondId}"]`),
+    ).not.toBeNull();
+  });
+
+  it("single: Enter in the realized carrier's editor nests the CHILD block in the cell", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    await client.assignProperty(pageId, schemaId);
+
+    const Host = subscribingHost(client, pageId);
+    const { container } = render(<Host />);
+    fireEvent.click(
+      container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!,
+    );
+    await flushWrites();
+    await flushWrites();
+
+    const editor = container.querySelector<HTMLElement>(
+      ".nt-property-textcell .nt-block--editing .nt-block-text",
+    )!;
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await flushWrites();
+    await flushWrites();
+
+    // Still ONE value — Enter added a line, not a sibling value…
+    const rows = authoredTextRows(client, pageId, schemaId);
+    expect(rows).toHaveLength(1);
+    const carrier = (rows[0]!.value as { nodeId: string }).nodeId;
+    // …a CHILD block nested under the carrier…
+    const children = client.getChildren(carrier);
+    expect(children).toHaveLength(1);
+    // …rendered inside the property value cell, under the carrier's row.
+    const carrierEl = container.querySelector(
+      `.nt-property-textcell [data-block-id="${carrier}"]`,
+    );
+    expect(carrierEl?.querySelector(`[data-block-id="${children[0]!.id}"]`)).not.toBeNull();
+  });
+
+  it("walking away from the realized-but-untouched carrier still reclaims the slot", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "DOI", type: "text" });
+    await client.assignProperty(pageId, schemaId);
+
+    const Host = subscribingHost(client, pageId);
+    const { container } = render(<Host />);
+    fireEvent.click(
+      container.querySelector<HTMLButtonElement>(".nt-property-textcell .nt-ghost-row__add")!,
+    );
+    await flushWrites();
+    await flushWrites();
+    expect(authoredTextRows(client, pageId, schemaId)).toHaveLength(1);
+
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    act(() => {
+      outside.focus();
+    });
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId)).toHaveLength(0);
+  });
+});
+
 describe("the '+ Add property' assignment (unbound text)", () => {
   /** Drive the real panel flow: open the picker, pick the schema. The host
    *  table carries no store subscription of its own (the rows do), so the
