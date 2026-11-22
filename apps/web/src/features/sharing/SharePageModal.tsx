@@ -29,6 +29,7 @@ import { InlineConfirmButton } from "../../components/ui/kit/InlineConfirmButton
 import { copyToClipboard } from "../modals/clipboard.js";
 import { createShare, listShares, revokeShare, type ShareEntry } from "./shareApi.js";
 import { GrantPeopleSection } from "./GrantPeopleSection.js";
+import { ConfidentialSection } from "./ConfidentialSection.js";
 import { publishSealedShare } from "./sealShare.js";
 import "./SharePageModal.css";
 
@@ -234,6 +235,18 @@ export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, no
       {/* The people half: per-node read/edit grants (trusted-circle v1).
           Rides the same modal; its own loading/error state. */}
       {!loading && <GrantPeopleSection serverUrl={serverUrl} token={token} nodeUuid={nodeUuid} />}
+
+      {/* The confidential half: a password-sealed read for a non-member
+          (the parked §3.3's read half — edit stays parked). */}
+      {!loading && (
+        <ConfidentialSection
+          serverUrl={serverUrl}
+          token={token}
+          nodeUuid={nodeUuid}
+          nodeName={nodeName}
+          client={client}
+        />
+      )}
 
       {error !== null && <p className="nt-error">{error}</p>}
     </Modal>

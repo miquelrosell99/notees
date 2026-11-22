@@ -1176,6 +1176,58 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     },
     errors: ["validation_failed", "not_found", "forbidden"],
   }],
+  ["post", "/api/confidential-shares", {
+    summary: "Publish a CONFIDENTIAL read share — a password-sealed subtree render for a non-member (owner/admin only)",
+    description:
+      "The shipped half of confidential sharing (proposal §3.3, read-only): the owner's client renders the subtree, seals it with a key derived from a password shared OUT OF BAND (scrypt → AES-GCM, the plan-08 iv‖tag‖ct layout), and this route stores ONLY the ciphertext + the KDF salt/params (non-secret) + the recipient email (the delivery hint). The password never reaches any route. The grantee needs no membership on the source workspace — an account on this server matching the recipient email (the inbox can address her) + the password is the whole capability. displayName is the owner's plaintext label (often the node title): the grantee cannot resolve the node (not a member), so the row carries its own name.",
+    tags: ["Shares"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["nodeId", "recipientEmail", "displayName", "artifact", "salt", "kdf"],
+      properties: {
+        nodeId: { type: "string", format: "uuid" },
+        recipientEmail: { type: "string", format: "email" },
+        displayName: { type: "string", maxLength: 200 },
+        artifact: { type: "string" },
+        salt: { type: "string" },
+        kdf: {
+          type: "object",
+          additionalProperties: false,
+          required: ["algorithm", "N", "r", "p"],
+          properties: {
+            algorithm: { type: "string", enum: ["scrypt"] },
+            N: { type: "integer" },
+            r: { type: "integer" },
+            p: { type: "integer" },
+          },
+        },
+      },
+    },
+    errors: ["validation_failed", "not_found"],
+  }],
+  ["get", "/api/confidential-shares/inbox", {
+    summary: "The confidential-share inbox — password-sealed reads addressed to the caller's email",
+    description:
+      "Every LIVE confidential share whose recipient email matches the caller, with the granter's identity and the plaintext display name (the caller is not a member of the source workspace — the row carries its own label). The operator key is not an addressee and answers an empty list. Opening rides GET /api/confidential-shares/:id/artifact + the out-of-band password.",
+    tags: ["Shares"],
+  }],
+  ["get", "/api/confidential-shares/:id/artifact", {
+    summary: "Fetch one confidential share's CIPHERTEXT (the addressee's session only)",
+    description:
+      "The artifact + KDF salt/params for a live confidential share whose recipient email matches the caller. Ciphertext only — decryption happens client-side with the out-of-band password; a wrong password fails GCM auth locally, never a partial render. Unknown, revoked, or not-addressed-to-this-account ids answer the same 404.",
+    tags: ["Shares"],
+    params: { id: { description: "the confidential share uuid" } },
+    errors: ["not_found"],
+  }],
+  ["delete", "/api/confidential-shares/:id", {
+    summary: "Revoke a confidential share (owner/admin only; effective immediately)",
+    description:
+      "Sets revoked_at — the inbox and the artifact route drop the share on their next read. Unknown or already-revoked ids 404.",
+    tags: ["Shares"],
+    params: { id: { description: "the confidential share uuid" } },
+    errors: ["not_found"],
+  }],
   ["get", "/s/:token", {
     summary: "The public share view: one static read-only HTML document (UNAUTHENTICATED BY DESIGN)",
     description:

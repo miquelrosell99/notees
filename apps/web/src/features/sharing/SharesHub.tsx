@@ -33,6 +33,8 @@ import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { listShares, revokeShare, type ShareEntry } from "./shareApi.js";
 import { fetchGrantInbox, type InboxGrantEntry } from "./shareApi.js";
+import { fetchConfidentialInbox, type ConfidentialShareEntry } from "./shareApi.js";
+import { ConfidentialViewModal } from "./ConfidentialViewModal.js";
 import "./SharesHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -51,6 +53,9 @@ export function SharesHub({
   const [shares, setShares] = useState<ShareEntry[] | null>(null);
   /** The Shares Inbox — per-node grants pointing AT the caller (empty for full peers). */
   const [inbox, setInbox] = useState<InboxGrantEntry[] | null>(null);
+  /** The confidential inbox — password-sealed reads addressed to the caller's email. */
+  const [confidential, setConfidential] = useState<ConfidentialShareEntry[] | null>(null);
+  const [openingConfidential, setOpeningConfidential] = useState<ConfidentialShareEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   /** Live node names/icons: re-render on any client notification. */
@@ -65,11 +70,14 @@ export function SharesHub({
         setShares(null);
         setError(err instanceof Error ? err.message : String(err));
       });
-    // The inbox fails silently to empty when the surface is unavailable —
-    // it is a convenience list, not the hub's reason to exist.
+    // The inboxes fail silently to empty when the surfaces are unavailable —
+    // they are convenience lists, not the hub's reason to exist.
     fetchGrantInbox(serverUrl, credential)
       .then((result) => setInbox(result.grants))
       .catch(() => setInbox([]));
+    fetchConfidentialInbox(serverUrl, credential)
+      .then((result) => setConfidential(result.shares))
+      .catch(() => setConfidential([]));
   }, [serverUrl, credential]);
   useEffect(() => {
     load();
@@ -190,13 +198,56 @@ export function SharesHub({
             </ul>
           )}
           {/* The Shares Inbox — per-node grants pointing AT the caller
-              (the trusted-circle v1 surface). Quiet when empty: full peers
-              have no inbox, and the hub is not the place to advertise it. */}
-          {inbox !== null && inbox.length > 0 && (
+              (the trusted-circle v1 surface) + password-sealed confidential
+              reads (the §3.3 read half). Quiet when both are empty: full
+              peers have no inbox, and the hub is not the place to advertise it. */}
+          {((inbox !== null && inbox.length > 0) || (confidential !== null && confidential.length > 0)) && (
             <section className="nt-shares-hub__inbox" aria-label="Shared with me">
               <h3 className="nt-shares-hub__inbox-title">Shared with me</h3>
               <ul className="nt-shares-hub__rows">
-                {inbox.map((grant) => {
+                {(confidential ?? []).map((share) => (
+                  <ListRow
+                    key={`confidential-${share.id}`}
+                    className="nt-shares-hub__row"
+                    leading={
+                      <span aria-hidden="true">
+                        <Icon path="mdi-lock-outline" size={0.9} />
+                      </span>
+                    }
+                    primary={
+                      <>
+                        <button
+                          type="button"
+                          className="nt-shares-hub__name"
+                          title={`${share.displayName} — password required`}
+                          onClick={() => setOpeningConfidential(share)}
+                        >
+                          {share.displayName}
+                        </button>
+                        <span className="nt-shares-hub__meta">
+                          <span className="nt-shares-hub__stamp">
+                            Confidential · password required · Shared by{" "}
+                            {share.grantedByEmail ?? "the workspace owner"} ·{" "}
+                            {relativeTime(new Date(share.createdAt).toISOString())}
+                          </span>
+                        </span>
+                      </>
+                    }
+                    trailing={
+                      <span className="nt-shares-hub__actions">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon="mdi mdi-lock-open-outline"
+                          onClick={() => setOpeningConfidential(share)}
+                        >
+                          Open
+                        </Button>
+                      </span>
+                    }
+                  />
+                ))}
+                {(inbox ?? []).map((grant) => {
                   const node = client.getNode(grant.nodeId);
                   const name = node !== undefined ? titleOfNode(node) || "Untitled" : "Untitled";
                   const icon =
@@ -247,6 +298,14 @@ export function SharesHub({
         </div>
       </div>
       {error !== null && shares !== null && <p className="nt-error">{error}</p>}
+      {openingConfidential !== null && (
+        <ConfidentialViewModal
+          serverUrl={serverUrl}
+          credential={credential}
+          share={openingConfidential}
+          onClose={() => setOpeningConfidential(null)}
+        />
+      )}
     </div>
   );
 }

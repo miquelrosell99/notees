@@ -2,12 +2,15 @@
 
 Date: 2026-11-22. Status: **slices 1–4 SHIPPED 2026-11-22** (slice 1 + the server
 half of slice 4 in the morning commit; slices 2–3 + the app-side hover gate in
-the afternoon commit — see `CHANGELOG.md` 2026-11-22). Only the parked
-confidential-sharing variants (§3.3: user keypairs / shadow workspaces)
-remain. Scope: grants model, contamination hardening for links inside shared
-renders, node attribution fields. Builds on `docs/features/sharing.md` (the
-read-only public link slice) and the parked write-collaboration variant it
-names.
+the afternoon commit; the READ half of §3.3 — password-sealed confidential
+shares — in the evening commit; see `CHANGELOG.md` 2026-11-22). Only ONE piece
+remains parked: **edit over confidential shares** (the shadow-workspace bridge
+— a mirrored subtree in its own workspace kept in step by a bidirectional
+client-side converter; the read half above ships the confidential-delivery
+story, and trusted-circle grants cover members' collaborative editing).
+Scope: grants model, contamination hardening for links inside shared renders,
+node attribution fields. Builds on `docs/features/sharing.md` (the read-only
+public link slice) and the parked write-collaboration variant it names.
 
 ## 1. What exists today (the baseline this proposal extends)
 

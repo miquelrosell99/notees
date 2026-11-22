@@ -38,6 +38,7 @@ import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
 import { registerSectionViewRoutes } from "./routes-section-views.js";
 import { registerPublicShareRoute, registerShareRoutes } from "./routes-shares.js";
 import { registerGrantRoutes } from "./routes-grants.js";
+import { registerConfidentialShareRoutes } from "./routes-confidential.js";
 import { registerWorkflowRoutes } from "./routes-workflows.js";
 import { registerWordAddinRoutes } from "./word-addin.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
@@ -241,6 +242,7 @@ export async function buildServer(
     async (api) => {
       registerShareRoutes(api, ctx);
       registerGrantRoutes(api, ctx);
+      registerConfidentialShareRoutes(api, ctx);
     },
     { prefix: "/api" },
   );

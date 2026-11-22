@@ -158,3 +158,73 @@ export function revokeGrant(serverUrl: string, token: string, grantId: string): 
 export function fetchGrantInbox(serverUrl: string, token: string): Promise<{ grants: InboxGrantEntry[] }> {
   return request<{ grants: InboxGrantEntry[] }>(serverUrl, "/grants/inbox", {}, token);
 }
+
+// --- Confidential shares (password-sealed reads for non-members) --------------
+
+export interface ConfidentialShareEntry {
+  id: string;
+  workspaceId: string;
+  nodeId: string;
+  /** The owner's plaintext label — the addressee cannot resolve the node. */
+  displayName: string;
+  grantedByEmail: string | null;
+  grantedByDisplayName: string | null;
+  createdAt: number;
+}
+
+export interface ConfidentialKdfWire {
+  algorithm: "scrypt";
+  N: number;
+  r: number;
+  p: number;
+}
+
+/** Publish a confidential read share — the CIPHERTEXT + KDF params only. */
+export function createConfidentialShare(
+  serverUrl: string,
+  token: string,
+  input: {
+    nodeId: string;
+    recipientEmail: string;
+    displayName: string;
+    artifact: string;
+    salt: string;
+    kdf: ConfidentialKdfWire;
+  },
+): Promise<{ share: { id: string; nodeId: string; createdAt: number } }> {
+  return request<{ share: { id: string; nodeId: string; createdAt: number } }>(
+    serverUrl,
+    "/confidential-shares",
+    { method: "POST", body: JSON.stringify(input) },
+    token,
+  );
+}
+
+/** The confidential-share inbox — rows addressed to the caller's email. */
+export function fetchConfidentialInbox(serverUrl: string, token: string): Promise<{ shares: ConfidentialShareEntry[] }> {
+  return request<{ shares: ConfidentialShareEntry[] }>(serverUrl, "/confidential-shares/inbox", {}, token);
+}
+
+/** Fetch one share's ciphertext + KDF params (the addressee's session only). */
+export function fetchConfidentialArtifact(
+  serverUrl: string,
+  token: string,
+  shareId: string,
+): Promise<{ artifact: string; salt: string; kdf: ConfidentialKdfWire }> {
+  return request<{ artifact: string; salt: string; kdf: ConfidentialKdfWire }>(
+    serverUrl,
+    `/confidential-shares/${encodeURIComponent(shareId)}/artifact`,
+    {},
+    token,
+  );
+}
+
+/** Revoke a confidential share (owner/admin; the inbox drops it immediately). */
+export function revokeConfidentialShare(serverUrl: string, token: string, shareId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(
+    serverUrl,
+    `/confidential-shares/${encodeURIComponent(shareId)}`,
+    { method: "DELETE" },
+    token,
+  );
+}

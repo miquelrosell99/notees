@@ -13,12 +13,13 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { SharesHub } from "../src/features/sharing/SharesHub.js";
-import { fetchGrantInbox, listShares, revokeShare, type ShareEntry } from "../src/features/sharing/shareApi.js";
+import { fetchConfidentialInbox, fetchGrantInbox, listShares, revokeShare, type ShareEntry } from "../src/features/sharing/shareApi.js";
 
 vi.mock("../src/features/sharing/shareApi.js", () => ({
   listShares: vi.fn(),
   revokeShare: vi.fn(),
   fetchGrantInbox: vi.fn(),
+  fetchConfidentialInbox: vi.fn(),
 }));
 
 vi.mock("../src/features/modals/clipboard.js", () => ({
@@ -42,6 +43,8 @@ beforeEach(() => {
   vi.mocked(fetchGrantInbox).mockReset();
   // No grants in the inbox unless a test opts in — full peers see no section.
   vi.mocked(fetchGrantInbox).mockResolvedValue({ grants: [] });
+  vi.mocked(fetchConfidentialInbox).mockReset();
+  vi.mocked(fetchConfidentialInbox).mockResolvedValue({ shares: [] });
 });
 
 afterEach(() => {
@@ -179,5 +182,33 @@ describe("SharesHub — the Shares Inbox (per-node grants)", () => {
     render(<SharesHub client={client} serverUrl="http://server" credential="tok" onOpenNode={() => {}} />);
     await act(async () => {});
     expect(screen.queryByText("Shared with me")).toBeNull();
+  });
+});
+
+describe("SharesHub — the confidential inbox (password-sealed reads)", () => {
+  it("lists a confidential share with its lock + password-required copy; opening prompts for the password", async () => {
+    const client = await seedClient();
+    vi.mocked(listShares).mockResolvedValue({ shares: [] });
+    vi.mocked(fetchConfidentialInbox).mockResolvedValue({
+      shares: [
+        {
+          id: "cs1",
+          workspaceId: WS,
+          nodeId: "00000000-0000-0000-0000-000000000000",
+          displayName: "Proyecto secreto",
+          grantedByEmail: "owner@example.com",
+          grantedByDisplayName: null,
+          createdAt: 1_800_000_000_000,
+        },
+      ],
+    });
+    render(<SharesHub client={client} serverUrl="http://server" credential="tok" onOpenNode={() => {}} />);
+
+    expect(await screen.findByText("Shared with me")).not.toBeNull();
+    expect(screen.getByText("Proyecto secreto")).not.toBeNull();
+    expect(screen.getByText(/password required/)).not.toBeNull();
+    // Opening rides the view modal's password prompt.
+    fireEvent.click(screen.getByRole("button", { name: /Open/ }));
+    expect(await screen.findByLabelText("Confidential share password")).not.toBeNull();
   });
 });

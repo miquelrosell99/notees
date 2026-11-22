@@ -27,7 +27,11 @@ Two enforcement levels, stated honestly:
 
 Grants are coordination state, not op-log state (the prefs/shares ruling), and manage like shares: the Share dialog lists them per node with per-grant Revoke; revocation drops the grant from the write-guard and every inbox immediately.
 
-Headless: `POST /api/grants {nodeId, granteeUserId? | granteeEmail?, role?}` → `{grant}`, `GET /api/grants?nodeId=`, `DELETE /api/grants/:id`, `GET /api/grants/inbox` (the Shares Inbox), `PUT /api/workspaces/:id/members/:userId {role: "owner" | "member"}` (the restricted-role seam). See [api.md](../api.md).
+## Confidential shares — password-sealed reads for non-members
+
+The Share dialog's **Confidential share** section is for someone with **no access to this workspace at all**: the subtree render is sealed client-side with a key derived from a **password you share out of band** (scrypt → AES-GCM — the Bitwarden-Send / Proton link-password pattern). The server stores only the ciphertext and the KDF salt/params; **the password never reaches any route**, and the addressee needs nothing but an account matching the recipient email and the password — the **Shares hub's "Shared with me"** carries the row under a lock, and opening prompts for the password: decryption happens locally, GCM auth fails loudly on a wrong password (never a partial render), and the render rides a sandboxed iframe. This is the READ half of the proposal's parked §3.3 — honest limits: it is a point-in-time seal (live-link style freshness is the public link's job), and **edit** over confidential shares stays parked (the shadow-workspace bridge).
+
+Headless: `POST /api/confidential-shares {nodeId, recipientEmail, displayName, artifact, salt, kdf}` → `{share}`, `GET /api/confidential-shares/inbox`, `GET /api/confidential-shares/:id/artifact` (ciphertext + salt + kdf, addressee only), `DELETE /api/confidential-shares/:id`. The grant routes above ride the same file. See [api.md](../api.md).
 
 ## Revoke and expiry
 
@@ -37,6 +41,6 @@ Revocation is immediate: the next request on that link 404s. Trashing the page k
 
 Possession of the link IS the capability — treat a shared URL like a password: anyone it reaches can read the page until you revoke, and the server does not track viewers. There is no directory listing: tokens are 24 random bytes (base64url), and unknown, revoked, and expired links answer the *same* 404, so nothing can be enumerated or probed. Share state lives in the sync server's coordination database — it is deliberately NOT operation-log state (nothing about an expiry or a revocation belongs in the semantic graph every client converges on). Only the server's default workspace can be shared, and only its owner/admin (or the operator key) can mint, list, or revoke.
 
-**What is parked.** Confidential sharing for non-members (per-user keypairs re-encrypting subtrees, or shadow workspaces — the proposal's §3.3) stays parked — grants today ride workspace membership, and the trusted-circle limits are written into the section above. Collaborative editing over public links stays parked with it: the public link is read-only, people grants are the write path.
+**What is parked.** The last piece of §3.3 — **edit** over confidential shares (the shadow-workspace bridge: a mirrored subtree in its own workspace, kept in step by a bidirectional client-side converter) — stays parked: the read half above ships the confidential-delivery story, and the trusted-circle grants cover collaborative editing for members. Collaborative editing over public links stays parked with it: the public link is read-only, people grants are the members' write path.
 
 Headless: `POST /api/shares {nodeId, expiresAt?}` → `{share: {token, urlPath, …}}`, `GET /api/shares?nodeId=`, `DELETE /api/shares/:token` (see [api.md](../api.md)).

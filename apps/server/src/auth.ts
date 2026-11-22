@@ -367,6 +367,32 @@ CREATE TABLE IF NOT EXISTS node_grant (
 CREATE INDEX IF NOT EXISTS idx_node_grant_node ON node_grant (workspace_id, node_id);
 CREATE INDEX IF NOT EXISTS idx_node_grant_grantee ON node_grant (grantee_user_id);
 CREATE INDEX IF NOT EXISTS idx_node_grant_email ON node_grant (grantee_email);
+
+-- Confidential shares (the parked §3.3's shipped half — READ-only): a
+-- subtree render sealed client-side with a PASSWORD-DERIVED key (scrypt →
+-- AES-GCM, the Bitwarden-Send / Proton-link-password pattern). The server
+-- stores ONLY the ciphertext + the KDF salt/params (non-secret) + the
+-- recipient email (the delivery hint — the inbox matches it like grants);
+-- the password never reaches any route, and the grantee needs no membership
+-- on the source workspace: possession of the row's read access + the
+-- password (shared out of band) is the capability. display_name is the
+-- owner's plaintext label (often the node title) — the grantee cannot
+-- resolve the node (she is not a member), so the row carries its own name.
+-- Coordination state, NOT op-log state.
+CREATE TABLE IF NOT EXISTS confidential_share (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    artifact TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    kdf TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_confidential_share_email ON confidential_share (recipient_email);
 `;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -1063,6 +1089,104 @@ export class AuthStorage {
   isRestrictedMember(workspaceId: string, userId: string): boolean {
     const role = this.membership(workspaceId, userId);
     return role !== null && role !== "owner";
+  }
+
+  // --- confidential shares (password-sealed reads for non-members) -------------
+
+  createConfidentialShare(input: {
+    workspaceId: string;
+    nodeId: string;
+    recipientEmail: string;
+    displayName: string;
+    artifact: string;
+    salt: string;
+    kdf: string;
+    createdBy: string;
+  }): { id: string; createdAt: number } {
+    const id = uuidv7();
+    const createdAt = Date.now();
+    this.db
+      .prepare(
+        `INSERT INTO confidential_share (id, workspace_id, node_id, recipient_email, display_name, artifact, salt, kdf, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.workspaceId,
+        input.nodeId,
+        input.recipientEmail,
+        input.displayName,
+        input.artifact,
+        input.salt,
+        input.kdf,
+        input.createdBy,
+        createdAt,
+      );
+    return { id, createdAt };
+  }
+
+  /** The ciphertext row when the caller's email matches the recipient. */
+  confidentialShareForReader(
+    id: string,
+    userId: string,
+  ): { artifact: string; salt: string; kdf: string } | null {
+    const row = this.db
+      .prepare(
+        `SELECT s.artifact AS artifact, s.salt AS salt, s.kdf AS kdf
+         FROM confidential_share s JOIN user u ON u.id = ?
+         WHERE s.id = ? AND s.revoked_at IS NULL AND s.recipient_email = u.email COLLATE NOCASE`,
+      )
+      .get(userId, id) as { artifact: string; salt: string; kdf: string } | undefined;
+    return row ?? null;
+  }
+
+  revokeConfidentialShare(id: string): boolean {
+    return (
+      this.db
+        .prepare("UPDATE confidential_share SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+        .run(Date.now(), id).changes > 0
+    );
+  }
+
+  /** The LIVE confidential shares addressed to the user — the inbox surface. */
+  confidentialShareInbox(userId: string): Array<{
+    id: string;
+    workspaceId: string;
+    nodeId: string;
+    displayName: string;
+    grantedByEmail: string | null;
+    grantedByDisplayName: string | null;
+    createdAt: number;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT s.id AS id, s.workspace_id AS workspace_id, s.node_id AS node_id,
+                s.display_name AS display_name, s.created_at AS created_at,
+                granter.email AS granter_email, granter.display_name AS granter_display_name
+         FROM confidential_share s
+         JOIN user u ON u.id = ?
+         LEFT JOIN user granter ON granter.id = s.created_by
+         WHERE s.revoked_at IS NULL AND s.recipient_email = u.email COLLATE NOCASE
+         ORDER BY s.created_at DESC`,
+      )
+      .all(userId) as Array<{
+      id: string;
+      workspace_id: string;
+      node_id: string;
+      display_name: string;
+      created_at: number;
+      granter_email: string | null;
+      granter_display_name: string | null;
+    }>;
+    return rows.map((row) => ({
+      id: row.id,
+      workspaceId: row.workspace_id,
+      nodeId: row.node_id,
+      displayName: row.display_name,
+      grantedByEmail: row.granter_email,
+      grantedByDisplayName: row.granter_display_name,
+      createdAt: row.created_at,
+    }));
   }
 
   listWorkspacesForUser(
