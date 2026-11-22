@@ -24,6 +24,7 @@ import { KEYING_EXEMPT_WORKSPACE_IDS } from "./auth.js";
 import { AppError } from "./errors.js";
 import type { Principal } from "./identity.js";
 import { resolvePrincipal, rethrowImageError } from "./routes-auth.js";
+import { guardRestrictedWrite } from "./routes-grants.js";
 import { RelayValidationError, validateRelayBatch } from "./validate.js";
 import { countSnapshotNodes } from "./relay-storage.js";
 import { SNAPSHOT_REBUILD_MIN_ENVELOPES } from "./workspace-store.js";
@@ -189,6 +190,13 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     }
     for (const workspaceId of new Set(envelopes.map((env) => env.workspaceId))) {
       authorizeWorkspace(ctx, principal, workspaceId, "write");
+      const workspaceEnvelopes = envelopes.filter((env) => env.workspaceId === workspaceId);
+      guardRestrictedWrite(
+        ctx,
+        principal,
+        workspaceId,
+        workspaceEnvelopes.flatMap((env) => env.affectedNodeIds),
+      );
     }
     recordActorClaims(ctx, principal, envelopes);
     const { savedIds } = await ctx.ingestBatch(envelopes);
@@ -626,6 +634,14 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
       try {
         for (const envWorkspaceId of new Set(envelopes.map((env) => env.workspaceId))) {
           authorizeWorkspace(ctx, principal, envWorkspaceId, "write");
+          guardRestrictedWrite(
+            ctx,
+            principal,
+            envWorkspaceId,
+            envelopes
+              .filter((env) => env.workspaceId === envWorkspaceId)
+              .flatMap((env) => env.affectedNodeIds),
+          );
         }
         recordActorClaims(ctx, principal, envelopes);
         const { savedIds } = await ctx.ingestBatch(envelopes);

@@ -248,11 +248,25 @@ describe("worker message protocol (handleMessage)", () => {
   });
 
   it("worker getPrefs hits the REST config with the init credential", async () => {
-    const calls: Array<{ url: string; key: string | null }> = [];
+    const calls: Array<{ url: string; credential: string | null }> = [];
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
-        calls.push({ url: String(url), key: (init?.headers as Record<string, string>)?.["X-API-Key"] ?? null });
+        const raw = init?.headers;
+        // Headers.entries() lowercases names — normalize before indexing.
+        const headers: Record<string, string> =
+          raw instanceof Headers
+            ? Object.fromEntries(raw.entries())
+            : ((raw ?? {}) as Record<string, string>);
+        const lower: Record<string, string> = {};
+        for (const [key, value] of Object.entries(headers)) lower[key.toLowerCase()] = value;
+        calls.push({
+          url: String(url),
+          // The prefs/actor primes ride X-API-Key; the grant-inbox prime
+          // goes through the sharing API's Bearer idiom (a Headers instance)
+          // — both are the init credential.
+          credential: lower["x-api-key"] ?? lower["authorization"] ?? null,
+        });
         return new Response(JSON.stringify({ favorites: [], recents: [], updatedAt: 1 }), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -268,11 +282,13 @@ describe("worker message protocol (handleMessage)", () => {
     expect(prefs.result).toMatchObject({ source: "server" });
     // The operator-key resolution (auth/me — the stub answers a prefs-shaped
     // body with no operator id, so the prefs probe runs) then the prefs GET,
-    // then the actor-registry prime — all three under the init credential.
+    // then the actor-registry prime and the grant-inbox prime — all under
+    // the init credential.
     expect(calls).toEqual([
-      { url: "https://notees.example.com/api/auth/me", key: "nt_workerkey" },
-      { url: "https://notees.example.com/api/me/prefs", key: "nt_workerkey" },
-      { url: "https://notees.example.com/api/actors", key: "nt_workerkey" },
+      { url: "https://notees.example.com/api/auth/me", credential: "nt_workerkey" },
+      { url: "https://notees.example.com/api/me/prefs", credential: "nt_workerkey" },
+      { url: "https://notees.example.com/api/actors", credential: "nt_workerkey" },
+      { url: "https://notees.example.com/api/grants/inbox", credential: "Bearer nt_workerkey" },
     ]);
     vi.unstubAllGlobals();
   });

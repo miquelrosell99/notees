@@ -344,6 +344,29 @@ CREATE TABLE IF NOT EXISTS actor_claim (
     first_seen_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_actor_claim_user ON actor_claim (user_id);
+
+-- Per-node grants (the per-node-sharing proposal, trusted-circle v1):
+-- subtree-inheriting read/edit access for workspace members. Coordination
+-- state, NOT op-log state (the prefs/shares ruling). grantee_user_id is set
+-- when the grant targets an existing account; grantee_email keeps a PENDING
+-- grant that resolves the moment an account with that email exists (no
+-- invite tokens — the grant just starts matching). Coverage is a READ-TIME
+-- derivation over the derived store's parentage (a grant covers its root's
+-- whole descendant closure), never a stored list.
+CREATE TABLE IF NOT EXISTS node_grant (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    grantee_user_id TEXT,
+    grantee_email TEXT,
+    role TEXT NOT NULL DEFAULT 'read',
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_node_grant_node ON node_grant (workspace_id, node_id);
+CREATE INDEX IF NOT EXISTS idx_node_grant_grantee ON node_grant (grantee_user_id);
+CREATE INDEX IF NOT EXISTS idx_node_grant_email ON node_grant (grantee_email);
 `;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -786,6 +809,17 @@ export class AuthStorage {
     return row?.role ?? null;
   }
 
+  /** Set (or upgrade/downgrade) a member's role — the restricted-membership seam. */
+  setMemberRole(workspaceId: string, userId: string, role: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO workspace_member (workspace_id, user_id, role, created_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = excluded.role`,
+      )
+      .run(workspaceId, userId, role, Date.now());
+  }
+
   /** Workspaces with at least one member (claimed). */
   hasAnyMembership(workspaceId: string): boolean {
     return (
@@ -843,6 +877,192 @@ export class AuthStorage {
       email: row.email,
       displayName: row.display_name,
     }));
+  }
+
+  // --- per-node grants (the per-node-sharing proposal, trusted-circle v1) ------
+
+  /**
+   * Mint a subtree-inheriting grant. The grantee is an existing account
+   * (`granteeUserId`) OR a pending email (`granteeEmail`) that starts
+   * matching the moment an account with that email exists — no invite
+   * tokens. Coverage itself is never stored: it is a read-time derivation
+   * over the derived store's parentage (the grant root's descendant
+   * closure), so children created later are covered automatically.
+   */
+  createGrant(input: {
+    workspaceId: string;
+    nodeId: string;
+    granteeUserId?: string | undefined;
+    granteeEmail?: string | undefined;
+    role: "read" | "edit";
+    createdBy: string;
+  }): {
+    id: string;
+    workspaceId: string;
+    nodeId: string;
+    granteeUserId: string | null;
+    granteeEmail: string | null;
+    role: string;
+    createdBy: string;
+    createdAt: number;
+  } {
+    const id = uuidv7();
+    this.db
+      .prepare(
+        `INSERT INTO node_grant (id, workspace_id, node_id, grantee_user_id, grantee_email, role, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.workspaceId,
+        input.nodeId,
+        input.granteeUserId ?? null,
+        input.granteeEmail ?? null,
+        input.role,
+        input.createdBy,
+        Date.now(),
+      );
+    return {
+      id,
+      workspaceId: input.workspaceId,
+      nodeId: input.nodeId,
+      granteeUserId: input.granteeUserId ?? null,
+      granteeEmail: input.granteeEmail ?? null,
+      role: input.role,
+      createdBy: input.createdBy,
+      createdAt: Date.now(),
+    };
+  }
+
+  /** Revoke one grant; false when the id names no LIVE grant. Immediate. */
+  revokeGrant(id: string): boolean {
+    return (
+      this.db
+        .prepare("UPDATE node_grant SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL")
+        .run(Date.now(), id).changes > 0
+    );
+  }
+
+  /**
+   * The LIVE grants on one node (management surface), newest first. Email
+   * grants ride along with their pending/resolved state.
+   */
+  listGrantsForNode(
+    workspaceId: string,
+    nodeId: string,
+  ): Array<{
+    id: string;
+    nodeId: string;
+    granteeUserId: string | null;
+    granteeEmail: string | null;
+    role: string;
+    createdBy: string;
+    createdAt: number;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT id, node_id, grantee_user_id, grantee_email, role, created_by, created_at
+         FROM node_grant WHERE workspace_id = ? AND node_id = ? AND revoked_at IS NULL
+         ORDER BY created_at DESC`,
+      )
+      .all(workspaceId, nodeId) as Array<{
+      id: string;
+      node_id: string;
+      grantee_user_id: string | null;
+      grantee_email: string | null;
+      role: string;
+      created_by: string;
+      created_at: number;
+    }>;
+    return rows.map((row) => ({
+      id: row.id,
+      nodeId: row.node_id,
+      granteeUserId: row.grantee_user_id,
+      granteeEmail: row.grantee_email,
+      role: row.role,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+    }));
+  }
+
+  /**
+   * The LIVE grants matching one user in one workspace — by user id OR by
+   * email (the pending-grant resolution: an email grant matches any account
+   * carrying that email, case-insensitively, from the moment it exists).
+   * This is the write-guard / canView primitive's source set.
+   */
+  liveGrantsForUser(
+    workspaceId: string,
+    userId: string,
+  ): Array<{ id: string; nodeId: string; role: string }> {
+    const rows = this.db
+      .prepare(
+        `SELECT g.id AS id, g.node_id AS node_id, g.role AS role
+         FROM node_grant g JOIN user u ON u.id = ?
+         WHERE g.workspace_id = ? AND g.revoked_at IS NULL
+           AND (g.grantee_user_id = u.id OR g.grantee_email = u.email COLLATE NOCASE)`,
+      )
+      .all(userId, workspaceId) as Array<{ id: string; node_id: string; role: string }>;
+    return rows.map((row) => ({ id: row.id, nodeId: row.node_id, role: row.role }));
+  }
+
+  /**
+   * Every LIVE grant matching the user across workspaces — the Shares
+   * Inbox surface. Joins the granter's identity and leaves the grantee
+   * email on the row so the UI can render "pending" for unmatched emails.
+   */
+  grantInbox(userId: string): Array<{
+    id: string;
+    workspaceId: string;
+    nodeId: string;
+    role: string;
+    granteeUserId: string | null;
+    granteeEmail: string | null;
+    grantedByEmail: string | null;
+    grantedByDisplayName: string | null;
+    createdAt: number;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT g.id AS id, g.workspace_id AS workspace_id, g.node_id AS node_id, g.role AS role,
+                g.grantee_user_id AS grantee_user_id, g.grantee_email AS grantee_email,
+                g.created_at AS created_at,
+                granter.email AS granter_email, granter.display_name AS granter_display_name
+         FROM node_grant g
+         JOIN user u ON u.id = ?
+         LEFT JOIN user granter ON granter.id = g.created_by
+         WHERE g.revoked_at IS NULL
+           AND (g.grantee_user_id = u.id OR g.grantee_email = u.email COLLATE NOCASE)
+         ORDER BY g.created_at DESC`,
+      )
+      .all(userId) as Array<{
+      id: string;
+      workspace_id: string;
+      node_id: string;
+      role: string;
+      grantee_user_id: string | null;
+      grantee_email: string | null;
+      created_at: number;
+      granter_email: string;
+      granter_display_name: string | null;
+    }>;
+    return rows.map((row) => ({
+      id: row.id,
+      workspaceId: row.workspace_id,
+      nodeId: row.node_id,
+      role: row.role,
+      granteeUserId: row.grantee_user_id,
+      granteeEmail: row.grantee_email,
+      grantedByEmail: row.granter_email,
+      grantedByDisplayName: row.granter_display_name,
+      createdAt: row.created_at,
+    }));
+  }
+
+  /** The restricted-membership predicate (role "member" — everything but "owner"). */
+  isRestrictedMember(workspaceId: string, userId: string): boolean {
+    const role = this.membership(workspaceId, userId);
+    return role !== null && role !== "owner";
   }
 
   listWorkspacesForUser(

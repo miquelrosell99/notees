@@ -39,7 +39,7 @@
   "dependencies": {
     "@notees/domain": "workspace:*",
     "@notees/protocol": "workspace:*",
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^12.11.1",
     "sql.js": "^1.10.0",
     "uuidv7": "^1.0.0"
   },

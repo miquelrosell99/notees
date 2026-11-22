@@ -111,3 +111,50 @@ export function putShareArtifact(
     token,
   );
 }
+
+// --- Per-node grants (the per-node-sharing trusted-circle v1) -----------------
+
+export interface GrantEntry {
+  id: string;
+  nodeId: string;
+  /** Set when the grantee already had an account at mint time. */
+  granteeUserId: string | null;
+  /** The email the grant was minted against (pending grants have no user id). */
+  granteeEmail: string | null;
+  role: "read" | "edit";
+  createdBy: string;
+  createdAt: number;
+}
+
+export interface InboxGrantEntry extends GrantEntry {
+  workspaceId: string;
+  /** Null when the operator key minted the grant (not a user row). */
+  grantedByEmail: string | null;
+  grantedByDisplayName: string | null;
+  /** The caller's membership role on the grant's workspace ("member" = restricted). */
+  workspaceRole: "owner" | "member" | string | null;
+}
+
+/** Grant a user read/edit access to the node's whole subtree (owner/admin only). */
+export function createGrant(
+  serverUrl: string,
+  token: string,
+  input: { nodeId: string; granteeUserId?: string; granteeEmail?: string; role?: "read" | "edit" },
+): Promise<{ grant: GrantEntry }> {
+  return request<{ grant: GrantEntry }>(serverUrl, "/grants", { method: "POST", body: JSON.stringify(input) }, token);
+}
+
+/** List a node's live grants (owner/admin only). */
+export function listNodeGrants(serverUrl: string, token: string, nodeId: string): Promise<{ grants: GrantEntry[] }> {
+  return request<{ grants: GrantEntry[] }>(serverUrl, `/grants?nodeId=${encodeURIComponent(nodeId)}`, {}, token);
+}
+
+/** Revoke a grant — the write-guard and the inbox drop it immediately. */
+export function revokeGrant(serverUrl: string, token: string, grantId: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(serverUrl, `/grants/${encodeURIComponent(grantId)}`, { method: "DELETE" }, token);
+}
+
+/** The Shares Inbox — the live grants matching the authenticated user. */
+export function fetchGrantInbox(serverUrl: string, token: string): Promise<{ grants: InboxGrantEntry[] }> {
+  return request<{ grants: InboxGrantEntry[] }>(serverUrl, "/grants/inbox", {}, token);
+}

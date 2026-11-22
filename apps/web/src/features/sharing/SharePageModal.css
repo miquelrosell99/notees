@@ -59,3 +59,50 @@
   display: flex;
   justify-content: flex-start;
 }
+
+/* The people half: per-node grants (trusted-circle v1). */
+.nt-share__people {
+  margin-top: var(--spacing-5);
+  padding-top: var(--spacing-4);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.nt-share__people-title {
+  margin: 0 0 var(--spacing-2);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-share__people-form {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+}
+
+.nt-share__people-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-md);
+}
+
+.nt-share__people-role {
+  padding: var(--spacing-2) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-md);
+}
+
+.nt-share__grant-role {
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: capitalize;
+}

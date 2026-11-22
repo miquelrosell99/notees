@@ -13,11 +13,12 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { SharesHub } from "../src/features/sharing/SharesHub.js";
-import { listShares, revokeShare, type ShareEntry } from "../src/features/sharing/shareApi.js";
+import { fetchGrantInbox, listShares, revokeShare, type ShareEntry } from "../src/features/sharing/shareApi.js";
 
 vi.mock("../src/features/sharing/shareApi.js", () => ({
   listShares: vi.fn(),
   revokeShare: vi.fn(),
+  fetchGrantInbox: vi.fn(),
 }));
 
 vi.mock("../src/features/modals/clipboard.js", () => ({
@@ -38,6 +39,9 @@ const clients: WorkspaceClient[] = [];
 beforeEach(() => {
   vi.mocked(listShares).mockReset();
   vi.mocked(revokeShare).mockReset();
+  vi.mocked(fetchGrantInbox).mockReset();
+  // No grants in the inbox unless a test opts in — full peers see no section.
+  vi.mocked(fetchGrantInbox).mockResolvedValue({ grants: [] });
 });
 
 afterEach(() => {
@@ -135,5 +139,45 @@ describe("SharesHub", () => {
     vi.mocked(listShares).mockResolvedValue({ shares: [] });
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("No shared links yet")).not.toBeNull();
+  });
+});
+
+describe("SharesHub — the Shares Inbox (per-node grants)", () => {
+  it("renders a Shared-with-me section with role and granter when the inbox has grants", async () => {
+    const client = await seedClient();
+    const alpha = await client.createObject({ isEmbedded: false, name: "Proyecto" });
+    vi.mocked(listShares).mockResolvedValue({ shares: [] });
+    vi.mocked(fetchGrantInbox).mockResolvedValue({
+      grants: [
+        {
+          id: "g1",
+          nodeId: alpha,
+          workspaceId: WS,
+          granteeUserId: "u-me",
+          granteeEmail: null,
+          role: "edit",
+          createdBy: "u-owner",
+          createdAt: 1_800_000_000_000,
+          grantedByEmail: "owner@example.com",
+          grantedByDisplayName: null,
+          workspaceRole: "member",
+        },
+      ],
+    });
+    render(<SharesHub client={client} serverUrl="http://server" credential="tok" onOpenNode={() => {}} />);
+
+    expect(await screen.findByText("Shared with me")).not.toBeNull();
+    expect(screen.getByText("Proyecto")).not.toBeNull();
+    expect(screen.getByText(/Can edit/)).not.toBeNull();
+    expect(screen.getByText(/Shared by owner@example\.com/)).not.toBeNull();
+  });
+
+  it("renders no inbox section for a full peer (empty inbox)", async () => {
+    const client = await seedClient();
+    await client.createObject({ isEmbedded: false, name: "Alpha" });
+    vi.mocked(listShares).mockResolvedValue({ shares: [] });
+    render(<SharesHub client={client} serverUrl="http://server" credential="tok" onOpenNode={() => {}} />);
+    await act(async () => {});
+    expect(screen.queryByText("Shared with me")).toBeNull();
   });
 });

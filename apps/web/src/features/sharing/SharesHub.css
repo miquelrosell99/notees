@@ -128,3 +128,17 @@
   align-items: center;
   gap: var(--spacing-1);
 }
+
+/* The Shares Inbox section (per-node grants pointing at the caller). */
+.nt-shares-hub__inbox {
+  margin-top: var(--spacing-6);
+  padding-top: var(--spacing-4);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.nt-shares-hub__inbox-title {
+  margin: 0 0 var(--spacing-3);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--md-sys-color-on-surface);
+}

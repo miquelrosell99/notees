@@ -41,6 +41,10 @@ import {
   HOVER_GRACE_MS,
   NodeHoverPreviewHost,
 } from "../src/features/node-menu/NodeHoverPreview.js";
+import {
+  __resetGrantAccessForTests,
+  primeGrantAccess,
+} from "../src/core/grant-access.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -55,6 +59,11 @@ beforeAll(async () => {
 const clients: WorkspaceClient[] = [];
 
 afterEach(() => {
+  // The grant-access cache is module-global — reset it BEFORE closing the
+  // clients (its emit re-renders subscribers; a re-render against a closed
+  // store throws). A gated test must not leak its restricted state into the
+  // file's other hover specs either.
+  __resetGrantAccessForTests();
   while (clients.length > 0) clients.pop()!.close();
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -582,5 +591,78 @@ describe("floating editor", () => {
     fireEvent.mouseUp(window);
     expect(Number.parseFloat(win.style.left)).toBeLessThanOrEqual(window.innerWidth);
     expect(Number.parseFloat(win.style.top)).toBeLessThanOrEqual(window.innerHeight - 48);
+  });
+});
+
+describe("node hover preview — the grant gate", () => {
+  it("a restricted viewer sees the honest chip outside her closures and the normal preview inside", async () => {
+    const { client, pageId, targetId } = await seedLinked();
+    // A second page OUTSIDE the grant closure, mentioned next to the first.
+    const outsideId = await client.createObject({
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "Outside words." }],
+    });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "mention", targetNodeId: outsideId, linkId: "0192a000-0000-7000-8000-0000000000bb" },
+      ],
+    });
+    // Prime the grant state: ONE edit grant on the in-closure target, and
+    // the caller's workspace role is "member" (restricted).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          grants: [
+            {
+              id: "g1",
+              nodeId: targetId,
+              workspaceId: WS,
+              granteeUserId: "u-me",
+              granteeEmail: null,
+              role: "edit",
+              createdBy: "u-owner",
+              createdAt: 1,
+              grantedByEmail: "owner@example.com",
+              grantedByDisplayName: null,
+              workspaceRole: "member",
+            },
+          ],
+        }),
+      ),
+    );
+    primeGrantAccess("http://server", "tok", WS);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    const { container } = renderHosted(client, pageId);
+    vi.useFakeTimers();
+    const mentions = Array.from(container.querySelectorAll<HTMLElement>("button.nt-link"));
+    expect(mentions).toHaveLength(2);
+
+    // Out-of-closure mention: the chip, no content, no Pin.
+    fireEvent.mouseEnter(mentions[1]!);
+    advance(HOVER_DWELL_MS);
+    const gated = previewCard();
+    expect(gated).not.toBeNull();
+    expect(within(gated!).getByText("Not shared with you")).toBeTruthy();
+    expect(cardPageShell(gated!)).toBeNull();
+    expect(gated!.querySelector('[aria-label="Pin — edit in a floating window"]')).toBeNull();
+    fireEvent.mouseLeave(mentions[1]!);
+    advance(HOVER_GRACE_MS);
+    expect(previewCard()).toBeNull();
+
+    // In-closure mention: the normal rich preview.
+    fireEvent.mouseEnter(mentions[0]!);
+    advance(HOVER_DWELL_MS);
+    expect(cardTitle(previewCard()!)).toBe(TARGET_TEXT);
+
+    // Leave before the test ends: an OPEN card races the module-reset's
+    // scheduled re-render against the client teardown in afterEach.
+    fireEvent.mouseLeave(mentions[0]!);
+    advance(HOVER_GRACE_MS);
+    expect(previewCard()).toBeNull();
   });
 });

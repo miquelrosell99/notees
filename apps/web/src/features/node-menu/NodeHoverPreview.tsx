@@ -48,6 +48,7 @@ import { renderStateLabel, parentlessBlockResolverOf } from "../../ui/renderStat
 import { Button } from "../../components/ui/kit/Button.js";
 import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { usePopupDismissal } from "../../components/ui/kit/usePopupDismissal.js";
+import { useGrantAccess, withinAccessClosure } from "../../core/grant-access.js";
 import "./NodeHoverPreview.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -202,6 +203,16 @@ export function NodeHoverPreviewHost({
 
   const previewNode = preview === null ? undefined : client.getNode(preview.nodeId);
   const backlinkCount = preview === null ? 0 : client.getBacklinkCount(preview.nodeId);
+  // The per-node-sharing app gate: a RESTRICTED member's hover over a node
+  // outside her grant closures previews as a "not shared with you" chip —
+  // the linked node's content never loads (the contamination ruling). A
+  // full peer (or an unprimed state) previews normally.
+  const grantAccess = useGrantAccess();
+  const gated =
+    preview !== null &&
+    grantAccess !== null &&
+    grantAccess.restricted &&
+    !withinAccessClosure(client, grantAccess.viewRoots, preview.nodeId);
 
   return (
     <>
@@ -237,6 +248,12 @@ export function NodeHoverPreviewHost({
               <div className="nt-hover-preview__broken" title={preview.nodeId}>
                 broken reference <code>{preview.nodeId}</code>
               </div>
+            ) : gated ? (
+              // The grant gate: out-of-closure mentions get the honest chip —
+              // no content load, no Pin, no backlinks. Navigation still works
+              // (the trusted-circle model: view filtering is a UX boundary,
+              // integrity enforcement lives in the relay write-guard).
+              <div className="nt-hover-preview__gated">Not shared with you</div>
             ) : (
               <>
                 <div className="nt-hover-preview__view">

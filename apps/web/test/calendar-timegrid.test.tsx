@@ -403,9 +403,16 @@ describe("TimeGrid (the Day/Week zoom)", () => {
   it("dropping a timed card on another day+hour rewrites the value preserving the duration", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
-    const tomorrow = addDaysIso(today, 1);
+    // The week view renders the Monday-anchored window containing today, so
+    // "tomorrow" is only guaranteed visible Mon–Sat — on Sunday it falls in
+    // NEXT week's window. Pick any OTHER in-window day (a future one when
+    // one exists, else the window's first day) and the test is weekday-safe.
+    const weekWindow = weekDaysOfIso(today, 1);
+    const target = weekWindow.find((iso) => iso !== today && iso > today) ?? weekWindow[0]!;
+    expect(target).not.toBe(today);
     const { classId, schemaId } = await eventFamily(client);
     await client.ensureDateChain(today);
+    await client.ensureDateChain(target);
     const event = await timedEvent(client, classId, schemaId, "Move me", today, "10:15");
     // A same-day 45-minute range: the duration must survive the move.
     await client.setProperty(
@@ -425,10 +432,11 @@ describe("TimeGrid (the Day/Week zoom)", () => {
       expect(grid.querySelector(".cal-timegrid__card")).not.toBeNull();
     });
 
-    const target = grid.querySelector(
-      `.cal-timegrid__day[data-day="${tomorrow}"] [data-hour="14"]`,
+    const targetCell = grid.querySelector(
+      `.cal-timegrid__day[data-day="${target}"] [data-hour="14"]`,
     ) as HTMLElement;
-    fireEvent.drop(target, {
+    expect(targetCell).not.toBeNull();
+    fireEvent.drop(targetCell, {
       dataTransfer: { getData: () => `${event}|${today}` },
     });
 
@@ -437,11 +445,11 @@ describe("TimeGrid (the Day/Week zoom)", () => {
         .getEffectiveProperties(event)
         .find((prop) => prop.schema?.type === "datetime" && prop.source === "authored");
       expect(row).toBeDefined();
-      expect(scheduledIsoOf(row!.value)).toBe(tomorrow);
+      expect(scheduledIsoOf(row!.value)).toBe(target);
       // The duration rides along: 14:00 → 14:45 on the new day.
       expect(row!.value).toMatchObject({
-        start: { nodeId: dayNodeOf(tomorrow), time: "14:00" },
-        end: { nodeId: dayNodeOf(tomorrow), time: "14:45" },
+        start: { nodeId: dayNodeOf(target), time: "14:00" },
+        end: { nodeId: dayNodeOf(target), time: "14:45" },
       });
     });
     expect(container).toBeDefined();

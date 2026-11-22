@@ -373,3 +373,63 @@ describe("SharePageModal — sealed links (plan 08)", () => {
     expect(await navigator.clipboard.readText()).toBe(`${SERVER}/s/tok_sealed_000000000000000000000`);
   });
 });
+
+describe("SharePageModal — people grants (trusted-circle v1)", () => {
+  it("lists the node's grants, adds a person by email with the chosen role, and revokes", async () => {
+    let grants: Array<Record<string, unknown>> = [
+      {
+        id: "grant-1",
+        nodeId: "page-1",
+        granteeUserId: null,
+        granteeEmail: "existing@example.com",
+        role: "read",
+        createdBy: "u-owner",
+        createdAt: 1_727_200_000_000,
+      },
+    ];
+    const calls = stubFetch({
+      "/api/shares?nodeId=page-1": () => ({ shares: [] }),
+      "/api/grants?nodeId=page-1": () => ({ grants }),
+      "/api/grants": () => {
+        grants = [
+          {
+            id: "grant-2",
+            nodeId: "page-1",
+            granteeUserId: null,
+            granteeEmail: "spouse@example.com",
+            role: "edit",
+            createdBy: "u-owner",
+            createdAt: 1_727_200_000_001,
+          },
+          ...grants,
+        ];
+        return { grant: grants[0] };
+      },
+    });
+
+    renderModal();
+    // The existing grant lists with its role.
+    await screen.findByText("existing@example.com");
+    // The role label is scoped to the grant row (the role select's option
+    // carries the same text).
+    const firstRow = screen.getByText("existing@example.com").closest("li") as HTMLElement;
+    expect(within(firstRow).getByText("Can read")).toBeInTheDocument();
+
+    // Add a new person with the EDIT role.
+    fireEvent.change(screen.getByLabelText("Grantee email"), { target: { value: " spouse@example.com " } });
+    fireEvent.change(screen.getByLabelText("Grant role"), { target: { value: "edit" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    await screen.findByText("spouse@example.com");
+    const secondRow = screen.getByText("spouse@example.com").closest("li") as HTMLElement;
+    expect(within(secondRow).getByText("Can edit")).toBeInTheDocument();
+    const post = calls.find((c) => c.method === "POST" && c.url.endsWith("/api/grants"));
+    expect(post).toBeDefined();
+    // The input's whitespace is trimmed before it rides the wire.
+    expect(JSON.parse(post!.body!)).toEqual({
+      nodeId: "page-1",
+      granteeEmail: "spouse@example.com",
+      role: "edit",
+    });
+  });
+});

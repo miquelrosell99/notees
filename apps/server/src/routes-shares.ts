@@ -70,8 +70,9 @@ const listQuerySchema = z
  * Owner/admin gate. The operator key passes (it is the machine owner path);
  * user principals need the admin flag or the owner membership role on the
  * default workspace (the same role gate as workspace rename/delete).
+ * Exported for the grants surface (same gate, same ruling).
  */
-function requireShareAdmin(ctx: ServerContext, request: FastifyRequest): ResolvedRequest {
+export function requireShareAdmin(ctx: ServerContext, request: FastifyRequest): ResolvedRequest {
   const resolved = resolvePrincipal(ctx, request);
   if (resolved === null) {
     throw new AppError(401, "unauthenticated", "invalid or missing credentials");

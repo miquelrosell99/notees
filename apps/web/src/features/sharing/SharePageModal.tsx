@@ -28,6 +28,7 @@ import { EmptyState } from "../../components/ui/kit/EmptyState.js";
 import { InlineConfirmButton } from "../../components/ui/kit/InlineConfirmButton.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { createShare, listShares, revokeShare, type ShareEntry } from "./shareApi.js";
+import { GrantPeopleSection } from "./GrantPeopleSection.js";
 import { publishSealedShare } from "./sealShare.js";
 import "./SharePageModal.css";
 
@@ -229,6 +230,11 @@ export function SharePageModal({ isOpen, onClose, serverUrl, token, nodeUuid, no
           </Button>
         </div>
       )}
+
+      {/* The people half: per-node read/edit grants (trusted-circle v1).
+          Rides the same modal; its own loading/error state. */}
+      {!loading && <GrantPeopleSection serverUrl={serverUrl} token={token} nodeUuid={nodeUuid} />}
+
       {error !== null && <p className="nt-error">{error}</p>}
     </Modal>
   );

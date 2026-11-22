@@ -1118,6 +1118,64 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     params: { token: { description: "the opaque share token (base64url, NOT a uuid)", format: "opaque" } },
     errors: ["not_found"],
   }],
+  ["post", "/api/grants", {
+    summary: "Grant a user read/edit access to a node's whole subtree (owner/admin only)",
+    description:
+      "The per-node-sharing trusted-circle v1 grant: coverage is the grant root's descendant closure, derived at read time over parentage — children created later are covered automatically. The grantee must hold a membership on the workspace (role \"member\" = restricted, write-guarded to her edit closures via the relay's affectedNodeIds check; role \"owner\" = full peer) — the op log is the sync boundary, so per-node grants ride membership, not replace it. Pass exactly one of granteeUserId (an existing account) or granteeEmail (a PENDING grant that starts matching the moment an account with that email exists — no invite tokens). Role read|edit, read by default. Confidential sharing for non-members stays parked (user keypairs / shadow workspaces).",
+    tags: ["Shares"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["nodeId"],
+      properties: {
+        nodeId: { type: "string", format: "uuid" },
+        granteeUserId: { type: "string", format: "uuid" },
+        granteeEmail: { type: "string", format: "email" },
+        role: { type: "string", enum: ["read", "edit"] },
+      },
+    },
+    errors: ["validation_failed", "not_found"],
+  }],
+  ["get", "/api/grants", {
+    summary: "List a node's live grants (owner/admin only)",
+    description:
+      "The LIVE grants on one node of the default workspace, newest first — grantee user id and/or the pending email, role, granter. Revoked rows are not listed (revocation removes the grant from every surface; the Shares Inbox answers empty for the grantee on the next read).",
+    tags: ["Shares"],
+    query: {
+      nodeId: { description: "the granted node", type: "string" },
+    },
+  }],
+  ["delete", "/api/grants/:id", {
+    summary: "Revoke a grant (owner/admin only; effective immediately)",
+    description:
+      "Sets revoked_at — the write-guard and the Shares Inbox drop the grant on their next read. Unknown or already-revoked ids 404.",
+    tags: ["Shares"],
+    params: { id: { description: "the grant uuid" } },
+    errors: ["not_found"],
+  }],
+  ["get", "/api/grants/inbox", {
+    summary: "The Shares Inbox: the live grants matching the authenticated user (any account session)",
+    description:
+      "Every live grant whose grantee is the caller — by user id or by email (a pending email grant matches from the moment an account with that email exists) — restricted to workspaces the caller is a member of, with the granter's identity. The operator key is not a grantee and answers an empty list. The client resolves node titles from its local store and shows restricted members only their grant roots and closures (a UX boundary under the trusted-circle model, not confidentiality).",
+    tags: ["Shares"],
+  }],
+  ["put", "/api/workspaces/:id/members/:userId", {
+    summary: "Set a member's role — \"owner\" full peer | \"member\" RESTRICTED (owner-only)",
+    description:
+      "The trusted-circle seam behind per-node grants: the owner demotes a family/team account to \"member\", after which the relay's write-guard limits its ingest to the edit-grant closures (affectedNodeIds outside the closures → 403, holds for sealed payloads since the ids ride outside the seal; a sealed create's brand-new id is client-trusted by design). The owner cannot demote themselves; non-members get 404 (existence not revealed).",
+    tags: ["Account"],
+    params: {
+      id: { description: "the workspace uuid" },
+      userId: { description: "the member account uuid" },
+    },
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["role"],
+      properties: { role: { type: "string", enum: ["owner", "member"] } },
+    },
+    errors: ["validation_failed", "not_found", "forbidden"],
+  }],
   ["get", "/s/:token", {
     summary: "The public share view: one static read-only HTML document (UNAUTHENTICATED BY DESIGN)",
     description:

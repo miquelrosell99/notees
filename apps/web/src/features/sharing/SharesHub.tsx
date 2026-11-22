@@ -32,6 +32,7 @@ import { Spinner } from "../../components/ui/kit/Spinner.js";
 import { SurfaceTopBar } from "../../components/ui/kit/SurfaceTopBar.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { listShares, revokeShare, type ShareEntry } from "./shareApi.js";
+import { fetchGrantInbox, type InboxGrantEntry } from "./shareApi.js";
 import "./SharesHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -48,6 +49,8 @@ export function SharesHub({
   onOpenNode: (nodeId: string) => void;
 }) {
   const [shares, setShares] = useState<ShareEntry[] | null>(null);
+  /** The Shares Inbox — per-node grants pointing AT the caller (empty for full peers). */
+  const [inbox, setInbox] = useState<InboxGrantEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   /** Live node names/icons: re-render on any client notification. */
@@ -62,6 +65,11 @@ export function SharesHub({
         setShares(null);
         setError(err instanceof Error ? err.message : String(err));
       });
+    // The inbox fails silently to empty when the surface is unavailable —
+    // it is a convenience list, not the hub's reason to exist.
+    fetchGrantInbox(serverUrl, credential)
+      .then((result) => setInbox(result.grants))
+      .catch(() => setInbox([]));
   }, [serverUrl, credential]);
   useEffect(() => {
     load();
@@ -180,6 +188,61 @@ export function SharesHub({
             );
           })}
             </ul>
+          )}
+          {/* The Shares Inbox — per-node grants pointing AT the caller
+              (the trusted-circle v1 surface). Quiet when empty: full peers
+              have no inbox, and the hub is not the place to advertise it. */}
+          {inbox !== null && inbox.length > 0 && (
+            <section className="nt-shares-hub__inbox" aria-label="Shared with me">
+              <h3 className="nt-shares-hub__inbox-title">Shared with me</h3>
+              <ul className="nt-shares-hub__rows">
+                {inbox.map((grant) => {
+                  const node = client.getNode(grant.nodeId);
+                  const name = node !== undefined ? titleOfNode(node) || "Untitled" : "Untitled";
+                  const icon =
+                    node !== undefined
+                      ? (nodeIcon(node, client.effectiveClassIcons()) ?? "mdi-file-outline")
+                      : "mdi-share-variant";
+                  return (
+                    <ListRow
+                      key={grant.id}
+                      className="nt-shares-hub__row"
+                      leading={
+                        <span aria-hidden="true">
+                          <Icon path={icon} size={0.9} />
+                        </span>
+                      }
+                      primary={
+                        <>
+                          <button
+                            type="button"
+                            className="nt-shares-hub__name"
+                            title={node !== undefined ? name : `${name} (${grant.nodeId})`}
+                            onClick={() => onOpenNode(grant.nodeId)}
+                          >
+                            {name}
+                          </button>
+                          <span className="nt-shares-hub__meta">
+                            <span className="nt-shares-hub__stamp">
+                              {grant.role === "edit" ? "Can edit" : "Can read"} · Shared by{" "}
+                              {grant.grantedByEmail ?? "the workspace owner"} ·{" "}
+                              {relativeTime(new Date(grant.createdAt).toISOString())}
+                            </span>
+                          </span>
+                        </>
+                      }
+                      trailing={
+                        <span className="nt-shares-hub__actions">
+                          <Button variant="ghost" size="sm" icon="mdi mdi-open-in-app" onClick={() => onOpenNode(grant.nodeId)}>
+                            Open
+                          </Button>
+                        </span>
+                      }
+                    />
+                  );
+                })}
+              </ul>
+            </section>
           )}
         </div>
       </div>

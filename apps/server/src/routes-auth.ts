@@ -813,6 +813,38 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     return { id, name: parsed.data.name };
   });
 
+  // PUT /workspaces/:id/members/:userId — set a member's role ("owner" full
+  // peer | "member" RESTRICTED: write-guarded to her edit-grant closures).
+  // The trusted-circle v1 seam behind per-node grants: the owner demotes a
+  // family/team account, then grants it nodes. Owner/admin only, same
+  // membership shape as rename/delete.
+  app.put("/workspaces/:id/members/:userId", async (request) => {
+    const { principal } = requireAccount(ctx, request);
+    const { id, userId } = request.params as { id: string; userId: string };
+    const role = ctx.auth.membership(id, principal.userId);
+    if (role === null) {
+      throw new AppError(404, "not_found", "no such workspace");
+    }
+    if (role !== "owner") {
+      throw new AppError(403, "forbidden", "only the workspace owner can manage members");
+    }
+    const parsed = z
+      .object({ role: z.enum(["owner", "member"]) })
+      .strict()
+      .safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid member role");
+    }
+    if (ctx.auth.findUserById(userId) === null) {
+      throw new AppError(404, "not_found", "no such account");
+    }
+    if (userId === principal.userId && parsed.data.role !== "owner") {
+      throw new AppError(422, "validation_failed", "the owner cannot demote themselves");
+    }
+    ctx.auth.setMemberRole(id, userId, parsed.data.role);
+    return { ok: true, role: parsed.data.role };
+  });
+
   // DELETE removes the workspace AND its data (relay log, snapshots, derived
   // db). Owner-only; the confirmation lives in the client.
   app.delete("/workspaces/:id", async (request) => {

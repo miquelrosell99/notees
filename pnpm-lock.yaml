@@ -22,7 +22,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
+        version: 2.1.9(@types/node@22.20.5)(jsdom@25.0.1)
 
   apps/server:
     dependencies:
@@ -54,8 +54,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/sync
       better-sqlite3:
-        specifier: ^11.0.0
-        version: 11.10.0
+        specifier: ^12.11.1
+        version: 12.11.1
       fastify:
         specifier: ^5.0.0
         version: 5.12.8
@@ -384,7 +384,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^2.1.0
-        version: 2.1.9(@types/node@20.19.43)(jsdom@25.0.1)
+        version: 2.1.9(@types/node@22.20.5)(jsdom@25.0.1)
 
   packages/protocol:
     dependencies:
@@ -451,8 +451,8 @@ importers:
         specifier: workspace:*
         version: link:../protocol
       better-sqlite3:
-        specifier: ^11.0.0
-        version: 11.10.0
+        specifier: ^12.11.1
+        version: 12.11.1
       sql.js:
         specifier: ^1.10.0
         version: 1.15.2

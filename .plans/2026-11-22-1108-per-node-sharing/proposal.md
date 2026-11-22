@@ -1,12 +1,13 @@
 # Per-node sharing between users — proposal
 
-Date: 2026-11-22. Status: partial — **slice 1 (attribution) and the server
-half of slice 4 (share-render contamination redaction) SHIPPED 2026-11-22**
-(see `CHANGELOG.md` 2026-11-22); slices 2–3 (grant model, write-guard) and
-the app-side hover gate remain. Scope: grants model, contamination hardening
-for links inside shared renders, node attribution fields. Builds on
-`docs/features/sharing.md` (the read-only public link slice) and the parked
-write-collaboration variant it names.
+Date: 2026-11-22. Status: **slices 1–4 SHIPPED 2026-11-22** (slice 1 + the server
+half of slice 4 in the morning commit; slices 2–3 + the app-side hover gate in
+the afternoon commit — see `CHANGELOG.md` 2026-11-22). Only the parked
+confidential-sharing variants (§3.3: user keypairs / shadow workspaces)
+remain. Scope: grants model, contamination hardening for links inside shared
+renders, node attribution fields. Builds on `docs/features/sharing.md` (the
+read-only public link slice) and the parked write-collaboration variant it
+names.
 
 ## 1. What exists today (the baseline this proposal extends)
 
