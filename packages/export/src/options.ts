@@ -100,6 +100,18 @@ export interface ExportOptions {
   whiteboardMode?: "inline" | "sidecar" | undefined;
   /** Bundle file naming: uuid (default) or `<slug>-<id8>.md`. */
   filenamePolicy?: "uuid" | "slug" | undefined;
+  /**
+   * Share-hardening gate over REFERENCED ids (mention targets, class links,
+   * embed refs, relation values and their qualifiers, typed-link verbs):
+   * when the predicate returns false the reference renders as
+   * `redactedRefLabel` — never the target's name, never its raw uuid. The
+   * public share render uses it to stop private-node titles leaking through
+   * links inside a shared page. The rendered node's OWN class chips and
+   * property-schema names are not references and never pass the gate.
+   */
+  refAccessGate?: ((id: string) => boolean) | undefined;
+  /** Label for references the `refAccessGate` refused. Default "not shared". */
+  redactedRefLabel?: string | undefined;
 }
 
 /** The bag with every default resolved. */
@@ -117,6 +129,9 @@ export interface ResolvedExportOptions {
   maxDepth: number | null;
   whiteboardMode: "inline" | "sidecar";
   filenamePolicy: "uuid" | "slug";
+  /** null = no gate (every reference resolves, the historical behavior). */
+  refAccessGate: ((id: string) => boolean) | null;
+  redactedRefLabel: string;
 }
 
 export function resolveExportOptions(options?: ExportOptions): ResolvedExportOptions {
@@ -132,6 +147,8 @@ export function resolveExportOptions(options?: ExportOptions): ResolvedExportOpt
     maxDepth: options?.maxDepth ?? null,
     whiteboardMode: options?.whiteboardMode ?? "inline",
     filenamePolicy: options?.filenamePolicy ?? "uuid",
+    refAccessGate: options?.refAccessGate ?? null,
+    redactedRefLabel: options?.redactedRefLabel ?? "not shared",
   };
 }
 

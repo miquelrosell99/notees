@@ -155,6 +155,8 @@ function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
       isActive: true,
       createdAt: null,
       updatedAt: null,
+      createdBy: null,
+      updatedBy: null,
     },
     children,
   };

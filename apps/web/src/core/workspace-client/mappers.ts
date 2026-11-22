@@ -73,6 +73,8 @@ export function mapNode(row: NodeRow): ClientNode {
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
   };
 }
 
@@ -120,5 +122,7 @@ export function nodeRowStamp(row: NodeRow): { h1: number; h2: number } {
   mix(row.is_active);
   mix(row.created_at);
   mix(row.updated_at);
+  mix(row.created_by);
+  mix(row.updated_by);
   return { h1: h1 >>> 0, h2: h2 >>> 0 };
 }

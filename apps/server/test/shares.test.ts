@@ -278,6 +278,51 @@ describe("the public share view", () => {
     expect(view.headers["content-security-policy"]).toContain("default-src 'none'");
   });
 
+  it("redacts links outside the share's subtree: private titles never leak through mentions", async () => {
+    server = await makeTestServer();
+    const shared = await createNode(pageBody("Public roadmap"));
+    // A standalone SUBPAGE of the shared node: inside the closure, but NOT
+    // part of the single-file render's block tree — its presence in the body
+    // proves the mention resolved (and wasn't silently dropped).
+    const subpage = await createNode({
+      parentId: shared.id,
+      isEmbedded: false,
+      contentAst: [{ type: "text", text: "Visible subpage title" }],
+    });
+    // A private page elsewhere in the workspace: outside the closure.
+    const priv = await createNode(pageBody("Secret skeleton plan"));
+    await server!.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", ...server!.authHeaders },
+      payload: {
+        envelopes: [
+          testEnvelope({
+            workspaceId: server!.ctx.defaultWorkspace,
+            opType: "object.update",
+            payload: {
+              objectId: shared.id,
+              contentAst: [
+                { type: "mention", targetNodeId: subpage.id },
+                { type: "text", text: " versus " },
+                { type: "mention", targetNodeId: priv.id },
+              ],
+            },
+          }),
+        ],
+      },
+    });
+    const minted = await mintShare(shared.id, server.authHeaders);
+    const view = await server.app.inject({ method: "GET", url: minted.json().share.urlPath });
+    expect(view.statusCode).toBe(200);
+    // In-closure reference resolves; out-of-closure reference redacts — the
+    // private title and its raw uuid both stay out of the document.
+    expect(view.body).toContain("Visible subpage title");
+    expect(view.body).not.toContain("Secret skeleton plan");
+    expect(view.body).not.toContain(priv.id);
+    expect(view.body).toContain("not shared");
+  });
+
   it("is GET-only: other methods hit the 404 wall", async () => {
     server = await makeTestServer();
     const page = await createNode(pageBody("Read only"));

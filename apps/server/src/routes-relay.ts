@@ -161,6 +161,20 @@ export function authorizeWorkspace(
   );
 }
 
+/**
+ * Actor → user attribution: for USER principals, every envelope's actorId is
+ * claimed for that user at first authenticated ingest (the operator key and
+ * scoped keys record nothing — their writes read as the server actor or are
+ * rejected upstream). Feeds `GET /actors`, the client-side "created/edited
+ * by" name resolution.
+ */
+function recordActorClaims(ctx: ServerContext, principal: Principal, envelopes: Envelope[]): void {
+  if (principal.kind !== "user") return;
+  for (const env of envelopes) {
+    ctx.auth.recordActorClaim(env.actorId, principal.userId);
+  }
+}
+
 export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): void {
   app.post("/batch", async (request) => {
     const principal = requireCredential(ctx, request);
@@ -176,6 +190,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
     for (const workspaceId of new Set(envelopes.map((env) => env.workspaceId))) {
       authorizeWorkspace(ctx, principal, workspaceId, "write");
     }
+    recordActorClaims(ctx, principal, envelopes);
     const { savedIds } = await ctx.ingestBatch(envelopes);
     return { savedCount: savedIds.length, savedIds };
   });
@@ -612,6 +627,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
         for (const envWorkspaceId of new Set(envelopes.map((env) => env.workspaceId))) {
           authorizeWorkspace(ctx, principal, envWorkspaceId, "write");
         }
+        recordActorClaims(ctx, principal, envelopes);
         const { savedIds } = await ctx.ingestBatch(envelopes);
         send({ type: "ack", savedIds });
       } catch (error) {

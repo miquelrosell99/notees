@@ -97,6 +97,8 @@ function fakeNode(id: string, title: string, updatedAt: string | null = null): C
     description: null,
     isActive: true,
     createdAt: null,
+    updatedBy: null,
+    createdBy: null,
     updatedAt,
   } as ClientNode;
 }

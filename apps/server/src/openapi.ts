@@ -422,6 +422,12 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     summary: "The authenticated account (the operator key answers as a synthetic owner identity)",
     tags: ["Account"],
   }],
+  ["get", "/api/actors", {
+    summary: "Actor → user attribution registry (for resolving created-by / last-edited-by to a human)",
+    description:
+      "Every envelope carries a per-device actorId, not a user account. The relay records actorId → userId at first authenticated ingest (first claim wins); this route exposes the registry joined with the users table (email + display name). Any authenticated principal may read it. Clients fall back to the raw actorId prefix when an actor has no claim (operator-key writes, unclaimed devices).",
+    tags: ["Account"],
+  }],
   ["patch", "/api/auth/me", {
     summary: "Update profile fields (display name, name, surnames, avatar)",
     tags: ["Account"],

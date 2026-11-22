@@ -60,6 +60,7 @@ import {
 } from "./workspace-client/index.js";
 import { fetchAndOpenAsset, fetchAssetDataUrl, sealAndUploadAsset } from "./workspace-client/asset-transport.js";
 import { pullServerPrefs, pushServerPrefs } from "./workspace-client/prefs-rest.js";
+import { primeActorRegistry } from "./actor-registry.js";
 import {
   readDevicePrefList,
   readDevicePrefScalar,
@@ -1373,7 +1374,10 @@ export class WorkerClient {
   async getPrefs(): Promise<UserPrefs & { source: UserPrefsSource }> {
     if (!(await this.isOperatorKey())) {
       const prefs = await pullServerPrefs(this.serverUrl, this.apiKey);
-      if (prefs !== null) return { ...prefs, source: "server" };
+      if (prefs !== null) {
+        primeActorRegistry(this.serverUrl, this.apiKey);
+        return { ...prefs, source: "server" };
+      }
     }
     return {
       favorites: readDevicePrefList("favorites"),

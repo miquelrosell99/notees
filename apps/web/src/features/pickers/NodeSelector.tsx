@@ -912,6 +912,8 @@ export function NodeSelector({
       isActive: true,
       createdAt: null,
       updatedAt: null,
+      createdBy: null,
+      updatedBy: null,
     }) as ClientNode;
 
   const resolveCreateResult = (result: ClientNode | string | void, createdName?: string): void => {

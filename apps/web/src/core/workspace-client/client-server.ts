@@ -18,6 +18,7 @@ import {
   type UserPrefsSource,
 } from "./prefs.js";
 import { pullServerPrefs, pushServerPrefs } from "./prefs-rest.js";
+import { primeActorRegistry } from "../actor-registry.js";
 import { fetchAndOpenAsset, sealAndUploadAsset } from "./asset-transport.js";
 import {
   normalizeSectionView,
@@ -90,7 +91,10 @@ export class WorkspaceClientServer {
       !(await this.isOperatorKey())
     ) {
       const prefs = await pullServerPrefs(this.ctx.restServerUrl, this.ctx.restApiKey);
-      if (prefs !== null) return { ...prefs, source: "server" };
+      if (prefs !== null) {
+        primeActorRegistry(this.ctx.restServerUrl, this.ctx.restApiKey);
+        return { ...prefs, source: "server" };
+      }
     }
     return {
       favorites: readDevicePrefList("favorites"),

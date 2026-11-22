@@ -39,6 +39,8 @@ function stubNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
     isActive: true,
     createdAt: null,
     updatedAt: null,
+    createdBy: null,
+    updatedBy: null,
     ...partial,
   };
 }

@@ -200,9 +200,11 @@ describe("Asset attachments (the asset property row)", () => {
     expect(screen.getByText("scan.pdf")).not.toBeNull();
     expect(screen.queryByText("Random notes")).toBeNull();
     // Create is disabled: a query offers no create row (and no upload row).
+    // The matcher pins the picker's `Create "<query>"` row label — not the
+    // metadata panel's "Created" attribution row.
     fireEvent.change(screen.getByLabelText("Search attachments"), { target: { value: "scan" } });
     expect(screen.getByText("scan.pdf")).not.toBeNull();
-    expect(screen.queryByText(/Create/)).toBeNull();
+    expect(screen.queryByText(/^Create "/)).toBeNull();
     expect(screen.queryByText("Upload file…")).toBeNull();
   });
 

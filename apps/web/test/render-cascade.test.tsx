@@ -311,6 +311,8 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
       isActive: true,
       createdAt: null,
       updatedAt: null,
+      createdBy: null,
+      updatedBy: null,
       ...partial,
     };
   }

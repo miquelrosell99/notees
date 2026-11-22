@@ -1093,8 +1093,9 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     // `permanent` is ignored on this arm — archival is the only delete a
     // system class admits.
     if (systemClassNameForId(p.objectId) !== null) {
-      db.prepare("UPDATE node SET is_active = 0, updated_at = ? WHERE id = ?").run(
+      db.prepare("UPDATE node SET is_active = 0, updated_at = ?, updated_by = ? WHERE id = ?").run(
         ts,
+        env.actorId,
         p.objectId,
       );
       db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(ts, p.objectId);
@@ -1118,7 +1119,13 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     const ids = subtreeIds(db, p.objectId);
     for (const chunk of inListChunks(ids)) {
       const ph = chunk.map(() => "?").join(",");
-      db.prepare(`UPDATE node SET is_active = 0 WHERE id IN (${ph})`).run(...chunk);
+      // updated_* rides the trash write: "last edit" means last mutation,
+      // and the row's liveness flipped (the restore arm stamps the same way).
+      db.prepare(`UPDATE node SET is_active = 0, updated_at = ?, updated_by = ? WHERE id IN (${ph})`).run(
+        ts,
+        env.actorId,
+        ...chunk,
+      );
     }
     if (deletedIsClass) {
       // The registry projection follows the node into the trash (the picker
@@ -1333,7 +1340,11 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   for (const chunk of inListChunks(toReactivate)) {
     const ph = chunk.map(() => "?").join(",");
-    db.prepare(`UPDATE node SET is_active = 1 WHERE id IN (${ph})`).run(...chunk);
+    db.prepare(`UPDATE node SET is_active = 1, updated_at = ?, updated_by = ? WHERE id IN (${ph})`).run(
+      env.timestamp,
+      env.actorId,
+      ...chunk,
+    );
     // The registry projection mirrors back with the node (the trash arm
     // mirrored it off — a restored class re-enters the pickers).
     db.prepare(`UPDATE class SET active = 1, updated_at = ? WHERE id IN (${ph})`).run(
@@ -1680,8 +1691,11 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // Applied unconditionally: declaration is structural, not a row-field race
   // (the extends-DAG precedent, object.delete's bit flips).
   const converted = db
-    .prepare("UPDATE node SET is_class = 1, is_embedded = 0, parent_id = NULL WHERE id = ? AND is_class = 0")
-    .run(p.classId);
+    .prepare(
+      "UPDATE node SET is_class = 1, is_embedded = 0, parent_id = NULL, updated_at = ?, updated_by = ? " +
+        "WHERE id = ? AND is_class = 0",
+    )
+    .run(env.timestamp, env.actorId, p.classId);
   if (converted.changes > 0) {
     db.prepare("DELETE FROM node_child_order WHERE child_id = ?").run(p.classId);
   }
@@ -1809,8 +1823,10 @@ function applyClassReorder(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.reorder";
   const p = env.payload as OpPayload<"class.reorder">;
   requireNode(db, p.objectId, opType);
-  db.prepare("UPDATE node SET class_order = ? WHERE id = ?").run(
+  db.prepare("UPDATE node SET class_order = ?, updated_at = ?, updated_by = ? WHERE id = ?").run(
     JSON.stringify(p.classIds),
+    env.timestamp,
+    env.actorId,
     p.objectId,
   );
   recomputeClassIds(db, p.objectId);

@@ -676,6 +676,25 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     };
   });
 
+  /**
+   * The actor → user attribution registry (see auth.ts actor_claim): the
+   * client-side resolution surface for node created-by / last-edited-by.
+   * Any authenticated principal reads it — the same members who can read
+   * the workspace's op log; unknown actors simply have no row, and clients
+   * fall back to the actorId prefix.
+   */
+  app.get("/actors", async (request) => {
+    requireUserOrOperator(ctx, request);
+    return {
+      actors: ctx.auth.listActorClaims().map((row) => ({
+        actorId: row.actorId,
+        userId: row.userId,
+        email: row.email,
+        displayName: row.displayName,
+      })),
+    };
+  });
+
   app.patch("/auth/me", async (request) => {
     const principal = requireUser(ctx, request);
     const parsed = z

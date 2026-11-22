@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { hashPassword } from "../src/auth.js";
 import { closeTestServer, ingest, makeTestServer, pagePayload, testEnvelope, type TestServer } from "./helpers";
 
 let server: TestServer | null = null;
@@ -175,5 +176,73 @@ describe("ingest validation (WIRE error shapes)", () => {
     const res = await ingest(server, [env]);
     expect(res.statusCode).toBe(200);
     expect(res.json().savedCount).toBe(1);
+  });
+});
+
+describe("actor attribution registry (GET /api/actors)", () => {
+  it("records actorId -> userId at first authenticated ingest; operator-key ingests record nothing; first claim wins", async () => {
+    server = await makeTestServer();
+    const srv = server;
+    // Operator-key ingest: no user principal, no claim.
+    await ingest(srv, [testEnvelope({ opType: "object.create", payload: pagePayload("By operator") })]);
+
+    const actorId = "0192a000-0000-7000-8000-000000000042";
+    const writer = server.ctx.auth.createUser({
+      email: "writer@example.com",
+      passwordHash: await hashPassword("writer-password-1"),
+    });
+    server.ctx.auth.addMember(server.workspaceId, writer.id, "owner");
+    const session = server.ctx.auth.createSession(writer.id).token;
+    const asUser = (payload: Record<string, unknown>) =>
+      srv.app.inject({
+        method: "POST",
+        url: "/api/relay/v2/batch",
+        headers: { "content-type": "application/json", authorization: `Bearer ${session}` },
+        payload,
+      });
+    const res = await asUser({
+      envelopes: [testEnvelope({ actorId, opType: "object.create", payload: pagePayload("By user") })],
+    });
+    expect(res.statusCode).toBe(200);
+
+    const actors = await server.app.inject({
+      method: "GET",
+      url: "/api/actors",
+      headers: { authorization: `Bearer ${session}` },
+    });
+    expect(actors.statusCode).toBe(200);
+    expect(actors.json().actors).toEqual([
+      { actorId, userId: writer.id, email: "writer@example.com", displayName: null },
+    ]);
+
+    // First claim wins: the same actor writing as ANOTHER user keeps the
+    // original mapping (INSERT OR IGNORE — a device actor never re-points).
+    const other = server.ctx.auth.createUser({
+      email: "other@example.com",
+      passwordHash: await hashPassword("other-password-1"),
+    });
+    server.ctx.auth.addMember(server.workspaceId, other.id, "owner");
+    const otherSession = server.ctx.auth.createSession(other.id).token;
+    await server.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/batch",
+      headers: { "content-type": "application/json", authorization: `Bearer ${otherSession}` },
+      payload: {
+        envelopes: [testEnvelope({ actorId, opType: "object.create", payload: pagePayload("By other") })],
+      },
+    });
+    const after = await server.app.inject({
+      method: "GET",
+      url: "/api/actors",
+      headers: { authorization: `Bearer ${otherSession}` },
+    });
+    expect(after.json().actors).toHaveLength(1);
+    expect(after.json().actors[0].userId).toBe(writer.id);
+  });
+
+  it("rejects anonymous reads with 401", async () => {
+    server = await makeTestServer();
+    const res = await server.app.inject({ method: "GET", url: "/api/actors" });
+    expect(res.statusCode).toBe(401);
   });
 });

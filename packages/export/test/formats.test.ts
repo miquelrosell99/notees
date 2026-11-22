@@ -149,6 +149,8 @@ describe("format registry", () => {
       maxDepth: null,
       whiteboardMode: "inline",
       filenamePolicy: "uuid",
+      refAccessGate: null,
+      redactedRefLabel: "not shared",
     });
     expect(resolveExportOptions({ pageFormat: "letter", maxDepth: 3 }).pageFormat).toBe("letter");
     expect(resolveExportOptions({ pageFormat: "letter", maxDepth: 3 }).maxDepth).toBe(3);

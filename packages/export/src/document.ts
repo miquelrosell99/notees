@@ -422,7 +422,7 @@ export function buildExportDocument(
     blocks,
     properties: node.properties.map((property) => ({
       ...property,
-      ...resolvePropertyDisplay(property, ctx),
+      ...resolvePropertyDisplay(property, ctx, options),
     })),
     classIds: node.classIds,
     classNames: node.classIds.map((id) => normalizeInlineName(ctx.nameOf(id) ?? id)),
@@ -451,12 +451,13 @@ export function buildExportBlocks(
 function resolvePropertyDisplay(
   property: ExportPropertyValue,
   ctx: ExportContext,
+  options: ResolvedExportOptions,
 ): {
   display: string;
   displayEntries?: Array<string | null>;
   resolvedQualifiers?: Array<{ key: string; display: string }>;
 } {
-  return { ...resolvePropertyValueDisplay(property, ctx), ...resolveQualifiers(property, ctx) };
+  return { ...resolvePropertyValueDisplay(property, ctx, options), ...resolveQualifiers(property, ctx, options) };
 }
 
 /**
@@ -470,6 +471,7 @@ function resolvePropertyDisplay(
 function resolveQualifiers(
   property: ExportPropertyValue,
   ctx: ExportContext,
+  options: ResolvedExportOptions,
 ): { resolvedQualifiers?: Array<{ key: string; display: string }> } {
   if (property.metadata === undefined || Object.keys(property.metadata).length === 0) return {};
   const resolved = Object.entries(property.metadata).map(([key, entry]) => {
@@ -480,7 +482,7 @@ function resolveQualifiers(
           ? entry
           : null;
     if (refId !== null) {
-      const named = ctx.nameOf(refId);
+      const named = refNameOf(ctx, options, refId);
       if (named !== undefined) return { key, display: normalizeInlineName(named) };
       const parsed = parseDateNodeId(refId);
       if (parsed !== null) return { key, display: dateNodeDisplayLabel(parsed, parsed.precision) };
@@ -494,6 +496,7 @@ function resolveQualifiers(
 function resolvePropertyValueDisplay(
   property: ExportPropertyValue,
   ctx: ExportContext,
+  options: ResolvedExportOptions,
 ): { display: string; displayEntries?: Array<string | null> } {
   const value = property.value;
   // Node-typed read-leniency (SCHEMA.md PB2): v1-migrated data rides the
@@ -509,7 +512,7 @@ function resolvePropertyValueDisplay(
   const nodeTyped =
     property.schemaType !== undefined && NODE_TYPED_SCHEMAS.has(property.schemaType);
   const nodeRefDisplay = (refId: string): string =>
-    normalizeInlineName(ctx.nameOf(refId) ?? refId);
+    normalizeInlineName(refNameOf(ctx, options, refId) ?? refId);
   // One datetime slot (a range side or a point): the ref's display label plus
   // the wall-clock time when the slot carries one (`label HH:MM`, 24h). null
   // for an open side / non-ref — the range branches map that to "…".
@@ -594,10 +597,10 @@ function buildBlocks(
   for (const token of ast) {
     if (token.type === "quote") {
       flush();
-      out.push({ kind: "quote", spans: token.children.map((child) => buildSpan(child, ctx)) });
+      out.push({ kind: "quote", spans: token.children.map((child) => buildSpan(child, ctx, options)) });
     } else if (token.type === "heading") {
       flush();
-      out.push({ kind: "heading", spans: token.children.map((child) => buildSpan(child, ctx)) });
+      out.push({ kind: "heading", spans: token.children.map((child) => buildSpan(child, ctx, options)) });
     } else if (token.type === "asset_ref") {
       flush();
       if (!assetRefs.includes(token.assetId)) assetRefs.push(token.assetId);
@@ -607,7 +610,7 @@ function buildBlocks(
       const inlined = resolveEmbed(token.nodeId, ctx, options, visited, assetRefs);
       const link =
         inlined === null
-          ? resolveEmbedLink(token.nodeId, ctx)
+          ? resolveEmbedLink(token.nodeId, ctx, options)
           : undefined;
       out.push({ kind: "embed", nodeId: token.nodeId, inlined, link });
     } else if (token.type === "query") {
@@ -631,7 +634,7 @@ function buildBlocks(
       // (a thematic-break export kind rides the same post-lockstep slice).
       flush();
     } else {
-      spans.push(buildSpan(token as InlineToken, ctx));
+      spans.push(buildSpan(token as InlineToken, ctx, options));
     }
   }
   flush();
@@ -655,39 +658,60 @@ function resolveEmbed(
 }
 
 /**
+ * Reference-name resolution behind the share-hardening gate: when
+ * `options.refAccessGate` refuses an id, the reference renders as the
+ * redaction label — never the target's private name, never its raw uuid.
+ * Ungated behavior is exactly `ctx.nameOf` (undefined = unknown → the
+ * callers' honest raw-id fallbacks stand).
+ */
+function refNameOf(
+  ctx: ExportContext,
+  options: ResolvedExportOptions,
+  id: string,
+): string | undefined {
+  if (options.refAccessGate !== null && !options.refAccessGate(id)) {
+    return options.redactedRefLabel;
+  }
+  return ctx.nameOf(id);
+}
+
+/**
  * Relative-link fallback for an embed the inliner did not expand: when
  * ctx.linkTarget knows the file the target node was exported to, the
  * serializer links there instead of the `![[uuid]]` reference. The display
- * name resolves rename-free via ctx.nameOf (raw id when unknown).
+ * name resolves rename-free via ctx.nameOf (raw id when unknown); a
+ * refAccessGate refusal renders the redaction label instead.
  */
 function resolveEmbedLink(
   nodeId: string,
   ctx: ExportContext,
+  options: ResolvedExportOptions,
 ): { name: string; path: string } | undefined {
   const target = ctx.linkTarget?.(nodeId);
   if (target === undefined) return undefined;
-  return { name: normalizeInlineName(ctx.nameOf(nodeId) ?? nodeId), path: target.path };
+  return { name: normalizeInlineName(refNameOf(ctx, options, nodeId) ?? nodeId), path: target.path };
 }
 
-function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
+function buildSpan(token: InlineToken, ctx: ExportContext, options: ResolvedExportOptions): ExportSpan {
   switch (token.type) {
     case "text":
       return { kind: "text", text: token.text, marks: token.marks ?? [] };
     case "hard_break":
       return { kind: "hardBreak" };
     case "mention": {
-      const raw = token.customLabel ?? ctx.nameOf(token.targetNodeId) ?? token.targetNodeId;
+      const gated = options.refAccessGate !== null && !options.refAccessGate(token.targetNodeId);
+      const raw = token.customLabel ?? refNameOf(ctx, options, token.targetNodeId) ?? token.targetNodeId;
       const link = ctx.linkTarget?.(token.targetNodeId);
       return {
         kind: "mention",
         targetNodeId: token.targetNodeId,
         name: normalizeInlineName(raw),
-        ...(ctx.iconOf !== undefined ? { icon: ctx.iconOf(token.targetNodeId) } : {}),
+        ...(ctx.iconOf !== undefined && !gated ? { icon: ctx.iconOf(token.targetNodeId) } : {}),
         ...(link !== undefined ? { linkPath: link.path } : {}),
       };
     }
     case "class_link": {
-      const raw = token.displayText ?? ctx.nameOf(token.classId) ?? token.classId;
+      const raw = token.displayText ?? refNameOf(ctx, options, token.classId) ?? token.classId;
       // Chip convention: whitespace folds to "-", leading # stripped (kept
       // from the original renderer — the serializer emits `#${name}` verbatim).
       return { kind: "classLink", classId: token.classId, name: normalizeInlineName(raw).replace(/\s+/g, "-").replace(/^#+/, "") };
@@ -696,7 +720,7 @@ function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
       const locator = token.metadata?.locator;
       return {
         kind: "typedLink",
-        verb: normalizeInlineName(renderVerb(token.verb, ctx)),
+        verb: normalizeInlineName(renderVerb(token.verb, ctx, options)),
         text: token.text,
         locator: locator === undefined ? null : normalizeInlineName(String(locator)),
       };
@@ -706,10 +730,10 @@ function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
   }
 }
 
-function renderVerb(verb: unknown, ctx: ExportContext): string {
+function renderVerb(verb: unknown, ctx: ExportContext, options: ResolvedExportOptions): string {
   if (typeof verb === "string") return verb;
   if (isRecord(verb) && typeof verb.propertySchemaId === "string") {
-    return ctx.nameOf(verb.propertySchemaId) ?? verb.propertySchemaId;
+    return refNameOf(ctx, options, verb.propertySchemaId) ?? verb.propertySchemaId;
   }
   return String(verb);
 }
@@ -750,7 +774,7 @@ function buildChildren(
         : {}),
       properties: child.properties.map((property) => ({
         ...property,
-        ...resolvePropertyDisplay(property, ctx),
+        ...resolvePropertyDisplay(property, ctx, options),
       })),
       blocks: buildBlocks(child.contentAst, ctx, options, childVisited, assetRefs),
       children: buildChildren(child.id, ctx, options, childVisited, depth + 1, assetRefs),

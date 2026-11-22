@@ -525,6 +525,8 @@ describe("regression: NodePill right-click color row gains Escape", () => {
     isActive: true,
     createdAt: null,
     updatedAt: null,
+    createdBy: null,
+    updatedBy: null,
   };
 
   it("Escape closes; pressing a swatch does not self-dismiss", () => {

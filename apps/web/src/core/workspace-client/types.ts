@@ -166,6 +166,12 @@ export interface ClientNode {
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;
+  /** node.created_by (envelope actorId of the first create op) — resolved to
+   * a human through the actor registry (GET /api/actors); the raw uuid
+   * prefix is the fallback for unclaimed actors (operator writes, legacy). */
+  createdBy: string | null;
+  /** node.updated_by (envelope actorId of the latest accepted mutation). */
+  updatedBy: string | null;
 }
 
 export interface BlockTreeNode {

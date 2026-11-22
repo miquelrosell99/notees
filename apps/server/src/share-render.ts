@@ -52,6 +52,22 @@ function toExportNode(store: Store, row: NodeRow): ExportNode {
  * markdown outline's Pages section.
  */
 export function renderSharedNode(store: Store, row: NodeRow): string {
+  // Share-hardening (the per-node-sharing proposal's contamination ruling):
+  // the closure is the shared node's FULL descendant set — a reference
+  // (mention, class link, embed, relation value) to anything outside it
+  // renders as the redaction label, never the target's title, so a private
+  // node's name cannot leak through a link inside a shared page.
+  const closure = new Set<string>([row.id]);
+  const stack = [row.id];
+  while (stack.length > 0) {
+    const id = stack.pop() as string;
+    for (const child of store.children(id)) {
+      if (!closure.has(child.id)) {
+        closure.add(child.id);
+        stack.push(child.id);
+      }
+    }
+  }
   const nameOf = (nodeId: string): string | undefined => {
     const target = store.getNode(nodeId);
     if (target === undefined || target.is_active !== 1) return undefined;
@@ -73,6 +89,6 @@ export function renderSharedNode(store: Store, row: NodeRow): string {
         .filter((child) => child.is_class === 0 && child.is_embedded === 1 && child.is_active === 1)
         .map((child) => toExportNode(store, child)),
   };
-  const options = resolveExportOptions();
+  const options = resolveExportOptions({ refAccessGate: (id) => closure.has(id) });
   return renderExportDocumentToHtml(buildExportDocument(toExportNode(store, row), ctx, options), options);
 }

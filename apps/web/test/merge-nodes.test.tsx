@@ -413,6 +413,8 @@ describe("MergeNodesModal (worker client — the local worker merge)", () => {
       isActive: true,
       createdAt: null,
       updatedAt: null,
+      createdBy: null,
+      updatedBy: null,
       ...partial,
     };
   }
@@ -608,6 +610,8 @@ describe("node context menu merge entry", () => {
       isActive: true,
       createdAt: null,
       updatedAt: null,
+      createdBy: null,
+      updatedBy: null,
       ...partial,
     };
   }

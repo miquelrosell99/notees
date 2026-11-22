@@ -332,6 +332,18 @@ CREATE INDEX IF NOT EXISTS idx_recovery_code_user ON recovery_code (user_id, id)
 -- (The retired per-user section_view table's one-time migration runs in the
 -- constructor, after this DDL — it must be conditional on the old table
 -- existing, which plain SQL cannot express.)
+
+-- Actor → user attribution registry: every envelope carries a per-device
+-- actorId, which is not a user account. The relay records the mapping at
+-- first authenticated ingest per actor (INSERT OR IGNORE — first claim
+-- wins), so clients can resolve "last edited by" to a human. Coordination
+-- state, deliberately NOT op-log state (the prefs/shares ruling).
+CREATE TABLE IF NOT EXISTS actor_claim (
+    actor_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    first_seen_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_actor_claim_user ON actor_claim (user_id);
 `;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -783,6 +795,54 @@ export class AuthStorage {
           .get(workspaceId) as { n: number }
       ).n > 0
     );
+  }
+
+  // --- actor → user attribution registry --------------------------------------
+
+  /**
+   * Record that `actorId` writes as `userId`. First claim wins (INSERT OR
+   * IGNORE — the PK is the actor): a device actor never re-points at another
+   * account, and racing first writes converge on one row. The relay calls
+   * this for user principals on every authenticated ingest; operator-key
+   * writes carry no user and record nothing (they read as the server actor).
+   */
+  recordActorClaim(actorId: string, userId: string): void {
+    this.db
+      .prepare(
+        "INSERT OR IGNORE INTO actor_claim (actor_id, user_id, first_seen_at) VALUES (?, ?, ?)",
+      )
+      .run(actorId, userId, Date.now());
+  }
+
+  /**
+   * The registry joined with the users table — the client-side "last edited
+   * by" resolution surface. Any authenticated principal may read it (the
+   * same members who can read the workspace's op log).
+   */
+  listActorClaims(): Array<{
+    actorId: string;
+    userId: string;
+    email: string;
+    displayName: string | null;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT c.actor_id AS actor_id, c.user_id AS user_id, u.email AS email, u.display_name AS display_name
+         FROM actor_claim c JOIN user u ON u.id = c.user_id
+         ORDER BY c.actor_id`,
+      )
+      .all() as Array<{
+      actor_id: string;
+      user_id: string;
+      email: string;
+      display_name: string | null;
+    }>;
+    return rows.map((row) => ({
+      actorId: row.actor_id,
+      userId: row.user_id,
+      email: row.email,
+      displayName: row.display_name,
+    }));
   }
 
   listWorkspacesForUser(

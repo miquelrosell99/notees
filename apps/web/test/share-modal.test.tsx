@@ -212,6 +212,8 @@ describe("NodeContextMenu Share… item", () => {
       isActive: true,
       createdAt: null,
       updatedAt: null,
+      createdBy: null,
+      updatedBy: null,
       ...partial,
     };
   }

@@ -470,6 +470,8 @@ describe("sidebar row labels render as plain text", () => {
       isActive: true,
       createdAt: null,
       updatedAt: null,
+      createdBy: null,
+      updatedBy: null,
       ...partial,
     };
   }
