@@ -442,9 +442,12 @@
   transform: none;
 }
 
-.nt-block-content:focus-within {
-  background: var(--md-sys-color-surface);
-}
+/* No editing background fill: the edit state rides the accent bullet
+   (scale + primary), the caret, and the edit-thread ancestor dots — a
+   filled strip behind the text read as a style change on entering edit
+   mode (prominent in dark mode / the panelled column, where --md-sys-color-
+   surface differs from the page background), the owner's most-visible UI
+   complaint. */
 
 /* The editing surface: text selection is legal only here — the contentEditable
    (and the code surface's textarea) re-enable it inside the row's edit mode. */
