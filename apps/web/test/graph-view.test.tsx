@@ -718,6 +718,20 @@ describe("GraphView component", () => {
   });
 
   it("a link-family toggle updates the live stack — no renderer/engine rebuild, no blank", async () => {
+    // This spec seeds the heaviest graph of the file (three nodes, a
+    // topology read, an engine warm-up) and drives three display settles.
+    // Two load-sensitive failure modes were diagnosed from full-suite
+    // failures (2026-11-22/23, green in isolation every time):
+    //   1. STARVATION — the settles starve past waitFor's default 1 s cap
+    //      under the FULL suite's parallel load (the common mode: ~half the
+    //      full runs pre-fix). The explicit 5 s budget below fixed it
+    //      (seven consecutive full-suite greens); the waits still fail on a
+    //      REAL regression — a wrong terminal state retries to the same
+    //      cap, never passes.
+    //   2. A RARE residual (1 failure in 8 capped full runs) whose exact
+    //      assertion was never captured — full logs are kept on the next
+    //      fire; do not raise the caps again, diagnose from the log.
+    const WAIT = { timeout: 5000 };
     window.localStorage.clear();
     const client = await seedClient();
     const pageA = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Alpha" }] });
@@ -788,7 +802,7 @@ describe("GraphView component", () => {
       const { GraphView: GraphViewWithStub } = await import("../src/features/collection/graph/GraphView.js");
       render(<GraphViewWithStub client={client} />);
       // The stack builds once the topology lands.
-      await vi.waitFor(() => expect(glStub.instances).toHaveLength(1));
+      await vi.waitFor(() => expect(glStub.instances).toHaveLength(1), WAIT);
       expect(screen.getByText(/3 nodes · .* edges/)).toBeTruthy();
 
       // Toggle a link family off — an edge-only display change. The live
@@ -796,7 +810,7 @@ describe("GraphView component", () => {
       // the counts update, and no loading overlay may appear.
       fireEvent.click(screen.getByRole("button", { name: "Visibility" }));
       fireEvent.click(await screen.findByRole("button", { name: "Mentions" }));
-      await vi.waitFor(() => expect(screen.getByText(/3 nodes · 0 edges/)).toBeTruthy());
+      await vi.waitFor(() => expect(screen.getByText(/3 nodes · 0 edges/)).toBeTruthy(), WAIT);
       expect(glStub.instances).toHaveLength(1);
       const live = glStub.instances[0]! as unknown as { edgesCalls: number };
       expect(live.edgesCalls).toBeGreaterThan(0);
@@ -807,10 +821,10 @@ describe("GraphView component", () => {
       // linked pages are not orphans themselves — otherwise the display
       // empties out and the honest empty state replaces the canvas instead.
       fireEvent.click(screen.getByRole("button", { name: "Mentions" }));
-      await vi.waitFor(() => expect(screen.getByText(/3 nodes · 1 edges/)).toBeTruthy());
+      await vi.waitFor(() => expect(screen.getByText(/3 nodes · 1 edges/)).toBeTruthy(), WAIT);
       expect(glStub.instances).toHaveLength(1);
       fireEvent.click(screen.getByRole("switch", { name: "Orphans" }));
-      await vi.waitFor(() => expect(glStub.instances).toHaveLength(2));
+      await vi.waitFor(() => expect(glStub.instances).toHaveLength(2), WAIT);
     } finally {
       glStub.instances.length = 0;
       vi.resetModules();
