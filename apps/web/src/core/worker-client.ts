@@ -369,6 +369,16 @@ export class WorkerClient {
   }
 
   private isKeyInvalidated(key: string, affectedSet: Set<string>): boolean {
+    // Fast path: metadata captured at seed time (see keyMeta). The parse
+    // fallback only covers keys seeded before this map existed (defensive —
+    // every seed goes through cachedRead) and unparseable keys, which stay
+    // conservatively invalidated.
+    const meta = this.keyMeta.get(key);
+    if (meta !== undefined) {
+      if (meta.kind === "change") return true;
+      if (meta.kind === "structure") return false;
+      return meta.scopeId !== null && affectedSet.has(meta.scopeId);
+    }
     let method: string;
     let args: unknown[];
     try {
@@ -395,10 +405,29 @@ export class WorkerClient {
 
   // --- read cache -------------------------------------------------------------------
 
+  /**
+   * Per-key invalidation metadata, computed ONCE at seed time from the known
+   * method + args (instead of re-`JSON.parse`ing every cache key on every
+   * change notification): at thousand-row pages the cache holds thousands of
+   * keys, and a keystroke's `changed` handler walked and parsed ALL of them
+   * to answer an O(1) scope question — a growing main-thread tax per edit.
+   */
+  private readonly keyMeta = new Map<
+    string,
+    { kind: "change" | "structure" | "scope"; scopeId: string | null }
+  >();
+
+  private noteKeyMeta(key: string, method: string, args: unknown[]): void {
+    const kind = READ_INVALIDATION[method] ?? "change";
+    const scopeId = kind === "scope" && typeof args[0] === "string" ? args[0] : null;
+    this.keyMeta.set(key, { kind, scopeId });
+  }
+
   private cachedRead<T>(method: string, args: unknown[], empty: T): T {
     const key = JSON.stringify([method, args]);
     if (this.cache.has(key)) return this.cache.get(key) as T;
     this.cache.set(key, empty);
+    this.noteKeyMeta(key, method, args);
     this.refreshDirty.add(key);
     this.scheduleRefresh();
     return empty;
