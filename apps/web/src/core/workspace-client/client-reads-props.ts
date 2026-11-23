@@ -15,7 +15,7 @@ import {
   SYSTEM_PROPERTY_UUIDS,
 } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery, type CompileOptions, type QueryAst } from "@notees/query";
-import { visiblePropertyValueRows, type NodeRow } from "@notees/store";
+import { visiblePropertyValueRowsFor, type NodeRow } from "@notees/store";
 
 import { aliasValuesOf } from "../../features/metadata/aliasProperty.js";
 import { fetchAssetDataUrl } from "./asset-transport.js";
@@ -38,6 +38,29 @@ import {
 } from "./types.js";
 import type { ClientContext } from "./client-context.js";
 import { WorkspaceClientReads } from "./client-reads.js";
+
+/**
+ * The node id a property value references when it IS a node reference —
+ * the canonical `{"nodeId"}` shape or a legacy bare-uuid text scalar.
+ * Null for any other value (numbers, plain text, arrays, malformed JSON).
+ */
+function propertyRefOf(value: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "nodeId" in parsed &&
+      typeof (parsed as { nodeId: unknown }).nodeId === "string"
+    ) {
+      return (parsed as { nodeId: string }).nodeId;
+    }
+    if (typeof parsed === "string" && UUID_LIKE.test(parsed)) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export class WorkspaceClientReadsProps {
   constructor(
@@ -352,6 +375,14 @@ export class WorkspaceClientReadsProps {
    * a nested block's own carriers are excluded from ITS body, and an
    * excluded carrier's whole subtree is pruned with it (children of an
    * excluded row are never visited).
+   *
+   * The serve is ONE recursive CTE plus ONE scoped carrier query. The
+   * original per-node shape — a children() query AND a property-value
+   * query per row — cost 2N prepared statements inside a single worker
+   * message; at thousand-row pages the multiRead serialization blocked
+   * the worker's message loop for seconds per keystroke (every edit
+   * re-serves the open page's tree; the write RPCs of the next gesture
+   * queued behind the serve — the 8s Enter-split profile).
    */
   getBlockTree(pageId: string, depth?: number | null): BlockTreeNode[] {
     // The deferred follow-up: `useOutlinerValue` calls this on every
@@ -359,22 +390,42 @@ export class WorkspaceClientReadsProps {
     // worker client already cachedReads it; now the in-process path matches).
     return this.reads.cachedListRead(`getBlockTree:${pageId}:${depth ?? "*"}`, () => {
       const cap = depth ?? DEFAULT_TREE_DEPTH;
+      if (cap <= 0) return [];
+      // Flat subtree fetch: the CTE walks node_child_order with the row
+      // filters in SQL (active, non-class, embedded), carrying depth and
+      // position; ORDER BY parent + position reproduces children()'s
+      // per-group ordering so the JS assembly below preserves sibling
+      // order exactly.
+      const flat = this.subtreeRows(pageId, cap);
+      const byParent = new Map<string, NodeRow[]>();
+      for (const row of flat) {
+        const list = byParent.get(row.sub_parent_id);
+        if (list !== undefined) list.push(row);
+        else byParent.set(row.sub_parent_id, [row]);
+      }
+      // Carrier refs scoped PER OWNER (parity with the old per-node read):
+      // an owner's property values exclude only that owner's children — a
+      // uuid text value on an unrelated node must never prune a row here.
+      const carriersByOwner = new Map<string, Set<string>>();
+      const ownerIds = [pageId, ...flat.map((row) => row.id)];
+      for (const row of visiblePropertyValueRowsFor(this.ctx.store.database, ownerIds)) {
+        const ref = propertyRefOf(row.value);
+        if (ref === null) continue;
+        const set = carriersByOwner.get(row.node_id);
+        if (set !== undefined) set.add(ref);
+        else carriersByOwner.set(row.node_id, new Set([ref]));
+      }
       const build = (id: string, remaining: number): BlockTreeNode[] => {
         if (remaining <= 0) return [];
+        const rows = byParent.get(id);
+        if (rows === undefined) return [];
         // Node-backed property values live as children of the owner but render
         // inside the property cell — exclude them here or they appear twice.
         // Two shapes: node-typed references ({"nodeId"}) and text properties,
         // whose scalar value may be the carrier block's uuid (legacy shape).
-        const propertyRefIds = this.propertyCarrierIdsOf(id);
-        return this.ctx.store
-          .children(id)
-          .filter(
-            (row) =>
-              row.is_class === 0 &&
-              row.is_embedded === 1 &&
-              row.is_active === 1 &&
-              !propertyRefIds.has(row.id),
-          )
+        const carrierIds = carriersByOwner.get(id);
+        return rows
+          .filter((row) => carrierIds?.has(row.id) !== true)
           .map((row) => ({
             node: this.ctx.mapNodeCached(row),
             children: build(row.id, remaining - 1),
@@ -385,31 +436,31 @@ export class WorkspaceClientReadsProps {
   }
 
   /**
-   * The node ids referenced by `nodeId`'s property values (canonical
-   * `{nodeId}` refs and legacy bare-uuid text values) — the carrier set the
-   * body render excludes. Scoped to ONE node: each subtree root filters its
-   * own carriers.
+   * The flat, position-ordered rows of `rootId`'s embedded subtree, capped at
+   * `cap` levels — one recursive CTE, constant query count regardless of the
+   * tree's row count (see getBlockTree).
    */
-  private propertyCarrierIdsOf(nodeId: string): Set<string> {
-    const propertyRefIds = new Set<string>();
-    for (const row of visiblePropertyValueRows(this.ctx.store.database, nodeId)) {
-      try {
-        const parsed: unknown = JSON.parse(row.value);
-        if (
-          typeof parsed === "object" &&
-          parsed !== null &&
-          "nodeId" in parsed &&
-          typeof (parsed as { nodeId: unknown }).nodeId === "string"
-        ) {
-          propertyRefIds.add((parsed as { nodeId: string }).nodeId);
-        } else if (typeof parsed === "string" && UUID_LIKE.test(parsed)) {
-          propertyRefIds.add(parsed);
-        }
-      } catch {
-        // Scalar value — not a node reference.
-      }
-    }
-    return propertyRefIds;
+  private subtreeRows(rootId: string, cap: number): Array<NodeRow & { sub_parent_id: string }> {
+    return this.ctx.store.database
+      .prepare(
+        `WITH RECURSIVE sub(id, parent_id, depth, position) AS (
+           SELECT o.child_id, o.parent_id, 1, o.position
+           FROM node_child_order o
+           JOIN node n ON n.id = o.child_id
+           WHERE o.parent_id = ? AND n.is_active = 1 AND n.is_class = 0 AND n.is_embedded = 1
+           UNION ALL
+           SELECT o.child_id, o.parent_id, sub.depth + 1, o.position
+           FROM node_child_order o
+           JOIN node n ON n.id = o.child_id
+           JOIN sub ON o.parent_id = sub.id
+           WHERE n.is_active = 1 AND n.is_class = 0 AND n.is_embedded = 1 AND sub.depth < ?
+         )
+         SELECT n.*, sub.parent_id AS sub_parent_id
+         FROM sub
+         JOIN node n ON n.id = sub.id
+         ORDER BY sub.parent_id, sub.position`,
+      )
+      .all(rootId, cap) as Array<NodeRow & { sub_parent_id: string }>;
   }
 
   /** FTS prefix-AND search over active nodes (ranked; limit defaults to 50). */

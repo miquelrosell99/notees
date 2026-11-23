@@ -504,42 +504,66 @@ function hlcStrictlyGreater(
  * invisible everywhere at once (effective model, edges, FTS, store reads).
  * `nodeId` omitted = the whole workspace (schema-wide reads).
  */
+type NodeScope = { kind: "all" } | { kind: "one"; id: string } | { kind: "many"; ids: string[] };
+
+/** The WHERE fragment selecting one scope shape for all three queries. */
+function nodeScopeSql(scope: NodeScope, column: string): { sql: string; arg: string | null } {
+  switch (scope.kind) {
+    case "all":
+      return { sql: "", arg: null };
+    case "one":
+      return { sql: ` WHERE ${column} = ?`, arg: scope.id };
+    case "many":
+      return {
+        sql: ` WHERE ${column} IN (SELECT value FROM json_each(?))`,
+        arg: JSON.stringify(scope.ids),
+      };
+  }
+}
+
 export function visiblePropertyValueRows(
   db: StoreDatabase,
   nodeId?: string,
 ): VisiblePropertyValueRow[] {
-  const rows = (
-    nodeId === undefined
-      ? db
-          .prepare(
-            `SELECT id, node_id, property_schema_id, value, idx, metadata,
-                    hlc_physical, hlc_logical, actor_id
-             FROM property_value ORDER BY node_id`,
-          )
-          .all()
-      : db
-          .prepare(
-            `SELECT id, node_id, property_schema_id, value, idx, metadata,
-                    hlc_physical, hlc_logical, actor_id
-             FROM property_value WHERE node_id = ?`,
-          )
-          .all(nodeId)
-  ) as unknown as VisiblePropertyValueRow[];
-  const slotTombstones = (
-    nodeId === undefined
-      ? db
-          .prepare(
-            `SELECT node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id
-             FROM property_value_tombstone`,
-          )
-          .all()
-      : db
-          .prepare(
-            `SELECT node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id
-             FROM property_value_tombstone WHERE node_id = ?`,
-          )
-          .all(nodeId)
-  ) as Array<{
+  return visiblePropertyValueRowsScoped(
+    db,
+    nodeId === undefined ? { kind: "all" } : { kind: "one", id: nodeId },
+  );
+}
+
+/**
+ * The PG5 visible set for a node LIST (the block-tree read's carrier
+ * exclusion): identical semantics to the single-node variant, with all three
+ * queries scoped by `node_id IN (json_each)` — the per-node form costs one
+ * query per tree row.
+ */
+export function visiblePropertyValueRowsFor(
+  db: StoreDatabase,
+  nodeIds: string[],
+): VisiblePropertyValueRow[] {
+  if (nodeIds.length === 0) return [];
+  return visiblePropertyValueRowsScoped(db, { kind: "many", ids: nodeIds });
+}
+
+function visiblePropertyValueRowsScoped(
+  db: StoreDatabase,
+  scope: NodeScope,
+): VisiblePropertyValueRow[] {
+  const rowsScope = nodeScopeSql(scope, "node_id");
+  const rows = db
+    .prepare(
+      `SELECT id, node_id, property_schema_id, value, idx, metadata,
+              hlc_physical, hlc_logical, actor_id
+       FROM property_value${rowsScope.sql}${scope.kind === "all" ? " ORDER BY node_id" : ""}`,
+    )
+    .all(...(rowsScope.arg === null ? [] : [rowsScope.arg])) as unknown as VisiblePropertyValueRow[];
+  const tombScope = nodeScopeSql(scope, "node_id");
+  const slotTombstones = db
+    .prepare(
+      `SELECT node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id
+       FROM property_value_tombstone${tombScope.sql}`,
+    )
+    .all(...(tombScope.arg === null ? [] : [tombScope.arg])) as Array<{
     node_id: string;
     property_schema_id: string;
     idx: number;
@@ -549,20 +573,14 @@ export function visiblePropertyValueRows(
   }>;
   const elementTombstones = new Map(
     (
-      (nodeId === undefined
-        ? db
-            .prepare(
-              `SELECT element_id, hlc_physical, hlc_logical
-               FROM property_value_element_tombstone`,
-            )
-            .all()
-        : db
-            .prepare(
-              `SELECT element_id, hlc_physical, hlc_logical
-               FROM property_value_element_tombstone WHERE node_id = ?`,
-            )
-            .all(nodeId)) as Array<{
+      db
+        .prepare(
+          `SELECT element_id, node_id, hlc_physical, hlc_logical
+           FROM property_value_element_tombstone${tombScope.sql}`,
+        )
+        .all(...(tombScope.arg === null ? [] : [tombScope.arg])) as Array<{
         element_id: string;
+        node_id: string;
         hlc_physical: number;
         hlc_logical: number;
       }>

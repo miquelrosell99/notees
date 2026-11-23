@@ -35,6 +35,8 @@ import { replaceRangeInAst, type BlockMatch } from "./editor-popups/block-find-r
 import { useOutlinerValue } from "./outliner-context.js";
 import { useBlockSelectionSurface } from "./use-block-selection.js";
 
+const EMPTY_FIND_DOCS: Array<{ id: string; prose: string }> = [];
+
 export interface UsePageMachineryOptions {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
@@ -213,8 +215,13 @@ export function usePageMachinery({
     !embedded && !forClass,
   );
 
-  /** Searchable documents: one prose projection per block in the tree. */
+  /** Searchable documents: one prose projection per block in the tree.
+   *  Derived ONLY while the find bar is open — the derivation walks the
+   *  whole tree, and with the tree re-serving per edit the closed-widget
+   *  recompute was an O(page) main-thread pass on every keystroke of every
+   *  session (the widget consumes the docs only when mounted). */
   const findDocs = useMemo(() => {
+    if (!findOpen) return EMPTY_FIND_DOCS;
     const docs: { id: string; prose: string }[] = [];
     const walk = (nodes: BlockTreeNode[]) => {
       for (const entry of nodes) {
@@ -224,7 +231,7 @@ export function usePageMachinery({
     };
     walk(tree);
     return docs;
-  }, [tree]);
+  }, [tree, findOpen]);
 
   return {
     pageRootRef,
