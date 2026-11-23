@@ -126,10 +126,11 @@ describe("Properties panel (effective values)", () => {
     expect(header.getAttribute("aria-expanded")).toBe("true");
     expect(header.textContent).toContain("Properties");
     const rowCount = panel!.querySelectorAll(".nt-props-sidebar__prop").length;
-    // No property rows — only the attribution pair (Created / Last edited)
-    // rides the section's tail; a real create stamps both, so the pair
-    // always renders for a live node.
-    expect(rowCount).toBe(2);
+    // No property rows AND no attribution tail — the Created / Last edited
+    // pair was retired from the panel (owner ruling: the unclaimed-actor
+    // uuid prefix was chrome noise; the derived columns stay in the data
+    // model, just not rendered).
+    expect(rowCount).toBe(0);
     // The empty panel still hosts the "Add property" affordance.
     expect(screen.getByRole("button", { name: /Add property/ })).not.toBeNull();
   });

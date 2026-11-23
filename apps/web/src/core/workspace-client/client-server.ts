@@ -18,7 +18,6 @@ import {
   type UserPrefsSource,
 } from "./prefs.js";
 import { pullServerPrefs, pushServerPrefs } from "./prefs-rest.js";
-import { primeActorRegistry } from "../actor-registry.js";
 import { primeGrantAccess } from "../grant-access.js";
 import { fetchAndOpenAsset, sealAndUploadAsset } from "./asset-transport.js";
 import {
@@ -93,7 +92,6 @@ export class WorkspaceClientServer {
     ) {
       const prefs = await pullServerPrefs(this.ctx.restServerUrl, this.ctx.restApiKey);
       if (prefs !== null) {
-        primeActorRegistry(this.ctx.restServerUrl, this.ctx.restApiKey);
         primeGrantAccess(this.ctx.restServerUrl, this.ctx.restApiKey, this.ctx.workspaceId);
         return { ...prefs, source: "server" };
       }

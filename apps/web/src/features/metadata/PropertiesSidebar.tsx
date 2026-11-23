@@ -18,7 +18,6 @@ import { GroupedPropertyRow } from "./GroupedPropertyRow.js";
 import { RepeatPropertyRow } from "./RepeatPropertyRow.js";
 import { ScalarPropertyValue } from "./ScalarPropertyValue.js";
 import { AddPropertyRow } from "./AddPropertyRow.js";
-import { AttributionRows } from "./AttributionRows.js";
 import { PropertySettingsModal } from "./PropertySettingsModal.js";
 
 /**
@@ -274,9 +273,6 @@ export function PropertiesSidebar({
         </div>
       ))}
         <AddPropertyRow client={client} nodeId={nodeId} />
-        {/* Node attribution rides the section's tail: created / last-edited,
-            dates + resolved actors (raw actorId prefix when unclaimed). */}
-        <AttributionRows client={client} nodeId={nodeId} />
       </NodeViewSection>
       {menu !== null && (
         <ContextMenu items={menuItems(menu.schemaId)} position={{ x: menu.x, y: menu.y }} onClose={() => setMenu(null)} />

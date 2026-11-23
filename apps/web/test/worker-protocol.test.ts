@@ -281,13 +281,11 @@ describe("worker message protocol (handleMessage)", () => {
     expect(prefs.error).toBeUndefined();
     expect(prefs.result).toMatchObject({ source: "server" });
     // The operator-key resolution (auth/me — the stub answers a prefs-shaped
-    // body with no operator id, so the prefs probe runs) then the prefs GET,
-    // then the actor-registry prime and the grant-inbox prime — all under
-    // the init credential.
+    // body with no operator id, so the prefs probe runs) then the prefs GET
+    // and the grant-inbox prime — all under the init credential.
     expect(calls).toEqual([
       { url: "https://notees.example.com/api/auth/me", credential: "nt_workerkey" },
       { url: "https://notees.example.com/api/me/prefs", credential: "nt_workerkey" },
-      { url: "https://notees.example.com/api/actors", credential: "nt_workerkey" },
       { url: "https://notees.example.com/api/grants/inbox", credential: "Bearer nt_workerkey" },
     ]);
     vi.unstubAllGlobals();

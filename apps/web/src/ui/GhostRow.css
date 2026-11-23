@@ -18,7 +18,11 @@
 
 .nt-ghost-row__gutter {
   flex: none;
-  width: var(--spacing-3-5);
+  /* The real rows' grip is --spacing-4-5 (18px) with the bullet centered
+     (BlockRowDnD .nt-block-grip) — the mirror must ride the SAME width or
+     the ghost bullet drifts 2px and its label 4px against the block column
+     (measured against the dev pair). */
+  width: var(--spacing-4-5);
   display: inline-flex;
   justify-content: center;
 }

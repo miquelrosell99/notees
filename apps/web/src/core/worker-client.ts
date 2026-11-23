@@ -60,7 +60,6 @@ import {
 } from "./workspace-client/index.js";
 import { fetchAndOpenAsset, fetchAssetDataUrl, sealAndUploadAsset } from "./workspace-client/asset-transport.js";
 import { pullServerPrefs, pushServerPrefs } from "./workspace-client/prefs-rest.js";
-import { primeActorRegistry } from "./actor-registry.js";
 import { primeGrantAccess } from "./grant-access.js";
 import {
   readDevicePrefList,
@@ -1405,7 +1404,6 @@ export class WorkerClient {
     if (!(await this.isOperatorKey())) {
       const prefs = await pullServerPrefs(this.serverUrl, this.apiKey);
       if (prefs !== null) {
-        primeActorRegistry(this.serverUrl, this.apiKey);
         primeGrantAccess(this.serverUrl, this.apiKey, this.workspaceId);
         return { ...prefs, source: "server" };
       }
