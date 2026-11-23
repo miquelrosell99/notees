@@ -419,6 +419,17 @@
   border-radius: var(--shape-small);
 }
 
+/* An empty content has NO line box — and a flex item without a baseline
+   falls back to its bottom margin edge, so the (invisible-but-present)
+   row-end "+ Add class" pill inflates empty rows: 31.2px at rest vs 26px
+   in edit mode (Firefox repro; Chromium 28 vs 26) — the empty-block shift
+   that shortened whole child sections by 5.2px per empty block. A
+   zero-width space restores a real line box with the content font's
+   baseline: the row packs identically in read and edit. */
+.nt-block-content:empty::before {
+  content: "\200B";
+}
+
 /* Read-only block projections: the content's click contract differs by
    surface. The tree projections (Child pages, Class View "Extended by")
    read it as a navigation surface; the inert flat-list variant (the
