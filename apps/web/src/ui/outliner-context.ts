@@ -663,43 +663,59 @@ export function useOutlinerValue(
     return next;
   }, [collapsedIds, expandedIds, options?.defaultCollapsed]);
 
-  // Per-render latest-value mirrors: the derivations stay fresh for the
-  // closures/getters without entering the context value's memo deps.
-  positionsRef.current = buildOutlinePositions(tree, rootId);
-  const subtreeOf = new Map<string, string[]>();
-  const collectSubtrees = (nodes: readonly BlockTreeNode[]): string[] => {
-    const all: string[] = [];
-    for (const entry of nodes) {
-      const ids = [entry.node.id, ...collectSubtrees(entry.children)];
-      subtreeOf.set(entry.node.id, ids);
-      all.push(...ids);
-    }
-    return all;
-  };
-  collectSubtrees(tree);
-  subtreeOfRef.current = subtreeOf;
+  // Tree-derived maps, memoized on the tree STATE (not per render): the
+  // read re-serves per edit, but unchanged rows keep their node identities
+  // (sameBlockTreeList bails the setState), so a keystroke that changed one
+  // block must not rebuild positions/subtrees/orders over the whole page —
+  // those were an O(page) main-thread pass per render of every mounted
+  // surface. The latest-value refs below still serve the stable closures
+  // (the established pattern — the refs, not the memos, enter the context
+  // value's identity).
+  const positions = useMemo(() => buildOutlinePositions(tree, rootId), [tree, rootId]);
+  positionsRef.current = positions;
+  const subtreeMap = useMemo(() => {
+    const subtreeOf = new Map<string, string[]>();
+    const collect = (nodes: readonly BlockTreeNode[]): string[] => {
+      const all: string[] = [];
+      for (const entry of nodes) {
+        const ids = [entry.node.id, ...collect(entry.children)];
+        subtreeOf.set(entry.node.id, ids);
+        all.push(...ids);
+      }
+      return all;
+    };
+    collect(tree);
+    return subtreeOf;
+  }, [tree]);
+  subtreeOfRef.current = subtreeMap;
   // Document-order id list for the range gestures (shift+click / drag).
-  const orderedIds: string[] = [];
-  const flattenIds = (nodes: readonly BlockTreeNode[]): void => {
-    for (const entry of nodes) {
-      orderedIds.push(entry.node.id);
-      flattenIds(entry.children);
-    }
-  };
-  flattenIds(tree);
-  orderedIdsRef.current = orderedIds;
+  const ordered = useMemo(() => {
+    const orderedIds: string[] = [];
+    const flatten = (nodes: readonly BlockTreeNode[]): void => {
+      for (const entry of nodes) {
+        orderedIds.push(entry.node.id);
+        flatten(entry.children);
+      }
+    };
+    flatten(tree);
+    return orderedIds;
+  }, [tree]);
+  orderedIdsRef.current = ordered;
   // The VISIBLE document order (the arrow-handoff reads): a collapsed block
   // contributes its own row and nothing under it — the next/previous answer
   // is always a rendered row. Effective collapse: the persisted folds plus
   // the un-overridden default-collapsed rows (the read-only projections).
-  const visibleOrder: string[] = [];
-  const flattenVisible = (nodes: readonly BlockTreeNode[]): void => {
-    for (const entry of nodes) {
-      visibleOrder.push(entry.node.id);
-      if (!effectiveCollapsed.has(entry.node.id)) flattenVisible(entry.children);
-    }
-  };
-  flattenVisible(tree);
+  const visibleOrder = useMemo(() => {
+    const ids: string[] = [];
+    const flattenVisible = (nodes: readonly BlockTreeNode[]): void => {
+      for (const entry of nodes) {
+        ids.push(entry.node.id);
+        if (!effectiveCollapsed.has(entry.node.id)) flattenVisible(entry.children);
+      }
+    };
+    flattenVisible(tree);
+    return ids;
+  }, [tree, effectiveCollapsed]);
   visibleOrderRef.current = visibleOrder;
 
   // The selection closure: memoized per (selectedRoots × current subtree

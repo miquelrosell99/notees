@@ -72,3 +72,59 @@ describe("childQuery", () => {
     expect(items[0]!.node.id).toBe("c1");
   });
 });
+
+describe("childQuery structural sharing (the per-keystroke bail-out contract)", () => {
+  /** A fake whose getBlockTree returns FRESH wrapper objects per call — the
+   *  re-serve shape — with node identities stable across calls (the worker's
+   *  per-row map cache contract). */
+  function reseedingClient(root: FakeNode, nodes: FakeNode[]) {
+    const treeOf = (): Entry[] => nodes.filter((n) => n !== root).map((n) => ({ node: n, children: [] }));
+    return {
+      getBlockTree: () => treeOf(),
+      getNode: (id: string) => (id === root.id ? root : nodes.find((n) => n.id === id)),
+    } as never;
+  }
+
+  it("a re-serve with stable node identities returns the SAME item array", () => {
+    const root = node("root");
+    const a = node("a");
+    const b = node("b");
+    const client = reseedingClient(root, [a, b]);
+    const first = childQuery(client, "root");
+    const second = childQuery(client, "root");
+    // Fresh tree wrappers per call, identical nodes: the items must be
+    // reference-stable (the BlockRow memo's O(1) fast-path depends on it).
+    expect(second).toBe(first);
+    expect(first.map((i) => i.node.id)).toEqual(["a", "b"]);
+  });
+
+  it("a changed node rebuilds its own item only — siblings keep their identity", () => {
+    const root = node("root");
+    const a = node("a");
+    const b = node("b");
+    // The re-serve replaces `a` with a NEW node object (the edited row);
+    // `b` keeps its identity.
+    const client = (() => {
+      let currentA = a;
+      const treeOf = (): Entry[] => [
+        { node: currentA, children: [] },
+        { node: b, children: [] },
+      ];
+      return {
+        getBlockTree: () => treeOf(),
+        getNode: (id: string) =>
+          id === "root" ? root : id === "a" ? currentA : b,
+        /** Test-only: swap the edited row's node object. */
+        __edit: () => {
+          currentA = node("a");
+        },
+      } as never;
+    })();
+    const first = childQuery(client, "root");
+    (client as unknown as { __edit(): void }).__edit();
+    const second = childQuery(client, "root");
+    expect(second).not.toBe(first);
+    expect(second[0]!.node).not.toBe(first[0]!.node);
+    expect(second[1]).toBe(first[1]);
+  });
+});

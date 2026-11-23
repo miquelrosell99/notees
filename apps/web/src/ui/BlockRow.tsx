@@ -1480,7 +1480,11 @@ function areBlockRowPropsEqual(prev: BlockRowProps, next: BlockRowProps): boolea
     prev.autoEdit === next.autoEdit &&
     prev.trailingGhost === next.trailingGhost &&
     prev.rootEnterNests === next.rootEnterNests &&
-    sameTreeNode(prev.tree, next.tree)
+    // Reference fast-path first: with structurally-shared items (childQuery)
+    // an unchanged row's tree wrapper keeps its identity across re-renders,
+    // so the common case is O(1) — the deep walk remains only for callers
+    // that build fresh trees (the unit specs).
+    (prev.tree === next.tree || sameTreeNode(prev.tree, next.tree))
   );
 }
 

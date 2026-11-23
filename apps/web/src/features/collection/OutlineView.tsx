@@ -232,9 +232,21 @@ function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; pro
   );
 }
 
-/** Recursive map to the BlockTreeNode shape BlockRow consumes. */
+/**
+ * Recursive map to the BlockTreeNode shape BlockRow consumes. Memoized per
+ * ITEM (a WeakMap): with childQuery's structural sharing an unchanged row's
+ * item keeps its identity across re-serves, so its tree wrapper stays
+ * reference-stable too — the memoized BlockRow's comparator then bails on
+ * its O(1) reference fast-path instead of deep-walking the subtree per
+ * parent re-render.
+ */
+const blockTreeCache = new WeakMap<NodeCollectionItem, BlockTreeNode>();
 function toBlockTree(item: NodeCollectionItem): BlockTreeNode {
-  return { node: item.node, children: (item.children ?? []).map(toBlockTree) };
+  const hit = blockTreeCache.get(item);
+  if (hit !== undefined) return hit;
+  const tree: BlockTreeNode = { node: item.node, children: (item.children ?? []).map(toBlockTree) };
+  blockTreeCache.set(item, tree);
+  return tree;
 }
 
 /**
