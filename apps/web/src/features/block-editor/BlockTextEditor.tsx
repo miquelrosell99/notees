@@ -518,44 +518,56 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", ro
    * merge point in the target block.
    */
   const mergeIntoPrevious = (blockId: string) => {
-    const node = client.getNode(blockId);
-    if (node === undefined) return;
-    const position = positions.get(blockId);
-    const parent = node.parentId !== null ? client.getNode(node.parentId) : undefined;
-    const targetId =
-      position?.previousSiblingId ??
-      (parent !== undefined && rendersAsInlineBlock(parent, undefined, parentlessBlockResolverOf(client))
-        ? parent.id
-        : null);
-    if (targetId === null || targetId === undefined) return;
-    const target = client.getNode(targetId);
-    if (target === undefined) return;
-    const sameParentChildless =
-      node.parentId === target.parentId && client.getChildren(blockId).length === 0;
-    const onlyChildIntoParent =
-      node.parentId === targetId && client.getChildren(targetId).length === 1;
-    if (!sameParentChildless && !onlyChildIntoParent) return;
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    dirtyRef.current = false;
-    const sourceText = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
-    const caretAt = proseFromAst(target.contentAst, resolveClassName, resolveMentionName).length;
-    // Splice at the target's end so adjacent text runs coalesce.
-    const merged = withCandidateSpans(
-      spliceTokens(target.contentAst, caretAt, caretAt, sourceText, resolveClassName, resolveMentionName),
-    );
-    void client.updateObject(targetId, { contentAst: merged }).then(() => {
+    void (async () => {
+      // The source rides the editor's nodeRef — never the render cache (the
+      // row renders from the tree, so getNode's cache key can be cold in the
+      // worker). Every structural read below is a FRESH read: the merge
+      // guards decide the gesture from children counts, and a cold cached
+      // key's [] default would flip them (browser-only; suites green — the
+      // ghost-fix act() trap).
+      const node = nodeRef.current;
+      const position = positions.get(blockId);
+      const parent =
+        node.parentId !== null ? await client.getNodeRawFresh(node.parentId) : undefined;
+      const targetId =
+        position?.previousSiblingId ??
+        (parent !== undefined && rendersAsInlineBlock(parent, undefined, parentlessBlockResolverOf(client))
+          ? parent.id
+          : null);
+      if (targetId === null || targetId === undefined) return;
+      const target = await client.getNodeRawFresh(targetId);
+      if (target === undefined) return;
+      const sourceChildren = await client.getChildrenFresh(blockId);
+      const targetChildren = await client.getChildrenFresh(targetId);
+      const sameParentChildless =
+        node.parentId === target.parentId && sourceChildren.length === 0;
+      const onlyChildIntoParent =
+        node.parentId === targetId && targetChildren.length === 1;
+      if (!sameParentChildless && !onlyChildIntoParent) return;
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      dirtyRef.current = false;
+      const sourceText = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+      const caretAt = proseFromAst(target.contentAst, resolveClassName, resolveMentionName).length;
+      // Splice at the target's end so adjacent text runs coalesce.
+      const merged = withCandidateSpans(
+        spliceTokens(target.contentAst, caretAt, caretAt, sourceText, resolveClassName, resolveMentionName),
+      );
+      await client.updateObject(targetId, { contentAst: merged });
       // The only-child case can still leave children on the source — they
       // follow it under the merge target.
-      const orphans = client.getChildren(blockId);
+      const orphans = await client.getChildrenFresh(blockId);
       let after: string | undefined;
-      orphans.forEach((orphan) => {
+      for (const orphan of orphans) {
         void client.moveObject(orphan.id, targetId, after);
         after = orphan.id;
-      });
-      void client.deleteObject(blockId).then(() => requestFocus(targetId, caretAt));
+      }
+      await client.deleteObject(blockId);
+      requestFocus(targetId, caretAt);
+    })().catch((error: unknown) => {
+      console.warn(`[editor] merge into previous (${blockId}) failed:`, error);
     });
   };
 
@@ -568,37 +580,44 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", ro
    * point.
    */
   const mergeNextInto = (blockId: string) => {
-    const node = client.getNode(blockId);
-    if (node === undefined) return;
-    const siblings = node.parentId === null ? [] : client.getChildren(node.parentId);
-    const index = siblings.findIndex((sibling) => sibling.id === blockId);
-    const next = index >= 0 ? siblings[index + 1] : undefined;
-    if (next === undefined) {
-      const children = client.getChildren(blockId);
-      if (children.length !== 1) return;
-      const child = children[0]!;
+    void (async () => {
+      // Same fresh-read contract as mergeIntoPrevious: the guards below
+      // decide from children state; cached reads may answer cold defaults
+      // in the worker.
+      const node = nodeRef.current;
+      const siblings = node.parentId === null ? [] : await client.getChildrenFresh(node.parentId);
+      const index = siblings.findIndex((sibling) => sibling.id === blockId);
+      const next = index >= 0 ? siblings[index + 1] : undefined;
+      if (next === undefined) {
+        const children = await client.getChildrenFresh(blockId);
+        if (children.length !== 1) return;
+        const child = children[0]!;
+        const base = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
+        const caretAt = proseFromAst(base, resolveClassName, resolveMentionName).length;
+        const merged = withCandidateSpans(
+          spliceTokens(base, caretAt, caretAt, child.contentAst, resolveClassName, resolveMentionName),
+        );
+        const grandChildren = await client.getChildrenFresh(child.id);
+        commitAst(merged, caretAt);
+        // The child's children move up into its place before it goes.
+        let after: string | undefined;
+        for (const grandChild of grandChildren) {
+          void client.moveObject(grandChild.id, blockId, after);
+          after = grandChild.id;
+        }
+        void client.deleteObject(child.id);
+        return;
+      }
+      const nextChildren = await client.getChildrenFresh(next.id);
+      if (nextChildren.length > 0) return;
       const base = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
       const caretAt = proseFromAst(base, resolveClassName, resolveMentionName).length;
-      const merged = withCandidateSpans(
-        spliceTokens(base, caretAt, caretAt, child.contentAst, resolveClassName, resolveMentionName),
-      );
-      const grandChildren = client.getChildren(child.id);
+      const merged = withCandidateSpans(spliceTokens(base, caretAt, caretAt, next.contentAst, resolveClassName, resolveMentionName));
       commitAst(merged, caretAt);
-      // The child's children move up into its place before it goes.
-      let after: string | undefined;
-      grandChildren.forEach((grandChild) => {
-        void client.moveObject(grandChild.id, blockId, after);
-        after = grandChild.id;
-      });
-      void client.deleteObject(child.id);
-      return;
-    }
-    if (client.getChildren(next.id).length > 0) return;
-    const base = applyTextEdit(node.contentAst, draftRef.current, resolveClassName, resolveMentionName);
-    const caretAt = proseFromAst(base, resolveClassName, resolveMentionName).length;
-    const merged = withCandidateSpans(spliceTokens(base, caretAt, caretAt, next.contentAst, resolveClassName, resolveMentionName));
-    commitAst(merged, caretAt);
-    void client.deleteObject(next.id);
+      void client.deleteObject(next.id);
+    })().catch((error: unknown) => {
+      console.warn(`[editor] merge next into (${blockId}) failed:`, error);
+    });
   };
 
   // Selection → active-marks state (the FloatingToolbar decides its own
@@ -2173,108 +2192,113 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", ro
       // default outliner semantics below.
       const carrier = carrierEnter?.carrierOf(currentId) ?? null;
       const singleCarrier = carrier !== null && !carrier.multi;
-      const firstChildId = singleCarrier ? client.getChildren(currentId)[0]?.id : undefined;
-      const childAnchor = firstChildId !== undefined ? { beforeId: firstChildId } : {};
-      if (caret !== null && caret < cutLen && (caret > 0 || rootEnterNests)) {
-        // MID-TEXT: split at the caret. The head stays in this block; the
-        // tail moves to a new block right after — a SIBLING normally, the
-        // FIRST CHILD when this block has children (the children stay with
-        // the head) or ALWAYS when this is the focused view's root row
-        // (rootEnterNests — the zoom grammar: the focused block is the
-        // parent of everything below it, so at caret 0 the whole text
-        // moves into the first child and the row is left empty). The head
-        // write supersedes the debounced flush — clear it so the unmount
-        // flush can't overwrite the split.
-        if (timerRef.current !== null) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-        dirtyRef.current = false;
-        const head = spliceTokens(cut, caret, cutLen, [], resolveClassName, resolveMentionName);
-        const tail = spliceTokens(cut, 0, caret, [], resolveClassName, resolveMentionName);
-        const firstChild = client.getChildren(currentId)[0]?.id;
-        const nest = !singleCarrier && (firstChild !== undefined || rootEnterNests);
-        const headCommitted = withCandidateSpans(head);
-        committedRef.current = headCommitted;
-        void client.updateObject(currentId, { contentAst: headCommitted });
-        void client
-          .createObject({
-            parentId: singleCarrier ? currentId : nest ? currentId : parentId,
-            contentAst: withCandidateSpans(tail),
-            ...(singleCarrier
-              ? childAnchor
-              : nest
-                ? firstChild !== undefined
-                  ? { beforeId: firstChild }
-                  : {}
-                : parentId !== null
-                  ? { afterId: currentId }
-                  : {}),
-          })
-          .then((id) => {
-            if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
-            requestFocus(id, "start");
-          });
-        return;
-      }
-      if (caret === 0 && cutLen > 0 && !rootEnterNests) {
-        // START: a new empty block BEFORE this one (W1 beforeId) — or a
-        // first CHILD for a single-value carrier. A cut selection commits
-        // first so the emptied text doesn't linger.
-        if (cut !== base) {
-          void client.updateObject(currentId, { contentAst: withCandidateSpans(cut) });
-        }
-        void client
-          .createObject({
-            parentId: singleCarrier ? currentId : parentId,
-            contentAst: [],
-            ...(singleCarrier ? childAnchor : parentId !== null ? { beforeId: currentId } : {}),
-          })
-          .then((id) => {
-            if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
-            requestFocus(id, "start");
-          });
-        return;
-      }
-      // END / EMPTY: a sibling after this block — but a block WITH CHILDREN
-      // takes the new block as its FIRST child instead (the Roam rule); the
-      // focused view's root row ALWAYS takes the child branch
-      // (rootEnterNests — never a sibling); a single-value carrier ALWAYS
-      // takes the child branch (its value is one block — Enter adds a line,
-      // never a sibling value). A cut selection commits first so the emptied
-      // text doesn't linger.
       if (cut !== base) {
+        // The cut commits BEFORE the fresh children read below so the
+        // create lands after it (worker messages apply in send order).
         void client.updateObject(currentId, { contentAst: withCandidateSpans(cut) });
       }
-      const children = client.getChildren(currentId);
-      if (singleCarrier || rootEnterNests || children.length > 0) {
-        const firstChild = children[0]?.id;
+      void (async () => {
+        // FRESH children read (the getChildrenFresh contract): the
+        // structural branches below must not ride the render cache — a cold
+        // getChildren key answers the [] default and an end-of-text Enter on
+        // a block WITH children wrongly takes the sibling branch. Browser-
+        // only hazard: the in-process client's reads are always fresh, so
+        // the suites alone could not see it (the ghost-fix act() trap).
+        const childrenNow = await client.getChildrenFresh(currentId);
+        const firstChildId = childrenNow[0]?.id;
+        const childAnchor = firstChildId !== undefined ? { beforeId: firstChildId } : {};
+        if (caret !== null && caret < cutLen && (caret > 0 || rootEnterNests)) {
+          // MID-TEXT: split at the caret. The head stays in this block; the
+          // tail moves to a new block right after — a SIBLING normally, the
+          // FIRST CHILD when this block has children (the children stay with
+          // the head) or ALWAYS when this is the focused view's root row
+          // (rootEnterNests — the zoom grammar: the focused block is the
+          // parent of everything below it, so at caret 0 the whole text
+          // moves into the first child and the row is left empty). The head
+          // write supersedes the debounced flush — clear it so the unmount
+          // flush can't overwrite the split.
+          if (timerRef.current !== null) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+          }
+          dirtyRef.current = false;
+          const head = spliceTokens(cut, caret, cutLen, [], resolveClassName, resolveMentionName);
+          const tail = spliceTokens(cut, 0, caret, [], resolveClassName, resolveMentionName);
+          const nest = !singleCarrier && (firstChildId !== undefined || rootEnterNests);
+          const headCommitted = withCandidateSpans(head);
+          committedRef.current = headCommitted;
+          void client.updateObject(currentId, { contentAst: headCommitted });
+          void client
+            .createObject({
+              parentId: singleCarrier ? currentId : nest ? currentId : parentId,
+              contentAst: withCandidateSpans(tail),
+              ...(singleCarrier
+                ? childAnchor
+                : nest
+                  ? firstChildId !== undefined
+                    ? { beforeId: firstChildId }
+                    : {}
+                  : parentId !== null
+                    ? { afterId: currentId }
+                    : {}),
+            })
+            .then((id) => {
+              if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
+              requestFocus(id, "start");
+            });
+          return;
+        }
+        if (caret === 0 && cutLen > 0 && !rootEnterNests) {
+          // START: a new empty block BEFORE this one (W1 beforeId) — or a
+          // first CHILD for a single-value carrier.
+          void client
+            .createObject({
+              parentId: singleCarrier ? currentId : parentId,
+              contentAst: [],
+              ...(singleCarrier ? childAnchor : parentId !== null ? { beforeId: currentId } : {}),
+            })
+            .then((id) => {
+              if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
+              requestFocus(id, "start");
+            });
+          return;
+        }
+        // END / EMPTY: a sibling after this block — but a block WITH CHILDREN
+        // takes the new block as its FIRST child instead (the Roam rule);
+        // the focused view's root row ALWAYS takes the child branch
+        // (rootEnterNests — never a sibling); a single-value carrier ALWAYS
+        // takes the child branch (its value is one block — Enter adds a line,
+        // never a sibling value).
+        if (singleCarrier || rootEnterNests || childrenNow.length > 0) {
+          void client
+            .createObject({
+              parentId: currentId,
+              contentAst: [],
+              ...(singleCarrier && firstChildId !== undefined
+                ? { beforeId: firstChildId }
+                : firstChildId !== undefined
+                  ? { beforeId: firstChildId }
+                  : {}),
+            })
+            .then((id) => {
+              if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
+              requestFocus(id, "start");
+            });
+          return;
+        }
         void client
           .createObject({
-            parentId: currentId,
+            parentId,
             contentAst: [],
-            ...(singleCarrier && firstChildId !== undefined
-              ? { beforeId: firstChildId }
-              : firstChild !== undefined
-                ? { beforeId: firstChild }
-                : {}),
+            ...(parentId !== null ? { afterId: currentId } : {}),
           })
           .then((id) => {
             if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
             requestFocus(id, "start");
           });
-        return;
-      }
-      void client
-        .createObject({
-          parentId,
-          contentAst: [],
-          ...(parentId !== null ? { afterId: currentId } : {}),
-        })
-        .then((id) => {
-          if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
-          requestFocus(id, "start");
-        });
+      })().catch((error: unknown) => {
+        console.warn(`[editor] enter split (${nodeRef.current.id}) failed:`, error);
+      });
       return;
     }
     if (event.key === "Backspace" && variant !== "title") {

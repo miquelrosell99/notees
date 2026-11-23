@@ -1016,3 +1016,116 @@ describe("drag edge auto-scroll", () => {
     wrapRoot.remove();
   });
 });
+
+
+describe("drag preview text + the drop-parent affordance", () => {
+  /** The pointer dance from the pinned-row spec: grip down, move past the
+   *  activation distance, then stream moves onto the target's bottom half. */
+  function startDrag(container: HTMLElement, fromId: string): void {
+    const fromRect = rowEl(container, fromId).getBoundingClientRect();
+    fireEvent.pointerDown(gripOf(rowEl(container, fromId)), {
+      clientX: fromRect.left + 200,
+      clientY: fromRect.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(document, {
+      clientX: fromRect.left + 210,
+      clientY: fromRect.top + 16,
+      buttons: 1,
+      pointerId: 1,
+    });
+  }
+
+  function dragTo(container: HTMLElement, targetId: string, offsetX: number): void {
+    const target = rowEl(container, targetId).getBoundingClientRect();
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.pointerMove(document, {
+        clientX: target.left + offsetX,
+        clientY: target.top + 24 + i,
+        buttons: 1,
+        pointerId: 1,
+      });
+    }
+  }
+
+  const release = (container: HTMLElement, targetId: string, offsetX: number): void => {
+    const target = rowEl(container, targetId).getBoundingClientRect();
+    fireEvent.pointerUp(document, {
+      clientX: target.left + offsetX,
+      clientY: target.top + 26,
+      button: 0,
+      pointerId: 1,
+    });
+  };
+
+  it("a mention-only block previews its target's title, never 'Untitled'", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const target = await client.createObject({ isEmbedded: false, name: "Mention Target" });
+    const link = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "mention", targetNodeId: target, linkId: "0192c000-0000-7000-8000-0000000000a1" },
+      ],
+    });
+    const other = await client.createObject({ parentId: pageId, name: "other" });
+    const { container } = renderPage(client, pageId);
+
+    startDrag(container, link);
+    const ghost = document.querySelector<HTMLElement>(".nt-drag-ghost");
+    expect(ghost).not.toBeNull();
+    expect(ghost!.textContent).toContain("Mention Target");
+    expect(ghost!.textContent).not.toContain("Untitled");
+
+    dragTo(container, other, 4);
+    const preview = document.body.querySelector<HTMLElement>(".nt-drop-preview");
+    expect(preview).not.toBeNull();
+    expect(preview!.textContent).toContain("Mention Target");
+    expect(preview!.textContent).not.toContain("Untitled");
+
+    release(container, other, 4);
+    await flushMoves();
+  });
+
+  it("a snapped sibling drop names the new parent and highlights its row", async () => {
+    const client = await seedClient();
+    const { pageId, ids } = await seedThreeBlocks(client);
+    const [one, two] = ids;
+    const { container } = renderPage(client, pageId);
+
+    startDrag(container, one);
+    dragTo(container, two, 4); // shallow zone: sibling line below `two`
+
+    const label = document.body.querySelector<HTMLElement>(".nt-drop-indicator__label");
+    expect(label).not.toBeNull();
+    expect(label!.textContent).toBe("Place one under DnD");
+    // The future parent (the page) row lights its bullet.
+    expect(rowEl(container, pageId).className).toContain("nt-block--drop-parent");
+    // The dragged row is not its own parent highlight.
+    expect(rowEl(container, one).className).not.toContain("nt-block--drop-parent");
+
+    release(container, two, 4);
+    await flushMoves();
+    expect(document.body.querySelector(".nt-drop-indicator__label")).toBeNull();
+    expect(rowEl(container, pageId).className).not.toContain("nt-block--drop-parent");
+  });
+
+  it("a child-intent drop names the TARGET as the parent", async () => {
+    const client = await seedClient();
+    const { pageId, ids } = await seedThreeBlocks(client);
+    const [one, two] = ids;
+    const { container } = renderPage(client, pageId);
+
+    startDrag(container, one);
+    dragTo(container, two, 60); // deep zone: child intent under `two`
+
+    const label = document.body.querySelector<HTMLElement>(".nt-drop-indicator__label");
+    expect(label).not.toBeNull();
+    expect(label!.textContent).toBe("Place one under two");
+    expect(rowEl(container, two).className).toContain("nt-block--drop-parent");
+
+    release(container, two, 60);
+    await flushMoves();
+  });
+});

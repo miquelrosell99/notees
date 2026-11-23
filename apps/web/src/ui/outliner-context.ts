@@ -214,6 +214,17 @@ export interface OutlinerReader {
   runAggregateAst(rawAst: unknown, options?: CompileOptions): QueryAggregateResult | Promise<QueryAggregateResult>;
   /** Direct children in child order (export-on-query's nested-bullets read). */
   getChildren(id: string): ClientNode[];
+  /**
+   * Uncached children read — one raw RPC straight to the store (the
+   * getNodeRawFresh precedent): STRUCTURAL GESTURE decisions (Enter's
+   * first-child branch, merge guards) must not ride the render cache — a
+   * cold key answers the [] default and flips the gesture's branch in the
+   * browser (the in-process client's reads are always fresh, so the suites
+   * alone cannot catch it). In-process: already fresh, Promise for parity.
+   */
+  getChildrenFresh(id: string): Promise<ClientNode[]>;
+  /** Uncached raw-node read — the same write-time-guard contract. */
+  getNodeRawFresh(id: string): Promise<ClientNode | undefined>;
   /** Effective properties (export-on-query's frontmatter read). */
   getEffectiveProperties(id: string): EffectiveProperty[];
   /**

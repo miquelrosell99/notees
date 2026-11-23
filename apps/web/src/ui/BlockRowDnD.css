@@ -151,6 +151,31 @@
   z-index: var(--z-node-overlay);
 }
 
+/* The drop landing label: rides the indicator line's start, naming the new
+   parent ("Place X under Y"). Transient drag chrome — pointer-transparent,
+   floats just above the hairline; the drop preview card parks BELOW the
+   line, so the two never collide. */
+.nt-drop-indicator__label {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--spacing-1));
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font: var(--font-label-medium);
+  white-space: nowrap;
+}
+
+/* The future parent row under a snapped drop line: its bullet lights up (the
+   same accent + growth as the hover state) so the landing reads on the tree
+   even without the floating label. */
+.nt-block--drop-parent > .nt-block-row .nt-bullet-dot {
+  opacity: 1;
+  background-color: var(--md-sys-color-primary);
+  transform: scale(1.2);
+}
+
 /* The dragged source stays in place and reads muted — the floating name
    chip (DragOverlay) is the only drag preview, so nothing under the
    pointer reshapes. The row tint carries a whisper of the accent. */

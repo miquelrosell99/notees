@@ -84,11 +84,15 @@ export function GhostRow({ parentId, onRealize, prose = false }: GhostRowProps) 
  * the usual debounced exit — the create is one object.create.
  */
 export async function realizeGhost(
-  client: Pick<WorkspaceClient, "getChildren" | "createObject">,
+  client: Pick<WorkspaceClient, "getChildrenFresh" | "createObject">,
   outliner: Pick<OutlinerContextValue, "requestFocus">,
   parentId: string,
 ): Promise<void> {
-  const children = client.getChildren(parentId);
+  // FRESH children read (the getChildrenFresh contract): the afterId anchor
+  // is a structural write decision — a cold render-cache key answers [] and
+  // the new block would lose its end-of-list anchor in the worker client
+  // (browser-only; the in-process client's reads are always fresh).
+  const children = await client.getChildrenFresh(parentId);
   const last = children[children.length - 1];
   const id = await client.createObject({
     parentId,

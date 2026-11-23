@@ -401,7 +401,15 @@ export function useWorkspaceDnd() {
         ? effectiveDragIds(selection, homePositions)
         : [id];
     const leadId = dragIds[0] ?? id;
-    const leadName = (client === undefined ? null : titleOf(client, leadId, { read: "fallback", empty: "untitled" })) ?? "Untitled";
+    // "chrome" flatten: a block whose content is ONLY a node link (a bare
+    // mention stores no text) would otherwise flatten to nothing and the
+    // chip would read "Untitled" — the chrome flatten resolves the mention
+    // target's name, so the preview shows what the block reads like.
+    const leadName =
+      (client === undefined
+        ? null
+        : titleOf(client, leadId, { read: "fallback", empty: "untitled", flatten: "chrome" })) ??
+      "Untitled";
     setDragging({
       id,
       label: dragIds.length > 1 ? `${dragIds.length} blocks` : leadName,
@@ -648,10 +656,38 @@ export function useWorkspaceDnd() {
     };
   }, [dropLine]);
 
+  /**
+   * The NEW PARENT a snapped drop would land the dragged block under — the
+   * target row itself for a child-intent line, the target's parent for
+   * above/below lines, null for the workspace top level. Derived (not
+   * state-synced) from the live dropLine + zone facts: it rides the portaled
+   * indicator as a "Place X under Y" label and highlights the future
+   * parent's row, so the landing reads before the drop resolves.
+   */
+  const dropTargetParent = useMemo(() => {
+    if (dropLine === null) return null;
+    const facts = zoneFor(dropLine.targetId, dropLine.targetId);
+    if (facts === undefined) return null;
+    const parentId =
+      dropLine.intent === "child"
+        ? dropLine.targetId
+        : facts.getPositions().get(dropLine.targetId)?.parentId ?? null;
+    const label =
+      parentId === null
+        ? null
+        : titleOf(facts.client, parentId, {
+            read: "fallback",
+            empty: "untitled",
+            flatten: "chrome",
+          }) ?? "Untitled";
+    return { parentId, label };
+  }, [dropLine, zoneFor]);
+
   return {
     sensors,
     dropLine,
     dropAnchor,
+    dropTargetParent,
     dragging,
     dragSources,
     moveError,
@@ -670,6 +706,31 @@ export function useWorkspaceDnd() {
  */
 export function WorkspaceDndHost({ children }: { children: ReactNode }) {
   const dnd = useWorkspaceDnd();
+  // The future parent highlight: the row the snapped drop would land under
+  // lights its bullet for the drag's duration (the label's silent twin —
+  // the landing reads on the tree, not only in the floating chip).
+  const dropParentId = dnd.dropTargetParent?.parentId ?? null;
+  useEffect(() => {
+    if (dropParentId === null) return;
+    const el = document.querySelector(`[data-block-id="${dropParentId}"]`);
+    if (el === null) return;
+    el.classList.add("nt-block--drop-parent");
+    return () => {
+      el.classList.remove("nt-block--drop-parent");
+    };
+  }, [dropParentId]);
+  // The "Place X under Y" label riding the indicator line (null while no
+  // candidate is snapped or the drop is a top-level one — phrased for it).
+  const placeLabel =
+    dnd.dropAnchor === null || dnd.dragging === null || dnd.dropTargetParent === null
+      ? null
+      : dnd.dragging.count > 1
+        ? dnd.dropTargetParent.label === null
+          ? `Place ${dnd.dragging.count} blocks at the top level`
+          : `Place ${dnd.dragging.count} blocks under ${dnd.dropTargetParent.label}`
+        : dnd.dropTargetParent.label === null
+          ? `Place ${dnd.dragging.previewText} at the top level`
+          : `Place ${dnd.dragging.previewText} under ${dnd.dropTargetParent.label}`;
   return (
     <WorkspaceDndHostContext.Provider value={dnd.hostApi}>
       <DndContext
@@ -725,7 +786,11 @@ export function WorkspaceDndHost({ children }: { children: ReactNode }) {
                     top: dnd.dropAnchor.y - 1,
                     width: Math.max(0, dnd.dropAnchor.right - dnd.dropAnchor.x),
                   }}
-                />,
+                >
+                  {placeLabel !== null && (
+                    <span className="nt-drop-indicator__label">{placeLabel}</span>
+                  )}
+                </div>,
                 document.body,
               )}
           </DragSourcesContext.Provider>
