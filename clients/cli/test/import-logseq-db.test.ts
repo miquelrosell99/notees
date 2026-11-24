@@ -289,12 +289,14 @@ beforeAll(async () => {
   // The CLI keeps its derived stores beside the state file — keep both in the
   // harness temp dir (never the operator's real ~/.notees).
   process.env.NOTEES_STATE_FILE = join(h.dataDir, "cli-state.json");
+  process.env.NOTEES_CONFIG_FILE = join(h.dataDir, "cli-config.json");
 });
 
 afterAll(async () => {
   await h.app.close();
   rmSync(h.dataDir, { recursive: true, force: true });
   delete process.env.NOTEES_STATE_FILE;
+  delete process.env.NOTEES_CONFIG_FILE;
 });
 
 describe("import logseq-db", () => {

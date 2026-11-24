@@ -92,6 +92,7 @@ function seedClass(id: string, title: string): void {
 beforeAll(() => {
   stateDir = mkdtempSync(join(tmpdir(), "notees-cli-tag-test-"));
   process.env.NOTEES_STATE_FILE = join(stateDir, "state.json");
+  process.env.NOTEES_CONFIG_FILE = join(stateDir, "config.json");
   for (const name of ["NOTEES_SERVER", "NOTEES_WORKSPACE", "NOTEES_API_KEY", "NOTEES_EMAIL", "NOTEES_PASSWORD"]) {
     delete process.env[name];
   }
@@ -102,6 +103,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
   rmSync(stateDir, { recursive: true, force: true });
   delete process.env.NOTEES_STATE_FILE;
+  delete process.env.NOTEES_CONFIG_FILE;
 });
 
 beforeEach(() => {

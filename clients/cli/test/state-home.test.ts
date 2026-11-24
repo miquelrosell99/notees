@@ -119,6 +119,10 @@ describe("state/config homes", () => {
       configPath = mod.defaultConfigPath();
       expect(configPath).toBe(join(home, ".config", "notees", "config.json"));
       expect(mod.loadConfig(configPath).profiles.default).toEqual({ server: "https://prod", workspace: "ws-1" });
+      // The reader the commands ride — a loadConfig-shaped file must read
+      // through profileDefaults too (the mixed-shape regression: a tolerant
+      // loadState parse of a config file silently yields empty defaults).
+      expect(mod.profileDefaults(configPath, "default")).toEqual({ server: "https://prod", workspace: "ws-1" });
       // The state half keeps the credential but drops the profiles key.
       const state = mod.loadState(statePath);
       expect(state.servers["default:https://x"]?.credential?.token).toBe("nk_test");

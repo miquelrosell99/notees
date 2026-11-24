@@ -251,7 +251,11 @@ export function clearCachedMasterKey(path: string, server: string): boolean {
 }
 
 export function profileDefaults(path: string, profile: string): ProfileDefaults {
-  return loadState(path).profiles?.[profile] ?? {};
+  // The CONFIG file — the preferences half of the state/config split. Reads
+  // must ride loadConfig (not loadState): the two shapes differ (the config
+  // file has no `servers` map), and a tolerant loadState parse of a config
+  // file silently yields empty defaults.
+  return loadConfig(path).profiles[profile] ?? {};
 }
 
 /** Atomic read-modify-write of one profile's defaults (same discipline as updateServerState). */
@@ -259,10 +263,9 @@ export function updateProfileDefaults(
   path: string,
   profile: string,
   patch: (current: ProfileDefaults) => ProfileDefaults,
-): CliState {
-  const state = loadState(path);
-  state.profiles = state.profiles ?? {};
-  state.profiles[profile] = patch(state.profiles[profile] ?? {});
-  saveState(path, state);
-  return state;
+): CliConfig {
+  const config = loadConfig(path);
+  config.profiles[profile] = patch(config.profiles[profile] ?? {});
+  saveConfig(path, config);
+  return config;
 }

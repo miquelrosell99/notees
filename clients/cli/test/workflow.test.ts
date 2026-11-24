@@ -80,6 +80,7 @@ function seedPlan(target: "enabled" | "disabled"): void {
 beforeAll(() => {
   stateDir = mkdtempSync(join(tmpdir(), "notees-cli-workflow-test-"));
   process.env.NOTEES_STATE_FILE = join(stateDir, "state.json");
+  process.env.NOTEES_CONFIG_FILE = join(stateDir, "config.json");
   for (const name of ["NOTEES_SERVER", "NOTEES_WORKSPACE", "NOTEES_API_KEY", "NOTEES_EMAIL", "NOTEES_PASSWORD"]) {
     delete process.env[name];
   }
@@ -90,6 +91,7 @@ afterAll(() => {
   vi.unstubAllGlobals();
   rmSync(stateDir, { recursive: true, force: true });
   delete process.env.NOTEES_STATE_FILE;
+  delete process.env.NOTEES_CONFIG_FILE;
 });
 
 beforeEach(() => {
@@ -409,6 +411,7 @@ describe("e2e: workflow + feature against the vendored server", () => {
     vi.unstubAllGlobals(); // restore real fetch for the live server
     e2eStateDir = mkdtempSync(join(tmpdir(), "notees-cli-workflow-e2e-"));
     process.env.NOTEES_STATE_FILE = join(e2eStateDir, "state.json");
+    process.env.NOTEES_CONFIG_FILE = join(e2eStateDir, "config.json");
     const dataDir = mkdtempSync(join(tmpdir(), "notees-cli-workflow-e2e-data-"));
     const built = await buildServer(
       {
@@ -442,6 +445,7 @@ describe("e2e: workflow + feature against the vendored server", () => {
     await app.close();
     rmSync(e2eStateDir, { recursive: true, force: true });
     delete process.env.NOTEES_STATE_FILE;
+    delete process.env.NOTEES_CONFIG_FILE;
   });
 
   async function runLive(...args: string[]): Promise<number> {
