@@ -122,6 +122,19 @@ span.pill__text {
   display: inline-flex;
 }
 
+/* The block row passes iconOnlyAdd unconditionally, so a CLASS-LESS block's
+   "+ Add class" is an invisible ~24px sliver at the row's far right at rest
+   — the kit's group-hover reveal never fires (there is nothing visible to
+   hover), and the affordance read as missing entirely. The row-hover reveal
+   mirrors the collapse chevron's contract: reaching for the row surfaces
+   the "+"; the specificity deliberately beats the kit's
+   `:not(:hover):not(:focus-within)` gate. Keyboard focus reveals always
+   (the fleet-audit ruling the kit rule implements). */
+.nt-block-row:hover .nt-class-add-anchor .pill--add.pill--icon-only,
+.nt-block-row .nt-class-add-anchor .pill--add.pill--icon-only:focus-visible {
+  opacity: var(--opacity-100);
+}
+
 /* --- effective-property rows ---------------------------------------------- */
 
 /* Notion-style property table: internal row separators only (top edge +

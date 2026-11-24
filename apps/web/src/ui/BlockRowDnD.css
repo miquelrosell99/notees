@@ -54,6 +54,17 @@
   display: none;
 }
 
+/* A CLASS-LESS block's chips group contains ONLY this pill — hidden, the
+   group is a zero-size target the pointer can never hit, so the reveal
+   never fires and the affordance reads as missing entirely (the owner's
+   report). Reaching for the ROW surfaces it, the collapse chevron's
+   contract. The selector mirrors the hide rule's full chain plus the
+   row-hover prefix so it wins on specificity; the kit opacity gate is
+   beaten by the matching rule in MetadataSection.css. */
+.nt-block-row:hover .nt-block-classes .nt-property-chips:not(:focus-within) .pill--add.pill--icon-only:not([aria-expanded="true"]) {
+  display: inline-flex;
+}
+
 /* Backlink gutter toggle: the fleet ghost Button + `active` state owns the
    chrome now (the top-bar sidebar-toggle register) — no bespoke styles
    remain here. */
