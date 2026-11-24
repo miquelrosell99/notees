@@ -24,12 +24,14 @@
  * to the default (a dead switch never resurrects). The pages/classes hubs
  * ride the outline
  * mode, opening on the Dates first sort (the hub passes `defaultSortMode`;
- * unset = the container's row order). Tasks defaults to table; assets to
- * cards with a cover-top cover
+ * unset = the container's row order). Tasks defaults to its registered
+ * "buckets" view; assets to cards with a cover-top cover
  * fallback. The outline (list) mode renders the full
  * block-row surface — inline-editable when `editable` is set (the tasks
  * hub), read-only-inert otherwise (the content click does nothing; the
- * bullet opens the node).
+ * bullet opens the node). The tasks hub's body renders exactly ONE
+ * surface — the bucketed Overdue/Today/… view as its default mode, or the
+ * mode the user selected (never a prepend stacked over the chosen mode).
  *
  * The surface shape: the root is full-bleed in the main
  * content card (the PageCard.css hub-surface exception) — the bar pins at
@@ -108,9 +110,10 @@ export interface CollectionHubProps {
    * and the mode-availability gate read this set, never the filtered one.
    */
   items: NodeCollectionItem[];
-  /** Available modes in switcher order. */
-  modes: ViewMode[];
-  defaultMode: ViewMode;
+  /** Available modes in switcher order — ViewMode union ids and/or registered
+   *  view ids outside the union (the tasks hub's "buckets"). */
+  modes: Array<ViewMode | string>;
+  defaultMode: ViewMode | string;
   /**
    * The hub's persistence identity (e.g. the nav key "tasks"): the chosen
    * mode survives reloads under `viewMode.hub.<persistKey>`. Omitted = the
@@ -194,8 +197,10 @@ export interface CollectionHubProps {
   trailingAction?: ((item: NodeCollectionItem) => ReactNode) | undefined;
   /**
    * Content rendered inside the scrolling body ABOVE the collection (the
-   * tasks hub's bucketed surface rides this); the whole
-   * block scrolls with the collection at the card border.
+   * cards hub's due/fresh/later strip rides this); the whole
+   * block scrolls with the collection at the card border. Surfaces whose
+   * bucketed listing IS the primary view offer it as a registered view mode
+   * instead (the tasks hub's "buckets" — one body at a time, never stacked).
    */
   prepend?: ReactNode | undefined;
   onOpenNode: (nodeId: string) => void;

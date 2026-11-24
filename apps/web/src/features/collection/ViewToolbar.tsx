@@ -12,9 +12,9 @@ import type { ViewMode } from "./types.js";
 import "./ViewToolbar.css";
 
 export interface ViewToolbarProps {
-  modes: ViewMode[] | string[];
+  modes: Array<ViewMode | string>;
   value: ViewMode | string;
-  onChange: (mode: ViewMode) => void;
+  onChange: (mode: ViewMode | string) => void;
   /** Extra controls left of the switcher (filters, add buttons, …). */
   children?: ReactNode;
   className?: string;

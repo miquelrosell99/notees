@@ -1,6 +1,7 @@
 /**
  * HubView — the nav hub: the main-view collection behind each NAVIGATION
- * entry (tasks bucket + table/cards, assets gallery, the shared outline
+ * entry (tasks: the bucketed list and the table/cards/… modes, assets
+ * gallery, the shared outline
  * hub for pages/classes/whiteboards/inbox). Exported for the hub
  * view-mode tests.
  */
@@ -17,7 +18,10 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 import { parentlessBlockResolverOf } from "../renderStateLabel.js";
 import { CollectionHub } from "../../features/collection/CollectionHub.js";
 import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
-import { TaskBuckets } from "../../features/classview/TaskBuckets.js";
+// Buckets-view registration side effect (the collection barrel's
+// self-registration precedent): registers the "buckets" view mode the tasks
+// hub offers as its default.
+import "../../features/classview/bucketsView.js";
 import {
   CardBuckets,
   cardRowsOf,
@@ -249,20 +253,22 @@ export function HubView({
     // The cards board groups by the status property; the cards mode renders
     // it when a usable select schema exists (task family is authored on demand).
     const groupByProperty = taskGroupingProperty(client, members);
-    const modes: ViewMode[] = ["outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
+    // ONE bar for the whole hub: CollectionHub's SurfaceTopBar carries the
+    // title/count/switcher; the body renders exactly ONE surface — the
+    // registered "buckets" view (Overdue/Today/Upcoming/Unscheduled/
+    // Completed) as the default mode, or the mode the user selected (the
+    // register's either/or ruling: the retired prepend stacked the buckets
+    // over every mode).
+    const modes: Array<ViewMode | string> = ["buckets", "outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
     return (
       <div className="nt-hub-tasks">
-        {/* ONE bar for the whole hub: CollectionHub's SurfaceTopBar carries
-            the title/count/switcher; the bucketed surface (Overdue/Today/Upcoming/
-            Unscheduled/Completed) prepends the collection inside the shared
-            scrolling body, device-collapse and all. */}
         <CollectionHub
           client={client}
           icon={entry?.icon ?? "mdi-format-list-checks"}
           title={entry?.label ?? "Tasks"}
           items={members.map((node) => ({ node }))}
           modes={modes}
-          defaultMode="table"
+          defaultMode="buckets"
           persistKey="hub.tasks"
           // A subtask (a task-classed child of a task) nests under its parent
           // in the outline and rides parent-before-child in unset table
@@ -274,7 +280,6 @@ export function HubView({
           groupByProperty={groupByProperty}
           editable
           emptyTitle="No tasks yet"
-          prepend={<TaskBuckets client={client} onOpenNode={onOpenNode} />}
           headerActions={newTaskAction}
           onOpenNode={onOpenNode}
           onOpenInSidebar={onOpenInSidebar}

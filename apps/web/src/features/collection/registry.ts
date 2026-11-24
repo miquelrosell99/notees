@@ -35,7 +35,7 @@ export interface ViewModeOption {
 }
 
 /** Switcher options in registry order, filtered to the available modes. */
-export function getViewModeOptions(available?: ViewMode[] | string[]): ViewModeOption[] {
+export function getViewModeOptions(available?: readonly (ViewMode | string)[]): ViewModeOption[] {
   const all = getRegisteredViewModes();
   const list = available === undefined ? all : available.map((id) => registry.get(id)).filter((entry): entry is ViewRegistryEntry => entry !== undefined);
   return list.map((entry) => ({

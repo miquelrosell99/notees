@@ -464,7 +464,7 @@ describe("the v1 node card (cards mode)", () => {
 });
 
 describe("tasks hub", () => {
-  it("lists pages AND blocks classed task, table by default, switchable", async () => {
+  it("lists pages AND blocks classed task, buckets by default, switchable", async () => {
     const client = await seedClient();
     // The hub authors the task family on open — ensure up front
     // so no write is in flight when the test teardown closes the client.
@@ -480,7 +480,15 @@ describe("tasks hub", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    // Table default; both node types listed by their derived titles — the
+    // Buckets default (the registered "buckets" view — ONE body at a time,
+    // never a prepend over the collection): both node types bucketed by
+    // their derived titles.
+    const buckets = within(await screen.findByLabelText("Task buckets"));
+    expect(buckets.getByText("Write report")).not.toBeNull();
+    expect(buckets.getByText("Call the office")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+    // Both node types listed by their derived titles — the
     // name cell is the title block row: a div, not a
     // button (navigation rides the pinned "Open …" button).
     const table = screen.getByRole("table");
@@ -526,6 +534,7 @@ describe("tasks hub", () => {
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
     // The table lists both — the subtask is a first-class row.
+    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
     const table = screen.getByRole("table");
     expect(within(table).getByText("Zoo parent task")).not.toBeNull();
     expect(within(table).getByText("Aardvark subtask")).not.toBeNull();
@@ -589,6 +598,7 @@ describe("tasks hub", () => {
     );
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
+    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
     const nameSort = screen.getByRole("button", { name: /^Name/ });
     const rowNames = () =>
       [...screen.getByRole("table").querySelectorAll("td.nt-table-name .nt-title-content")].map(

@@ -95,7 +95,7 @@ export function NodeCollection({
   toolbarContent,
   viewChromeTarget,
   ...props
-}: NodeCollectionProps & { viewMode: ViewMode }) {
+}: NodeCollectionProps & { viewMode: ViewMode | string }) {
   const entry = getViewDefinition(viewMode);
   // The standalone editable-outline bundle: an
   // editable outline/tree collection WITHOUT a host OutlinerContext

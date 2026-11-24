@@ -8,5 +8,6 @@ export * from "./emplatesSection.js";
 export * from "./lassedNodesSection.js";
 export * from "./PropertyDefinitionsSection.js";
 export * from "./TaskBuckets.js";
+export * from "./bucketsView.js";
 export * from "./xtendedBySection.js";
 export * from "./xtendsRow.js";

@@ -28,31 +28,30 @@ import {
 } from "../features/settings/deviceSettings.js";
 import type { CardFlow, CoverLayout, ViewMode } from "../features/collection/types.js";
 
-const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "table", "pivot", "graph", "gantt", "calendar"];
 const COVER_LAYOUTS: readonly CoverLayout[] = ["no-cover", "cover-top", "cover-left", "cover-right"];
 const CARD_FLOWS: readonly CardFlow[] = ["stack", "grid", "masonry"];
 
-function sanitizeViewMode(value: unknown, allowed: readonly ViewMode[]): ViewMode | null {
+function sanitizeViewMode<M extends string>(value: unknown, allowed: readonly M[]): M | null {
   if (typeof value !== "string") return null;
   // The retired kanban mode is cards now (its board renders when the
   // surface groups by a select property) — preserve the persisted choice.
   const mode = value === "kanban" ? "cards" : value;
-  return (VIEW_MODES as readonly string[]).includes(mode)
-    ? (allowed as readonly string[]).includes(mode)
-      ? (mode as ViewMode)
-      : null
-    : null;
+  // Membership in the host's offered (availability-gated) set is the whole
+  // test: hosts may offer registered view modes OUTSIDE the ViewMode union
+  // (the tasks hub's "buckets" — registerView ids are plain strings), and a
+  // mode the host doesn't offer can never have been honestly selected.
+  return (allowed as readonly string[]).includes(mode) ? (mode as M) : null;
 }
 
 /** The persisted mode for a surface, or null when unset/invalid/stale. */
-export function readViewModePref(
+export function readViewModePref<M extends string = ViewMode>(
   persistKey: string,
-  allowed: readonly ViewMode[],
-): ViewMode | null {
+  allowed: readonly M[],
+): M | null {
   return sanitizeViewMode(readDeviceSetting<unknown>(`viewMode.${persistKey}`, null), allowed);
 }
 
-export function writeViewModePref(persistKey: string, mode: ViewMode): void {
+export function writeViewModePref(persistKey: string, mode: string): void {
   writeDeviceSetting(`viewMode.${persistKey}`, mode);
 }
 
@@ -60,13 +59,15 @@ export function writeViewModePref(persistKey: string, mode: ViewMode): void {
  * useViewModePreference — like the session `useState<ViewMode>` it replaces,
  * but the choice survives reloads under `viewMode.<persistKey>`. Unset or
  * invalid values fall back to `defaultMode`; a change outside this hook
- * (another tab) re-syncs through the device-setting events.
+ * (another tab) re-syncs through the device-setting events. Generic over the
+ * mode id: hosts offering registered modes OUTSIDE the ViewMode union (the
+ * tasks hub's "buckets") pass `ViewMode | string` and get it back verbatim.
  */
-export function useViewModePreference(
+export function useViewModePreference<M extends string = ViewMode>(
   persistKey: string,
-  defaultMode: ViewMode,
-  allowed: readonly ViewMode[],
-): [ViewMode, (mode: ViewMode) => void] {
+  defaultMode: M,
+  allowed: readonly M[],
+): [M, (mode: M) => void] {
   const [stored, setStored] = useDeviceSetting<unknown>(`viewMode.${persistKey}`, null);
   const mode = sanitizeViewMode(stored, allowed) ?? defaultMode;
   return [mode, (next) => setStored(next)];

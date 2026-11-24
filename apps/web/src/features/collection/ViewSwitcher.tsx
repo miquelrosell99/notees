@@ -15,9 +15,9 @@ import type { ViewMode } from "./types.js";
 
 export interface ViewSwitcherProps {
   /** Available modes (registry ids), in display order. */
-  modes: ViewMode[] | string[];
+  modes: Array<ViewMode | string>;
   value: ViewMode | string;
-  onChange: (mode: ViewMode) => void;
+  onChange: (mode: ViewMode | string) => void;
   className?: string;
 }
 
@@ -37,7 +37,7 @@ export function ViewSwitcher({ modes, value, onChange, className = "" }: ViewSwi
     <SelectionButton
       options={options}
       value={value}
-      onChange={(val) => onChange(val as ViewMode)}
+      onChange={(val) => onChange(val)}
       size="sm"
       aria-label="View mode"
       className={`view-switcher ${className}`.trim()}

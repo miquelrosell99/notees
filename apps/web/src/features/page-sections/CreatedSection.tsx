@@ -96,7 +96,11 @@ export function CreatedSection({
       onRowsChange={setCreatedItems}
       toolbarContent={
         <div className="nt-created-toolbar">
-          <ViewToolbar modes={availableModes} value={viewMode} onChange={setViewMode} />
+          <ViewToolbar
+            modes={availableModes}
+            value={viewMode}
+            onChange={(mode) => setViewMode(mode as ViewMode)}
+          />
         </div>
       }
       collection={{

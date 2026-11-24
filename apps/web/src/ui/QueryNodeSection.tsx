@@ -239,7 +239,7 @@ export function QueryNodeSection({ client, nodeId, onOpenNode }: QueryNodeSectio
             <ViewSwitcher
               modes={viewModes}
               value={viewMode}
-              onChange={setViewMode}
+              onChange={(mode) => setViewMode(mode as ViewMode)}
             />
             <MoreActions
               items={[

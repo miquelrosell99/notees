@@ -244,7 +244,11 @@ export function ClassedNodesSection({
         // register: the toolbar (quick search first), then the view-chrome
         // slot, then this.
         toolbarContent: (
-          <ViewSwitcher modes={availableModes} value={membersMode} onChange={setMembersMode} />
+          <ViewSwitcher
+          modes={availableModes}
+          value={membersMode}
+          onChange={(mode) => setMembersMode(mode as ViewMode)}
+        />
         ),
       }}
     />

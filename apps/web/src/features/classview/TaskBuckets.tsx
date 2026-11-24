@@ -1,19 +1,22 @@
 /**
  * TaskBuckets — the bucketed tasks surface: Overdue / Today /
- * Upcoming / Unscheduled / Completed over the tasks-hub members (pages AND
- * blocks, the owner rule), computed client-side from the effective
- * scheduled/deadline/status values — the same derived reads the hub's table
- * renders from, so no query ever runs. A task's driving day is its earliest
- * scheduled/deadline day; the bucket priority Overdue → Today → Upcoming
- * keeps every open task in exactly one bucket and Completed holds the whole
- * closed set (the register's "computed from taskScheduled/taskDeadline +
- * closed state"). Renders as a hub section above the tasks collection; the
- * collapse flag is device-local (never an op).
+ * Upcoming / Unscheduled / Completed, computed client-side from the
+ * effective scheduled/deadline/status values — the same derived reads the
+ * hub's table renders from, so no query ever runs. A task's driving day is
+ * its earliest scheduled/deadline day; the bucket priority Overdue → Today →
+ * Upcoming keeps every open task in exactly one bucket and Completed holds
+ * the whole closed set (the register's "computed from taskScheduled/taskDeadline
+ * + closed state"). Renders as the tasks hub's registered "buckets" collection
+ * view (bucketsView.ts): the ids ride the collection's item set, so the hub's
+ * transient filter narrows the buckets exactly like every other mode (the
+ * old always-on-top prepend stacked the buckets over the chosen mode — one
+ * surface at a time now, the register's either/or ruling). The collapse flag
+ * is device-local (never an op).
  */
 
 import { useEffect, useMemo } from "react";
 
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { AnyClient } from "../../ui/app/Sidebar.js";
 
@@ -45,9 +48,12 @@ const BUCKET_ORDER: Array<{
 
 export function TaskBuckets({
   client,
+  ids,
   onOpenNode,
 }: {
   client: AnyClient;
+  /** The collection's item ids (the hub's filtered set) to bucket. */
+  ids: readonly string[];
   onOpenNode: (nodeId: string) => void;
 }) {
   const version = useClientVersion(client);
@@ -66,15 +72,10 @@ export function TaskBuckets({
     .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
 
   const buckets = useMemo<Buckets>(() => {
-    const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
-    const rows = taskRowsOf(
-      client,
-      statusSchema,
-      members.map((member) => member.id),
-    );
+    const rows = taskRowsOf(client, statusSchema, ids);
     return partitionTasksIntoBuckets(rows, todayIsoLocal());
     // statusSchema's options feed the closed flags — re-resolve per notify.
-  }, [client, statusSchema, version]);
+  }, [client, ids, statusSchema, version]);
 
   const total =
     buckets.overdue.length +

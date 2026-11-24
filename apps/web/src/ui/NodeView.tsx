@@ -205,7 +205,7 @@ export function NodeView({
         <ViewToolbar
           modes={inlineBlock ? FOCUSED_BLOCKS_MODES : BLOCKS_VIEW_MODES}
           value={blocksMode}
-          onChange={setBlocksMode}
+          onChange={(mode) => setBlocksMode(mode as ViewMode)}
         />
       </div>
     ) : undefined;
