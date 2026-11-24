@@ -725,8 +725,11 @@ output), `--server`/`--key` (env `NOTEES_SERVER` / `NOTEES_API_KEY` as fallbacks
 `--profile`; destructive commands require `--yes` (otherwise a blast-radius preview and
 exit 2 — never an interactive prompt under `--json` or non-tty). Exit codes: 0 ok,
 1 domain, 2 usage, 3 auth, 4 conflict, 5 network (`src/exit-codes.ts`). Local state at
-`~/.notees/state.json` (overridable via `NOTEES_STATE_FILE`) holds per-server workspace
-cursors; writes are atomic (tmp + rename).
+`$XDG_DATA_HOME/notees/state.json` (default `~/.local/share/notees/state.json`, overridable
+via `NOTEES_STATE_FILE`) holds per-server workspace cursors, credentials, and cached
+master keys; the per-profile defaults (the config half) live in
+`$XDG_CONFIG_HOME/notees/config.json` (`NOTEES_CONFIG_FILE`); writes are atomic
+(tmp + rename); a legacy `~/.notees/` home migrates itself on first use.
 
 ## 10. File map
 

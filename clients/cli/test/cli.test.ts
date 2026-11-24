@@ -179,40 +179,52 @@ const LEAKED_ENV = [
   "NOTEES_API_KEY",
   "NOTEES_EMAIL",
   "NOTEES_PASSWORD",
+  "NOTEES_STATE_FILE",
+  "NOTEES_CONFIG_FILE",
+  "XDG_DATA_HOME",
+  "XDG_CONFIG_HOME",
 ] as const;
 const savedEnv: Record<string, string | undefined> = {};
 
 beforeAll(async () => {
   harness = await bootServer();
   process.env.NOTEES_STATE_FILE = harness.stateFile;
+  process.env.NOTEES_CONFIG_FILE = `${harness.stateFile}.config`;
   for (const name of LEAKED_ENV) {
     savedEnv[name] = process.env[name];
     delete process.env[name];
   }
+  process.env.NOTEES_STATE_FILE = harness.stateFile;
+  process.env.NOTEES_CONFIG_FILE = `${harness.stateFile}.config`;
 });
 afterAll(async () => {
   await harness.app.close();
   rmSync(harness.dataDir, { recursive: true, force: true });
   delete process.env.NOTEES_STATE_FILE;
+  delete process.env.NOTEES_CONFIG_FILE;
   for (const name of LEAKED_ENV) {
     if (savedEnv[name] === undefined) delete process.env[name];
     else process.env[name] = savedEnv[name];
   }
 });
 
-// A test-private state file: stored defaults/credentials must not leak into
-// the shared harness state (other tests assert the no-server usage error
+// A test-private state+config pair: stored defaults/credentials must not leak
+// into the shared harness state (other tests assert the no-server usage error
 // against a blank environment).
 async function withFreshStateFile(fn: (stateFile: string) => Promise<void>): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), "notees-cli-config-test-"));
   const stateFile = join(dir, "state.json");
   const saved = process.env.NOTEES_STATE_FILE;
+  const savedConfig = process.env.NOTEES_CONFIG_FILE;
   process.env.NOTEES_STATE_FILE = stateFile;
+  process.env.NOTEES_CONFIG_FILE = join(dir, "config.json");
   try {
     await fn(stateFile);
   } finally {
     if (saved === undefined) delete process.env.NOTEES_STATE_FILE;
     else process.env.NOTEES_STATE_FILE = saved;
+    if (savedConfig === undefined) delete process.env.NOTEES_CONFIG_FILE;
+    else process.env.NOTEES_CONFIG_FILE = savedConfig;
     rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -2898,13 +2910,14 @@ describe("config (per-profile defaults)", () => {
         workspace: "main",
       });
 
-      // On disk: a top-level `profiles` record keyed by profile name (the
+      // On disk: a top-level `profiles` record keyed by profile name, in the
+      // CONFIG file (the preferences half of the state/config split — the
       // server default cannot live under `servers`, which is keyed profile:server).
-      const state = JSON.parse(readFileSync(stateFile, "utf8")) as {
+      const config = JSON.parse(readFileSync(join(dirname(stateFile), "config.json"), "utf8")) as {
         profiles: Record<string, { server?: string; workspace?: string }>;
       };
-      expect(state.profiles.default?.server).toBe("https://notees.example.test");
-      expect(state.profiles.default?.workspace).toBe("main");
+      expect(config.profiles.default?.server).toBe("https://notees.example.test");
+      expect(config.profiles.default?.workspace).toBe("main");
     });
   });
 

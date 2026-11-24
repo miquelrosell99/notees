@@ -88,7 +88,7 @@ import { wordCacheDir, resolveWordStatics } from "./word/paths.js";
 import { startWordServe, type WordServeSession } from "./word/serve.js";
 import { openBridgeSession } from "./serve/session.js";
 import { runShell } from "./shell.js";
-import { cachedMasterKey, clearCachedMasterKey, defaultStatePath, profileDefaults, serverState, updateProfileDefaults, updateServerState, type StoredCredential } from "./state.js";
+import { cachedMasterKey, clearCachedMasterKey, defaultConfigPath, defaultStatePath, profileDefaults, serverState, updateProfileDefaults, updateServerState, type StoredCredential } from "./state.js";
 import { formatTable, readStdin } from "./util.js";
 import { DEFAULT_WORKSPACE_ID, deriveUuid, uuidv7 } from "./uuid.js";
 import { parseZoteroRdf, type ZoteroItem, type ZoteroRdfParseResult } from "./zotero-rdf.js";
@@ -175,11 +175,19 @@ function failUsage(message: string): never {
  * `requireServer` fails usage on the missing case, `doctor` reports it as a
  * failing check instead.
  */
+/**
+ * Server/workspace resolution order: flag (`--server` / `--workspace`) >
+ * env (`NOTEES_SERVER` / `NOTEES_WORKSPACE`) > the stored per-profile
+ * defaults from `notees config set` (the CONFIG file — preferences live in
+ * the XDG config home, not the state file; see state.ts's split). Non-
+ * throwing — `requireServer` fails usage on the missing case, `doctor`
+ * reports it as a failing check instead.
+ */
 function resolveServer(
   opts: GlobalOptions,
-  statePath: string,
+  configPath: string,
 ): { server: string | undefined; workspace: string | undefined } {
-  const defaults = profileDefaults(statePath, opts.profile ?? "default");
+  const defaults = profileDefaults(configPath, opts.profile ?? "default");
   const server = opts.server ?? process.env.NOTEES_SERVER ?? defaults.server;
   const workspace = opts.workspace ?? process.env.NOTEES_WORKSPACE ?? defaults.workspace;
   return { server, workspace };
@@ -187,9 +195,9 @@ function resolveServer(
 
 function requireServer(
   opts: GlobalOptions,
-  statePath: string,
+  configPath: string,
 ): { server: string; workspace: string | undefined } {
-  const { server, workspace } = resolveServer(opts, statePath);
+  const { server, workspace } = resolveServer(opts, configPath);
   if (server === undefined || server.length === 0) {
     failUsage(
       "server URL required: pass --server <url>, set NOTEES_SERVER, or run `notees config set server <url>`",
@@ -2214,7 +2222,7 @@ async function doctor(command: Command): Promise<void> {
 
   const statePath = defaultStatePath();
   const profile = opts.profile ?? "default";
-  const { server, workspace } = resolveServer(opts, statePath);
+  const { server, workspace } = resolveServer(opts, defaultConfigPath());
   const serverOk = server !== undefined && server.length > 0;
   // Same state-key shape as ctxOf — the stored server default is part of the
   // key, so the credential lookup lands on the right per-server slot.
@@ -4290,7 +4298,7 @@ function ctxOf(command: Command, options: { allowMissingKey?: boolean } = {}): C
   const root = rootOf(command);
   const opts = root.opts<GlobalOptions>();
   const statePath = defaultStatePath();
-  const { server, workspace } = requireServer(opts, statePath);
+  const { server, workspace } = requireServer(opts, defaultConfigPath());
   const stateKey = `${opts.profile ?? "default"}:${server}`;
   const { apiKey } = resolveKey(opts, statePath, stateKey, options.allowMissingKey === true);
   const client = new ApiClient({
@@ -4551,7 +4559,8 @@ async function authLock(ctx: CommandContext): Promise<void> {
 interface ConfigContext {
   io: CliIo;
   opts: GlobalOptions;
-  statePath: string;
+  /** The CONFIG file (XDG config home) — the preferences half of state.ts's split. */
+  configPath: string;
   profile: string;
 }
 
@@ -4564,9 +4573,9 @@ function emitConfig(ctx: ConfigContext, human: string, machine: unknown): void {
 }
 
 /**
- * `notees config` never needs a server — it only touches the local state
- * file, so it resolves just io/profile/statePath (no requireServer, no
- * client, no credential).
+ * `notees config` never needs a server — it only touches the local config
+ * file (the preferences half of state.ts's split), so it resolves just
+ * io/profile/configPath (no requireServer, no client, no credential).
  */
 function configCtxOf(command: Command): ConfigContext {
   const root = rootOf(command);
@@ -4574,7 +4583,7 @@ function configCtxOf(command: Command): ConfigContext {
   return {
     io: (root.getOptionValue("__io") as CliIo | undefined) ?? defaultIo,
     opts,
-    statePath: defaultStatePath(),
+    configPath: defaultConfigPath(),
     profile: opts.profile ?? "default",
   };
 }
@@ -4590,7 +4599,7 @@ function configKeyOf(key: string): ConfigKey {
 /** `notees config set server|workspace <value>` — persist the per-profile default. */
 async function configSet(ctx: ConfigContext, key: ConfigKey, value: string): Promise<void> {
   if (value.length === 0) failUsage(`config set ${key} requires a non-empty value`);
-  updateProfileDefaults(ctx.statePath, ctx.profile, (current) => ({
+  updateProfileDefaults(ctx.configPath, ctx.profile, (current) => ({
     ...current,
     [key]: value,
     updatedAt: new Date().toISOString(),
@@ -4604,7 +4613,7 @@ async function configSet(ctx: ConfigContext, key: ConfigKey, value: string): Pro
 
 /** `notees config get server|workspace` — print the stored default (null when unset). */
 async function configGet(ctx: ConfigContext, key: ConfigKey): Promise<void> {
-  const value = profileDefaults(ctx.statePath, ctx.profile)[key];
+  const value = profileDefaults(ctx.configPath, ctx.profile)[key];
   if (value === undefined) {
     emitConfig(ctx, `no default ${key} set (profile ${ctx.profile})\n`, {
       key,
@@ -4618,7 +4627,7 @@ async function configGet(ctx: ConfigContext, key: ConfigKey): Promise<void> {
 
 /** `notees config list` — both stored defaults for this profile. */
 async function configList(ctx: ConfigContext): Promise<void> {
-  const defaults = profileDefaults(ctx.statePath, ctx.profile);
+  const defaults = profileDefaults(ctx.configPath, ctx.profile);
   const server = defaults.server ?? null;
   const workspace = defaults.workspace ?? null;
   emitConfig(

@@ -87,7 +87,9 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 
 CLI environment (for clients, `clients/cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
-`NOTEES_STATE_FILE` (default `~/.notees/state.json`).
+`NOTEES_STATE_FILE` / `NOTEES_CONFIG_FILE` (default homes
+`~/.local/share/notees/state.json` and `~/.config/notees/config.json` — the XDG split;
+a legacy `~/.notees/` migrates on first use).
 
 ## 4. Data directory layout
 
