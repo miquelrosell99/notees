@@ -29,6 +29,7 @@ export type ErrorCode =
   | "no_identifier_found"
   | "feature_disabled"
   | "e2ee_required"
+  | "invalid_timezone"
   | "internal";
 
 export class AppError extends Error {
@@ -106,6 +107,9 @@ export const ERROR_TAXONOMY: Readonly<
   // the server holds no plaintext channel into encrypted stores; the
   // client captures through the tab relay instead.
   e2ee_required: { status: 409, description: "workspace is end-to-end encrypted — capture through an open client" },
+  // POST /api/calendars: the subscription's timezone must be a real IANA
+  // zone (the feed's times convert into it).
+  invalid_timezone: { status: 422, description: "the calendar subscription's timezone is not a valid IANA zone" },
   internal: { status: 500, description: "unclassified server failure (the only code not thrown by route code)" },
 };
 

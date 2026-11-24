@@ -106,7 +106,7 @@ describe("settings routes", () => {
     }
   });
 
-  it("normalizeSettingsSection accepts only the nine sections", () => {
+  it("normalizeSettingsSection accepts only the ten sections", () => {
     expect(normalizeSettingsSection("editor")).toBe("editor");
     expect(normalizeSettingsSection("tasks")).toBe("tasks");
     expect(normalizeSettingsSection("appearance")).toBe("appearance");
@@ -202,10 +202,32 @@ describe("SettingsPage", () => {
     expect(onNavigate).toHaveBeenCalledWith("editor");
   });
 
-  it("lists all nine sections in the nav", () => {
+  it("lists all ten sections in the nav", () => {
     renderPage();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
-    expect(within(nav).getAllByRole("button")).toHaveLength(9);
+    expect(within(nav).getAllByRole("button")).toHaveLength(10);
+  });
+
+  it("the Calendars section lists subscriptions from the server and adds one", async () => {
+    const calls = stubFetch({
+      "/api/calendars?workspaceId=": () => ({
+        subscriptions: [
+          {
+            id: "sub-1",
+            url: "https://calendar.example.com/feed.ics",
+            name: "Team feed",
+            timezone: "Europe/Madrid",
+            refreshMinutes: 60,
+            lastFetchedAt: 1,
+            lastStatus: "ok — 2 new, 0 updated",
+          },
+        ],
+      }),
+    });
+    renderPage({ section: "calendars" });
+    expect(await screen.findByText("Team feed")).toBeInTheDocument();
+    expect(screen.getByText(/ok — 2 new/)).toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes("/api/calendars"))).toBe(true);
   });
 
   it("the Tasks section renders the reminder rows (browser notifications honestly unsupported under jsdom)", () => {

@@ -1159,6 +1159,41 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
       "Every live grant whose grantee is the caller — by user id or by email (a pending email grant matches from the moment an account with that email exists) — restricted to workspaces the caller is a member of, with the granter's identity. The operator key is not a grantee and answers an empty list. The client resolves node titles from its local store and shows restricted members only their grant roots and closures (a UX boundary under the trusted-circle model, not confidentiality).",
     tags: ["Shares"],
   }],
+  ["post", "/api/calendars", {
+    summary: "Add a ONE-WAY iCal calendar subscription and run its first refresh (owner/admin only)",
+    description:
+      "Points the workspace at an http(s) ICS feed (a Google secret iCal URL, a Nextcloud calendar, any .ics); the server polls it (default every 60 min, conditional GET) and ingests VEVENTs as event-classed nodes through the one write path. One node per VEVENT UID (deterministic id — re-ingest is idempotent LWW); times convert into the subscription's IANA timezone; DTEND is exclusive per RFC; an RRULE inside the repo's RR5 subset maps onto the Repeat property, anything outside imports rule-less and the status line says so. A UID vanishing from the feed never deletes the node; local renames of subscribed events are overwritten on refresh (the feed is the authority for its own events). The URL is fetched server-side BY DESIGN (the owner subscribing to their own LAN calendar is the primary case) — no egress allowlist beyond the http(s) scheme check. E2EE workspaces are refused (409 e2ee_required).",
+    tags: ["Calendars"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["workspaceId", "url"],
+      properties: {
+        workspaceId: { type: "string", format: "uuid" },
+        url: { type: "string", description: "the http(s) ICS feed URL" },
+        name: { type: "string", description: "display name (default: the URL's hostname)" },
+        timezone: { type: "string", description: "IANA zone the feed's times render in (default: the server's zone)" },
+        refreshMinutes: { type: "integer", description: "poll interval, 15..1440 (default 60)" },
+      },
+    },
+    errors: ["validation_failed", "forbidden", "e2ee_required", "invalid_timezone"],
+  }],
+  ["get", "/api/calendars", {
+    summary: "List the workspace's calendar subscriptions with their last refresh status (owner/admin only)",
+    tags: ["Calendars"],
+  }],
+  ["post", "/api/calendars/:id/refresh", {
+    summary: "Refresh one subscription now (conditional GET + ingest; owner/admin only)",
+    tags: ["Calendars"],
+    params: { id: { description: "the subscription uuid" } },
+    errors: ["not_found", "forbidden", "e2ee_required"],
+  }],
+  ["delete", "/api/calendars/:id", {
+    summary: "Remove a subscription (owner/admin only) — ingested events STAY (ordinary graph content)",
+    tags: ["Calendars"],
+    params: { id: { description: "the subscription uuid" } },
+    errors: ["not_found", "forbidden"],
+  }],
   ["put", "/api/workspaces/:id/members/:userId", {
     summary: "Set a member's role — \"owner\" full peer | \"member\" RESTRICTED (owner-only)",
     description:

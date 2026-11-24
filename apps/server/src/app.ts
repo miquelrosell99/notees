@@ -29,6 +29,8 @@ import { registerAdminRoutes } from "./routes-admin.js";
 import { registerIdempotencyHooks } from "./idempotency.js";
 import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
 import { registerCaptureRoutes } from "./routes-capture.js";
+import { registerCalendarRoutes } from "./routes-calendars.js";
+import { CalendarPoller } from "./calendar-subscriptions.js";
 import { registerFeatureRoutes } from "./routes-features.js";
 import { registerMetaRoutes } from "./routes-meta.js";
 import { registerObjectRoutes } from "./routes-objects.js";
@@ -243,9 +245,18 @@ export async function buildServer(
       registerShareRoutes(api, ctx);
       registerGrantRoutes(api, ctx);
       registerConfidentialShareRoutes(api, ctx);
+      registerCalendarRoutes(api, ctx);
     },
     { prefix: "/api" },
   );
+
+  // The one-way iCal subscription poller: a per-minute sweep refreshing the
+  // subscriptions whose interval elapsed. Stopped with the app.
+  const calendarPoller = new CalendarPoller(ctx);
+  calendarPoller.start();
+  app.addHook("onClose", async () => {
+    calendarPoller.stop();
+  });
   // Word add-in statics (NOTEES_WORD_ADDIN_DIR): root-level GET /word/*,
   // unauthenticated BY DESIGN (the manifest must be fetchable by Word's
   // sideloading flows; see word-addin.ts). Registered unconditionally so the

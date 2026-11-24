@@ -22,6 +22,8 @@ import { PluginRegistry } from "./routes-plugins.js";
 import { ResolveCache } from "./resolve-source.js";
 import { seedWorkspace, type SeedResult } from "./seed.js";
 import { ShareStorage } from "./shares.js";
+import { CalendarSubscriptionStorage } from "./calendar-subscriptions.js";
+import { ExternalRefStorage } from "./external-refs.js";
 import { SubscriptionBus } from "./bus.js";
 import { TicketStore } from "./tickets.js";
 import { WorkflowStorage } from "./workflows.js";
@@ -41,6 +43,12 @@ export class ServerContext {
   readonly plugins: PluginRegistry;
   /** Read-only public share tokens (server coordination). */
   readonly shares: ShareStorage;
+  /** One-way iCal calendar subscriptions (server coordination — the shares ruling). */
+  readonly calendars: CalendarSubscriptionStorage;
+  /** The shared external-identifier ↔ node mapping every connection-style
+   *  integration consumes (calendar subscriptions first; the designed
+   *  plugin-runtime service — external-refs.ts). */
+  readonly externalRefs: ExternalRefStorage;
   /**
    * The metadata-resolver cache (GET /api/resolve egress): normalized
    * identifier → unified record, 24 h TTL. Server state, not log state
@@ -88,6 +96,8 @@ export class ServerContext {
     this.auth = new AuthStorage(`${config.dataDir}/relay.db`);
     this.plugins = new PluginRegistry(`${config.dataDir}/relay.db`);
     this.shares = new ShareStorage(`${config.dataDir}/relay.db`);
+    this.calendars = new CalendarSubscriptionStorage(`${config.dataDir}/relay.db`);
+    this.externalRefs = new ExternalRefStorage(`${config.dataDir}/relay.db`);
     this.resolverCache = new ResolveCache(`${config.dataDir}/relay.db`);
     this.lockout = new AccountLockout();
     // Seed the device clock from the log so server-stamped HLCs never regress
@@ -227,6 +237,8 @@ export class ServerContext {
     await this.workspaces.close();
     this.plugins.close();
     this.shares.close();
+    this.calendars.close();
+    this.externalRefs.close();
     this.resolverCache.close();
     this.workflows.close();
     this.auth.close();

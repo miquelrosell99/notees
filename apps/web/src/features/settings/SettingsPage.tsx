@@ -1,6 +1,6 @@
 /**
- * SettingsPage — the full settings surface: the nine settings sections
- * (appearance/editor/tasks/general/sync/account/security/support/about) with a
+ * SettingsPage — the full settings surface: the ten settings sections
+ * (appearance/editor/tasks/calendars/general/sync/account/security/support/about) with a
  * sidebar section nav, rendered in the PageCard slot of the app shell.
  * Deep-linkable at /settings/<section> (unknown sections land on
  * appearance); section changes ride window.history so back/forward and
@@ -31,6 +31,7 @@ import { ConfirmationModal } from "../../components/ui/kit/ConfirmationModal.js"
 import { Modal } from "../../components/ui/kit/Modal.js";
 import { Icon } from "../../ui/Icon.js";
 import { ApiKeysSection } from "../../ui/SettingsPanel.js";
+import { CalendarsSection } from "./CalendarsSection.js";
 import {
   DEFAULT_ALL_DAY_REMINDER_TIME,
   isValidTimeOfDay,
@@ -51,6 +52,7 @@ export type SettingsSection =
   | "appearance"
   | "editor"
   | "tasks"
+  | "calendars"
   | "general"
   | "sync"
   | "account"
@@ -62,6 +64,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[
   { id: "appearance", label: "Appearance" },
   { id: "editor", label: "Editor" },
   { id: "tasks", label: "Tasks" },
+  { id: "calendars", label: "Calendars" },
   { id: "general", label: "General" },
   { id: "sync", label: "Sync" },
   { id: "account", label: "Account" },
@@ -1393,6 +1396,7 @@ export function SettingsPage({
         {section === "appearance" && <AppearanceSection />}
         {section === "editor" && <EditorSection />}
         {section === "tasks" && <TasksSection />}
+        {section === "calendars" && <CalendarsSection serverUrl={serverUrl} token={token} />}
         {section === "general" && <GeneralSection />}
         {section === "sync" && (
           <SyncSection
