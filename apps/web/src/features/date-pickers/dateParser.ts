@@ -9,13 +9,18 @@
  * - US: 02/09/2026, 02-09-2026
  * - EU: 09.02.2026
  * - Named months: Feb 9, 2026 / February 9 2026 / 9 Feb 2026 / Feb 2026
+ *   (ordinal day suffixes ride: "Feb 9th", "9th February")
  * - Month only: February 2026 / Feb 2026
  * - Year only: 2026
- * - Relative: today, tomorrow, yesterday, next/last week/month/year,
+ * - Relative: today, tonight, tomorrow, yesterday, next/last week/month/year,
  *   in N days/weeks/months/years, N days/weeks/months/years ago
+ * - Weekdays: friday (the coming one — today when today IS Friday),
+ *   next friday (strictly after the coming one when today matches),
+ *   last friday (the most recent past one)
  * - An optional trailing wall-clock time: "tomorrow 14:30",
- *   "2026-10-09 09:15" (24h, minute precision — the unified datetime
- *   value's time arm; callers at a coarser precision drop it).
+ *   "2026-10-09 09:15" (24h, minute precision), 12h with am/pm
+ *   ("tomorrow at 5pm", "friday 5:30 pm"), "noon", "midnight" — the unified
+ *   datetime value's time arm; callers at a coarser precision drop it.
  */
 
 import { DATE_UUID_MAX_YEAR, DATE_UUID_MIN_YEAR } from "@notees/domain";
@@ -56,6 +61,27 @@ const MONTH_NAMES: Record<string, number> = {
   nov: 11,
   december: 12,
   dec: 12,
+};
+
+/** Weekday names → Date#getDay() index (0 = Sunday). */
+const WEEKDAY_NAMES: Record<string, number> = {
+  sunday: 0,
+  sun: 0,
+  monday: 1,
+  mon: 1,
+  tuesday: 2,
+  tue: 2,
+  tues: 2,
+  wednesday: 3,
+  wed: 3,
+  thursday: 4,
+  thu: 4,
+  thur: 4,
+  thurs: 4,
+  friday: 5,
+  fri: 5,
+  saturday: 6,
+  sat: 6,
 };
 
 const MONTH_DISPLAY = [
@@ -134,17 +160,41 @@ export function parseDate(input: string): ParsedDate | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
 
-  // Split a trailing wall-clock time ("tomorrow 14:30", "2026-10-09 09:15")
-  // off the date expression; the time rides the result when present.
+  // Split a trailing wall-clock time off the date expression; the time
+  // rides the result when present. Accepted shapes: 24h "14:30", 12h with
+  // am/pm ("5pm", "5:30 pm", optionally "at "-prefixed), "noon",
+  // "midnight".
   let dateText = trimmed;
   let time: string | undefined;
-  const timeMatch = trimmed.match(/^(.*?)\s+(\d{1,2}):([0-5]\d)$/);
-  if (timeMatch !== null) {
-    const hour = parseInt(timeMatch[2]!, 10);
-    if (hour <= 23) {
-      time = `${String(hour).padStart(2, "0")}:${timeMatch[3]}`;
-      dateText = timeMatch[1]!.trim();
-      if (dateText === "") return null;
+
+  const named = trimmed.match(/^(.*?)(?:\s+at)?\s+(noon|midnight)$/i);
+  if (named !== null && named[1]!.trim() !== "") {
+    time = named[2]!.toLowerCase() === "noon" ? "12:00" : "00:00";
+    dateText = named[1]!.trim();
+  } else {
+    const twelveHour = trimmed.match(
+      /^(.*?)(?:\s+at)?\s+(\d{1,2})(?::([0-5]\d))?\s*([ap])\.?m\.?$/i,
+    );
+    if (twelveHour !== null && twelveHour[1]!.trim() !== "") {
+      let hour = parseInt(twelveHour[2]!, 10);
+      if (hour >= 1 && hour <= 12) {
+        const pm = twelveHour[4]!.toLowerCase() === "p";
+        if (hour === 12) hour = 0;
+        if (pm) hour += 12;
+        time = `${String(hour).padStart(2, "0")}:${twelveHour[3] ?? "00"}`;
+        dateText = twelveHour[1]!.trim();
+      }
+    }
+    if (time === undefined) {
+      const twentyFourHour = trimmed.match(/^(.*?)(?:\s+at)?\s+(\d{1,2}):([0-5]\d)$/);
+      if (twentyFourHour !== null) {
+        const hour = parseInt(twentyFourHour[2]!, 10);
+        if (hour <= 23) {
+          time = `${String(hour).padStart(2, "0")}:${twentyFourHour[3]}`;
+          dateText = twentyFourHour[1]!.trim();
+          if (dateText === "") return null;
+        }
+      }
     }
   }
 
@@ -173,6 +223,19 @@ function parseDateOnly(trimmed: string): ParsedDate | null {
     const d = new Date();
     d.setDate(d.getDate() - 1);
     return { type: "day", year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: dayLabel(d) };
+  }
+  if (lower === "tonight") {
+    // The evening convention: today at 20:00 (an explicit trailing time
+    // still wins — parseDate overrides when one parsed).
+    const d = new Date();
+    return {
+      type: "day",
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      day: d.getDate(),
+      label: dayLabel(d),
+      time: "20:00",
+    };
   }
 
   // --- Relative expressions ---
@@ -230,6 +293,30 @@ function parseDateOnly(trimmed: string): ParsedDate | null {
     else if (unit === "month") d.setMonth(d.getMonth() - n);
     else if (unit === "year") d.setFullYear(d.getFullYear() - n);
     return { type: "day", year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: dayLabel(d) };
+  }
+
+  // --- Weekdays ---
+  // Bare weekday = the coming occurrence (today included); "next X" = the
+  // same, except today-matches roll a week out; "last X" = the most recent
+  // past one (today excluded).
+  const weekdayMatch = lower.match(/^(?:(next|last)\s+)?([a-z]+)$/);
+  if (weekdayMatch) {
+    const target = WEEKDAY_NAMES[weekdayMatch[2]!];
+    if (target !== undefined) {
+      const d = new Date();
+      const todayDow = d.getDay();
+      const mod = weekdayMatch[1];
+      let delta: number;
+      if (mod === "last") {
+        delta = -((todayDow - target + 7) % 7 || 7);
+      } else if (mod === "next") {
+        delta = (target - todayDow + 7) % 7 || 7;
+      } else {
+        delta = (target - todayDow + 7) % 7;
+      }
+      d.setDate(d.getDate() + delta);
+      return { type: "day", year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), label: dayLabel(d) };
+    }
   }
 
   // --- ISO basic format: YYYYMMDD ---
@@ -298,7 +385,7 @@ function parseDateOnly(trimmed: string): ParsedDate | null {
 
   // --- Named month formats ---
   // "Month Day, Year" or "Month Day Year" — e.g., "February 9, 2026", "Feb 9 2026"
-  const namedMDY = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+  const namedMDY = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})$/i);
   if (namedMDY) {
     const month = parseMonthName(namedMDY[1]!);
     const day = parseInt(namedMDY[2]!, 10);
@@ -308,8 +395,8 @@ function parseDateOnly(trimmed: string): ParsedDate | null {
     }
   }
 
-  // "Day Month Year" — e.g., "9 February 2026", "9 Feb 2026"
-  const namedDMY = trimmed.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  // "Day Month Year" — e.g., "9 February 2026", "9th Feb 2026"
+  const namedDMY = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})$/i);
   if (namedDMY) {
     const day = parseInt(namedDMY[1]!, 10);
     const month = parseMonthName(namedDMY[2]!);
@@ -319,8 +406,8 @@ function parseDateOnly(trimmed: string): ParsedDate | null {
     }
   }
 
-  // "Day Month" (no year, use current year) — e.g., "9 February", "9 Feb"
-  const namedDMNoYear = trimmed.match(/^(\d{1,2})\s+([A-Za-z]+)$/);
+  // "Day Month" (no year, use current year) — e.g., "9 February", "9th Feb"
+  const namedDMNoYear = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)$/i);
   if (namedDMNoYear) {
     const day = parseInt(namedDMNoYear[1]!, 10);
     const month = parseMonthName(namedDMNoYear[2]!);
@@ -332,8 +419,8 @@ function parseDateOnly(trimmed: string): ParsedDate | null {
     }
   }
 
-  // "Month Day" (no year, use current year) — e.g., "February 9", "Feb 9"
-  const namedMDNoYear = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2})$/);
+  // "Month Day" (no year, use current year) — e.g., "February 9", "Feb 9th"
+  const namedMDNoYear = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?$/i);
   if (namedMDNoYear) {
     const month = parseMonthName(namedMDNoYear[1]!);
     const day = parseInt(namedMDNoYear[2]!, 10);
