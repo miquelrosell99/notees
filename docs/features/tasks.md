@@ -10,6 +10,10 @@ The **Tasks** hub opens on its **Buckets** view — **Overdue / Today / Upcoming
 
 The hub's other modes follow the shared collection rulings ([views.md](views.md)); its table opens on **Edited, newest first** ([the sort defaults](views.md#the-sort-button)).
 
+## One-tap postpone
+
+Every scheduled open task row — the buckets, the Review view — carries a hover-revealed **Push to tomorrow** action, and the reminder toast offers **Tomorrow** beside Open: one tap rewrites the task's **Scheduled** to tomorrow, keeping its clock time (one write, one undo step). The gesture is Scheduled-only by design — a **deadline** is never one-tap postponed (rescheduling a commitment is a deliberate act on the task itself), a **recurring** task never shows it (the series rolls forward), and a range-valued Scheduled stays with the date pill. Deadline-only rows simply don't carry the action — no dead buttons.
+
 ## The Review view — the unreviewed-days queue
 
 The switcher's **Review** mode is the slipped-work sweep: every PAST day that still carries open work, oldest first, grouped by the day the work was driving toward (the buckets' exact rule — the earliest Scheduled/Deadline day). Each day group lists its slipped tasks with the standard rows — the done checkbox (the hub's exact write), the priority and status pills — and the day header opens the day page. **Push to today** reschedules the day's scheduled-driven tasks to today as ONE undo step; a passed **deadline** is never bulk-rewritten (a deadline is a commitment — rescheduling one is a per-task decision on the task itself). Recurring tasks never list: a missed occurrence rolls forward to the next one, so there is nothing to review. The queue is fully derived — a day leaves it the moment its open tasks are closed or rescheduled out of the past; nothing stores a "reviewed" mark. Like every mode, the queue rides the hub's filtered item set, so the filter toolbar narrows it.

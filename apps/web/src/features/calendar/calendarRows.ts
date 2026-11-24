@@ -39,12 +39,14 @@ import {
   setRepeatMetadata,
 } from "./repeatProperty.js";
 import {
+  addDaysIso,
   isEventFamilyClass,
   minutesOfTime,
   rangeEndIsoOf,
   rangeSlotsOf,
   scheduledIsoOf,
   timeOfValue,
+  todayIsoLocal,
   type TaskBucketRow,
 } from "./calendarViewUtils.js";
 
@@ -118,6 +120,52 @@ export function taskRowsOf(
     .listPropertySchemas()
     .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskPriority);
   return ids.map((id) => taskRowFacts(client, statusSchema, id, prioritySchema));
+}
+
+/**
+ * The one-tap postpone target (2026-11-24): "push to tomorrow" on a single
+ * task rewrites its Scheduled POINT value to tomorrow, preserving the clock
+ * time. Scheduled-only by law — a deadline is never postponed by this
+ * gesture (the bulk-review precedent); recurring tasks never postpone (the
+ * series rolls forward); a RANGE scheduled value is the date pill's job,
+ * not a one-tap target. Returns the preserved time (null = all-day) when
+ * the gesture applies, null when it doesn't — callers HIDE the affordance
+ * on null, never dead-end it.
+ */
+export function taskPostponeTargetOf(
+  client: AnyClient,
+  id: string,
+): { time: string | null } | null {
+  if (repeatFactsOfNode(client, id) !== null) return null;
+  const value = client
+    .getPropertyRowShells(id)
+    .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled)?.value;
+  if (value === null || value === undefined) return null;
+  if (rangeSlotsOf(value) !== null) return null;
+  if (scheduledIsoOf(value) === null) return null;
+  return { time: timeOfValue(value) };
+}
+
+/**
+ * The postpone write: Scheduled → tomorrow (local), the clock time and the
+ * slot address preserved. One property write = one undo entry. Returns
+ * false (no write) when the gesture doesn't apply (taskPostponeTargetOf).
+ */
+export async function postponeTaskToTomorrow(client: AnyClient, id: string): Promise<boolean> {
+  const target = taskPostponeTargetOf(client, id);
+  if (target === null) return false;
+  const tomorrowIso = addDaysIso(todayIsoLocal(), 1);
+  await client.ensureDateChain(tomorrowIso);
+  const row = client
+    .getPropertyRowShells(id)
+    .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled);
+  await client.setDatetimeProperty(
+    id,
+    SYSTEM_PROPERTY_UUIDS.taskScheduled,
+    { iso: tomorrowIso, ...(target.time !== null ? { time: target.time } : {}) },
+    row?.idx ?? 0,
+  );
+  return true;
 }
 
 /**

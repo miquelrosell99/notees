@@ -22,6 +22,13 @@ export interface Notification {
     label: string;
     onClick: () => void;
   } | undefined;
+  /** An optional second action beside the primary (the reminder toast's
+   *  "Tomorrow" beside "Open"). Like the primary, it suppresses
+   *  auto-dismiss — the user needs time to respond. */
+  secondaryAction?: {
+    label: string;
+    onClick: () => void;
+  } | undefined;
 }
 
 interface NotificationState {
@@ -94,7 +101,7 @@ export const notificationStore: NotificationState = {
 
     // Auto-remove after duration (if not persistent). Toasts carrying an
     // action never auto-dismiss — the user needs time to respond.
-    if (duration > 0 && !fullNotification.action) {
+    if (duration > 0 && !fullNotification.action && !fullNotification.secondaryAction) {
       autoDismissTimers.set(id, {
         timeoutId: setTimeout(() => notificationStore.removeNotification(id), duration),
         startedAt: Date.now(),

@@ -24,6 +24,11 @@ export interface ToastNotification {
     label: string;
     onClick: () => void;
   } | undefined;
+  /** An optional second action beside the primary. */
+  secondaryAction?: {
+    label: string;
+    onClick: () => void;
+  } | undefined;
 }
 
 interface NotificationToastProps {
@@ -75,15 +80,29 @@ function ToastItem({ notification, exiting = false, onDismiss, onPauseAutoDismis
         {notification.message && (
           <div className="notification-toast__message">{notification.message}</div>
         )}
-        {notification.action && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={notification.action.onClick}
-            className="notification-toast__action"
-          >
-            {notification.action.label}
-          </Button>
+        {(notification.action || notification.secondaryAction) && (
+          <div className="notification-toast__actions">
+            {notification.action && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={notification.action.onClick}
+                className="notification-toast__action"
+              >
+                {notification.action.label}
+              </Button>
+            )}
+            {notification.secondaryAction && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={notification.secondaryAction.onClick}
+                className="notification-toast__action"
+              >
+                {notification.secondaryAction.label}
+              </Button>
+            )}
+          </div>
         )}
       </div>
       {notification.dismissible && (

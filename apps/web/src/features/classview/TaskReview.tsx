@@ -35,7 +35,7 @@ import {
   todayIsoLocal,
   type SlippedDayGroup,
 } from "../calendar/calendarViewUtils.js";
-import { setTaskDone, taskRowsOf, taskStatusLabel } from "../calendar/calendarRows.js";
+import { setTaskDone, postponeTaskToTomorrow, taskPostponeTargetOf, taskRowsOf, taskStatusLabel } from "../calendar/calendarRows.js";
 import { ensureTaskFamily } from "./taskFamily.js";
 import { Checkbox } from "../../components/ui/kit/Checkbox.js";
 import { ListRow } from "../../components/ui/kit/index.js";
@@ -176,6 +176,18 @@ export function TaskReview({
                   }
                   trailing={
                     <>
+                      {row.scheduledIso !== null &&
+                        taskPostponeTargetOf(client, row.id) !== null && (
+                          <button
+                            type="button"
+                            className="task-review__row-postpone"
+                            title="Push to tomorrow"
+                            aria-label="Push to tomorrow"
+                            onClick={() => void postponeTaskToTomorrow(client, row.id)}
+                          >
+                            <Icon path="mdi-calendar-arrow-right" size={0.9} />
+                          </button>
+                        )}
                       {row.priority !== null && (
                         <Pill
                           text={row.priority}

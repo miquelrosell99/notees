@@ -30,7 +30,11 @@ import { useClientVersion } from "../../components/ui/kit/useClientVersion.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { scheduledIsoOf, todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { repeatFactsOfNode } from "../../features/calendar/repeatProperty.js";
-import { taskStatusLabel } from "../../features/calendar/calendarRows.js";
+import {
+  postponeTaskToTomorrow,
+  taskPostponeTargetOf,
+  taskStatusLabel,
+} from "../../features/calendar/calendarRows.js";
 import {
   DEFAULT_ALL_DAY_REMINDER_TIME,
   dueReminders,
@@ -115,6 +119,17 @@ export function useTaskReminders({
         message: when,
         duration: 0,
         action: { label: "Open", onClick: () => onOpenNodeRef.current(moment.taskId) },
+        // The one-tap postpone rides the toast too — scheduled-driven,
+        // non-recurring, point-valued tasks only (the eligibility helper is
+        // the rows' own; a null target hides the action).
+        ...(moment.kind === "scheduled" && taskPostponeTargetOf(client, moment.taskId) !== null
+          ? {
+              secondaryAction: {
+                label: "Tomorrow",
+                onClick: () => void postponeTaskToTomorrow(client, moment.taskId),
+              },
+            }
+          : {}),
       });
       if (
         browserNotifications &&

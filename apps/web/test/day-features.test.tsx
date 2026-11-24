@@ -692,6 +692,112 @@ describe("TaskBuckets (tasks hub)", () => {
   });
 });
 
+// --- #5a the one-tap postpone -----------------------------------------------------
+
+describe("postponeTaskToTomorrow (one-tap push)", () => {
+  it("moves the scheduled point to tomorrow, preserving the clock time — one write", async () => {
+    const { postponeTaskToTomorrow } = await import("../src/features/calendar/calendarRows.js");
+    const { timeOfValue } = await import("../src/features/calendar/calendarViewUtils.js");
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    await taskStatus(client);
+    const id = await createTask(client, "Timed", { scheduled: addDaysIso(today, -1) });
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, {
+      iso: addDaysIso(today, -1),
+      time: "14:30",
+    });
+    await flushWrites();
+
+    const moved = await postponeTaskToTomorrow(client, id);
+    await flushWrites();
+    expect(moved).toBe(true);
+    const value = client
+      .getPropertyRowShells(id)
+      .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled)?.value;
+    expect(scheduledIsoOf(value)).toBe(addDaysIso(today, 1));
+    expect(timeOfValue(value)).toBe("14:30");
+  });
+
+  it("refuses honestly: deadline-only, recurring, and range-scheduled tasks are not one-tap targets", async () => {
+    const { postponeTaskToTomorrow, taskPostponeTargetOf } = await import(
+      "../src/features/calendar/calendarRows.js"
+    );
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    await taskStatus(client);
+
+    const deadlineOnly = await createTask(client, "Deadline only", {
+      deadline: addDaysIso(today, -1),
+    });
+    expect(taskPostponeTargetOf(client, deadlineOnly)).toBeNull();
+    expect(await postponeTaskToTomorrow(client, deadlineOnly)).toBe(false);
+
+    const ranged = await createTask(client, "Ranged", {});
+    await client.setDatetimeProperty(ranged, SYSTEM_PROPERTY_UUIDS.taskScheduled, {
+      start: { iso: addDaysIso(today, -2) },
+      end: { iso: addDaysIso(today, -1) },
+    });
+    expect(taskPostponeTargetOf(client, ranged)).toBeNull();
+
+    // A recurring task's series rolls forward — never a one-tap postpone.
+    const recurring = await createTask(client, "Recurring", { scheduled: addDaysIso(today, -3) });
+    await client.setProperty(recurring, SYSTEM_PROPERTY_UUIDS.repeat, "RRULE:FREQ=DAILY", 0);
+    expect(taskPostponeTargetOf(client, recurring)).toBeNull();
+  });
+
+  it("the bucket row shows the hover postpone action and the click re-buckets the task", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    await taskStatus(client);
+    await createTask(client, "Slipped", { scheduled: addDaysIso(today, -1) });
+    await createTask(client, "Deadline only", { deadline: addDaysIso(today, -1) });
+    await flushWrites();
+
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    const section = await screen.findByLabelText("Task buckets");
+    // Only the scheduled row carries the action (the deadline-driven row
+    // never does).
+    const actions = section.querySelectorAll(".task-buckets__row-postpone");
+    expect(actions).toHaveLength(1);
+    const groupOf = (text: string) =>
+      within(section).getByText(text).closest(".task-buckets__group");
+    expect(groupOf("Slipped")?.textContent).toContain("Overdue");
+    fireEvent.click(actions[0]!);
+    await flushWrites();
+    await waitFor(() => {
+      expect(groupOf("Slipped")?.textContent).toContain("Upcoming");
+    });
+    // The deadline-driven row stays overdue, still without the affordance.
+    expect(groupOf("Deadline only")?.textContent).toContain("Overdue");
+    expect(
+      groupOf("Deadline only")?.querySelector(".task-buckets__row-postpone"),
+    ).toBeNull();
+  });
+
+  it("the Review row carries the same action", async () => {
+    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
+    try {
+      const client = await seedClient();
+      const today = todayIsoLocal();
+      await taskStatus(client);
+      await createTask(client, "Review me", { scheduled: addDaysIso(today, -2) });
+      await flushWrites();
+
+      render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+      const section = await screen.findByLabelText("Task review");
+      const action = section.querySelector(".task-review__row-postpone");
+      expect(action).not.toBeNull();
+      fireEvent.click(action!);
+      await flushWrites();
+      await waitFor(() => {
+        expect(screen.queryByText("Review me")).toBeNull(); // tomorrow is not reviewable
+      });
+    } finally {
+      window.localStorage.removeItem("notees.settings.viewMode.hub.tasks");
+    }
+  });
+});
+
 // --- #5b the unreviewed-days queue -------------------------------------------------
 
 describe("TaskReview (tasks hub)", () => {

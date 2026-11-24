@@ -124,8 +124,19 @@
   margin-top: var(--spacing-micro);
 }
 
+.notification-toast__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-1);
+}
+
 .notification-toast__action {
   margin-top: var(--spacing-1);
+}
+
+.notification-toast__actions .notification-toast__action {
+  margin-top: 0;
 }
 
 .notification-toast__dismiss {

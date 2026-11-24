@@ -124,6 +124,30 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
+/* The one-tap postpone (2026-11-24): hover-revealed like the fleet's row
+   affordances — the row stays quiet at rest. */
+.task-buckets__row-postpone {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: var(--spacing-1);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0;
+}
+
+.task-buckets__row:hover .task-buckets__row-postpone,
+.task-buckets__row-postpone:focus-visible {
+  opacity: 1;
+}
+
+.task-buckets__row-postpone:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
 /* The priority pill (2026-11-24 priority surfacing): only the two hot tiers
    carry color — Urgent reads as the error register, High as the warning
    register; Medium/Low stay the default pill so a fully-prioritized list

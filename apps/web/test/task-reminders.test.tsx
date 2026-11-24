@@ -39,6 +39,7 @@ import {
   type TaskReminderMoment,
 } from "../src/features/calendar/taskReminders.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
+import { scheduledIsoOf, timeOfValue } from "../src/features/calendar/calendarViewUtils.js";
 import { useTaskReminders } from "../src/ui/app/useTaskReminders.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
@@ -409,6 +410,45 @@ describe("useTaskReminders", () => {
     await act(async () => {});
     notificationStore.notifications[0]!.action!.onClick();
     expect(onOpenNode).toHaveBeenCalledWith(id);
+  });
+
+  it("the toast's Tomorrow action postpones the task (scheduled moments only)", async () => {
+    const client = await seedClient();
+    const id = await createTask(client, "Push me", { iso: "2026-11-24", time: "09:00" });
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+
+    render(<Probe client={client} onOpenNode={vi.fn()} />);
+    await act(async () => {});
+    const toast = notificationStore.notifications[0]!;
+    expect(toast.secondaryAction?.label).toBe("Tomorrow");
+    toast.secondaryAction!.onClick();
+    await act(async () => {});
+    const value = client
+      .getPropertyRowShells(id)
+      .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled)?.value;
+    expect(scheduledIsoOf(value)).toBe("2026-11-25");
+    expect(timeOfValue(value)).toBe("09:00");
+
+    // A deadline-driven moment carries no Tomorrow action (deadlines are
+    // never one-tap postponed).
+    notificationStore.clearAll();
+    window.localStorage.removeItem("notees.reminders.fired");
+    const second = await seedClient();
+    const deadlineTask = await second.createObject({
+      isEmbedded: false,
+      name: "Deadline moment",
+      classIds: [SYSTEM_CLASS_UUIDS.task],
+    });
+    await ensureTaskFamily(second);
+    await second.setDatetimeProperty(deadlineTask, SYSTEM_PROPERTY_UUIDS.taskDeadline, {
+      iso: "2026-11-24",
+      time: "10:00",
+    });
+    render(<Probe client={second} onOpenNode={vi.fn()} />);
+    await act(async () => {});
+    expect(notificationStore.notifications).toHaveLength(1);
+    expect(notificationStore.notifications[0]!.secondaryAction).toBeUndefined();
   });
 
   it("the enable setting gates the scheduler; a Done task never reminds", async () => {
