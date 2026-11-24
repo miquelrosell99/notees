@@ -22,6 +22,9 @@ import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
 // self-registration precedent): registers the "buckets" view mode the tasks
 // hub offers as its default.
 import "../../features/classview/bucketsView.js";
+// Review-view registration side effect: registers the "review" view mode
+// (the unreviewed-days queue) the tasks hub offers next to Buckets.
+import "../../features/classview/reviewView.js";
 import {
   CardBuckets,
   cardRowsOf,
@@ -259,7 +262,7 @@ export function HubView({
     // Completed) as the default mode, or the mode the user selected (the
     // register's either/or ruling: the retired prepend stacked the buckets
     // over every mode).
-    const modes: Array<ViewMode | string> = ["buckets", "outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
+    const modes: Array<ViewMode | string> = ["buckets", "review", "outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
     return (
       <div className="nt-hub-tasks">
         <CollectionHub

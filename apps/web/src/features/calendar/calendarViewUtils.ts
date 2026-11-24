@@ -471,6 +471,47 @@ export function taskPriorityRank(priority: string | null): number {
   return index === -1 ? TASK_PRIORITY_OPTIONS.length : TASK_PRIORITY_OPTIONS.length - 1 - index;
 }
 
+/** One slipped day in the hub's Review view: the past driving day + its open tasks. */
+export interface SlippedDayGroup {
+  /** The past day the group's tasks were driving toward (local ISO). */
+  dayIso: string;
+  /** The day's open slipped tasks, priority-first then id. */
+  rows: TaskBucketRow[];
+}
+
+/**
+ * The unreviewed-days queue behind the hub's Review view: every PAST day
+ * that still carries open work, oldest first, grouped by the day the work
+ * was driving toward. A task's driving day is its earliest
+ * scheduled/deadline day (the buckets' exact rule). Recurring tasks never
+ * list — a missed occurrence rolls forward to the next one (the calendar
+ * law), so there is nothing to review. Closed tasks never list. The queue
+ * is fully DERIVED: a day leaves it the moment its open tasks are closed or
+ * rescheduled out of the past — no stored "reviewed" bit anywhere.
+ */
+export function groupSlippedTasksByDay(
+  rows: readonly TaskBucketRow[],
+  todayIso: string,
+): SlippedDayGroup[] {
+  const byDay = new Map<string, TaskBucketRow[]>();
+  for (const row of rows) {
+    if (row.closed || row.repeat !== null) continue;
+    const days = [row.scheduledIso, row.deadlineIso]
+      .filter((day): day is string => day !== null)
+      .sort();
+    const drivingIso = days[0] ?? null;
+    if (drivingIso === null || drivingIso >= todayIso) continue;
+    const group = byDay.get(drivingIso) ?? [];
+    group.push({ ...row, drivingIso });
+    byDay.set(drivingIso, group);
+  }
+  const byPriorityThenId = (a: TaskBucketRow, b: TaskBucketRow) =>
+    taskPriorityRank(a.priority) - taskPriorityRank(b.priority) || a.id.localeCompare(b.id);
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dayIso, groupRows]) => ({ dayIso, rows: groupRows.sort(byPriorityThenId) }));
+}
+
 /**
  * The tasks-bucket partition, client-side over the tasks-hub members: a
  * task's driving day is its earliest scheduled/deadline day, and the bucket

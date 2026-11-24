@@ -692,6 +692,138 @@ describe("TaskBuckets (tasks hub)", () => {
   });
 });
 
+// --- #5b the unreviewed-days queue -------------------------------------------------
+
+describe("TaskReview (tasks hub)", () => {
+  afterEach(() => {
+    window.localStorage.removeItem("notees.settings.viewMode.hub.tasks");
+  });
+
+  it("groupSlippedTasksByDay groups past open work by driving day, priority-first within the day", async () => {
+    const { groupSlippedTasksByDay } = await import(
+      "../src/features/calendar/calendarViewUtils.js"
+    );
+    const row = (
+      id: string,
+      scheduledIso: string | null,
+      deadlineIso: string | null,
+      priority: string | null = null,
+      closed = false,
+      repeat: TaskBucketRow["repeat"] = null,
+    ): TaskBucketRow => ({
+      id,
+      scheduledIso,
+      deadlineIso,
+      closed,
+      drivingIso: null,
+      priority,
+      repeat,
+      completedOccurrences: [],
+      occurrenceDone: false,
+    });
+    const today = "2026-10-04";
+    const groups = groupSlippedTasksByDay(
+      [
+        row("b-urgent", "2026-10-02", null, "Urgent"),
+        row("a-none", "2026-10-01", null),
+        row("b-low", null, "2026-10-02", "Low"), // deadline-driven groups under its deadline day
+        row("closed", "2026-10-01", null, null, true), // closed never lists
+        row("recurring", "2026-09-28", null, null, false, { freq: "daily", interval: 1 }), // rolls forward
+        row("today", today, null), // not past
+        row("future", "2026-10-09", null),
+        row("unscheduled", null, null),
+      ],
+      today,
+    );
+    expect(groups.map((group) => group.dayIso)).toEqual(["2026-10-01", "2026-10-02"]);
+    expect(groups[0]!.rows.map((r) => r.id)).toEqual(["a-none"]);
+    expect(groups[1]!.rows.map((r) => r.id)).toEqual(["b-urgent", "b-low"]);
+    expect(groups[1]!.rows[0]!.drivingIso).toBe("2026-10-02");
+  });
+
+  it("lists slipped days oldest-first and the checkbox completes a task out of the queue", async () => {
+    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    await taskStatus(client);
+    await createTask(client, "Slipped yesterday", { scheduled: addDaysIso(today, -1) });
+    await createTask(client, "Slipped last week", {
+      scheduled: addDaysIso(today, -6),
+      priority: "High",
+    });
+    await createTask(client, "On track", { scheduled: today });
+    await flushWrites();
+
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    const section = await screen.findByLabelText("Task review");
+    const review = within(section);
+    // Oldest day first; the on-track task never lists.
+    const days = [...section.querySelectorAll(".task-review__day")].map((el) => el.textContent);
+    expect(days).toEqual([addDaysIso(today, -6), addDaysIso(today, -1)]);
+    expect(review.getByText("Slipped last week")).toBeDefined();
+    expect(review.getByText("High")).toBeDefined();
+    expect(review.queryByText("On track")).toBeNull();
+
+    // The checkbox is the hub's exact write: closing the task empties its day.
+    const yesterdayGroup = review.getByText("Slipped yesterday").closest(".task-review__group")!;
+    fireEvent.click(
+      within(yesterdayGroup as HTMLElement).getByRole("checkbox", { name: "Mark task done" }),
+    );
+    await flushWrites();
+    await waitFor(() => {
+      expect(screen.queryByText("Slipped yesterday")).toBeNull();
+    });
+    expect(screen.getByText("Slipped last week")).toBeDefined();
+  });
+
+  it("push to today reschedules the day's scheduled-driven tasks only — a passed deadline is never bulk-rewritten", async () => {
+    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    await taskStatus(client);
+    const scheduledId = await createTask(client, "Push me", {
+      scheduled: addDaysIso(today, -2),
+    });
+    const deadlineId = await createTask(client, "Deadline only", {
+      deadline: addDaysIso(today, -2),
+    });
+    await flushWrites();
+
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    const review = within(await screen.findByLabelText("Task review"));
+    fireEvent.click(review.getByRole("button", { name: /Push to today/ }));
+    await flushWrites();
+
+    const scheduledIsoOfRow = (id: string, schemaId: string): string | null =>
+      scheduledIsoOf(
+        client.getPropertyRowShells(id).find((entry) => entry.propertySchemaId === schemaId)?.value,
+      );
+    await waitFor(() => {
+      expect(
+        scheduledIsoOfRow(scheduledId, SYSTEM_PROPERTY_UUIDS.taskScheduled),
+      ).toBe(today);
+    });
+    // The rescheduled task left the queue; the deadline-driven one stays,
+    // its deadline untouched.
+    expect(screen.queryByText("Push me")).toBeNull();
+    expect(screen.getByText("Deadline only")).toBeDefined();
+    expect(scheduledIsoOfRow(deadlineId, SYSTEM_PROPERTY_UUIDS.taskDeadline)).toBe(
+      addDaysIso(today, -2),
+    );
+  });
+
+  it("renders the honest empty line when nothing slipped", async () => {
+    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
+    const client = await seedClient();
+    await taskStatus(client);
+    await createTask(client, "On track", { scheduled: todayIsoLocal() });
+    await flushWrites();
+
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    expect(await screen.findByText(/Nothing to review/)).toBeDefined();
+  });
+});
+
 // --- #11/#15 calendar breadth -------------------------------------------------------
 
 describe("CalendarView breadth (dots, agenda)", () => {
