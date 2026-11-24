@@ -5,7 +5,9 @@
  * rows read the effective scheduled/deadline/status values (sync on both
  * client kinds — WorkerClient mirrors them through its read cache), and
  * the done-toggle is the tasks hub's exact write (property.set of the
- * status option id, never a taskClosedDate). Dated rows are the day node's
+ * status option id — the client's write seam auto-maintains taskClosedDate
+ * on the transition, one undo entry; this function authors the status op
+ * alone). Dated rows are the day node's
  * existing backlink set minus date-chain sources and tasks (zero model
  * work).
  */
@@ -112,8 +114,8 @@ export function taskRowsOf(
  * viewed day).
  *
  * A PLAIN task (no recurrence rule): `property.set` of the Done/default
- * option id — exactly the tasks hub's write (no
- * taskClosedDate anywhere).
+ * option id — exactly the tasks hub's write (the client seam co-authors
+ * the taskClosedDate stamp/clear with the status write).
  *
  * A RECURRING task: the node-level status is never touched —
  * completing the series' status would close every occurrence at once.

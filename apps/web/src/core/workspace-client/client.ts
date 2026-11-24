@@ -30,6 +30,7 @@ import { sqljsBackend } from "@notees/store/sqljs";
 import type { WorkspaceFeature } from "@notees/protocol";
 import {
   CARD_PROPERTY_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
   type CardSrsState,
   type SrsAlgorithm,
   type WorkflowOpStep,
@@ -66,6 +67,7 @@ import {
   stepConverged,
   type WorkflowMaterializeResult,
 } from "../../features/workflows/materialize.js";
+import { syncTaskClosedDate } from "./task-closed-sync.js";
 
 export class WorkspaceClient {
   /** The shared infrastructure the domains delegate to. */
@@ -813,11 +815,42 @@ export class WorkspaceClient {
     metadata?: Record<string, unknown>,
     elementId?: string,
   ) {
-    return this.writes.setProperty(objectId, propertySchemaId, value, idx, metadata, elementId);
+    if (propertySchemaId !== SYSTEM_PROPERTY_UUIDS.taskStatus) {
+      return this.writes.setProperty(objectId, propertySchemaId, value, idx, metadata, elementId);
+    }
+    // The Closed-date invariant (task-closed-sync.ts): the status write and
+    // its compensating Closed stamp/clear are ONE undo entry. batchAsync
+    // nests into an enclosing gesture's batch (depth-based), so a workflow
+    // step's status write stays part of the workflow's single entry. The
+    // prior status value is captured BEFORE the write — the only honest
+    // transition test (a post-write read always equals the written value).
+    const priorStatusValue = this.readsProps
+      .getPropertyRowShells(objectId)
+      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value;
+    return this.ctx.undoJournal.batchAsync(async () => {
+      await this.writes.setProperty(objectId, propertySchemaId, value, idx, metadata, elementId);
+      await syncTaskClosedDate(
+        { props: this.readsProps, dates: this.dates, writes: this.writes },
+        objectId,
+        value,
+        priorStatusValue,
+      );
+    });
   }
 
   unsetProperty(objectId: string, propertySchemaId: string, idx = 0) {
-    return this.writes.unsetProperty(objectId, propertySchemaId, idx);
+    if (propertySchemaId !== SYSTEM_PROPERTY_UUIDS.taskStatus) {
+      return this.writes.unsetProperty(objectId, propertySchemaId, idx);
+    }
+    return this.ctx.undoJournal.batchAsync(async () => {
+      await this.writes.unsetProperty(objectId, propertySchemaId, idx);
+      await syncTaskClosedDate(
+        { props: this.readsProps, dates: this.dates, writes: this.writes },
+        objectId,
+        null,
+        undefined,
+      );
+    });
   }
 
   assignProperty(objectId: string, propertySchemaId: string) {
@@ -829,7 +862,20 @@ export class WorkspaceClient {
   }
 
   emptyProperty(objectId: string, propertySchemaId: string) {
-    return this.writes.emptyProperty(objectId, propertySchemaId);
+    if (propertySchemaId !== SYSTEM_PROPERTY_UUIDS.taskStatus) {
+      return this.writes.emptyProperty(objectId, propertySchemaId);
+    }
+    // "Empty property" on the status row is also a leave-closed transition —
+    // the Closed stamp clears with it (one undo entry).
+    return this.ctx.undoJournal.batchAsync(async () => {
+      await this.writes.emptyProperty(objectId, propertySchemaId);
+      await syncTaskClosedDate(
+        { props: this.readsProps, dates: this.dates, writes: this.writes },
+        objectId,
+        null,
+        undefined,
+      );
+    });
   }
 
   /**
