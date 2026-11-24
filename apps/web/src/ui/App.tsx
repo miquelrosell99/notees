@@ -116,6 +116,7 @@ import {
 } from "./app/index.js";
 import { ConnectingScreen } from "./app/ConnectingScreen.js";
 import { useTabRelay } from "./app/useTabRelay.js";
+import { useTaskReminders } from "./app/useTaskReminders.js";
 // The global stylesheet family, in cascade order — the contract the
 // 2026-10-28 co-location pass established: app.css was the LAST css import,
 // so every file below imports at this same spot, in this exact order, and
@@ -524,6 +525,11 @@ export function App() {
   });
 
   useTabRelay({ clientRef, serverUrl, token, workspacePlaintext, unlockRequest });
+
+  // In-app task reminders: derives every open task's Scheduled/Deadline
+  // moment, fires the due ones as persistent toasts (one fire per moment per
+  // device), and arms the next timer. Device-local settings gate it.
+  useTaskReminders({ client, onOpenNode: openPage });
 
   /**
    * The RAW open: sync the URL, the selection and Recents to exactly `id` —

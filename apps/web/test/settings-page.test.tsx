@@ -106,8 +106,9 @@ describe("settings routes", () => {
     }
   });
 
-  it("normalizeSettingsSection accepts only the eight sections", () => {
+  it("normalizeSettingsSection accepts only the nine sections", () => {
     expect(normalizeSettingsSection("editor")).toBe("editor");
+    expect(normalizeSettingsSection("tasks")).toBe("tasks");
     expect(normalizeSettingsSection("appearance")).toBe("appearance");
     expect(normalizeSettingsSection("sage")).toBe("appearance");
     expect(normalizeSettingsSection("custom")).toBe("appearance");
@@ -201,10 +202,23 @@ describe("SettingsPage", () => {
     expect(onNavigate).toHaveBeenCalledWith("editor");
   });
 
-  it("lists all eight sections in the nav", () => {
+  it("lists all nine sections in the nav", () => {
     renderPage();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
-    expect(within(nav).getAllByRole("button")).toHaveLength(8);
+    expect(within(nav).getAllByRole("button")).toHaveLength(9);
+  });
+
+  it("the Tasks section renders the reminder rows (browser notifications honestly unsupported under jsdom)", () => {
+    renderPage({ section: "tasks" });
+    expect(screen.getByRole("heading", { name: "Tasks" })).toBeInTheDocument();
+    expect(screen.getByText("Task reminders")).toBeInTheDocument();
+    expect(screen.getByLabelText("All-day reminder time")).toHaveValue("09:00");
+    expect(screen.getByText(/does not support notifications/)).toBeInTheDocument();
+    // The time input persists a valid pick device-locally.
+    fireEvent.change(screen.getByLabelText("All-day reminder time"), {
+      target: { value: "07:30" },
+    });
+    expect(localStorage.getItem("notees.settings.tasks.allDayReminderTime")).toBe('"07:30"');
   });
 
   it("applies the UI font choice to <html> and persists it device-locally", () => {

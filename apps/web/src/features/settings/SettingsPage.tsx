@@ -1,6 +1,6 @@
 /**
- * SettingsPage — the full settings surface: the eight settings sections
- * (appearance/editor/general/sync/account/security/support/about) with a
+ * SettingsPage — the full settings surface: the nine settings sections
+ * (appearance/editor/tasks/general/sync/account/security/support/about) with a
  * sidebar section nav, rendered in the PageCard slot of the app shell.
  * Deep-linkable at /settings/<section> (unknown sections land on
  * appearance); section changes ride window.history so back/forward and
@@ -32,6 +32,10 @@ import { Modal } from "../../components/ui/kit/Modal.js";
 import { Icon } from "../../ui/Icon.js";
 import { ApiKeysSection } from "../../ui/SettingsPanel.js";
 import {
+  DEFAULT_ALL_DAY_REMINDER_TIME,
+  isValidTimeOfDay,
+} from "../calendar/taskReminders.js";
+import {
   ACCENT_COLOR_OPTIONS,
   applyAppearance,
   useDeviceSetting,
@@ -46,6 +50,7 @@ import "./SettingsPage.css";
 export type SettingsSection =
   | "appearance"
   | "editor"
+  | "tasks"
   | "general"
   | "sync"
   | "account"
@@ -56,6 +61,7 @@ export type SettingsSection =
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; label: string }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "editor", label: "Editor" },
+  { id: "tasks", label: "Tasks" },
   { id: "general", label: "General" },
   { id: "sync", label: "Sync" },
   { id: "account", label: "Account" },
@@ -339,6 +345,104 @@ function EditorSection() {
             id="user-bullet-thread"
             checked={showBulletThread}
             onChange={(checked) => setShowBulletThread(checked)}
+            size="sm"
+          />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function TasksSection() {
+  const [remindersEnabled, setRemindersEnabled] = useDeviceSetting("tasks.remindersEnabled", true);
+  const [allDayTime, setAllDayTime] = useDeviceSetting(
+    "tasks.allDayReminderTime",
+    DEFAULT_ALL_DAY_REMINDER_TIME,
+  );
+  const [browserNotifications, setBrowserNotifications] = useDeviceSetting(
+    "tasks.browserNotifications",
+    false,
+  );
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() =>
+    typeof Notification === "undefined" ? "unsupported" : Notification.permission,
+  );
+  const enableBrowserNotifications = (checked: boolean) => {
+    if (!checked) {
+      setBrowserNotifications(false);
+      return;
+    }
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission === "granted") {
+      setBrowserNotifications(true);
+      return;
+    }
+    void Notification.requestPermission().then((result) => {
+      setPermission(result);
+      setBrowserNotifications(result === "granted");
+    });
+  };
+  return (
+    <div className="settings-section">
+      <h3 className="settings-section__title">Tasks</h3>
+      <Card>
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="tasks-reminders" className="settings-item__label">
+              Task reminders
+            </label>
+            <p className="settings-item__description">
+              Notify in-app when a task&apos;s Scheduled (or Deadline) moment arrives — a
+              timed value fires at its clock time, an all-day value at the default time
+              below. Reminders are device-local: each device fires its own.
+            </p>
+          </div>
+          <BooleanToggle
+            id="tasks-reminders"
+            checked={remindersEnabled}
+            onChange={(checked) => setRemindersEnabled(checked)}
+            size="sm"
+          />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="tasks-all-day-time" className="settings-item__label">
+              All-day reminder time
+            </label>
+            <p className="settings-item__description">
+              When reminders for all-day tasks (no clock time) fire
+            </p>
+          </div>
+          <input
+            id="tasks-all-day-time"
+            type="time"
+            className="settings-item__select"
+            value={allDayTime}
+            disabled={!remindersEnabled}
+            onChange={(e) => {
+              if (isValidTimeOfDay(e.target.value)) setAllDayTime(e.target.value);
+            }}
+          />
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <label htmlFor="tasks-browser-notifications" className="settings-item__label">
+              Browser notifications
+            </label>
+            <p className="settings-item__description">
+              {permission === "unsupported"
+                ? "This browser does not support notifications — reminders stay in-app."
+                : permission === "denied"
+                  ? "Notifications are blocked by the browser — allow them in the site settings first."
+                  : "Also raise a system notification when a reminder fires (the browser asks for permission once)."}
+            </p>
+          </div>
+          <BooleanToggle
+            id="tasks-browser-notifications"
+            checked={browserNotifications && permission === "granted"}
+            disabled={permission === "unsupported" || permission === "denied"}
+            onChange={enableBrowserNotifications}
             size="sm"
           />
         </div>
@@ -1288,6 +1392,7 @@ export function SettingsPage({
       <div className="settings-page__content">
         {section === "appearance" && <AppearanceSection />}
         {section === "editor" && <EditorSection />}
+        {section === "tasks" && <TasksSection />}
         {section === "general" && <GeneralSection />}
         {section === "sync" && (
           <SyncSection
