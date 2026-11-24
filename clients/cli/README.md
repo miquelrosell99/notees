@@ -54,12 +54,12 @@ The defaults live in the CLI state file (`~/.notees/state.json`, mode 0600) unde
 
 Every command takes a credential via `--key` / `NOTEES_API_KEY`, or falls back to the one stored per profile+server in `~/.notees/state.json` (mode 0600):
 
-- `notees auth login --email <email> --password-stdin` — email + password; mints a dedicated CLI API key (revocable from the app) and stores it.
+- `notees auth login --email <email> --password-stdin` — email + password; mints a dedicated CLI API key (revocable from the app) and stores it. `--unlock` finishes the encrypted-workspace setup in the same gesture (the just-minted user credential unwraps the workspace key and caches it — what `auth unlock` does on its own).
 - `notees auth store --key <credential>` (or `--key-stdin`) — probe-verify an existing API key against the server, then store it as the standing credential. Stored keys are not CLI-minted, so `auth logout` clears them locally only — server-side revocation applies to login-minted keys.
 - `notees auth status` / `notees auth logout` — probe / clear the stored credential (logout also clears the cached master key).
 - `notees auth unlock` / `notees auth lock` — encrypted workspaces: derive the master key from `NOTEES_EMAIL` + `NOTEES_PASSWORD` once and cache it in the state file (later keyed commands need no password) / drop the cache so the password is required again.
 
-`notees doctor` exercises the same resolution chain: it resolves server, workspace, and credential flag > env > stored (a stored credential counts, and the `authentication:` probe sends it), reports every check as ok/FAIL — failing checks report FAILs, not a bare usage error — and exits non-zero when any check fails.
+`notees doctor` exercises the same resolution chain: it resolves server, workspace, and credential flag > env > stored (a stored credential counts, and the `authentication:` probe sends it), reports every check as ok/FAIL — failing checks report FAILs, not a bare usage error — and exits non-zero when any check fails. Two more checks ride along: the **native store module** probe (a better-sqlite3 built for a different Node ABI fails here, with the rebuild remedy, instead of crashing the first content command with a raw loader stack) and the **keyed-workspace** custody advisory on encrypted workspaces (operator key only? it names `auth login` + `auth unlock` as the way in; key already cached? it says so).
 
 ## Command reference
 
@@ -68,8 +68,9 @@ Every command takes a credential via `--key` / `NOTEES_API_KEY`, or falls back t
 | Command | Purpose | Common flags |
 |---|---|---|
 | `object` | create / read / update / move / merge / list objects | `create --batch`, `get --ids`, `merge --dry-run` |
+| `object property` | typed property values | `set` (select labels resolve; unknown options fail loud, `--force` stores verbatim), `set --batch --stdin`, `delete` |
 | `cover` | the one-gesture node cover (image) | `set --asset`, `clear` |
-| `property` | property schemas and class bindings | `create --type`, `bind`, `delete --yes` |
+| `property` | property schemas and class bindings | `create --type`, `bind`, `audit [--apply --to]`, `delete --yes` |
 | `search` | plain-text (FTS) or query-language search | (grammar in `search --help`) |
 | `today` | open today's daily note | `--append` |
 | `date` | the deterministic date chain | `ensure <YYYY-MM-DD>` |

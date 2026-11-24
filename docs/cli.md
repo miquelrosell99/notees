@@ -47,7 +47,10 @@ ok  server configured: http://localhost:8477
 ok  credential configured: present
 ok  server reachable: notees-server 2.0.0-m1 (protocol v3)
 ok  authentication: credential accepted
+ok  native store module: better-sqlite3 loads under node v22.11.0
 ```
+
+On an **encrypted workspace** doctor adds a key-custody advisory: with only the operator key configured it reads `encrypted — this credential is the operator key: content reads need "notees auth login", then "notees auth unlock"` (the two commands are one gesture now: `notees auth login --email … --password-stdin --unlock`); once the workspace key is cached the line reads `encrypted — the workspace key is cached on this machine (unlocked)`. The native-module check catches a better-sqlite3 built for a different Node before the first content command crashes with a raw ABI stack.
 
 **1. Create a page.** Non-JSON output prints just the new id, so it scripts cleanly:
 
@@ -150,8 +153,12 @@ $ notees property create Genre --type select --option Fiction --option Mystery
 $ notees property rename Genre Style
 $ notees property bind book Style
 $ notees property unbind book Style
+$ notees property audit Style                      # drift sweep: every authored value vs the schema's contract
+$ notees property audit Style --apply --to Fiction # repair select drift to one option (dry-run by default)
 $ notees property delete Style --yes
 ```
+
+**Select honesty + drift repair.** A select value on the wire is an **option id** — and the CLI enforces it at write time: `object property set <node> Status Pending` takes the id or the **label** (labels resolve to their option id, reported as `resolvedFrom` on `--json`), and a value matching no stored option **fails loud**, naming the options — unless `--force` stores it verbatim (warned). The same rules run per entry of `object property set --batch --stdin`. Stranded values from older writers — dead option ids, or labels stored as values — read as dead pills in the app; `notees property audit <schema>` sweeps every authored row of the schema (unknown option ids, wrong shapes — dry-run, exit 0 either way), and `--apply --to <label|id>` repairs select/multi_select drift with an honest re-read that reports what is still drifted.
 
 The same surface is scriptable: `notees shell` gains `unsetProperty`, `propertySchemas`, `propertySchema`, `createPropertySchema`, `updatePropertySchema`, `deletePropertySchema`, `setClassProperty`, and `unsetClassProperty` (`.help` in the REPL lists them).
 

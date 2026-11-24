@@ -88,7 +88,7 @@ import { wordCacheDir, resolveWordStatics } from "./word/paths.js";
 import { startWordServe, type WordServeSession } from "./word/serve.js";
 import { openBridgeSession } from "./serve/session.js";
 import { runShell } from "./shell.js";
-import { clearCachedMasterKey, defaultStatePath, profileDefaults, serverState, updateProfileDefaults, updateServerState, type StoredCredential } from "./state.js";
+import { cachedMasterKey, clearCachedMasterKey, defaultStatePath, profileDefaults, serverState, updateProfileDefaults, updateServerState, type StoredCredential } from "./state.js";
 import { formatTable, readStdin } from "./util.js";
 import { DEFAULT_WORKSPACE_ID, deriveUuid, uuidv7 } from "./uuid.js";
 import { parseZoteroRdf, type ZoteroItem, type ZoteroRdfParseResult } from "./zotero-rdf.js";
@@ -2285,7 +2285,54 @@ async function doctor(command: Command): Promise<void> {
           push("authentication", false, String(error), EXIT.network);
         }
       }
+      // Key-custody advisory: an encrypted workspace answers content reads
+      // only for a user credential holding the workspace key — an operator
+      // key gets "workspace keys are user custody" at first use. Advisory
+      // (never fails doctor): the remedy rides the detail line.
+      try {
+        const workspaceId = (await client.workspaceId()) ?? DEFAULT_WORKSPACE_ID;
+        const listing = await client.getJson<{
+          workspaces: Array<{ id: string; encrypted?: boolean; role?: string }>;
+        }>("/api/workspaces");
+        const entry = (listing.workspaces ?? []).find((candidate) => candidate.id === workspaceId);
+        if (entry?.encrypted === true) {
+          const unlocked =
+            cachedMasterKey(statePath, stateKey) !== undefined ||
+            cachedMasterKey(statePath, server ?? "") !== undefined;
+          push(
+            "keyed workspace",
+            true,
+            unlocked
+              ? "encrypted — the workspace key is cached on this machine (unlocked)"
+              : entry.role === "operator"
+                ? "encrypted — this credential is the operator key: content reads need `notees auth login`, then `notees auth unlock`"
+                : "encrypted — run `notees auth unlock` (uses NOTEES_EMAIL/NOTEES_PASSWORD once, caches the key)",
+            EXIT.ok,
+          );
+        }
+      } catch {
+        // Advisory: a failed probe here never fails doctor.
+      }
     }
+  }
+
+  // Native store module: better-sqlite3 is compiled per Node ABI — a global
+  // install rebuilt under another node crashes keyed commands with a raw
+  // NODE_MODULE_VERSION stack. Surface it here, with the remedy, before the
+  // first content command hits it. (Imported directly, not through the store
+  // package: the release bundle leaves better-sqlite3 as its one whitelisted
+  // bare specifier — the probe IS the native module.)
+  try {
+    await import("better-sqlite3");
+    push("native store module", true, `better-sqlite3 loads under node ${process.version}`, EXIT.ok);
+  } catch (error) {
+    const message = error instanceof Error ? error.message.split("\n")[0]! : String(error);
+    push(
+      "native store module",
+      false,
+      `better-sqlite3 failed to load (${message}) — rebuild it under node ${process.version}: reinstall the CLI, or run npm rebuild better-sqlite3 in its install dir`,
+      EXIT.domain,
+    );
   }
 
   const lines = report.map((entry) => `${entry.ok ? "ok" : "FAIL"}  ${entry.check}: ${entry.detail}`);
@@ -2450,16 +2497,91 @@ async function resolvePropertySchemaRef(
   return matches[0]!;
 }
 
+/** Fetch one schema's full detail (type + options + multi) — the write
+ *  path's select honesty and the audit sweep both read the stored option
+ *  set (the listing route carries only id + name). */
+async function fetchSchemaDetail(ctx: CommandContext, schemaId: string): Promise<ApiPropertySchema> {
+  const body = await ctx.client.getJson<{ propertySchema: ApiPropertySchema }>(
+    `/api/property-schemas/${encodeURIComponent(schemaId)}`,
+  );
+  return body.propertySchema;
+}
+
+interface SelectResolution {
+  /** The wire value: option ids only (single or array per the schema's multi). */
+  value: unknown;
+  /** The label(s) that resolved to ids — reported on the machine surface. */
+  resolvedFrom?: string | string[];
+  /** True when --force stored a value no option matches (warned on stderr). */
+  verbatim?: boolean;
+}
+
+/**
+ * Select-value honesty — the write-path fix for stranded "label as value"
+ * rows (a writer that passed option labels where the wire wants ids stored
+ * the raw label; the value read back as a dead pill). Per element: an option
+ * id passes verbatim; a label matching exactly one stored option resolves to
+ * that id (case-insensitive); anything else fails LOUD, naming the stored
+ * options — unless `force` stores it verbatim (the escape hatch for
+ * genuinely drifted workspaces; the caller warns).
+ */
+function resolveSelectValue(schema: ApiPropertySchema, raw: unknown, force: boolean): SelectResolution {
+  const options = schema.options ?? [];
+  const resolveElement = (element: unknown): { id: string; resolvedFrom?: string; verbatim?: boolean } => {
+    if (typeof element !== "string" || element.length === 0) {
+      failUsage(`${schema.name}: select values are option ids or option labels (got ${JSON.stringify(element)})`);
+    }
+    const byId = options.find((option) => option.id === element);
+    if (byId !== undefined) return { id: element };
+    const byLabel = options.filter((option) => option.label.toLowerCase() === element.toLowerCase());
+    if (byLabel.length === 1) return { id: byLabel[0]!.id, resolvedFrom: element };
+    if (byLabel.length > 1) {
+      failUsage(
+        `${schema.name}: label "${element}" is ambiguous — pass the option id (matches: ${byLabel.map((option) => option.label).join(", ")})`,
+      );
+    }
+    if (force) return { id: element, verbatim: true };
+    failUsage(
+      `${schema.name}: "${element}" matches no stored option — pass an option id or one of the labels ` +
+        `(${options.map((option) => `${option.label} (${option.id})`).join(", ") || "the schema carries no options"}), ` +
+        "or --force to store it verbatim",
+    );
+  };
+  if (schema.type === "multi_select") {
+    if (!Array.isArray(raw)) failUsage(`${schema.name}: multi_select values are a JSON array of option ids or labels`);
+    const ids: string[] = [];
+    const labels: string[] = [];
+    let verbatim = false;
+    for (const element of raw) {
+      const resolved = resolveElement(element);
+      ids.push(resolved.id);
+      if (resolved.resolvedFrom !== undefined) labels.push(resolved.resolvedFrom);
+      if (resolved.verbatim === true) verbatim = true;
+    }
+    return { value: ids, ...(labels.length > 0 ? { resolvedFrom: labels } : {}), ...(verbatim ? { verbatim: true } : {}) };
+  }
+  const resolved = resolveElement(raw);
+  return {
+    value: resolved.id,
+    ...(resolved.resolvedFrom !== undefined ? { resolvedFrom: resolved.resolvedFrom } : {}),
+    ...(resolved.verbatim === true ? { verbatim: true } : {}),
+  };
+}
+
 /** `notees object property set` — value parses as JSON when it can (numbers,
- * booleans, {nodeId} refs for node-typed schemas), else stays a plain string. */
+ * booleans, {nodeId} refs for node-typed schemas), else stays a plain string.
+ * Select-typed schemas run the value through `resolveSelectValue` first:
+ * ids pass verbatim, labels resolve to their option id, anything else fails
+ * loud (naming the stored options) unless --force stores it verbatim. */
 async function objectPropertySet(
   ctx: CommandContext,
   id: string,
   schemaRef: string,
   value: string,
-  options: { idx?: string },
+  options: { idx?: string; force?: boolean },
 ): Promise<void> {
   const schema = await resolvePropertySchemaRef(ctx, schemaRef);
+  const detail = await fetchSchemaDetail(ctx, schema.id);
   const idx = Number.parseInt(options.idx ?? "0", 10);
   if (!Number.isInteger(idx) || idx < 0) failUsage("--idx must be a non-negative integer");
   let parsed: unknown = value;
@@ -2468,9 +2590,22 @@ async function objectPropertySet(
   } catch {
     // Plain string value — the common case for text-ish schemas.
   }
+  let machineExtra: Record<string, unknown> = {};
+  if (detail.type === "select" || detail.type === "multi_select") {
+    const resolution = resolveSelectValue(detail, parsed, options.force === true);
+    parsed = resolution.value;
+    if (resolution.verbatim === true) {
+      ctx.io.stderr.write(
+        `warning: "${JSON.stringify(value)}" matches no stored option of ${detail.name} — stored verbatim (--force)\n`,
+      );
+      machineExtra = { storedVerbatim: true };
+    } else if (resolution.resolvedFrom !== undefined) {
+      machineExtra = { resolvedFrom: resolution.resolvedFrom };
+    }
+  }
   await setProperty(ctx, id, schema.id, parsed, idx);
   const body = await (await ctx.local()).getObject(id);
-  emit(ctx, `${JSON.stringify(body.object, null, 2)}\n`, { objectId: id, schemaId: schema.id, schemaName: schema.name, idx, object: body.object });
+  emit(ctx, `${JSON.stringify(body.object, null, 2)}\n`, { objectId: id, schemaId: schema.id, schemaName: schema.name, idx, object: body.object, ...machineExtra });
 }
 
 /**
@@ -2484,6 +2619,7 @@ async function objectPropertySet(
 async function objectPropertySetBatch(ctx: CommandContext, options: {
   jobs?: string;
   stopOnError?: boolean;
+  force?: boolean;
 }): Promise<void> {
   const raw = await readStdin(ctx.io);
   let entries: unknown[];
@@ -2516,8 +2652,21 @@ async function objectPropertySetBatch(ctx: CommandContext, options: {
   const resolveSchemaId = (ref: string): string =>
     PROPERTY_UUID_PATTERN.test(ref) ? ref : (byName.get(ref.trim().toLowerCase()) ?? ref);
 
+  // Select schemas resolve ids/labels through one detail cache (fetched
+  // lazily per unique schema — the listing carries no options).
+  const detailCache = new Map<string, Promise<ApiPropertySchema>>();
+  const detailOf = (schemaId: string): Promise<ApiPropertySchema> => {
+    let cached = detailCache.get(schemaId);
+    if (cached === undefined) {
+      cached = fetchSchemaDetail(ctx, schemaId);
+      detailCache.set(schemaId, cached);
+    }
+    return cached;
+  };
+
   const set: { index: number; objectId: string }[] = [];
   const failures: { index: number; error: string }[] = [];
+  const warnings = new Set<string>();
   let stopped = false;
   const queue = entries.map((entry, index) => ({ entry: entry as Record<string, unknown>, index }));
 
@@ -2538,7 +2687,14 @@ async function objectPropertySetBatch(ctx: CommandContext, options: {
           if (!Number.isInteger(idx) || (idx as number) < 0) {
             throw new CliError(EXIT.usage, "idx must be a non-negative integer");
           }
-          await setProperty(ctx, entry.objectId as string, schemaId, entry.value, idx);
+          let value = entry.value;
+          const detail = await detailOf(schemaId);
+          if (detail.type === "select" || detail.type === "multi_select") {
+            const resolution = resolveSelectValue(detail, value, options.force === true);
+            value = resolution.value;
+            if (resolution.verbatim === true) warnings.add(JSON.stringify(entry.value));
+          }
+          await setProperty(ctx, entry.objectId as string, schemaId, value, idx);
           set.push({ index, objectId: entry.objectId as string });
         } catch (error) {
           failures.push({ index, error: error instanceof Error ? error.message : String(error) });
@@ -2548,6 +2704,11 @@ async function objectPropertySetBatch(ctx: CommandContext, options: {
     }),
   );
 
+  for (const warning of warnings) {
+    ctx.io.stderr.write(
+      `warning: ${warning} matches no stored option — stored verbatim (--force)\n`,
+    );
+  }
   const objectIds = [...set].sort((a, b) => a.index - b.index).map((entry) => entry.objectId);
   const machine = {
     set: objectIds.length,
@@ -2919,6 +3080,164 @@ async function propertyRename(ctx: CommandContext, schemaRef: string, name: stri
     { name: trimmed },
   );
   emit(ctx, `${JSON.stringify(body.propertySchema, null, 2)}\n`, body);
+}
+
+// --- property audit -------------------------------------------------------------
+
+const NODE_REF_PATTERN_OK = (value: unknown): value is { nodeId: string } =>
+  isRecord(value) && typeof (value as { nodeId?: unknown }).nodeId === "string";
+
+/**
+ * The audit's per-type value contract — returns the problem description or
+ * null when the value is honest for the schema. Select membership is checked
+ * against the STORED options (the drift this sweep exists for: values whose
+ * option id no longer resolves render as dead pills in every client).
+ */
+function valueProblemOf(schema: ApiPropertySchema, value: unknown): string | null {
+  const options = schema.options ?? [];
+  switch (schema.type) {
+    case "select":
+      if (typeof value !== "string") return `not a string (${JSON.stringify(value)})`;
+      return options.some((option) => option.id === value) ? null : `unknown option id "${value}"`;
+    case "multi_select": {
+      if (!Array.isArray(value)) return "not an array";
+      const known = new Set(options.map((option) => option.id));
+      const bad = value.filter((element) => typeof element !== "string" || !known.has(element));
+      return bad.length > 0 ? `unknown elements ${JSON.stringify(bad)}` : null;
+    }
+    case "number":
+      if (typeof value === "number" && Number.isFinite(value)) return null;
+      if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
+        return "numeric string (legacy encoding — rewrite as a number)";
+      }
+      return `not a number (${JSON.stringify(value)})`;
+    case "boolean":
+      return typeof value === "boolean" ? null : `not a boolean (${JSON.stringify(value)})`;
+    case "text":
+      if (typeof value === "string" || NODE_REF_PATTERN_OK(value)) return null;
+      return `not a string or carrier ref (${JSON.stringify(value)})`;
+    case "email":
+      return typeof value === "string" ? null : `not a string (${JSON.stringify(value)})`;
+    case "datetime": {
+      if (NODE_REF_PATTERN_OK(value)) return null;
+      if (isRecord(value) && ("start" in value || "end" in value)) {
+        const sides = [value.start, value.end] as unknown[];
+        for (const side of sides) {
+          if (side === null || side === undefined || NODE_REF_PATTERN_OK(side)) continue;
+          return `range side is not a {nodeId} slot (${JSON.stringify(side)})`;
+        }
+        return null;
+      }
+      return `not a datetime ref (${JSON.stringify(value)})`;
+    }
+    case "object":
+    case "asset":
+      return NODE_REF_PATTERN_OK(value) ? null : `not a {nodeId} ref (${JSON.stringify(value)})`;
+    default:
+      return null; // types without a shape contract in this sweep
+  }
+}
+
+/**
+ * `notees property audit <schema>` — schema-aware drift sweep over every
+ * authored value row of the schema (the local store's projection — no
+ * per-node round trips). Each drifted row names the object, the value, and
+ * the problem. Dry-run by default and exit 0 either way — the report IS the
+ * result (drift is data, not command failure). `--apply` repairs
+ * select/multi_select drift to one chosen option (`--to` label|id, resolved
+ * like the property-set path) with --jobs concurrency, then re-reads for the
+ * honest remaining count; per-row failures collect into `failures` (exit 1
+ * when any fail), mirroring the batch contract.
+ */
+async function propertyAudit(
+  ctx: CommandContext,
+  schemaRef: string,
+  options: { apply?: boolean; to?: string; jobs?: string },
+): Promise<void> {
+  const schema = await resolvePropertySchemaRef(ctx, schemaRef);
+  const detail = await fetchSchemaDetail(ctx, schema.id);
+  const jobs = Number.parseInt(options.jobs ?? "8", 10);
+  if (!Number.isInteger(jobs) || jobs < 1 || jobs > 32) failUsage("--jobs must be an integer between 1 and 32");
+
+  const rows = (await ctx.local()).propertyValues(schema.id).values as Array<{
+    objectId: string;
+    objectName: string | null;
+    elementId: string;
+    idx: number;
+    value: unknown;
+  }>;
+  const drift = rows.flatMap((row) => {
+    const problem = valueProblemOf(detail, row.value);
+    return problem === null
+      ? []
+      : [{ objectId: row.objectId, objectName: row.objectName, idx: row.idx, value: row.value, problem }];
+  });
+
+  let repaired: number | undefined;
+  let remaining: number | undefined;
+  const failures: Array<{ objectId: string; error: string }> = [];
+  if (options.apply === true) {
+    if (detail.type !== "select" && detail.type !== "multi_select") {
+      failUsage(
+        `property audit --apply repairs select/multi_select drift only — "${detail.name}" is ${detail.type} (report-only)`,
+      );
+    }
+    if (options.to === undefined || options.to.length === 0) {
+      failUsage("property audit --apply requires --to <option label|id>");
+    }
+    const target = resolveSelectValue(detail, detail.type === "multi_select" ? [options.to] : options.to, false);
+    const queue = [...drift];
+    let done = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(jobs, queue.length) }, async () => {
+        for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+          try {
+            await setProperty(ctx, item.objectId, schema.id, target.value, item.idx);
+            done += 1;
+          } catch (error) {
+            failures.push({ objectId: item.objectId, error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+      }),
+    );
+    repaired = done;
+    // Honest verification: re-read the whole sweep and count what is still drifted.
+    const after = (await ctx.local()).propertyValues(schema.id).values as Array<{ value: unknown }>;
+    remaining = after.filter((row) => valueProblemOf(detail, row.value) !== null).length;
+  }
+
+  const machine: Record<string, unknown> = {
+    schemaId: schema.id,
+    schemaName: detail.name,
+    type: detail.type,
+    checked: rows.length,
+    problems: drift.length,
+    drift,
+    ...(repaired !== undefined ? { repaired, remaining, failures } : {}),
+  };
+  const tableRows = drift.map((row) => [
+    row.objectName ?? row.objectId,
+    String(row.idx),
+    JSON.stringify(row.value).slice(0, 60),
+    row.problem,
+  ]);
+  const summary =
+    `checked ${rows.length} ${detail.name} value${rows.length === 1 ? "" : "s"} — ${drift.length} drifted\n` +
+    (repaired !== undefined
+      ? `repaired ${repaired} → ${options.to} (${failures.length} failed; ${remaining} still drifted after re-read)\n`
+      : "dry-run — re-run with --apply --to <option label|id> to repair (select/multi_select only)\n");
+  emit(
+    ctx,
+    (tableRows.length > 0 ? `${formatTable([["OBJECT", "IDX", "VALUE", "PROBLEM"], ...tableRows])}\n` : "") + summary,
+    machine,
+  );
+  if (failures.length > 0) {
+    throw new CliError(
+      EXIT.domain,
+      `audit repair: ${failures.length}/${drift.length} failed (${failures.slice(0, 5).map((f) => `${f.objectId}: ${f.error}`).join("; ")})`,
+      machine,
+    );
+  }
 }
 
 /** `notees property delete` — soft-delete (authored values survive; the same
@@ -4024,7 +4343,7 @@ function ctxOf(command: Command, options: { allowMissingKey?: boolean } = {}): C
  */
 async function authLogin(
   ctx: CommandContext,
-  options: { email?: string; password?: string; passwordStdin?: boolean },
+  options: { email?: string; password?: string; passwordStdin?: boolean; unlock?: boolean },
 ): Promise<void> {
   const email = options.email ?? process.env.NOTEES_EMAIL;
   if (email === undefined || email.length === 0) {
@@ -4052,10 +4371,23 @@ async function authLogin(
   };
   updateServerState(ctx.statePath, ctx.stateKey, (current) => ({ ...current, credential }));
   const profile = ctx.opts.profile ?? "default";
+  // --unlock: the same gesture finishes the keyed-workspace setup — the just-
+  // minted user credential is the one that can unwrap the workspace key.
+  let unlockNote = "";
+  let unlockMachine: Record<string, unknown> = {};
+  if (options.unlock === true) {
+    const result = await unlockWorkspace(
+      new ApiClient({ server: ctx.client.server, apiKey: created.token }),
+      ctx.statePath,
+      ctx.stateKey,
+    );
+    unlockNote = unlockHuman(result);
+    unlockMachine = { unlock: { workspaceId: result.workspaceId, keySource: result.keySource } };
+  }
   emit(
     ctx,
-    `logged in as ${email} — CLI API key stored for ${ctx.client.server} (profile ${profile})\n`,
-    { email, server: ctx.client.server, profile, keyId: created.apiKey.id },
+    `logged in as ${email} — CLI API key stored for ${ctx.client.server} (profile ${profile})\n${unlockNote}`,
+    { email, server: ctx.client.server, profile, keyId: created.apiKey.id, ...unlockMachine },
   );
 }
 
@@ -4156,42 +4488,50 @@ async function authStatus(ctx: CommandContext): Promise<void> {
 }
 
 /**
- * `notees auth unlock` — one-shot custody unlock for encrypted workspaces.
- * Opening the local session runs the custody probe + sync; the envelope
- * crypto resolves from the cached master key or, on first use, from
- * NOTEES_EMAIL + NOTEES_PASSWORD (the master-key bytes are then cached in
- * the state file, so later commands ride the cache until `auth lock`). A
- * keyless workspace reports a no-op. The command also pre-warms the sync,
- * so it doubles as a "make the local store fresh" gesture.
+ * The custody-unlock core shared by `auth unlock` and `auth login --unlock`:
+ * resolve the workspace, open the local session (the custody probe resolves
+ * the envelope crypto from the cached master key or, on first use, from
+ * NOTEES_EMAIL + NOTEES_PASSWORD — the bytes then cache in the state file),
+ * and report how the key answered. A keyless workspace reports keySource
+ * null. Also pre-warms the sync, so the gesture doubles as "make the local
+ * store fresh".
  */
-async function authUnlock(ctx: CommandContext): Promise<void> {
-  const workspaceId = (await ctx.client.workspaceId()) ?? DEFAULT_WORKSPACE_ID;
+async function unlockWorkspace(
+  client: ApiClient,
+  statePath: string,
+  stateKey: string,
+): Promise<{ workspaceId: string; keySource: "machine" | "password" | "cache" | null }> {
+  const workspaceId = (await client.workspaceId()) ?? DEFAULT_WORKSPACE_ID;
   const session = await openLocalWorkspace({
-    server: ctx.client.server,
-    apiKey: ctx.client.apiKey,
+    server: client.server,
+    apiKey: client.apiKey,
     workspaceId,
-    storeDir: join(dirname(ctx.statePath), "stores"),
-    statePath: ctx.statePath,
-    stateKey: ctx.stateKey,
+    storeDir: join(dirname(statePath), "stores"),
+    statePath,
+    stateKey,
   });
   try {
-    const machine = { workspaceId, encrypted: session.keySource !== null, keySource: session.keySource };
-    const machineLine =
-      session.keySource === "machine"
-        ? "unlocked by machine key — this API key carries custody: no password, ever\n"
-        : null;
-    const human =
-      machineLine ??
-      (session.keySource === null
-        ? `workspace ${workspaceId} is not encrypted — nothing to unlock\n`
-        : session.keySource === "cache"
-          ? "already unlocked — the cached master key answered (no password needed)\n"
-          : "unlocked — the master key is cached in the state file; later commands need no " +
-            "password (`notees auth lock` reverts)\n");
-    emit(ctx, human, machine);
+    return { workspaceId, keySource: session.keySource };
   } finally {
     session.close();
   }
+}
+
+function unlockHuman(result: { workspaceId: string; keySource: "machine" | "password" | "cache" | null }): string {
+  return result.keySource === "machine"
+    ? "unlocked by machine key — this API key carries custody: no password, ever\n"
+    : result.keySource === null
+      ? `workspace ${result.workspaceId} is not encrypted — nothing to unlock\n`
+      : result.keySource === "cache"
+        ? "already unlocked — the cached master key answered (no password needed)\n"
+        : "unlocked — the master key is cached in the state file; later commands need no " +
+          "password (`notees auth lock` reverts)\n";
+}
+
+/** `notees auth unlock` — one-shot custody unlock for encrypted workspaces. */
+async function authUnlock(ctx: CommandContext): Promise<void> {
+  const result = await unlockWorkspace(ctx.client, ctx.statePath, ctx.stateKey);
+  emit(ctx, unlockHuman(result), { workspaceId: result.workspaceId, encrypted: result.keySource !== null, keySource: result.keySource });
 }
 
 /** `notees auth lock` — drop the cached master key; the next keyed command needs the password again. */
@@ -4454,15 +4794,18 @@ function buildProgram(): Command {
     .description(
       "set a property value (schema: uuid or name; value parses as JSON when possible, else string; " +
         "text values may be a string or a {\"nodeId\":\"…\"} carrier-block ref). " +
+        "Select schemas take an option id or label — labels resolve to their option id, and a value matching " +
+        "no stored option fails loud (naming them) unless --force stores it verbatim. " +
         "--batch --stdin reads a JSON array of {objectId, schema, value, idx?} and applies it with --jobs concurrency " +
         "(per-item failures collected into `failures`; exit 1 when any fail)",
     )
     .option("--idx <n>", "slot index for multi-valued schemas", "0")
+    .option("--force", "select schemas: store a value that matches no stored option instead of refusing (warns)", false)
     .option("--batch", "read a JSON array of {objectId, schema, value, idx?} from stdin and set them all (requires --stdin)", false)
     .option("--stdin", "with --batch: read the entries from stdin", false)
     .option("--jobs <n>", "batch concurrency 1–32 (default 8)", "8")
     .option("--stop-on-error", "batch: abort the remaining entries on the first failure", false)
-    .action(async (id: string | undefined, schema: string | undefined, value: string | undefined, options: { idx?: string; batch?: boolean; stdin?: boolean; jobs?: string; stopOnError?: boolean }, command: Command) => {
+    .action(async (id: string | undefined, schema: string | undefined, value: string | undefined, options: { idx?: string; force?: boolean; batch?: boolean; stdin?: boolean; jobs?: string; stopOnError?: boolean }, command: Command) => {
       if (options.batch === true) {
         if (id !== undefined || schema !== undefined || value !== undefined) {
           failUsage("--batch takes no positional arguments (entries come from --stdin)");
@@ -4518,6 +4861,19 @@ function buildProgram(): Command {
     .description("show one property schema with its resolved eligible classes (schema: uuid or name)")
     .action(async (schema: string, _options: object, command: Command) => {
       await propertyGet(ctxOf(command), schema);
+    });
+  schemaCmd
+    .command("audit <schema>")
+    .description(
+      "sweep every authored value of a schema and report drift — unknown option ids, wrong shapes " +
+        "(dry-run by default; exit 0 either way). --apply repairs select/multi_select drift to one option " +
+        "(--to label|id) with --jobs concurrency, then re-reads for the honest remaining count",
+    )
+    .option("--apply", "repair the drifted rows (select/multi_select only; requires --to)", false)
+    .option("--to <label|id>", "the option label or id --apply writes")
+    .option("--jobs <n>", "repair concurrency 1–32 (default 8)", "8")
+    .action(async (schema: string, options: { apply?: boolean; to?: string; jobs?: string }, command: Command) => {
+      await propertyAudit(ctxOf(command), schema, options);
     });
   schemaCmd
     .command("create <name>")
@@ -4848,11 +5204,16 @@ function buildProgram(): Command {
   const auth = program.command("auth").description("sign in and store a credential for this server");
   auth
     .command("login")
-    .description("log in with email + password and store a CLI API key (per profile)")
+    .description(
+      "log in with email + password and store a CLI API key (per profile). " +
+        "--unlock finishes the encrypted-workspace setup in the same gesture: the just-minted user credential " +
+        "unwraps the workspace key and caches it (what `auth unlock` does on its own)",
+    )
     .option("--email <email>", "account email (env NOTEES_EMAIL)")
     .option("--password <pw>", "account password (env NOTEES_PASSWORD) — prefer --password-stdin to keep it out of shell history")
     .option("--password-stdin", "read the password from stdin", false)
-    .action(async (options: { email?: string; password?: string; passwordStdin?: boolean }, command: Command) => {
+    .option("--unlock", "after login, unlock an encrypted workspace in the same gesture (caches the workspace key)", false)
+    .action(async (options: { email?: string; password?: string; passwordStdin?: boolean; unlock?: boolean }, command: Command) => {
       await authLogin(ctxOf(command, { allowMissingKey: true }), options);
     });
   auth
@@ -5227,7 +5588,17 @@ export async function run(argv: string[], io: CliIo = defaultIo): Promise<number
       io.stderr.write(`notees: ${error.message}\n`);
       return error.exitCode;
     }
-    io.stderr.write(`notees: unexpected error: ${error instanceof Error ? error.message : String(error)}\n`);
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("NODE_MODULE_VERSION")) {
+      // The native store module was built for a different Node ABI (a global
+      // install rebuilt under another node) — name the remedy instead of
+      // dumping the raw loader stack.
+      io.stderr.write(
+        `notees: better-sqlite3 was built for a different Node.js ABI — rebuild it under node ${process.version} ` +
+          "(reinstall the CLI, or run npm rebuild better-sqlite3 in its install dir); `notees doctor` checks this\n",
+      );
+    }
+    io.stderr.write(`notees: unexpected error: ${message}\n`);
     return EXIT.domain;
   }
 }

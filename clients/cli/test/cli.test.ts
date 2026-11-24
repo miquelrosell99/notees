@@ -2286,6 +2286,170 @@ describe("property schema verbs", () => {
   });
 });
 
+describe("select-value honesty (object property set)", () => {
+  async function seedSelectSchema(
+    name: string,
+    options: string[],
+    type: "select" | "multi_select" = "select",
+  ): Promise<{ schemaId: string; optionId: (label: string) => string }> {
+    const h = harness;
+    const args = ["property", "create", name, "--type", type];
+    for (const label of options) args.push("--option", label);
+    expect(await h.runCli(...args)).toBe(EXIT.ok);
+    const schemaId = h.io.stdoutText.trim();
+    expect(await h.runCli("--json", "property", "get", name)).toBe(EXIT.ok);
+    const detail = JSON.parse(h.io.stdoutText) as {
+      propertySchema: { options: Array<{ id: string; label: string }> };
+    };
+    const byLabel = new Map(detail.propertySchema.options.map((option) => [option.label, option.id]));
+    return { schemaId, optionId: (label) => byLabel.get(label)! };
+  }
+
+  interface SetMachine {
+    resolvedFrom?: string;
+    storedVerbatim?: boolean;
+    object: { properties: Array<{ schemaId: string; value: unknown }> };
+  }
+
+  it("labels resolve to option ids (reported on the machine surface); ids pass verbatim; unknown values fail loud naming the options; --force stores verbatim with a warning", async () => {
+    const h = harness;
+    const { schemaId, optionId } = await seedSelectSchema("hs-honesty", ["Open", "Closed"]);
+
+    // A label resolves — the stored value is the option id, the resolution
+    // rides the machine surface.
+    const node = await h.seedObject("hs row", []);
+    expect(await h.runCli("--json", "object", "property", "set", node, schemaId, "Open")).toBe(EXIT.ok);
+    let machine = JSON.parse(h.io.stdoutText) as SetMachine;
+    expect(machine.resolvedFrom).toBe("Open");
+    expect(machine.object.properties.find((p) => p.schemaId === schemaId)?.value).toBe(optionId("Open"));
+
+    // An id passes verbatim — no resolution reported.
+    const node2 = await h.seedObject("hs row 2", []);
+    expect(await h.runCli("--json", "object", "property", "set", node2, schemaId, optionId("Closed"))).toBe(EXIT.ok);
+    machine = JSON.parse(h.io.stdoutText) as SetMachine;
+    expect(machine.resolvedFrom).toBeUndefined();
+    expect(machine.object.properties.find((p) => p.schemaId === schemaId)?.value).toBe(optionId("Closed"));
+
+    // An unknown value fails LOUD, naming the stored options.
+    const node3 = await h.seedObject("hs row 3", []);
+    expect(await h.runCli("object", "property", "set", node3, schemaId, "Bogus")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("matches no stored option");
+    expect(h.io.stderrText).toContain("Open");
+    expect(h.io.stderrText).toContain("Closed");
+
+    // --force stores it verbatim, warned on stderr.
+    expect(await h.runCli("--json", "object", "property", "set", node3, schemaId, "Bogus", "--force")).toBe(EXIT.ok);
+    expect(h.io.stderrText).toContain("stored verbatim");
+    machine = JSON.parse(h.io.stdoutText) as SetMachine;
+    expect(machine.storedVerbatim).toBe(true);
+    expect(machine.object.properties.find((p) => p.schemaId === schemaId)?.value).toBe("Bogus");
+  });
+
+  it("multi_select resolves a mixed id/label array and fails on unknown elements", async () => {
+    const h = harness;
+    const { schemaId, optionId } = await seedSelectSchema("hs-multi", ["Red", "Green", "Blue"], "multi_select");
+    const node = await h.seedObject("hs tags", []);
+    // Mixed id + label array → all ids on the wire.
+    expect(
+      await h.runCli("--json", "object", "property", "set", node, schemaId, JSON.stringify([optionId("Red"), "Green"])),
+    ).toBe(EXIT.ok);
+    const machine = JSON.parse(h.io.stdoutText) as SetMachine;
+    expect(machine.object.properties.find((p) => p.schemaId === schemaId)?.value).toEqual([
+      optionId("Red"),
+      optionId("Green"),
+    ]);
+    // An unknown element fails the whole write, naming the problem.
+    expect(await h.runCli("object", "property", "set", node, schemaId, JSON.stringify(["Magenta"]))).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("Magenta");
+  });
+
+  it("--batch resolves labels per item and collects unknown-value failures without losing the good writes", async () => {
+    const h = harness;
+    const { schemaId, optionId } = await seedSelectSchema("hs-batch", ["Open", "Closed"]);
+    const good = await h.seedObject("hs batch good", []);
+    const bad = await h.seedObject("hs batch bad", []);
+    const code = await h.runCliWithStdin(
+      JSON.stringify([
+        { objectId: good, schema: schemaId, value: "Open" },
+        { objectId: bad, schema: schemaId, value: "Bogus" },
+      ]),
+      "--json", "object", "property", "set", "--batch", "--stdin",
+    );
+    expect(code).toBe(EXIT.domain);
+    const machine = JSON.parse(h.io.stdoutText) as {
+      set: number;
+      failures: Array<{ index: number; error: string }>;
+    };
+    expect(machine.set).toBe(1);
+    expect(machine.failures).toHaveLength(1);
+    expect(machine.failures[0]!.error).toContain("matches no stored option");
+    // The good entry landed.
+    expect(await h.runCli("--json", "object", "get", good)).toBe(EXIT.ok);
+    const after = JSON.parse(h.io.stdoutText) as { object: { properties: Array<{ schemaId: string; value: unknown }> } };
+    expect(after.object.properties.find((p) => p.schemaId === schemaId)?.value).toBe(optionId("Open"));
+  });
+});
+
+describe("property audit", () => {
+  it("sweeps every authored row, reports drift as a dry-run, and --apply --to repairs with an honest re-read", async () => {
+    const h = harness;
+    expect(await h.runCli("property", "create", "pa-status", "--type", "select", "--option", "Alpha", "--option", "Beta")).toBe(EXIT.ok);
+    const schemaId = h.io.stdoutText.trim();
+    expect(await h.runCli("--json", "property", "get", "pa-status")).toBe(EXIT.ok);
+    const betaId = (JSON.parse(h.io.stdoutText) as { propertySchema: { options: Array<{ id: string; label: string }> } })
+      .propertySchema.options.find((option) => option.label === "Beta")!.id;
+
+    // One clean row + two drift shapes: a dead option id, and the legacy
+    // label-as-value drift (a stored label string that no option id matches).
+    const clean = await h.seedObject("pa clean", []);
+    await h.seedProperty(clean, schemaId, betaId);
+    const driftId = await h.seedObject("pa drift id", []);
+    expect(await h.runCli("object", "property", "set", driftId, schemaId, "10000000-0000-4000-8000-00000000dead", "--force")).toBe(EXIT.ok);
+    const driftLabel = await h.seedObject("pa drift label", []);
+    expect(await h.runCli("object", "property", "set", driftLabel, schemaId, "Archived", "--force")).toBe(EXIT.ok);
+
+    // Dry-run: both drifted rows reported, exit 0 (the report IS the result).
+    expect(await h.runCli("--json", "property", "audit", "pa-status")).toBe(EXIT.ok);
+    const report = JSON.parse(h.io.stdoutText) as {
+      checked: number;
+      problems: number;
+      drift: Array<{ objectId: string; problem: string }>;
+      repaired?: number;
+    };
+    expect(report.checked).toBe(3);
+    expect(report.problems).toBe(2);
+    expect(report.drift.map((row) => row.objectId).sort()).toEqual([driftId, driftLabel].sort());
+    expect(report.repaired).toBeUndefined();
+
+    // Repair to Beta (by label): both rows rewritten, the re-read proves clean.
+    expect(await h.runCli("--json", "property", "audit", "pa-status", "--apply", "--to", "Beta")).toBe(EXIT.ok);
+    const repaired = JSON.parse(h.io.stdoutText) as { repaired: number; remaining: number };
+    expect(repaired.repaired).toBe(2);
+    expect(repaired.remaining).toBe(0);
+
+    expect(await h.runCli("--json", "property", "audit", "pa-status")).toBe(EXIT.ok);
+    expect((JSON.parse(h.io.stdoutText) as { problems: number }).problems).toBe(0);
+  });
+
+  it("--apply refuses non-select schemas and requires --to", async () => {
+    const h = harness;
+    expect(await h.runCli("property", "create", "pa-text", "--type", "text")).toBe(EXIT.ok);
+    expect(await h.runCli("property", "audit", "pa-text", "--apply", "--to", "x")).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("select/multi_select drift only");
+    expect(await h.runCli("property", "audit", "pa-status", "--apply")).toBe(EXIT.usage);
+  });
+});
+
+describe("doctor preflight (native module + key custody)", () => {
+  it("reports the native store module check and stays silent on custody for a keyless workspace", async () => {
+    const h = harness;
+    const io = new Capture();
+    expect(await run(["--server", h.baseUrl, "--key", API_KEY, "doctor"], io)).toBe(EXIT.ok);
+    expect(io.stdoutText).toContain("ok  native store module");
+    expect(io.stdoutText).not.toContain("keyed workspace");
+  });
+});
+
 describe("shell (scripted mode)", () => {
   it("scripted create → get → search → effective → delete; stdout carries the ids", async () => {
     const h = harness;
