@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../core/api/api_client.dart';
-import '../core/constants/system.dart';
 import '../core/secure/secure_storage.dart';
 import '../core/utils/client_id.dart';
 import '../data/local/app_database.dart';
@@ -15,6 +14,7 @@ import '../domain/models/search_filters.dart';
 import '../domain/services/offline_queue.dart';
 import '../domain/services/pending_asset_service.dart';
 import '../domain/services/sync_v2_service.dart';
+import '../domain/services/task_dates.dart';
 import './reminder_service.dart';
 import './widget_service.dart';
 
@@ -173,21 +173,7 @@ Future<void> _rescheduleTaskReminders({
   }
 }
 
-DateTime? _taskDueDate(Node node) {
-  return _extractDate(node.properties[SystemPropertyUuids.taskDeadline]) ??
-      _extractDate(node.properties['due_date']) ??
-      _extractDate(node.properties['deadline']);
-}
-
-DateTime? _extractDate(dynamic value) {
-  if (value == null) return null;
-  if (value is DateTime) return value;
-  if (value is String) {
-    final parsed = DateTime.tryParse(value);
-    if (parsed != null) return parsed;
-  }
-  return null;
-}
+DateTime? _taskDueDate(Node node) => taskReminderDate(node.properties);
 
 /// Fetches today's open tasks from the server and writes them to the widget
 /// cache so the home-screen widget can display them.

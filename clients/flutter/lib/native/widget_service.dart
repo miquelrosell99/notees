@@ -8,6 +8,7 @@ import '../core/constants/system.dart';
 import '../core/utils/node_display_name.dart';
 import '../data/models/node.dart';
 import '../data/models/property.dart';
+import '../domain/services/task_dates.dart';
 import '../data/repositories/node_repository.dart';
 import '../domain/models/search_filters.dart';
 
@@ -205,19 +206,5 @@ class WidgetService {
     return null;
   }
 
-  static DateTime? _taskDueDate(Node node) {
-    return _extractDate(node.properties[SystemPropertyUuids.taskDeadline]) ??
-        _extractDate(node.properties['due_date']) ??
-        _extractDate(node.properties['deadline']);
-  }
-
-  static DateTime? _extractDate(dynamic value) {
-    if (value == null) return null;
-    if (value is DateTime) return value;
-    if (value is String) {
-      final parsed = DateTime.tryParse(value);
-      if (parsed != null) return parsed;
-    }
-    return null;
-  }
+  static DateTime? _taskDueDate(Node node) => taskDueDate(node.properties);
 }

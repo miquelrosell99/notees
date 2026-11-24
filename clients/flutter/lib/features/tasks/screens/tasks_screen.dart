@@ -13,6 +13,7 @@ import '../../../data/models/property.dart';
 import '../../../data/repositories/node_repository.dart';
 import '../../../domain/models/search_filters.dart';
 import '../../../domain/services/recurrence_expansion.dart';
+import '../../../domain/services/task_dates.dart';
 import '../../../native/reminder_service.dart';
 import '../../../native/widget_service.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -209,11 +210,11 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  DateTime? _taskDueDate(Node node) {
-    return extractDate(node.properties[SystemPropertyUuids.taskDeadline]) ??
-        extractDate(node.properties['due_date']) ??
-        extractDate(node.properties['deadline']);
-  }
+  DateTime? _taskDueDate(Node node) => taskDueDate(node.properties);
+
+  /// The reminder moment (the web reminder rule: Scheduled wins, else
+  /// Deadline) — deliberately NOT the display date above.
+  DateTime? _taskReminderDate(Node node) => taskReminderDate(node.properties);
 
   String? _taskPriorityValue(Node node) {
     final raw = node.properties[SystemPropertyUuids.taskPriority] ??
@@ -609,7 +610,7 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _scheduleReminderIfOpen(Node task) async {
-    final due = _taskDueDate(task);
+    final due = _taskReminderDate(task);
     if (due == null) return;
 
     // Only schedule for tasks that are not already closed.
@@ -673,7 +674,7 @@ class _TasksScreenState extends State<TasksScreen> {
       return;
     }
 
-    final due = _taskDueDate(task) ?? DateTime.now();
+    final due = _taskReminderDate(task) ?? DateTime.now();
     // Skip occurrences that are already in the past (e.g. completing an
     // overdue task) so the reminder fires in the future.
     var seed = nextOccurrence(rule, due);
