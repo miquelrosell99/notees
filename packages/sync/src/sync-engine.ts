@@ -237,6 +237,15 @@ export class SyncEngine {
   private crypto: EnvelopeCrypto | null;
 
   private cursorSeq: number;
+  /**
+   * The server seq up to which the store's CONTENT is verified by local
+   * apply — the snapshot-upload invariant's anchor (see maybeUploadSnapshot).
+   * 0 = the content is upstream trust only (fresh store, epoch wipe, or a
+   * snapshot restore): the image may lag the watermark it claims, so it must
+   * not become a bootstrap source for other devices until the log has been
+   * replayed locally.
+   */
+  private verifiedSeq: number;
   private receivedHlc: Hlc;
   private restoreEpoch: number;
   private status: SyncStatus = "idle";
@@ -278,6 +287,14 @@ export class SyncEngine {
     return this.lastSnapshotUploadAt;
   }
   private snapshotQuarantineReported = false;
+  /**
+   * The unverified-content upload latch: a device whose store was built or
+   * refreshed from a snapshot restore (verifiedSeq < cursorSeq) must not
+   * upload — the image may lag the watermark it claims, and re-uploading it
+   * would re-poison every fresh restore (2026-11-24 lineage). Surfaced ONCE
+   * per session; reset when an upload succeeds.
+   */
+  private snapshotUnverifiedReported = false;
   /**
    * The oversize-upload report latch: the relay answers an over-cap
    * snapshot PUT with 413, and unlike transient failures that never heals by
@@ -333,6 +350,7 @@ export class SyncEngine {
     this.meta = new SyncMeta(store, `sync:${this.workspaceId}:state`);
     const persisted = this.meta.load();
     this.cursorSeq = persisted?.cursorSeq ?? 0;
+    this.verifiedSeq = persisted?.verifiedSeq ?? 0;
     this.receivedHlc = persisted?.receivedHlc ?? ZERO_HLC;
     this.restoreEpoch = persisted?.restoreEpoch ?? 0;
     this.firstSkippedSeq = persisted?.firstSkippedSeq ?? null;
@@ -443,6 +461,7 @@ export class SyncEngine {
   private persistState(): void {
     this.meta.save({
       cursorSeq: this.cursorSeq,
+      verifiedSeq: this.verifiedSeq,
       receivedHlc: this.receivedHlc,
       restoreEpoch: this.restoreEpoch,
       firstSkippedSeq: this.firstSkippedSeq,
@@ -601,6 +620,12 @@ export class SyncEngine {
         // The metadata HLC is the authoritative server-side watermark.
         this.receivedHlc = maxHlc(this.receivedHlc, meta.hlc);
         this.cursorSeq = meta.upToSeq ?? 0;
+        // The restored image is UPSTREAM TRUST: its bytes may lag the
+        // watermark they claim (a poisoned checkpoint restores stale content
+        // with a current seq). Content stays unverified until the log is
+        // replayed locally (an epoch wipe, a fresh store) — the upload gate
+        // in maybeUploadSnapshot reads this.
+        this.verifiedSeq = 0;
         this.persistState();
       }
     }
@@ -644,7 +669,16 @@ export class SyncEngine {
       });
 
       if (page.nextAfterSeq !== null && page.nextAfterSeq > this.cursorSeq) {
+        const pageStart = this.cursorSeq;
         this.cursorSeq = page.nextAfterSeq;
+        // The page's envelopes applied above (awaited before the cursor
+        // advances) — but they verify content only as a CONTIGUOUS extension
+        // of an already-verified base. After a snapshot restore the
+        // sub-watermark bytes are upstream trust and pages above the
+        // watermark verify only themselves: verifiedSeq stays where it was
+        // (0) until a full local replay (an epoch wipe, a fresh store) — the
+        // upload gate in maybeUploadSnapshot reads exactly this.
+        if (this.verifiedSeq >= pageStart) this.verifiedSeq = this.cursorSeq;
         this.persistState();
       }
       if (!page.hasMore) break;
@@ -667,6 +701,7 @@ export class SyncEngine {
     if (parked > 0) this.callbacks.onParkedChanges?.(parked);
     this.store.reset();
     this.cursorSeq = 0;
+    this.verifiedSeq = 0;
     this.receivedHlc = ZERO_HLC;
     this.restoreEpoch = newEpoch;
     // The server-side wipe voids any snapshot this device uploaded — the
@@ -726,6 +761,27 @@ export class SyncEngine {
           "[sync] snapshot upload skipped: the local projection carries quarantined " +
             "envelopes — uploading would spread the divergence. Wipe the local store to " +
             "rehydrate cleanly; the upload resumes once the quarantine table is empty.",
+        );
+      }
+      return;
+    }
+    // Content-verification invariant: a snapshot is a promise that its image
+    // reflects every envelope ≤ its watermark. Only locally applied content
+    // is verified (the seq catch-up advances verifiedSeq); a snapshot
+    // RESTORE resets it — the restored bytes are upstream trust and may lag
+    // the watermark they claim. Without this gate a device that restored a
+    // lagging checkpoint re-uploads the stale bytes under a fresh id and
+    // re-poisons every fresh restore (the 2026-11-24 lineage); the upload
+    // resumes once this device has replayed the log itself (an epoch wipe, a
+    // fresh store). Snapshots are an optimization, never authority.
+    if (this.verifiedSeq < this.cursorSeq) {
+      if (!this.snapshotUnverifiedReported) {
+        this.snapshotUnverifiedReported = true;
+        console.error(
+          `[sync] snapshot upload skipped: store content verified through seq ${this.verifiedSeq} ` +
+            `but the cursor is at ${this.cursorSeq} (restored from a snapshot — the image is upstream ` +
+            "trust). Re-uploading it could spread stale content; the upload resumes after the log is " +
+            "replayed locally (a restore-epoch wipe or a fresh store).",
         );
       }
       return;
@@ -855,6 +911,7 @@ export class SyncEngine {
       this.lastSnapshotUploadAt = this.now();
       this.snapshotOversizeReported = false;
       this.snapshotQuarantineReported = false;
+      this.snapshotUnverifiedReported = false;
       this.reportSnapshotUpload(null);
       // Durable, not just session state: a short-lived client (a fresh engine
       // per invocation, CLI-style) restarts with this watermark intact, so a
@@ -1031,11 +1088,23 @@ export class SyncEngine {
 
     if (seqs !== null) {
       let maxSeq = this.cursorSeq;
+      let minSeq = Number.POSITIVE_INFINITY;
       for (const envelope of seqScope ?? plain) {
         const seq = seqs[envelope.id];
         if (seq !== undefined && seq > maxSeq) maxSeq = seq;
+        if (seq !== undefined && seq < minSeq) minSeq = seq;
       }
-      if (maxSeq > this.cursorSeq) this.cursorSeq = maxSeq;
+      if (maxSeq > this.cursorSeq) {
+        this.cursorSeq = maxSeq;
+        // Realtime frames verify content only as a contiguous extension of
+        // the verified window (same rule as the catch-up loop): after a
+        // snapshot restore the frames start far above verifiedSeq=0, so a
+        // restored device stays unverified — and upload-gated — until it
+        // replays the log itself.
+        if (minSeq <= this.verifiedSeq + 1 && this.verifiedSeq < maxSeq) {
+          this.verifiedSeq = maxSeq;
+        }
+      }
     }
     this.persistState();
     return { applied: summaries.filter((summary) => !summary.ignored).length, info };

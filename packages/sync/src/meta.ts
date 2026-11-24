@@ -41,6 +41,16 @@ export interface PersistedSyncState {
    * uploadedSnapshotHlc: the wiped relay needs the re-upload promptly).
    */
   lastSnapshotUploadAt?: number | null;
+  /**
+   * The server seq up to which the store's CONTENT is verified by local apply.
+   * Advanced by the seq catch-up as pages apply; reset to 0 by an epoch wipe
+   * and by every snapshot restore (a restored image is upstream trust — its
+   * bytes may lag the watermark it claims). The snapshot-upload gate:
+   * uploading requires verifiedSeq >= cursorSeq, so a device that restored a
+   * lagging checkpoint can never re-upload the stale bytes under a fresh id
+   * (the 2026-11-24 poisoned-checkpoint lineage). Absent = unverified.
+   */
+  verifiedSeq?: number;
 }
 
 export class SyncMeta {

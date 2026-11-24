@@ -97,7 +97,19 @@ function dumpDb(store: Store): Record<string, unknown[]> {
         `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
          AND name NOT IN (
            'search_index_data', 'search_index_idx', 'search_index_config',
-           'search_index_docsize', 'search_index_content'
+           'search_index_docsize', 'search_index_content',
+           -- The index rows + docid map are path-dependent (online per-op
+           -- inserts vs the bulk tail's rebuild order assign different
+           -- docids; search.ts's documented residue) — a restored device
+           -- used to match byte-for-byte only because it cloned the
+           -- uploader's image. Equivalence rides search() results, not row
+           -- identity.
+           'search_index', 'search_index_docid',
+           -- node_stats is the other deferred-maintenance family: populated
+           -- wholesale by the bulk tail, incrementally (edge ops only)
+           -- online — presence per node is the documented residue, not
+           -- convergence signal (stats.ts seam; the wipe-rebuild slice).
+           'node_stats'
          )
          AND name != 'sync_state'
          AND name != 'app_meta'
@@ -364,6 +376,13 @@ describe("restoreEpoch change", () => {
     await b.engine.pull();
     expect(b.engine.getRestoreEpoch()).toBe(1);
     expect(dumpDb(b.store)).toEqual(dumpDb(aStore));
+    // Path-dependent index internals excluded from the dump — the QUERY
+    // results converge on what matters (each store finds the page by its
+    // title; the tail-vs-online mention-label residue is documented in
+    // search.ts and deliberately unpinned).
+    const hitIds = (s: Store, q: string) => s.search(q).map((hit) => hit.nodeId);
+    expect(hitIds(b.store, "Parent")).toContain(PARENT);
+    expect(hitIds(aStore, "Parent")).toContain(PARENT);
   });
 
   it("runs the wipe-resync inside the store's bulk window and converges the deferred tables", async () => {
@@ -404,6 +423,51 @@ describe("restoreEpoch change", () => {
       .get() as { nodes: number; stats: number };
     expect(counts.stats).toBe(counts.nodes);
     expect(store.search("Parent").length).toBeGreaterThan(0);
+  });
+});
+
+describe("snapshot upload — the content-verification gate", () => {
+  it("a device that restored a snapshot does not re-upload until the log is replayed locally", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const a = makeDevice(relay, DEVICE_A, () => nowMs);
+    for (const envelope of baseEnvelopes(DEVICE_A)) a.engine.enqueue(envelope);
+    await a.engine.syncOnce();
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
+
+    // B seeds from A's snapshot: the content is upstream trust (verifiedSeq
+    // stays 0) while the cursor jumps to the snapshot's watermark.
+    const b = makeDevice(relay, DEVICE_B, () => nowMs);
+    let bUploads = 0;
+    const realUpload = b.transport.uploadSnapshot.bind(b.transport);
+    b.transport.uploadSnapshot = async (bytes, hlc) => {
+      bUploads += 1;
+      return realUpload(bytes, hlc);
+    };
+    await b.engine.pull();
+    expect(b.engine.getCursorSeq()).toBe(5);
+
+    // New ops move the watermark; B applies them via catch-up — but the
+    // sub-watermark bytes stay unverified, so the upload gate must refuse
+    // (the 2026-11-24 poisoned-checkpoint lineage: a restored device
+    // re-uploading its stale image re-poisons every fresh restore).
+    nowMs += 60_000;
+    a.engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 5000, "object.update", { objectId: NODE, contentAst: [{ type: "text", text: "after-restore" }] }),
+    );
+    await a.engine.syncOnce();
+    nowMs += 60_000;
+    await b.engine.syncOnce();
+    expect(titleOf(b.store, NODE)).toBe("after-restore");
+    expect(bUploads).toBe(0);
+
+    // An epoch wipe makes B replay the log locally — the content verifies
+    // and the upload resumes.
+    relay.bumpRestoreEpoch();
+    nowMs += 60_000;
+    await b.engine.pull();
+    expect(bUploads).toBe(1);
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
   });
 });
 

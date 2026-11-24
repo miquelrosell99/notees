@@ -48,3 +48,21 @@ relay bookkeeping never rides the wire), `compact` (VACUUM), and
 
 Nothing recorded here today. Remaining lockstep arms: Flutter for the whole
 custody surface.
+
+### Content-verification upload gate (TS 2026-11-24 — NOT yet ported)
+
+The TS engine gained a `verifiedSeq` invariant: a snapshot is a promise
+that its image reflects every envelope ≤ its watermark, so an upload now
+requires the store's content to be verified by LOCAL apply — the seq
+catch-up and realtime frames advance it contiguously; a snapshot restore
+and an epoch wipe reset it to 0 (a restored image is upstream trust; its
+bytes may lag the watermark they claim). A restored device stays
+upload-gated until it replays the log itself. Without the gate, a
+restored-but-stale client re-uploads its lagging image under a fresh id and
+re-poisons every fresh restore (the 2026-11-24 live poisoned-checkpoint
+incident: one stale upload cycled through clients, each restore+re-upload
+cloning the poison). Companion change: the server's `bumpRestoreEpoch` now
+DELETES the workspace's snapshot rows+files — a bump alone used to leave
+the stale image being served, re-restored right after every client wipe, so
+the documented repair (bump + restart) could never fix a poisoned
+checkpoint. Port both to this engine; Flutter needs the same pair.

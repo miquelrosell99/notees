@@ -365,7 +365,13 @@ export class RelayStorage {
     return row?.epoch ?? 0;
   }
 
-  /** Simulated backup restore: bumps the epoch (clients wipe + resync). */
+  /** Simulated backup restore: bumps the epoch (clients wipe + resync) and
+   *  voids the workspace's snapshots — a bumped epoch means the log no longer
+   *  matches the checkpoints (the repair's whole point), and a stale image
+   *  kept in place would be re-restored after every client wipe (2026-11-24:
+   *  an epoch bump alone left a poisoned checkpoint being served, and the
+   *  wipe+restore cycle re-poisoned every client). Rows + files together, the
+   *  saveSnapshot retention idiom. */
   bumpRestoreEpoch(workspaceId: string): number {
     this.db
       .prepare(
@@ -373,6 +379,18 @@ export class RelayStorage {
          ON CONFLICT(workspace_id) DO UPDATE SET epoch = epoch + 1`,
       )
       .run(workspaceId);
+    const stale = this.db
+      .prepare("SELECT id FROM snapshot WHERE workspace_id = ?")
+      .all(workspaceId) as Array<{ id: string }>;
+    const dropRow = this.db.prepare("DELETE FROM snapshot WHERE id = ?");
+    for (const row of stale) {
+      dropRow.run(row.id);
+      try {
+        unlinkSync(this.snapshotPath(row.id));
+      } catch {
+        // File already gone — the row was the last reference.
+      }
+    }
     return this.restoreEpoch(workspaceId);
   }
 

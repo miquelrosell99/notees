@@ -628,15 +628,18 @@ export class MemoryRelay {
     return Buffer.concat(chunks);
   }
 
-  /** Simulate a server restore/backup swap: epoch bumps, optionally replacing the log. */
+  /** Simulate a server restore/backup swap: epoch bumps (voiding the workspace's
+   *  snapshots — the server's bumpRestoreEpoch deletes the checkpoint rows+files,
+   *  a stale image would otherwise be re-restored right after every client
+   *  wipe) and optionally replaces the log. */
   bumpRestoreEpoch(options: { clearLog?: boolean } = {}): void {
     this.epoch += 1;
+    this.snapshotBytes = null;
+    this.snapshotUpToSeq = null;
+    this.snapshotSealed = false;
     if (options.clearLog) {
       this.log = [];
       this.seqById.clear();
-      this.snapshotBytes = null;
-      this.snapshotUpToSeq = null;
-      this.snapshotSealed = false;
     }
   }
 
