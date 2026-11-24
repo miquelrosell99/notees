@@ -117,6 +117,7 @@ import {
 import { ConnectingScreen } from "./app/ConnectingScreen.js";
 import { useTabRelay } from "./app/useTabRelay.js";
 import { useTaskReminders } from "./app/useTaskReminders.js";
+import { useTaskCreate } from "../features/classview/useTaskCreate.js";
 // The global stylesheet family, in cascade order — the contract the
 // 2026-10-28 co-location pass established: app.css was the LAST css import,
 // so every file below imports at this same spot, in this exact order, and
@@ -507,6 +508,16 @@ export function App() {
   }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav, calendarTitle, cardsReview, sourcesQuery.mode]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
+  // The global create-task chord's flow (Ctrl/Cmd+Alt+N) — the SAME
+  // useTaskCreate the tasks hub's New button rides; the callback ref keeps
+  // the gesture's first-render capture fresh across client swaps.
+  const { offerTaskCreate, taskCreateModal } = useTaskCreate({
+    client,
+    onOpenNode: openPage,
+  });
+  const offerTaskCreateRef = useRef(offerTaskCreate);
+  offerTaskCreateRef.current = offerTaskCreate;
+
   useGlobalGestures({
     sidebarOpen,
     setSidebarOpen,
@@ -522,6 +533,7 @@ export function App() {
     setHistoryOpen,
     focusMode,
     setFocusMode,
+    onCreateTask: () => void offerTaskCreateRef.current(),
   });
 
   useTabRelay({ clientRef, serverUrl, token, workspacePlaintext, unlockRequest });
@@ -1117,6 +1129,7 @@ export function App() {
         sourcesQuery={sourcesQuery}
         onSourcesQueryChange={navigateSources}
       />
+      {taskCreateModal}
       <AppModals
         client={client}
         paletteOpen={paletteOpen}

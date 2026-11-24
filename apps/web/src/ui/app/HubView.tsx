@@ -46,9 +46,7 @@ import { titleOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { createNodeWithClasses } from "../../features/modals/quickCreate.js";
 import { requestTitleFocus } from "../titleFocusRequest.js";
-import { ensureTemplateProperty, listClassTemplates } from "../../features/templates/templateFamily.js";
-import { TemplatePickerModal } from "../../features/templates/TemplatePickerModal.js";
-import { instantiateTemplate } from "@/core/clone.js";
+import { useTaskCreate } from "../../features/classview/useTaskCreate.js";
 import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
 import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -135,10 +133,8 @@ export function HubView({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  /** The tasks-hub create flow's pending template picker. */
-  const [pendingTaskCreate, setPendingTaskCreate] = useState<{
-    templates: ClientNode[];
-  } | null>(null);
+  /** The tasks-hub create flow (shared with the global Ctrl/Cmd+Shift+N chord). */
+  const { offerTaskCreate, taskCreateModal } = useTaskCreate({ client, onOpenNode });
   // Author the six task property schemas + bindings on first
   // tasks-hub open (idempotent no-op once present); before this, a fresh
   // workspace silently dropped the Scheduled/Deadline columns.
@@ -222,32 +218,10 @@ export function HubView({
     // Any node classed task — pages AND blocks, table default.
     const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
     // New-task flow (the calendar's Tasks section retired
-    // with the day view; the hub owns creation now): a class with bound
-    // templates opens the picker; a class without creates directly. The new
-    // task is unscheduled (the Unscheduled bucket is its honest home; the
-    // date pill schedules it).
-    const createTaskWithTemplate = async (templateId: string | null): Promise<void> => {
-      const id = await client.createObject({
-        isEmbedded: false,
-        classIds: [SYSTEM_CLASS_UUIDS.task],
-      });
-      if (templateId !== null) {
-        await instantiateTemplate(
-          { reads: client, writes: client },
-          { templateRootId: templateId, objectId: id },
-        );
-      }
-      onOpenNode(id);
-    };
-    const offerTaskCreate = async (): Promise<void> => {
-      await ensureTemplateProperty(client);
-      const templates = listClassTemplates(client, SYSTEM_CLASS_UUIDS.task);
-      if (templates.length === 0) {
-        await createTaskWithTemplate(null);
-        return;
-      }
-      setPendingTaskCreate({ templates });
-    };
+    // with the day view; the hub owns creation now): the shared
+    // useTaskCreate hook — a class with bound templates opens the picker; a
+    // class without creates directly. The new task is unscheduled (the
+    // Unscheduled bucket is its honest home; the date pill schedules it).
     const newTaskAction = (
       <Button size="sm" variant="ghost" icon="mdi-plus" aria-label="New task" onClick={() => void offerTaskCreate()}>
         New
@@ -287,18 +261,7 @@ export function HubView({
           onOpenNode={onOpenNode}
           onOpenInSidebar={onOpenInSidebar}
         />
-        {pendingTaskCreate !== null && (
-          <TemplatePickerModal
-            isOpen
-            onClose={() => setPendingTaskCreate(null)}
-            classLabel="Task"
-            templates={pendingTaskCreate.templates}
-            onPick={(templateId) => {
-              setPendingTaskCreate(null);
-              void createTaskWithTemplate(templateId);
-            }}
-          />
-        )}
+        {taskCreateModal}
       </div>
     );
   }

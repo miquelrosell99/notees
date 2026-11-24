@@ -12,7 +12,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { historyNavKeyHandler, keymapChordHandler } from "../src/ui/app/keymap.js";
+import { historyNavKeyHandler, keymapChordHandler, taskChordHandler } from "../src/ui/app/keymap.js";
 
 function key(init: KeyboardEventInit): KeyboardEvent {
   return new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
@@ -156,5 +156,50 @@ describe("keymapChordHandler (Ctrl/Cmd+N , , \\)", () => {
     dispatch(key({ key: "N", ctrlKey: true, shiftKey: true }));
     h.release();
     expect(h.createObject).not.toHaveBeenCalled();
+  });
+});
+
+describe("taskChordHandler (Ctrl/Cmd+Alt+N — new task)", () => {
+  function setup() {
+    const onCreateTask = vi.fn();
+    const handler = taskChordHandler({ onCreateTask });
+    document.addEventListener("keydown", handler);
+    return {
+      onCreateTask,
+      release: () => document.removeEventListener("keydown", handler),
+    };
+  }
+
+  it("Ctrl+Alt+N fires the create-task action", () => {
+    const h = setup();
+    const event = key({ key: "n", ctrlKey: true, altKey: true });
+    dispatch(event);
+    h.release();
+    expect(event.defaultPrevented).toBe(true);
+    expect(h.onCreateTask).toHaveBeenCalledTimes(1);
+  });
+
+  it("yields to text fields and the outliner editor", () => {
+    const h = setup();
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.dispatchEvent(key({ key: "n", ctrlKey: true, altKey: true }));
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    document.body.appendChild(editable);
+    editable.dispatchEvent(key({ key: "n", ctrlKey: true, altKey: true }));
+    input.remove();
+    editable.remove();
+    h.release();
+    expect(h.onCreateTask).not.toHaveBeenCalled();
+  });
+
+  it("ignores the sibling chords: plain N, Shift+N (quick add), Alt-only N", () => {
+    const h = setup();
+    dispatch(key({ key: "n", ctrlKey: true }));
+    dispatch(key({ key: "N", ctrlKey: true, shiftKey: true }));
+    dispatch(key({ key: "n", altKey: true }));
+    h.release();
+    expect(h.onCreateTask).not.toHaveBeenCalled();
   });
 });

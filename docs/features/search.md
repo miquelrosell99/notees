@@ -42,6 +42,7 @@ Every global chord yields to text fields (while a text field or the outliner edi
 - **Alt+←/→** — Back/Forward through the pages you opened
 - **Ctrl/Cmd+Shift+T** — today's page ([calendar.md](calendar.md))
 - **Ctrl/Cmd+Shift+N** — quick add ([calendar.md](calendar.md#quick-capture))
+- **Ctrl/Cmd+Alt+N** — new task ([tasks.md](tasks.md): the template picker when the task class binds templates, a direct unscheduled create otherwise)
 - **Ctrl/Cmd+Alt+Enter** — present the open page ([pages.md](pages.md#presentation-mode--the-note-is-the-deck))
 - **Ctrl/Cmd+Alt+F** — focus mode ([pages.md](pages.md#focus-mode))
 - **Ctrl/Cmd+K** — this palette · **Ctrl/Cmd+Shift+F** — full-page search · **Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (or Ctrl+Y)** — undo/redo ([undo.md](undo.md)) · **Ctrl/Cmd+Shift+H** — the history menu ([undo.md](undo.md))

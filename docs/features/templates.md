@@ -16,4 +16,4 @@ Templates are bound to classes, and the copy opens as a fresh node stamped with 
 
 Write `{{name}}` placeholders in a template's text (titles included — a title is text). Instantiating a template that has variables opens a small dialog first: static names are editable rows (leave one empty to substitute nothing), dynamic names — `today`, `time`, `datetime`, `current_page` — are computed at apply time (local time — never UTC) and shown read-only. Everything substitutes locally before the copy is written; a name the dialog never showed is never touched.
 
-Not shipped: a global create-with-template chord (Capacities' Ctrl/Cmd+U analog — the keymap is the App shell's register) — see [search.md](search.md#global-chords) for the chords that do exist.
+The task class has its global create-with-template chord: **Ctrl/Cmd+Alt+N** runs the tasks hub's New flow from anywhere — the template picker when the class binds templates, a direct create otherwise ([tasks.md](tasks.md)). Not shipped: the generic any-class variant (Capacities' Ctrl/Cmd+U analog) — see [search.md](search.md#global-chords) for the chords that do exist.

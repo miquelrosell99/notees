@@ -24,6 +24,7 @@ import {
   keymapChordHandler,
   openTodayKeyHandler,
   searchKeyHandler,
+  taskChordHandler,
   undoRedoKeyHandler,
 } from "./keymap.js";
 import type { AnyClient } from "./clients.js";
@@ -45,6 +46,8 @@ export interface GlobalGestureDeps {
   setHistoryOpen: Dispatch<SetStateAction<boolean>>;
   focusMode: boolean;
   setFocusMode: (value: boolean) => void;
+  /** The global create-task chord's action (Ctrl/Cmd+Alt+N). */
+  onCreateTask: () => void;
 }
 
 export function useGlobalGestures(deps: GlobalGestureDeps): void {
@@ -63,6 +66,7 @@ export function useGlobalGestures(deps: GlobalGestureDeps): void {
     setHistoryOpen,
     focusMode,
     setFocusMode,
+    onCreateTask,
   } = deps;
 
   /**
@@ -141,6 +145,16 @@ export function useGlobalGestures(deps: GlobalGestureDeps): void {
     const handler = searchKeyHandler({ onOpen: () => openSearchPage() });
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Ctrl/Cmd+Alt+N — new task (the shared useTaskCreate flow). The callback
+  // rides a ref at the call site, so the first-render capture stays fresh
+  // across client swaps.
+  useEffect(() => {
+    const handler = taskChordHandler({ onCreateTask });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Alt+← / Alt+→ — in-app Back/Forward through the history stack.

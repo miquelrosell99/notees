@@ -120,6 +120,34 @@ export function keymapChordHandler(opts: {
 }
 
 /**
+ * Ctrl/Cmd+Alt+N — new TASK (the global create-task chord): the shared
+ * useTaskCreate flow — the template picker when the task class binds
+ * templates, a direct unscheduled create otherwise, the new task opened
+ * through the caller's navigation. The N-row register: plain N is new
+ * page, Shift+N is quick add, Alt+N is the task. Same guard as the other
+ * global chords (text fields and the outliner editor keep the keystroke);
+ * exported for the keymap tests.
+ */
+export function taskChordHandler(opts: {
+  onCreateTask: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || !event.altKey || event.shiftKey) return;
+    if (event.key.toLowerCase() !== "n") return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    opts.onCreateTask();
+  };
+}
+
+/**
  * Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redo — the session
  * journal chords. The editor-interaction rule (docs/features/undo.md): while
  * a text field or the outliner editor (contentEditable) owns
