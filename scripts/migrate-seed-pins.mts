@@ -1,15 +1,16 @@
 /**
  * Seed pin sets convergence (2026-10-27, amended 2026-10-30 by the
- * meetingDate retirement): the domain seed manifests DECLARE
+ * meetingDate retirement, amended 2026-11-24 by the priority-surfacing
+ * slice): the domain seed manifests DECLARE
  * binding-row pins now — the source base family (authors/citekey/doi/
  * linkedAuthors/publicationDate/url — pmid/pmcid pinned since 2026-11-02,
  * their schema+binding+pin converged by migrate-pmid-property.mts /
  * migrate-zotero-full-alignment.mts; an already-pinned row is never
  * re-planned), the meeting family's location
  * (meetingDate's pin retired with the property), and the task family's
- * taskStatus/taskScheduled/taskDeadline.
+ * taskStatus/taskScheduled/taskDeadline/taskPriority.
  * Everything else seeds unpinned (eventDate/birthday, editors, isbn,
- * publisher, attachments, taskPriority/taskClosedDate/taskRecurrence, agenda,
+ * publisher, attachments, taskClosedDate/taskRecurrence, agenda,
  * the url→web_page extra row, every SYSTEM_SOURCE_CLASS_BINDINGS type-class
  * row). New workspaces receive the pins from the server seed / the applier
  * ensure / the web self-heal; EXISTING workspaces carry binding rows authored

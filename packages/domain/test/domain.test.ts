@@ -153,9 +153,13 @@ describe("system seeds (ported)", () => {
       "location",
     ]);
     const pinnedTaskFamily = new Set<SystemPropertyName>([
+      // AMENDED 2026-11-24 (the priority-surfacing slice): taskPriority joins
+      // the pinned tier; live workspaces converge by re-running
+      // scripts/migrate-seed-pins.mts (its targets derive from the manifest).
       "taskStatus",
       "taskScheduled",
       "taskDeadline",
+      "taskPriority",
     ]);
     // SPECS: exactly the declared set carries pinned — every other spec
     // (isbn/publisher/editors/attachments, eventDate/birthdayPerson, agenda,
@@ -168,7 +172,7 @@ describe("system seeds (ported)", () => {
         `spec ${name} pinned drift (declared: ${declared.has(name as SystemPropertyName)})`,
       ).toBe(declared.has(name as SystemPropertyName));
     }
-    // TASK_FAMILY_SEED: the three task heads pinned, the rest unpinned.
+    // TASK_FAMILY_SEED: the four task heads pinned, the rest unpinned.
     for (const entry of TASK_FAMILY_SEED) {
       expect(
         entry.pinned === true,

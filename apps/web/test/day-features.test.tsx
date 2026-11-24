@@ -142,7 +142,7 @@ async function taskStatus(client: WorkspaceClient) {
 async function createTask(
   client: WorkspaceClient,
   name: string,
-  opts: { scheduled?: string; deadline?: string; done?: boolean } = {},
+  opts: { scheduled?: string; deadline?: string; done?: boolean; priority?: string } = {},
 ): Promise<string> {
   const id = await client.createObject({
     isEmbedded: false,
@@ -154,6 +154,16 @@ async function createTask(
   }
   if (opts.deadline !== undefined) {
     await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskDeadline, { iso: opts.deadline });
+  }
+  if (opts.priority !== undefined) {
+    const priority = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskPriority)!;
+    await client.setProperty(
+      id,
+      priority.id,
+      priority.options!.find((option) => option.label === opts.priority)!.id,
+    );
   }
   if (opts.done === true) {
     const { schema, optionId } = await taskStatus(client);
@@ -251,6 +261,7 @@ describe("calendarViewUtils day helpers", () => {
       deadlineIso,
       closed,
       drivingIso: null,
+      priority: null,
       repeat: null,
       completedOccurrences: [],
       occurrenceDone: false,
@@ -278,6 +289,67 @@ describe("calendarViewUtils day helpers", () => {
     expect(buckets.unscheduled.map((r) => r.id)).toEqual(["unscheduled"]);
     expect(buckets.completed.map((r) => r.id)).toEqual(["done"]);
     expect(buckets.overdue[0]!.drivingIso).toBe("2026-10-01");
+  });
+
+  it("partitionTasksIntoBuckets sorts open buckets priority-first (Urgent → Low, unprioritized last), completed stays id-ordered", () => {
+    const row = (
+      id: string,
+      scheduledIso: string | null,
+      priority: string | null,
+      closed = false,
+    ): TaskBucketRow => ({
+      id,
+      scheduledIso,
+      deadlineIso: null,
+      closed,
+      drivingIso: null,
+      priority,
+      repeat: null,
+      completedOccurrences: [],
+      occurrenceDone: false,
+    });
+    const today = "2026-10-04";
+    const buckets = partitionTasksIntoBuckets(
+      [
+        // Overdue: priority beats the driving day (Urgent 10-03 before Low 10-01).
+        row("overdue-low", "2026-10-01", "Low"),
+        row("overdue-urgent", "2026-10-03", "Urgent"),
+        row("overdue-none", "2026-09-30", null),
+        // Today: priority beats id.
+        row("today-a-low", today, "Low"),
+        row("today-z-high", today, "High"),
+        // Upcoming: same priority falls back to the driving day.
+        row("upcoming-high-late", "2026-10-09", "High"),
+        row("upcoming-high-early", "2026-10-06", "High"),
+        row("upcoming-medium", "2026-10-05", "Medium"),
+        // Unscheduled: priority beats id; unknown labels rank unprioritized.
+        row("unsched-a", null, null),
+        row("unsched-z-urgent", null, "Urgent"),
+        row("unsched-renamed", null, "P1"),
+        // Completed: priority is an open-work signal — id order holds.
+        row("done-z-urgent", "2026-10-01", "Urgent", true),
+        row("done-a-low", "2026-10-01", "Low", true),
+      ],
+      today,
+    );
+    expect(buckets.overdue.map((r) => r.id)).toEqual(["overdue-urgent", "overdue-low", "overdue-none"]);
+    expect(buckets.today.map((r) => r.id)).toEqual(["today-z-high", "today-a-low"]);
+    expect(buckets.upcoming.map((r) => r.id)).toEqual([
+      "upcoming-high-early",
+      "upcoming-high-late",
+      "upcoming-medium",
+    ]);
+    expect(buckets.unscheduled.map((r) => r.id)).toEqual(["unsched-z-urgent", "unsched-a", "unsched-renamed"]);
+    expect(buckets.completed.map((r) => r.id)).toEqual(["done-a-low", "done-z-urgent"]);
+  });
+
+  it("taskPriorityRank: designed order reversed, null and unknown labels last", async () => {
+    const { taskPriorityRank } = await import("../src/features/calendar/calendarViewUtils.js");
+    expect(taskPriorityRank("Urgent")).toBeLessThan(taskPriorityRank("High"));
+    expect(taskPriorityRank("High")).toBeLessThan(taskPriorityRank("Medium"));
+    expect(taskPriorityRank("Medium")).toBeLessThan(taskPriorityRank("Low"));
+    expect(taskPriorityRank("Low")).toBeLessThan(taskPriorityRank(null));
+    expect(taskPriorityRank("P1")).toBe(taskPriorityRank(null));
   });
 });
 
@@ -547,6 +619,29 @@ describe("TaskBuckets (tasks hub)", () => {
     expect(buckets.getByText("Future task")).toBeDefined();
     expect(buckets.getByText("Undated task")).toBeDefined();
     expect(buckets.getByText("Done task")).toBeDefined();
+  });
+
+  it("renders the priority pill and orders each open bucket priority-first", async () => {
+    const client = await seedClient();
+    const today = todayIsoLocal();
+    await taskStatus(client);
+    await createTask(client, "Plain today", { scheduled: today });
+    await createTask(client, "Urgent today", { scheduled: today, priority: "Urgent" });
+    await createTask(client, "Low today", { scheduled: today, priority: "Low" });
+    await flushWrites();
+
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    const section = await screen.findByLabelText("Task buckets");
+    const buckets = within(section);
+    const names = [...section.querySelectorAll(".task-buckets__row-name")].map(
+      (el) => el.textContent,
+    );
+    expect(names).toEqual(["Urgent today", "Low today", "Plain today"]);
+    const urgentPill = buckets.getByText("Urgent");
+    expect(urgentPill.closest(".pill")?.className).toContain("task-buckets__row-priority--urgent");
+    expect(buckets.getByText("Low")).toBeDefined();
+    // The unprioritized row renders no priority pill at all.
+    expect(section.querySelectorAll(".task-buckets__row-priority")).toHaveLength(2);
   });
 
   it("the done-toggle moves the row into Completed", async () => {

@@ -123,3 +123,17 @@
   flex-shrink: 0;
   color: var(--md-sys-color-on-surface-variant);
 }
+
+/* The priority pill (2026-11-24 priority surfacing): only the two hot tiers
+   carry color — Urgent reads as the error register, High as the warning
+   register; Medium/Low stay the default pill so a fully-prioritized list
+   doesn't paint every row. */
+.task-buckets__row-priority--urgent {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-error);
+}
+
+.task-buckets__row-priority--high {
+  background: var(--md-sys-color-warning-container);
+  color: var(--md-sys-color-warning);
+}

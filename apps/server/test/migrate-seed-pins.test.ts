@@ -142,7 +142,8 @@ function fixtureEnvelopes(): Envelope[] {
     { classId: MEETING_ID, property: "agenda" },
     { classId: TASK_ID, property: "taskStatus" },
     { classId: TASK_ID, property: "taskScheduled" },
-    // taskPriority unpinned; taskDeadline has NO row at all (missing → skipped).
+    // taskPriority rides an EXISTING unpinned row (the 2026-11-24 amendment
+    // plans its pin); taskDeadline has NO row at all (missing → skipped).
     { classId: TASK_ID, property: "taskPriority" },
   ];
   for (const binding of bindings) {
@@ -215,16 +216,17 @@ describe("migrate-seed-pins.mts", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it("derives the pin target set from the manifests: 12 rows, no duplicates", () => {
+  it("derives the pin target set from the manifests: 13 rows, no duplicates", () => {
     // The pinned roster: DECLARED 2026-10-27 (the source base family, the
     // meeting family's location, the task family's status/scheduled/deadline),
     // AMENDED 2026-11-02 for pmid (the resolver's PMID support) and — the full
     // Zotero alignment, same pass — for pmcid (a PubMed Central identifier is
     // a first-class base identifier the same way; it rides the source base
-    // like pmid, never the per-class table).
+    // like pmid, never the per-class table), AMENDED 2026-11-24 for
+    // taskPriority (the priority-surfacing slice).
     const targets = deriveSeedPinTargets();
-    expect(targets).toHaveLength(12);
-    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(12);
+    expect(targets).toHaveLength(13);
+    expect(new Set(targets.map((t) => `${t.classId}/${t.propertySchemaId}`)).size).toBe(13);
     // The base-family identifiers pin on `source` only…
     expect(
       targets.some((t) => t.classId === SOURCE_ID && t.propertySchemaId === SYSTEM_PROPERTY_UUIDS.pmcid),
@@ -248,6 +250,7 @@ describe("migrate-seed-pins.mts", () => {
         `${SOURCE_ID}/${SYSTEM_PROPERTY_UUIDS.url}`,
         `${TASK_ID}/${SYSTEM_PROPERTY_UUIDS.taskStatus}`,
         `${TASK_ID}/${SYSTEM_PROPERTY_UUIDS.taskScheduled}`,
+        `${TASK_ID}/${SYSTEM_PROPERTY_UUIDS.taskPriority}`,
       ].sort(),
     );
     // The already-pinned location row is NOT re-planned…
@@ -290,7 +293,7 @@ describe("migrate-seed-pins.mts", () => {
   it("--apply appends the pins, replays clean, and a second run plans nothing", () => {
     const apply = runScript(["--data-dir", dataDir, "--workspace", WORKSPACE, "--apply"]);
     expect(apply.status).toBe(0);
-    expect(apply.stdout).toContain("ingested 8 envelope(s)");
+    expect(apply.stdout).toContain("ingested 9 envelope(s)");
 
     // Fresh hydration (the shape every replica replays): clean + the flags
     // land on exactly the declared rows.
@@ -310,13 +313,15 @@ describe("migrate-seed-pins.mts", () => {
       expect(pinnedOf(fresh, MEETING_ID, "location")).toBe(1);
       expect(pinnedOf(fresh, TASK_ID, "taskStatus")).toBe(1);
       expect(pinnedOf(fresh, TASK_ID, "taskScheduled")).toBe(1);
+      // The 2026-11-24 amendment: the fixture's existing unpinned priority
+      // row converges to pinned.
+      expect(pinnedOf(fresh, TASK_ID, "taskPriority")).toBe(1);
       // Unpinned everywhere else — the declaration never bleeds.
       for (const property of ["isbn", "publisher"] as SystemPropertyName[]) {
         expect(pinnedOf(fresh, SOURCE_ID, property), `source → ${property}`).toBe(0);
       }
       expect(pinnedOf(fresh, WEB_PAGE_ID, "url")).toBe(0);
       expect(pinnedOf(fresh, MEETING_ID, "agenda")).toBe(0);
-      expect(pinnedOf(fresh, TASK_ID, "taskPriority")).toBe(0);
       // The missing rows are still missing — the ensure authors taskDeadline,
       // and the pmcid schema + binding + pin land together via
       // scripts/migrate-zotero-full-alignment.mts (the pins script only flips

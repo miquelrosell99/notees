@@ -81,9 +81,9 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
  * relation; binding rows carry no order — the task panel renders in pin
  * tiers, alphabetical by property name within each tier; `pinned` is a
  * classification, never a stored order). The pinned set mirrors
- * TASK_FAMILY_SEED (2026-10-27): Status/Scheduled/Deadline pinned,
- * Priority/Closed + project unpinned (no declared pin set carries
- * the new binding); the node-row preview flag mirrors the same seed —
+ * TASK_FAMILY_SEED (2026-10-27, amended 2026-11-24): Status/Scheduled/
+ * Deadline/Priority pinned, Closed + project unpinned (no declared pin set
+ * carries the new binding); the node-row preview flag mirrors the same seed —
  * Status/Deadline flagged, Scheduled/Priority/Closed/project not. The
  * withdrawn taskRecurrence placeholder retires
  * here — recurrence is the dedicated `repeat` property, arriving via the
@@ -143,6 +143,7 @@ const TASK_FAMILY: Array<{
     type: "select",
     options: () =>
       TASK_PRIORITY_OPTIONS.map((label) => ({ id: TASK_PRIORITY_OPTION_IDS[label], label })),
+    pinned: true,
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskClosedDate,

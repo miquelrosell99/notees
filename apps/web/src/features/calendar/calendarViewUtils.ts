@@ -9,6 +9,7 @@ import {
   occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
   parseDateNodeId,
+  TASK_PRIORITY_OPTIONS,
   type RecurrenceRule,
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
@@ -438,6 +439,9 @@ export function weekDaysOfIso(iso: string, firstDayOfWeek: number): string[] {
 export interface TaskBucketRow extends OpenTaskRow {
   deadlineIso: string | null;
   drivingIso: string | null;
+  /** The taskPriority option's label (null when unset/unknown) — the hub's
+   *  open buckets sort by it (Urgent → Low, unprioritized last). */
+  priority: string | null;
 }
 
 export interface TaskBuckets {
@@ -454,12 +458,30 @@ export interface TaskBuckets {
 }
 
 /**
+ * The priority sort rank behind the hub's open buckets: the designed option
+ * order reversed (Urgent first), unprioritized/unknown labels last. The
+ * label is the row's resolved taskPriority option label — the same
+ * label-keyed idiom the closed-status check rides.
+ */
+export function taskPriorityRank(priority: string | null): number {
+  if (priority === null) return TASK_PRIORITY_OPTIONS.length;
+  const index = TASK_PRIORITY_OPTIONS.indexOf(
+    priority as (typeof TASK_PRIORITY_OPTIONS)[number],
+  );
+  return index === -1 ? TASK_PRIORITY_OPTIONS.length : TASK_PRIORITY_OPTIONS.length - 1 - index;
+}
+
+/**
  * The tasks-bucket partition, client-side over the tasks-hub members: a
  * task's driving day is its earliest scheduled/deadline day, and the bucket
  * priority is Overdue → Today → Upcoming, so every open task lands in
  * exactly one bucket. (The original OR-section queries could list one task twice;
  * the hub section keeps rows unique and unbounded-upcoming so nothing
- * scheduled vanishes.)
+ * scheduled vanishes.) Open buckets sort priority-first (Urgent → Low,
+ * unprioritized last — the 2026-11-24 priority-surfacing ruling), then by
+ * the bucket's own ordering (driving day for overdue/upcoming, id for
+ * today/unscheduled); Completed stays id-ordered — priority is an open-work
+ * signal, not a closed-history one.
  */
 export function partitionTasksIntoBuckets(
   rows: readonly TaskBucketRow[],
@@ -485,13 +507,15 @@ export function partitionTasksIntoBuckets(
     else if (drivingIso === todayIso) today.push(withDriving);
     else upcoming.push(withDriving);
   }
+  const byPriority = (a: TaskBucketRow, b: TaskBucketRow) =>
+    taskPriorityRank(a.priority) - taskPriorityRank(b.priority);
   const byDay = (a: TaskBucketRow, b: TaskBucketRow) =>
     (a.drivingIso ?? "").localeCompare(b.drivingIso ?? "") || a.id.localeCompare(b.id);
-  overdue.sort(byDay);
-  upcoming.sort(byDay);
+  overdue.sort((a, b) => byPriority(a, b) || byDay(a, b));
+  upcoming.sort((a, b) => byPriority(a, b) || byDay(a, b));
   const byId = (a: TaskBucketRow, b: TaskBucketRow) => a.id.localeCompare(b.id);
-  today.sort(byId);
-  unscheduled.sort(byId);
+  today.sort((a, b) => byPriority(a, b) || byId(a, b));
+  unscheduled.sort((a, b) => byPriority(a, b) || byId(a, b));
   completed.sort(byId);
   return { overdue, today, upcoming, unscheduled, completed };
 }

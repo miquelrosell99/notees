@@ -152,6 +152,12 @@ export function TaskBuckets({
                     }
                     trailing={
                       <>
+                        {row.priority !== null && (
+                          <Pill
+                            text={row.priority}
+                            className={`task-buckets__row-priority task-buckets__row-priority--${row.priority.toLowerCase()}`}
+                          />
+                        )}
                         {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
                           <Pill text={statusLabelOf(row.id)!} />
                         )}

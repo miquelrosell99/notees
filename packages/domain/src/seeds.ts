@@ -1488,7 +1488,10 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * `pinned` is a classification, never an order). DECLARED 2026-10-27 (the
  * seed pin sets slice): taskStatus/taskScheduled/taskDeadline seed their
  * binding rows PINNED; taskPriority/taskClosedDate/taskRecurrence stay
- * unpinned. Live workspaces converge by scripts/migrate-seed-pins.mts.
+ * unpinned. AMENDED 2026-11-24 (the priority-surfacing slice): taskPriority
+ * joins the pinned tier. Live workspaces converge by
+ * scripts/migrate-seed-pins.mts (its target set derives from this manifest,
+ * so the amendment rides the same idempotent script).
  * DECLARED 2026-11-08 (the node-row previews slice): taskStatus/taskDeadline
  * seed their binding rows with the node-row preview flag (the row value
  * reads in the node's row); the rest preview nothing (the applier ensure
@@ -1544,6 +1547,7 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
       { id: TASK_PRIORITY_OPTION_UUIDS.high, label: "High" },
       { id: TASK_PRIORITY_OPTION_UUIDS.urgent, label: "Urgent" },
     ],
+    pinned: true,
   },
   { property: "taskClosedDate", name: "Closed", type: "datetime" },
   // Migrated workspaces carry recurrence as a plain select (no engine

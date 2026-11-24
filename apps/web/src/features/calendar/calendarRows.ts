@@ -64,11 +64,12 @@ export function taskRowFacts(
   client: AnyClient,
   statusSchema: ClientPropertySchema | undefined,
   id: string,
+  prioritySchema?: ClientPropertySchema,
 ): TaskBucketRow {
-  // The shells read: taskStatus is a select, taskScheduled/taskDeadline are
-  // datetimes — all LIGHT, values present. The recurrence facts (repeat +
-  // completedOccurrences) ride the dedicated Repeat property; a plain task
-  // reads null/[].
+  // The shells read: taskStatus/taskPriority are selects,
+  // taskScheduled/taskDeadline are datetimes — all LIGHT, values present.
+  // The recurrence facts (repeat + completedOccurrences) ride the dedicated
+  // Repeat property; a plain task reads null/[].
   const facts = repeatFactsOfNode(client, id);
   const props = client.getPropertyRowShells(id);
   const scheduledRow = props.find(
@@ -82,11 +83,16 @@ export function taskRowFacts(
     statusSchema,
     props.find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value,
   );
+  const priorityLabel = taskStatusLabel(
+    prioritySchema,
+    props.find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskPriority)?.value,
+  );
   return {
     id,
     scheduledIso,
     deadlineIso,
     drivingIso: null,
+    priority: priorityLabel,
     closed: statusLabel !== null && TASK_CLOSED_STATUSES.has(statusLabel as "Done" | "Cancelled"),
     // The rule rides the Repeat property's value (null for plain tasks;
     // a present-but-corrupt value throws — fail loud, never reads as plain).
@@ -105,7 +111,13 @@ export function taskRowsOf(
   statusSchema: ClientPropertySchema | undefined,
   ids: readonly string[],
 ): TaskBucketRow[] {
-  return ids.map((id) => taskRowFacts(client, statusSchema, id));
+  // The priority schema resolves once for the whole list (undefined until
+  // the family ensure lands — rows read priority null, the unpinned-last
+  // rank).
+  const prioritySchema = client
+    .listPropertySchemas()
+    .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskPriority);
+  return ids.map((id) => taskRowFacts(client, statusSchema, id, prioritySchema));
 }
 
 /**
