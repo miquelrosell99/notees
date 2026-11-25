@@ -85,12 +85,14 @@ import { BlockRow } from "../../ui/BlockRow.js";
 import { titleOfNode, titleOf } from "../../ui/dateDisplay.js";
 import { rendersWithDocumentChromeOf } from "../../ui/renderStateLabel.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
-import { SelectionButton, Checkbox, ImageModal, SortMenuButton, type SortMenuOption } from "../../components/ui/kit/index.js";
+import { SelectionButton, Checkbox, ImageModal, ButtonWithPanel } from "../../components/ui/kit/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { useViewChromeTarget } from "./viewChrome.js";import { useLazyInView } from "./useLazyInView.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { compareItemsByEditDate, compareItemsByMode } from "./collectionSort.js";
+import { SortFieldsPanel } from "./SortFieldsPanel.js";
+import { compareBySortSpecs, sortFieldKey, type SortFieldSpec } from "./sorting.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
 import { isCoverAsset, setNodeCover } from "../metadata/coverProperty.js";
 import { AssetUploadModal } from "../modals/AssetUploadModal.js";
@@ -496,12 +498,6 @@ export function CardFlowToggle({ value, onChange }: { value: CardFlow; onChange:
   );
 }
 
-/** The flat cards body's sort vocabulary (the sort-button panel options). */
-const CARDS_SORT_OPTIONS: SortMenuOption[] = [
-  { value: "edit-date", label: "Last edited", hint: "Newest first" },
-  { value: "alphabetical", label: "Name A–Z" },
-];
-
 /** The flat cards body — the window hook lives here (component-scoped). */
 function FlatCards({
   items,
@@ -521,46 +517,43 @@ function FlatCards({
   selection: ReturnType<typeof useViewSelection>;
 }) {
   /**
-   * The sort-button state (session-local; `defaultSortMode` only names the
-   * starting mode). The flat grid sorts; a tree context keeps the content
-   * order and hides the button (the outline view's editable-surface
-   * ruling's twin), as does the grouped board (the property columns own
-   * the order there — the drops write it).
-   *
-   * The default stays LIVE, the outline/table precedent: a container
-   * default CHANGE re-seeds the mode while the user has chosen none (the
-   * ranked quick search rides this — a section passes "position" while the
-   * search ranks its pool); a user pick latches `chosen`.
+   * The sort state (session-local). TWO layers (the outline precedent):
+   * the container's `defaultSortMode` names the UN-PICKED default (Last
+   * edited — the ranked quick search rides the live-default re-derivation);
+   * the multi-level sort popup (2026-11-25 — SortFieldsPanel over the
+   * shared sorting.ts model) is the user pick: once any level exists it
+   * LATCHES, and Reset (every level removed) returns to the default. The
+   * flat grid sorts; a tree context keeps the content order and hides the
+   * button (the outline view's editable-surface ruling's twin), as does
+   * the grouped board (the property columns own the order there — the
+   * drops write it).
    */
   const defaultMode: SortMode =
     props.defaultSortMode === "alphabetical" || props.defaultSortMode === "position"
       ? props.defaultSortMode
       : "edit-date";
-  const [sortState, setSortState] = useState<{ mode: SortMode; chosen: boolean }>({
-    mode: defaultMode,
-    chosen: false,
-  });
-  if (sortState.mode !== defaultMode && !sortState.chosen) {
-    setSortState({ mode: defaultMode, chosen: false });
-  }
-  const sortMode = sortState.mode;
-  const setSortChoice = (mode: SortMode) => setSortState({ mode, chosen: true });
+  const sortMode = defaultMode;
+  const [specs, setSpecs] = useState<SortFieldSpec[] | null>(null);
+  const specsKey = specs === null ? "" : specs.map((spec) => `${sortFieldKey(spec.field)}:${spec.direction}`).join("|");
+  const sortActive = specs !== null && specs.length > 0;
   const sortable = props.tree !== true;
   const sortedItems = useMemo(() => {
-    if (!sortable || sortMode === "position") return items;
+    if (!sortable) return items;
+    if (sortActive) return [...items].sort((a, b) => compareBySortSpecs(props.client, specs, a, b));
+    if (sortMode === "position") return items;
     const resolveClassName = (classId: string) => props.client.getDisplayName(classId);
     return [...items].sort(
       sortMode === "alphabetical"
         ? compareItemsByMode("alphabetical", resolveClassName)
         : compareItemsByEditDate(resolveClassName),
     );
-  }, [items, sortable, sortMode, props.client]);
+  }, [items, sortable, sortMode, props.client, sortActive, specs]);
   // the card set is windowed; selection rides the loaded cards
   // (exports scope to the picked ids, never to the window). The window
   // re-narrows on every resort.
   const { visible, remaining, showMore } = useWindowed(sortedItems, {
     enabled: props.windowed ?? true,
-    resetKey: sortMode,
+    resetKey: `${sortMode}|${specsKey}`,
   });
   const selectable = (props.selectable ?? true) && props.tree !== true;
   /**
@@ -581,7 +574,26 @@ function FlatCards({
     <div className="cards-toolbar">
       <SelectionExportControls client={props.client} selection={selection} />
       {sortable && (
-        <SortMenuButton value={sortMode} options={CARDS_SORT_OPTIONS} onChange={(mode) => setSortChoice(mode as SortMode)} />
+        <ButtonWithPanel
+          icon="mdi-sort"
+          variant="ghost"
+          size="sm"
+          panelPosition="bottom"
+          panelAlignment="end"
+          tooltip="Sort"
+          aria-label="Sort"
+          buttonProps={{ "aria-label": "Sort" }}
+          active={sortActive}
+        >
+          {() => (
+            <SortFieldsPanel
+              client={props.client}
+              items={items}
+              sort={specs ?? []}
+              onChange={(next) => setSpecs(next.length === 0 ? null : next)}
+            />
+          )}
+        </ButtonWithPanel>
       )}
       <CardFlowToggle value={cardFlow} onChange={onCardFlow} />
       <CoverLayoutToggle value={coverLayout} onChange={onCoverLayout} />

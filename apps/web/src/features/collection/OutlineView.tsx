@@ -82,7 +82,7 @@ import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
-import { SortMenuButton, Badge, Checkbox, type SortMenuOption } from "../../components/ui/kit/index.js";
+import { Badge, ButtonWithPanel, Checkbox } from "../../components/ui/kit/index.js";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import {
   postponeTaskToTomorrow,
@@ -96,22 +96,12 @@ import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
 import { compareGroupsByMode, compareItemsByMode, sortTreeByMode } from "./collectionSort.js";
 import { groupBySpecKey, groupsForSpec } from "./grouping.js";
+import { SortFieldsPanel } from "./SortFieldsPanel.js";
+import { compareBySortSpecs, sortFieldKey, sortTreeBySpecs, type SortFieldSpec } from "./sorting.js";
 import { nestItems } from "./nestItems.js";
 import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
 import "./OutlineView.css";
-
-/**
- * The list view's sort vocabulary (the sort-button panel options). The
- * container's natural order (`position`) is NOT offered: it is the
- * un-picked state (the container's default mode applies), not a user
- * choice — a picked sort yields back to it only when the container's
- * live default changes (the ranked-search ruling).
- */
-const OUTLINE_SORT_OPTIONS: SortMenuOption[] = [
-  { value: "dates-first", label: "Dates first", hint: "Newest → oldest, then A–Z" },
-  { value: "alphabetical", label: "Name A–Z" },
-];
 
 /** The modes the list view sorts by — `edit-date` is the cards view's. */
 type OutlineSortMode = "dates-first" | "alphabetical" | "position";
@@ -435,31 +425,23 @@ function FlatRows({
 export function OutlineView(props: NodeCollectionProps) {
   const { client, items = [], groups, pagesOnly = false, maxDepth, editable = false, tree = undefined } = props;
   /**
-   * The sort-button state (session-local; the container only names the
-   * starting mode — `defaultSortMode`). `edit-date` is the cards view's
-   * vocabulary; an unsupported mode falls back to `position` (the natural
-   * order) and the button shows that.
-   *
-   * The default stays LIVE (the useWindowed resetKey precedent): when the
-   * container CHANGES `defaultSortMode` and the user has not picked a sort
-   * yet, the state re-derives from the new default. The ranked quick
-   * search rides this: while the search ranks the pool
-   * the section passes "position" so the ranked order shows; a user-picked
-   * mode latches `chosen` and survives default flips.
+   * The sort state (session-local). TWO layers: the container's
+   * `defaultSortMode` names the UN-PICKED default (the ranked quick search
+   * rides it — while the search ranks the pool the section passes
+   * "position" so the ranked order shows); the multi-level sort popup
+   * (2026-11-25 — SortFieldsPanel over the shared sorting.ts model) is the
+   * user pick: once any level exists it LATCHES and survives default
+   * flips, and Reset (every level removed) returns to the container
+   * default.
    */
   const defaultMode: OutlineSortMode =
     props.defaultSortMode === "dates-first" || props.defaultSortMode === "alphabetical" || props.defaultSortMode === "position"
       ? props.defaultSortMode
       : "position";
-  const [sortState, setSortState] = useState<{ mode: OutlineSortMode; chosen: boolean }>({
-    mode: defaultMode,
-    chosen: false,
-  });
-  if (sortState.mode !== defaultMode && !sortState.chosen) {
-    setSortState({ mode: defaultMode, chosen: false });
-  }
-  const sortMode: OutlineSortMode = sortState.mode;
-  const setSortChoice = (mode: SortMode) => setSortState({ mode: mode as OutlineSortMode, chosen: true });
+  const sortMode: OutlineSortMode = defaultMode;
+  const [specs, setSpecs] = useState<SortFieldSpec[] | null>(null);
+  const specsKey = specs === null ? "" : specs.map((spec) => `${sortFieldKey(spec.field)}:${spec.direction}`).join("|");
+  const sortActive = specs !== null && specs.length > 0;
   // Stable identity — the memoized BlockRow compares it by reference, so a
   // fresh arrow per render would defeat the row bail-out.
   const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
@@ -469,6 +451,12 @@ export function OutlineView(props: NodeCollectionProps) {
   const chromeTarget = useViewChromeTarget();
   const sortedItems = useMemo(() => {
     const resolveClassName = (classId: string) => client.getDisplayName(classId);
+    // The user-picked multi-level sort wins over the container default.
+    if (sortActive) {
+      if (tree === true || isTree(items)) return sortTreeBySpecs(client, items, specs);
+      if (props.nestUnderParents === true) return sortTreeBySpecs(client, nestItems(items), specs);
+      return [...items].sort((a, b) => compareBySortSpecs(client, specs, a, b));
+    }
     if (tree === true || isTree(items)) {
       return sortMode === "position" ? items : sortTreeByMode(items, sortMode, resolveClassName);
     }
@@ -484,7 +472,7 @@ export function OutlineView(props: NodeCollectionProps) {
     }
     if (sortMode === "position") return items;
     return [...items].sort(compareItemsByMode(sortMode, resolveClassName));
-  }, [items, tree, sortMode, client, props.nestUnderParents]);
+  }, [items, tree, sortMode, client, props.nestUnderParents, sortActive, specs]);
   /**
    * The generic group-by (the `groupBy` spec): when the container passed no
    * explicit `groups`, the view derives them via the shared engine — select
@@ -502,13 +490,24 @@ export function OutlineView(props: NodeCollectionProps) {
   }, [client, items, groups, groupByKey]);
   const effectiveGroups = groups ?? derivedGroups;
   const sortedGroups = useMemo(() => {
-    if (effectiveGroups === undefined || sortMode === "position") return effectiveGroups;
+    if (effectiveGroups === undefined) return effectiveGroups;
+    // The user-picked multi-level sort applies WITHIN every group (group
+    // order stays semantic — option order, chronological, the container's
+    // references order); the container's own mode-sort of groups applies
+    // only while no user sort is picked.
+    if (sortActive) {
+      return effectiveGroups.map((group) => ({
+        ...group,
+        items: [...group.items].sort((a, b) => compareBySortSpecs(client, specs, a, b)),
+      }));
+    }
+    if (sortMode === "position") return effectiveGroups;
     // Only CONTAINER-resolved groups (the references containing-page
     // grouping) sort by the picked mode; spec-derived groups keep their
     // semantic order (select option order, chronological, …).
     if (groups === undefined) return effectiveGroups;
     return [...effectiveGroups].sort(compareGroupsByMode(sortMode));
-  }, [effectiveGroups, groups, sortMode]);
+  }, [effectiveGroups, groups, sortMode, sortActive, specs, client]);
   /**
    * The ungrouped top-level rows (the references grouping's page sources):
    * one flat list sorted like any flat list — the grouped rendering lists
@@ -516,10 +515,12 @@ export function OutlineView(props: NodeCollectionProps) {
    */
   const sortedUngrouped = useMemo(() => {
     const ungrouped = props.ungroupedItems;
-    if (ungrouped === undefined || sortMode === "position") return ungrouped;
+    if (ungrouped === undefined) return ungrouped;
+    if (sortActive) return [...ungrouped].sort((a, b) => compareBySortSpecs(client, specs, a, b));
+    if (sortMode === "position") return ungrouped;
     const resolveClassName = (classId: string) => client.getDisplayName(classId);
     return [...ungrouped].sort(compareItemsByMode(sortMode, resolveClassName));
-  }, [props.ungroupedItems, sortMode, client]);
+  }, [props.ungroupedItems, sortMode, client, sortActive, specs]);
 
   if (items.length === 0 && props.parent === undefined) return null;
 
@@ -555,13 +556,34 @@ export function OutlineView(props: NodeCollectionProps) {
   // surface is the live editing/ordering surface (the outliner, the task
   // list), where a sort would fight the drag order. Hosted collections
   // portal the toolbar into the tab bar's right-hand cluster (the table /
-  // cards precedent); un-hosted it rides the body top.
+  // cards precedent); un-hosted it rides the body top. The button opens the
+  // multi-level sort popup (SortFieldsPanel — the shared sorting.ts model).
   const toolbar = editable ? null : (
     <div className="outline-toolbar">
-      <SortMenuButton value={sortMode} options={OUTLINE_SORT_OPTIONS} onChange={(mode) => setSortChoice(mode as SortMode)} />
+      <ButtonWithPanel
+        icon="mdi-sort"
+        variant="ghost"
+        size="sm"
+        panelPosition="bottom"
+        panelAlignment="end"
+        tooltip="Sort"
+        aria-label="Sort"
+        buttonProps={{ "aria-label": "Sort" }}
+        active={sortActive}
+      >
+        {() => (
+          <SortFieldsPanel
+            client={client}
+            items={items}
+            sort={specs ?? []}
+            onChange={(next) => setSpecs(next.length === 0 ? null : next)}
+          />
+        )}
+      </ButtonWithPanel>
     </div>
   );
   const chrome = chromeTarget !== null && toolbar !== null ? createPortal(toolbar, chromeTarget) : toolbar;
+  const sortResetKey = `${sortMode}|${specsKey}`;
 
   if (tree === true || (isTree(items) && props.nestUnderParents !== true)) {
     let tree = sortedItems;
@@ -573,7 +595,7 @@ export function OutlineView(props: NodeCollectionProps) {
       <>
         {chrome}
         <div className={className}>
-          <TreeRows items={tree} props={props} resetKey={sortMode} />
+          <TreeRows items={tree} props={props} resetKey={sortResetKey} />
         </div>
       </>
     );
@@ -587,9 +609,9 @@ export function OutlineView(props: NodeCollectionProps) {
             the group sections — never inside
             a self-named one-row group. */}
         {sortedUngrouped !== undefined && sortedUngrouped.length > 0 && (
-          <FlatRows items={sortedUngrouped} props={props} resetKey={sortMode} />
+          <FlatRows items={sortedUngrouped} props={props} resetKey={sortResetKey} />
         )}
-        <GroupedFlat props={props} groups={sortedGroups} sortKey={`${sortMode}|${groupByKey ?? ""}`} />
+        <GroupedFlat props={props} groups={sortedGroups} sortKey={`${sortResetKey}|${groupByKey ?? ""}`} />
       </>
     );
   }
@@ -597,7 +619,7 @@ export function OutlineView(props: NodeCollectionProps) {
   return (
     <>
       {chrome}
-      <FlatRows items={sortedItems} props={props} resetKey={sortMode} />
+      <FlatRows items={sortedItems} props={props} resetKey={sortResetKey} />
     </>
   );
 }

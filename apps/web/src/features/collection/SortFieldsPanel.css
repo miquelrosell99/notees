@@ -1,0 +1,118 @@
+/* SortFieldsPanel — the multi-level sort popup (the table's nt-table-panel
+   idiom, field-keyed, with the add-row search). Token-only. */
+
+.sort-fields-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: var(--layout-size-3xl);
+  max-height: var(--layout-size-xl);
+  overflow-y: auto;
+}
+
+.sort-fields-panel__title {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--md-sys-color-on-surface-variant);
+  padding: var(--spacing-1) var(--spacing-2) 0;
+}
+
+.sort-fields-panel__hint {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  padding: 0 var(--spacing-2);
+}
+
+.sort-fields-panel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+}
+
+.sort-fields-panel__row:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.sort-fields-panel__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sort-fields-panel__action {
+  border: none;
+  background: none;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--shape-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.sort-fields-panel__action:hover:not(:disabled) {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.sort-fields-panel__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sort-fields-panel__add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  padding-top: var(--spacing-1);
+}
+
+.sort-fields-panel__search {
+  padding: 0 var(--spacing-2);
+}
+
+.sort-fields-panel__add-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  border: none;
+  background: none;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sort-fields-panel__add-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.sort-fields-panel__add-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.sort-fields-panel__reset {
+  border: none;
+  background: none;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  color: var(--md-sys-color-primary);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.sort-fields-panel__reset:hover {
+  background: var(--md-sys-color-hover-overlay);
+}

@@ -261,13 +261,15 @@ describe("the sort button on the collection views", () => {
       el.getAttribute("data-group-id"),
     );
     expect(groupIds).toEqual([newer.day, older.day, alphaId]);
-    // The sort button rides the toolbar with the two named modes — the
-    // container's natural order ("Default order") is not a menu entry.
+    // The sort button rides the toolbar and opens the multi-level sort
+    // popup (the shared field vocabulary) — the container's natural order
+    // is the un-picked state, never a field.
     const sortButton = screen.getByRole("button", { name: "Sort" });
     fireEvent.click(sortButton);
-    expect(screen.getByText("Dates first")).not.toBeNull();
-    expect(screen.getByText("Name A–Z")).not.toBeNull();
-    expect(screen.queryByText("Default order")).toBeNull();
+    expect(screen.getByText("No sort — the collection's own order.")).not.toBeNull();
+    for (const field of ["Name", "Page", "Parent", "Created", "Edited"]) {
+      expect(screen.getByRole("button", { name: `+ ${field}` })).not.toBeNull();
+    }
   });
 
   it("groupByContainingPage splits page sources into standalone — never a self-named group", async () => {
@@ -364,15 +366,16 @@ describe("the sort button on the collection views", () => {
     expect(document.querySelector("[aria-sort]")).toBeNull();
   });
 
-  it("the cards grid carries the sort button with the Last edited vocabulary", async () => {
+  it("the cards grid carries the sort button with the shared field vocabulary", async () => {
     const client = await seedClient();
     const one = await createTitledPage(client, "One");
     const two = await createTitledPage(client, "Two");
     const items: NodeCollectionItem[] = [one, two].map((id) => ({ node: client.getNode(id)! }));
     render(<NodeCollection viewMode="cards" client={client} items={items} onNodeClick={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Sort" }));
-    expect(screen.getByText("Last edited")).not.toBeNull();
-    expect(screen.getByText("Name A–Z")).not.toBeNull();
+    expect(screen.getByText("No sort — the collection's own order.")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "+ Name" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "+ Edited" })).not.toBeNull();
   });
 
   it("the editable list surface hides the sort button (the drag order is the order)", async () => {

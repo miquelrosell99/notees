@@ -38,7 +38,7 @@ A task's Status starts at **Pending** the moment the task class is assigned — 
 
 ## The Priority property
 
-The built-in task **Priority** is a select property with four options — Low, Medium, High, Urgent — pinned alongside Status/Scheduled/Deadline, so it renders in the task properties panel's pinned tier. In the hub it is a first-class **Group by** axis (the sections and the outline/table/cards modes group by it from the picker — Urgent → High → Medium → Low in option order, empty options included) and a table column; an unvalued task shows no pill and lands in the trailing no-value group. (The retired Buckets view's priority-first row sort and priority pills went with it — the sections render the standard outline rows; grouping by Priority is the surfacing now.)
+The built-in task **Priority** is a select property with four options — Low, Medium, High, Urgent — pinned alongside Status/Scheduled/Deadline, so it renders in the task properties panel's pinned tier. In the hub it is a first-class **Group by** axis (the sections and the outline/table/cards modes group by it from the picker — Urgent → High → Medium → Low in option order, empty options included) and a **sort field** in the multi-level sort popup (Priority descending reads Urgent first — compose it with Scheduled, Page, or any other field in priority order); it also rides the table as a column. An unvalued task shows no pill and lands in the trailing no-value group / sinks last in a priority sort. (The retired Buckets view's priority-first row sort and priority pills went with it — the sections render the standard outline rows; grouping or sorting by Priority is the surfacing now.)
 
 ## The Project property
 

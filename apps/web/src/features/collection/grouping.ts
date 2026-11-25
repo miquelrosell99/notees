@@ -299,9 +299,10 @@ interface Bucket {
  * values. LIGHT types (select, boolean, number, datetime) ride the shells
  * read — values present, derived defaults included; HEAVY groupable types
  * (email, node refs) ride the effective read (the shells defer their
- * values). Assigned/bound-but-empty rows contribute nothing.
+ * values). Assigned/bound-but-empty rows contribute nothing. Shared by the
+ * group-by engine and the multi-level sort's value resolver.
  */
-function propertyValuesOf(client: AnyClient, nodeId: string, schemaId: string, heavy: boolean): unknown[] {
+export function propertyValuesOf(client: AnyClient, nodeId: string, schemaId: string, heavy: boolean): unknown[] {
   const rows = heavy
     ? client.getEffectiveProperties(nodeId).filter((row) => row.propertySchemaId === schemaId)
     : client.getPropertyRowShells(nodeId).filter((row) => row.propertySchemaId === schemaId);
