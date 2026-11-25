@@ -41,9 +41,12 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { useViewModePreference } from "../../ui/viewPrefs.js";
+import { useViewModePreference, useGroupByPreference } from "../../ui/viewPrefs.js";
 import { useQueryRun, type QueryRunState } from "../../ui/queryRun.js";
 import { NodeCollection, ViewToolbar, useAvailableViewModes } from "./index.js";
+import { getViewDefinition } from "./registry.js";
+import { GroupByPicker } from "./GroupByPicker.js";
+import { isGroupablePropertyType, type GroupBySpec } from "./grouping.js";
 import type { NodeCollectionItem, SortMode, SortSpec, TableColumn, ViewMode } from "./index.js";
 import type { AnyClient, CoverLayout } from "./types.js";
 import { NodeCollectionToolbar } from "./NodeCollectionToolbar.js";
@@ -143,6 +146,14 @@ export interface CollectionHubProps {
   /** Cards board: the select property whose options seed the board columns. */
   groupByProperty?: string | undefined;
   /**
+   * The hub's DEFAULT group-by axis (the generic group-by, 2026-11-25): the
+   * "Group by" picker in the bar offers every groupable axis and persists
+   * the choice device-locally under `groupBy.<persistKey>`; this names the
+   * axis a fresh device opens on (the tasks hub: Status). The picker rides
+   * the bar only while the selected mode's view consumes grouping.
+   */
+  defaultGroupBy?: GroupBySpec | undefined;
+  /**
    * The outline (list) mode is an inline-editing surface: rows edit in
    * place (content, property icon buttons), children render recursively.
    * Off (default) renders the same rows read-only-inert — the content
@@ -221,6 +232,7 @@ export function CollectionHub({
   tableEditable = false,
   defaultSort,
   groupByProperty,
+  defaultGroupBy,
   editable = false,
   pagesOnly = false,
   nestUnderParents = false,
@@ -248,6 +260,19 @@ export function CollectionHub({
     defaultMode,
     availableModes,
   );
+  // The group-by axis (the generic group-by): the picker's choice persists
+  // per hub device-locally; the picker rides the bar only while the selected
+  // mode's view consumes grouping (the registry capability).
+  const [groupBySpec, setGroupBySpec] = useGroupByPreference(
+    persistKey ?? `session.${title}`,
+    defaultGroupBy ?? null,
+    (spec) =>
+      spec.kind !== "property" ||
+      client
+        .listPropertySchemas()
+        .some((schema) => schema.id === spec.schemaId && isGroupablePropertyType(schema.type)),
+  );
+  const modeSupportsGroupBy = getViewDefinition(mode)?.capabilities.groupBy === true;
   // The transient filter layer (the section contract — nothing persisted):
   // the FilterQuery is component state, the quick text narrows through the
   // ranked search and the structured draft rides the query-run seam; the
@@ -303,6 +328,9 @@ export function CollectionHub({
                 totalCount={items.length}
               />
               <ViewChromeSlot slotRef={setChromeSlot} className="nt-hub__view-chrome" />
+              {modeSupportsGroupBy && (
+                <GroupByPicker client={client} items={items} value={groupBySpec} onChange={setGroupBySpec} />
+              )}
               {headerActions}
               {availableModes.length > 1 && <ViewToolbar modes={availableModes} value={mode} onChange={setMode} />}
               {secondaryActions !== undefined && <MoreActions items={secondaryActions} />}
@@ -325,6 +353,7 @@ export function CollectionHub({
               {...(defaultSort !== undefined ? { defaultSort } : {})}
               {...(defaultSortMode !== undefined ? { defaultSortMode } : {})}
               groupByProperty={groupByProperty}
+              groupBy={groupBySpec ?? undefined}
               // A filter emptied to zero answers "No matching rows." — the
               // container's empty state names the UNFILTERED hub instead.
               {...(filterActive

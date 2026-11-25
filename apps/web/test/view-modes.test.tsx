@@ -520,7 +520,7 @@ describe("tasks hub", () => {
     expect(hub.querySelector(".nt-block--editing")).not.toBeNull();
   });
 
-  it("a subtask nests under its parent task in the outline (nestUnderParents), and both ride the table", async () => {
+  it("the tasks hub groups by Status by default (the generic group-by); Group by → None restores the nested outline", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
     const parentTask = await client.createObject({ isEmbedded: false, name: "Zoo parent task" });
@@ -533,26 +533,51 @@ describe("tasks hub", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    // The table lists both — the subtask is a first-class row.
+    // The DEFAULT group-by is the task Status (both tasks read the derived
+    // Pending): the table renders ONE TABLE for the non-empty Pending group
+    // — empty options render their header with an empty line, never a table.
     fireEvent.click(screen.getByRole("radio", { name: "Table" }));
     const table = screen.getByRole("table");
     expect(within(table).getByText("Zoo parent task")).not.toBeNull();
     expect(within(table).getByText("Aardvark subtask")).not.toBeNull();
+    // The group headers name every status option in option order — the
+    // empty ones included (the group-by law).
+    const groupNames = [...document.querySelectorAll(".nt-table-group__name")].map(
+      (el) => el.textContent,
+    );
+    expect(groupNames).toEqual([
+      "Backlog",
+      "Pending",
+      "Doing",
+      "Reviewing",
+      "Done",
+      "Cancelled",
+    ]);
 
+    // The outline groups by Status too: the subtask is its own row inside
+    // the Pending group (an active grouping wins over nestUnderParents).
     fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
     const hub = document.querySelector(".nt-hub") as HTMLElement;
-    const ownTitle = (li: Element): string =>
-      li.querySelector(
-        ":scope > .outline-row > .nt-block > .nt-block-row > .nt-block-content",
-      )?.textContent ?? "";
-    const topTitles = [...hub.querySelectorAll(".outline-flat > li")].map(ownTitle);
-    // The subtask is NOT a top-level row…
+    const groupSection = [...hub.querySelectorAll(".outline-group")].find((section) =>
+      section.textContent?.includes("Pending"),
+    ) as HTMLElement;
+    expect(groupSection.textContent).toContain("Zoo parent task");
+    expect(groupSection.textContent).toContain("Aardvark subtask");
+
+    // Group by → None restores the pre-grouping surfaces: the flat table
+    // and the nested outline (the subtask rides INSIDE the parent's row).
+    fireEvent.click(screen.getByRole("button", { name: "Group by" }));
+    fireEvent.click(screen.getByRole("button", { name: "None" }));
+    const topTitles = [...hub.querySelectorAll(".outline-flat > li")].map(
+      (li) =>
+        li.querySelector(
+          ":scope > .outline-row > .nt-block > .nt-block-row > .nt-block-content",
+        )?.textContent ?? "",
+    );
     expect(topTitles.some((t) => t.includes("Zoo parent task"))).toBe(true);
     expect(topTitles.some((t) => t.includes("Aardvark subtask"))).toBe(false);
-    // …it rides INSIDE the parent's row (the editable task surface opens
-    // children expanded — the drag order is the order there).
-    const parentRow = [...hub.querySelectorAll(".outline-flat > li")].find(
-      (li) => ownTitle(li).includes("Zoo parent task"),
+    const parentRow = [...hub.querySelectorAll(".outline-flat > li")].find((li) =>
+      li.textContent?.includes("Zoo parent task"),
     ) as HTMLElement;
     expect(parentRow.textContent).toContain("Aardvark subtask");
   });

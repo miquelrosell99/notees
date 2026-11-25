@@ -497,6 +497,20 @@ export interface NodeCollectionProps {
   groupByProperty?: string | undefined;
 
   /**
+   * The generic group-by (2026-11-25): any non-text property axis or a
+   * structural pseudo-axis (page / parent / tag / class / created / edited),
+   * date axes carrying a zoom. The outline and table views derive their
+   * groups from it via `groupsForSpec` (select axes: option order, empty
+   * options included; the no-value group trails); the cards board boards on
+   * it when it resolves to a select property. The legacy `groupByProperty`
+   * shorthand stays CARDS-ONLY (the classed-nodes section's board grouping)
+   * — outline/table honor only this explicit spec. An explicit `groups`
+   * prop always wins over both (the container resolved the grouping itself
+   * — the containing-page references grouping).
+   */
+  groupBy?: import("./grouping.js").GroupBySpec | undefined;
+
+  /**
    * Windowing opt-out: the views window their list by default (the
    * shared useWindowed + ShowMoreButton convention). A container that owns
    * its own pagination (query results with their 200-row cap + load-more)

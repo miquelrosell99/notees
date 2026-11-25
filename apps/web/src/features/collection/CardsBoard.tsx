@@ -50,6 +50,7 @@ import { useViewSelection, SelectionExportControls } from "./selectionExport.js"
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
+import { groupsForSpec } from "./grouping.js";
 import type { AnyClient, CoverLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import type { ViewSelection } from "./selectionExport.js";
 import "./CardsBoard.css";
@@ -246,9 +247,12 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
     openInSidebar: (id) => (props.onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
   });
 
+  const spec =
+    props.groupBy ??
+    (groupByProperty !== undefined ? { kind: "property" as const, schemaId: groupByProperty } : undefined);
   const schema =
-    groupByProperty !== undefined
-      ? client.listPropertySchemas().find((s) => s.id === groupByProperty)
+    spec !== undefined && spec.kind === "property"
+      ? client.listPropertySchemas().find((s) => s.id === spec.schemaId)
       : undefined;
 
   if (items.length === 0) return null;
@@ -264,26 +268,22 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
   const multi = schema.multi === true;
   const validOptionIds = new Set(schema.options.map((option) => option.id));
 
+  /**
+   * The bucketing rides the shared group-by engine (option order, empty
+   * options included, multi-membership for multi schemas) — the no-value
+   * group is the board's "None" column, ALWAYS present here (empty included):
+   * it is the clear-drop target.
+   */
+  const groupPrefix = `prop:${schema.id}:`;
+  const groups = groupsForSpec(client, items, { kind: "property", schemaId: schema.id }, { noneLabel: "None" });
   const buckets = new Map<string, NodeCollectionItem[]>();
   const bucketOf = new Map<string, string>();
-  const register = (key: string, item: NodeCollectionItem) => {
-    const bucket = buckets.get(key);
-    if (bucket !== undefined) bucket.push(item);
-    else buckets.set(key, [item]);
-    bucketOf.set(item.node.id, key);
-  };
-  for (const item of items) {
-    const { values } = currentValues(props, schema.id, item.node.id);
-    const hits = values.filter((value) => validOptionIds.has(value));
-    if (multi) {
-      // Multi-membership: the card rides every column whose option it
-      // carries; no valid values → None.
-      if (hits.length === 0) register(NONE_COLUMN_ID, item);
-      else for (const hit of hits) register(hit, item);
-    } else {
-      register(hits.length > 0 ? hits[0]! : NONE_COLUMN_ID, item);
-    }
+  for (const group of groups) {
+    const columnId = group.id.slice(groupPrefix.length);
+    buckets.set(columnId, group.items);
+    for (const item of group.items) bucketOf.set(item.node.id, columnId);
   }
+  if (!buckets.has(NONE_COLUMN_ID)) buckets.set(NONE_COLUMN_ID, []);
   /** Column items with the session reorder applied (order override wins). */
   const ordered = (columnId: string): NodeCollectionItem[] => {
     const bucket = buckets.get(columnId) ?? [];

@@ -141,16 +141,19 @@ import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
 import { sortTreeByMode } from "./collectionSort.js";
 import { nestItems } from "./nestItems.js";
+import { groupBySpecKey, groupsForSpec } from "./grouping.js";
 import { createPortal } from "react-dom";
 import { isEmptyPropertyValue, propertyDisplayText, propertyLinkHref } from "./propertyDisplay.js";
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
 import type {
   AnyClient,
+  CollectionGroup,
   NodeCollectionItem,
   NodeCollectionProps,
   SortSpec,
   TableColumn,
 } from "./types.js";
+import { Badge } from "../../components/ui/kit/index.js";
 import "./TableView.css";
 
 /** Rows per window. */
@@ -1564,15 +1567,44 @@ export function TableView(props: NodeCollectionProps) {
     return rows;
   }, [rows, sort, client, allColumns, props.nestUnderParents, props.defaultSortMode]);
 
+  /**
+   * The generic group-by (2026-11-25): with a `groupBy` spec the table
+   * renders ONE TABLE PER GROUP — the shared engine derives the groups
+   * (select axes in option order with empty options included, date axes at
+   * their zoom, the no-value group trailing); the sort/column/selection
+   * machinery is shared, the column sort applies WITHIN every group, and
+   * each group windows its own rows. The legacy `groupByProperty` shorthand
+   * stays CARDS-ONLY (the classed-nodes section passes it for the board;
+   * the table honors only the explicit spec).
+   */
+  const groupByKey = props.groupBy !== undefined ? groupBySpecKey(props.groupBy) : null;
+  const groupedRows = useMemo(() => {
+    if (props.groupBy === undefined) return undefined;
+    // The column sort applies WITHIN every group: rows order by their
+    // position in the sorted set.
+    const orderOf = new Map(sorted.map((row, index) => [row.item.node.id, index]));
+    const rowById = new Map(rows.map((row) => [row.item.node.id, row]));
+    return groupsForSpec(client, items, props.groupBy).map((group) => ({
+      group,
+      rows: group.items
+        .map((item) => rowById.get(item.node.id))
+        .filter((row): row is TableRow => row !== undefined)
+        .sort((a, b) => (orderOf.get(a.item.node.id) ?? 0) - (orderOf.get(b.item.node.id) ?? 0)),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- groupByKey IS the spec's identity
+  }, [client, items, rows, sorted, groupByKey]);
+
   // The display window over the FULL sorted set — every sort change
   // resets it (a resort re-narrows instead of inheriting a grown window).
   // The CSV export below reads `sorted`, never the window. Containers that
   // own their own pagination (query results) opt out via `windowed={false}`.
+  // A GROUPED rendering windows per group instead (GroupTableSection), so
+  // the top-level window disables itself.
   const sortKey = JSON.stringify(sort);
   const { visible, remaining, showMore } = useWindowed(sorted, {
     size: ROW_WINDOW,
-    resetKey: sortKey,
-    enabled: props.windowed ?? true,
+    resetKey: `${sortKey}|${groupByKey ?? ""}`,
+    enabled: (props.windowed ?? true) && groupedRows === undefined,
   });
   const iconMap = client.effectiveClassIcons();
 
@@ -1666,8 +1698,6 @@ export function TableView(props: NodeCollectionProps) {
       return next;
     });
   };
-  const allVisibleSelected = visible.length > 0 && visible.every((row) => selected.has(row.item.node.id));
-  const someVisibleSelected = visible.some((row) => selected.has(row.item.node.id));
 
   /**
    * "Export CSV" — the current view: visible columns × the FULL sorted
@@ -1940,14 +1970,17 @@ export function TableView(props: NodeCollectionProps) {
     </div>
   );
 
-  return (
-    <div className="nt-table-wrap">
-      {/* Hosted: the toolbar renders into the tab bar's right-hand cluster
-; un-hosted: it rides the body top as before.
-          Containers that own the chrome around the table pass
-          `toolbar={false}` (the Sources hub's toolbar). */}
-      {showToolbar && (chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar)}
-      <OutlinerContext.Provider value={outliner}>
+  /**
+   * One grid — the groupBy rendering mounts ONE TABLE PER GROUP through
+   * this closure. The column set, sort headers, resize dividers, and row
+   * selection are SHARED across every group's table (a resize or sort in
+   * one group rides them all); the header's tri-state box selects exactly
+   * the rows the grid renders.
+   */
+  const renderGrid = (gridRows: TableRow[]): ReactNode => {
+    const allSelected = gridRows.length > 0 && gridRows.every((row) => selected.has(row.item.node.id));
+    const someSelected = gridRows.some((row) => selected.has(row.item.node.id));
+    return (
       <table className={`nt-table${resizing !== null ? " nt-table--resizing" : ""}`} ref={tableRef}>
         <colgroup>
           {selectable && <col className="nt-table-select-col" />}
@@ -1962,13 +1995,13 @@ export function TableView(props: NodeCollectionProps) {
               <th className="nt-table-select-col">
                 <Checkbox
                   size="sm"
-                  indeterminate={!allVisibleSelected && someVisibleSelected}
-                  checked={allVisibleSelected}
+                  indeterminate={!allSelected && someSelected}
+                  checked={allSelected}
                   onChange={() => {
                     setSelected(
-                      allVisibleSelected
+                      allSelected
                         ? new Set()
-                        : new Set(visible.map((row) => row.item.node.id)),
+                        : new Set(gridRows.map((row) => row.item.node.id)),
                     );
                   }}
                   aria-label="Select all loaded rows"
@@ -2042,7 +2075,7 @@ export function TableView(props: NodeCollectionProps) {
           </tr>
         </thead>
         <tbody>
-          {visible.map((row) => (
+          {gridRows.map((row) => (
             <tr
               key={row.item.node.id}
               data-node-id={row.item.node.id}
@@ -2067,8 +2100,36 @@ export function TableView(props: NodeCollectionProps) {
           ))}
         </tbody>
       </table>
+    );
+  };
+
+  return (
+    <div className="nt-table-wrap">
+      {/* Hosted: the toolbar renders into the tab bar's right-hand cluster
+; un-hosted: it rides the body top as before.
+          Containers that own the chrome around the table pass
+          `toolbar={false}` (the Sources hub's toolbar). */}
+      {showToolbar && (chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar)}
+      <OutlinerContext.Provider value={outliner}>
+      {groupedRows === undefined ? (
+        <>
+          {renderGrid(visible)}
+          <ShowMoreButton remaining={remaining} onShowMore={showMore} />
+        </>
+      ) : (
+        <div className="nt-table-groups">
+          {groupedRows.map(({ group, rows: groupRows }) => (
+            <GroupTableSection
+              key={group.id}
+              group={group}
+              rows={groupRows}
+              renderGrid={renderGrid}
+              windowed={props.windowed ?? true}
+            />
+          ))}
+        </div>
+      )}
       </OutlinerContext.Provider>
-      <ShowMoreButton remaining={remaining} onShowMore={showMore} />
       {exportSelection !== null && (
         <ExportPageModal
           isOpen
@@ -2089,10 +2150,65 @@ export function TableView(props: NodeCollectionProps) {
   );
 }
 
+/**
+ * One group's table (the groupBy rendering): a collapsible header (chevron,
+ * icon, label, the FULL-group count badge) over the group's own table; each
+ * group windows its rows independently. An empty group (a select option no
+ * row carries — the group-by law shows empty options) renders its header
+ * with an honest empty line instead of a headerless empty table.
+ */
+function GroupTableSection({
+  group,
+  rows,
+  renderGrid,
+  windowed,
+}: {
+  group: CollectionGroup;
+  rows: TableRow[];
+  renderGrid: (rows: TableRow[]) => ReactNode;
+  windowed: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const { visible, remaining, showMore } = useWindowed(rows, { enabled: windowed });
+  return (
+    <section className="nt-table-group" data-group-id={group.id}>
+      <div className="nt-table-group__header">
+        <button
+          type="button"
+          className="nt-table-group__toggle"
+          aria-label={`${collapsed ? "Expand" : "Collapse"} group ${group.label}`}
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed((value) => !value)}
+        >
+          <Icon
+            path={collapsed ? "mdi-chevron-right" : "mdi-chevron-down"}
+            size={0.9}
+            className="nt-table-group__chevron"
+          />
+        </button>
+        {group.icon !== undefined && (
+          <Icon path={group.icon} size={0.9} className="nt-table-group__icon" />
+        )}
+        <span className="nt-table-group__name">{group.label}</span>
+        <Badge className="nt-table-group__count" size="xs">{group.items.length}</Badge>
+      </div>
+      {!collapsed &&
+        (rows.length === 0 ? (
+          <div className="nt-table-group__empty">No rows.</div>
+        ) : (
+          <>
+            {renderGrid(visible)}
+            <ShowMoreButton remaining={remaining} onShowMore={showMore} />
+          </>
+        ))}
+    </section>
+  );
+}
+
 registerView({
   id: "table",
   label: "Table",
   icon: "mdi-table",
   component: TableView,
-  capabilities: { tableColumns: true, sorting: true },
+  capabilities: { tableColumns: true, sorting: true, groupBy: true },
 });

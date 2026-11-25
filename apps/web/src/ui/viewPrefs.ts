@@ -26,6 +26,7 @@ import {
   useDeviceSetting,
   writeDeviceSetting,
 } from "../features/settings/deviceSettings.js";
+import { parseGroupBySpec, type GroupBySpec } from "../features/collection/grouping.js";
 import type { CardFlow, CoverLayout, ViewMode } from "../features/collection/types.js";
 
 const COVER_LAYOUTS: readonly CoverLayout[] = ["no-cover", "cover-top", "cover-left", "cover-right"];
@@ -53,6 +54,30 @@ export function readViewModePref<M extends string = ViewMode>(
 
 export function writeViewModePref(persistKey: string, mode: string): void {
   writeDeviceSetting(`viewMode.${persistKey}`, mode);
+}
+
+/**
+ * useGroupByPreference — the collection group-by axis (the generic group-by,
+ * 2026-11-25), persisted per surface under `groupBy.<persistKey>`
+ * (device-local, never an op). An unset key reads the host's default; the
+ * explicit "None" choice stores a "none" sentinel so it never falls back to
+ * the default. A persisted spec that no longer validates (the schema
+ * retired, the type turned text) falls back to the default.
+ */
+export function useGroupByPreference(
+  persistKey: string,
+  defaultSpec: GroupBySpec | null,
+  validate?: (spec: GroupBySpec) => boolean,
+): [GroupBySpec | null, (spec: GroupBySpec | null) => void] {
+  const [stored, setStored] = useDeviceSetting<unknown>(`groupBy.${persistKey}`, null);
+  let spec: GroupBySpec | null;
+  if (stored === "none") {
+    spec = null;
+  } else {
+    const parsed = parseGroupBySpec(stored);
+    spec = parsed !== null && (validate?.(parsed) ?? true) ? parsed : defaultSpec;
+  }
+  return [spec, (next) => setStored(next === null ? "none" : next)];
 }
 
 /**

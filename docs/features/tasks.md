@@ -8,7 +8,7 @@ The **Tasks** hub opens on its **Buckets** view — **Overdue / Today / Upcoming
 
 **New** in the hub's header creates a task: a task class with bound templates opens the template picker (the pick instantiates through the clone engine); without templates it creates directly — the new task lands **Unscheduled** (the date pill schedules it), and creation follows the calendar's day-view retirement. The same flow rides the global **Ctrl/Cmd+Alt+N** chord from anywhere in the app (the N-row register: plain N is a new page, Shift+N is quick add, Alt+N is a task).
 
-The hub's other modes follow the shared collection rulings ([views.md](views.md)); its table opens on **Edited, newest first** ([the sort defaults](views.md#the-sort-button)).
+The hub's other modes follow the shared collection rulings ([views.md](views.md)); its table opens on **Edited, newest first** ([the sort defaults](views.md#the-sort-button)). The hub's **Group by** picker defaults to **Status** — the outline renders one collapsible section per status (every option in its option order, empty ones included), the table one table per status, the cards mode the status board; pick any other axis (Priority, Scheduled at a zoom, Page, Created, …) or None from the picker ([the group-by](views.md#the-group-by-any-property-plus-the-structural-axes)).
 
 ## One-tap postpone
 

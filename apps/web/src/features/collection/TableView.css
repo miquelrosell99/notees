@@ -624,3 +624,70 @@ td:has(> .nt-table-node > .nt-table-open-btn) .nt-table-open-btn:focus-visible {
   padding: var(--spacing-3);
   box-shadow: var(--shadow-md);
 }
+
+/* --- Grouped rendering (the groupBy capability): one table per group ------- */
+
+.nt-table-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.nt-table-group__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding: var(--spacing-tiny) var(--spacing-1);
+}
+
+.nt-table-group__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-table-group__toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-table-group__icon {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  display: inline-flex;
+}
+
+.nt-table-group__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+/* The group count: the fleet Badge (neutral pill) owns the look. */
+.nt-table-group__count {
+  flex-shrink: 0;
+}
+
+/* An empty select-option group still shows (the group-by law) — the header
+   plus this honest line, never a headerless empty table. */
+.nt-table-group__empty {
+  padding: var(--spacing-2) var(--spacing-1);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}

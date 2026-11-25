@@ -633,16 +633,25 @@ export function CardsView(props: NodeCollectionProps) {
   // "+ Add card" ghost (the page body): the ghost is the sole add affordance
   // on an empty cards body, so the grid mounts around it alone.
   if (items.length === 0 && props.trailingGhost === undefined) return null;
-  // The grouped board IS cards mode with a property-dimension groupBy: the
-  // container passes a usable select schema → the same cards render as board
+  // The grouped board IS cards mode with a select-property groupBy: the
+  // generic `groupBy` spec (or the legacy `groupByProperty` shorthand)
+  // resolving to a usable select schema → the same cards render as board
   // columns with between-column drops; otherwise the flat grid. ONE card
   // shape serves both (and tree contexts) — the card resolves its own
   // children, so the tree/hasChildren dispatch is gone.
+  const spec =
+    props.groupBy ??
+    (groupByProperty !== undefined ? { kind: "property" as const, schemaId: groupByProperty } : undefined);
   const grouping =
-    groupByProperty !== undefined
-      ? client.listPropertySchemas().find((s) => s.id === groupByProperty)
+    spec !== undefined && spec.kind === "property"
+      ? client.listPropertySchemas().find((s) => s.id === spec.schemaId)
       : undefined;
-  if (grouping !== undefined && grouping.options !== null && grouping.options.length > 0) {
+  if (
+    grouping !== undefined &&
+    (grouping.type === "select" || grouping.type === "multi_select") &&
+    grouping.options !== null &&
+    grouping.options.length > 0
+  ) {
     return <CardsBoard props={props} />;
   }
   return (

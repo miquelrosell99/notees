@@ -88,6 +88,7 @@ import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
 import { compareGroupsByMode, compareItemsByMode, sortTreeByMode } from "./collectionSort.js";
+import { groupBySpecKey, groupsForSpec } from "./grouping.js";
 import { nestItems } from "./nestItems.js";
 import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
@@ -432,10 +433,30 @@ export function OutlineView(props: NodeCollectionProps) {
     if (sortMode === "position") return items;
     return [...items].sort(compareItemsByMode(sortMode, resolveClassName));
   }, [items, tree, sortMode, client, props.nestUnderParents]);
+  /**
+   * The generic group-by (the `groupBy` spec): when the container passed no
+   * explicit `groups`, the view derives them via the shared engine — select
+   * axes in option order with empty options included, date axes at their
+   * zoom, the no-value group trailing. An explicit `groups` prop always
+   * wins. The legacy `groupByProperty` shorthand stays CARDS-ONLY (the
+   * classed-nodes section passes it for the board; the outline honors only
+   * the explicit spec).
+   */
+  const groupByKey = props.groupBy !== undefined ? groupBySpecKey(props.groupBy) : null;
+  const derivedGroups = useMemo(() => {
+    if (groups !== undefined || props.groupBy === undefined) return undefined;
+    return groupsForSpec(client, items, props.groupBy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- groupByKey IS the spec's identity
+  }, [client, items, groups, groupByKey]);
+  const effectiveGroups = groups ?? derivedGroups;
   const sortedGroups = useMemo(() => {
-    if (groups === undefined || sortMode === "position") return groups;
-    return [...groups].sort(compareGroupsByMode(sortMode));
-  }, [groups, sortMode]);
+    if (effectiveGroups === undefined || sortMode === "position") return effectiveGroups;
+    // Only CONTAINER-resolved groups (the references containing-page
+    // grouping) sort by the picked mode; spec-derived groups keep their
+    // semantic order (select option order, chronological, …).
+    if (groups === undefined) return effectiveGroups;
+    return [...effectiveGroups].sort(compareGroupsByMode(sortMode));
+  }, [effectiveGroups, groups, sortMode]);
   /**
    * The ungrouped top-level rows (the references grouping's page sources):
    * one flat list sorted like any flat list — the grouped rendering lists
@@ -516,7 +537,7 @@ export function OutlineView(props: NodeCollectionProps) {
         {sortedUngrouped !== undefined && sortedUngrouped.length > 0 && (
           <FlatRows items={sortedUngrouped} props={props} resetKey={sortMode} />
         )}
-        <GroupedFlat props={props} groups={sortedGroups} sortKey={sortMode} />
+        <GroupedFlat props={props} groups={sortedGroups} sortKey={`${sortMode}|${groupByKey ?? ""}`} />
       </>
     );
   }
@@ -608,5 +629,5 @@ registerView({
   label: "Outline",
   icon: "mdi-format-list-bulleted",
   component: OutlineView,
-  capabilities: { sorting: true },
+  capabilities: { sorting: true, groupBy: true },
 });

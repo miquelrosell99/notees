@@ -255,6 +255,9 @@ export function HubView({
           defaultSort={{ key: "edited", direction: "desc" }}
           tableEditable
           groupByProperty={groupByProperty}
+          {...(groupByProperty !== undefined
+            ? { defaultGroupBy: { kind: "property" as const, schemaId: groupByProperty } }
+            : {})}
           editable
           emptyTitle="No tasks yet"
           headerActions={newTaskAction}

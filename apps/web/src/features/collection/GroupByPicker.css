@@ -1,0 +1,129 @@
+/* GroupByPicker — the "Group by" dropdown's panel (search + axis list +
+   the date zoom submenu). Token-only, the nt-table-panel idiom. */
+
+.groupby-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.groupby-panel__search {
+  padding: var(--spacing-2);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.groupby-panel__list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-1);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.groupby-panel__axis {
+  display: flex;
+  flex-direction: column;
+}
+
+.groupby-panel__axis-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.groupby-panel__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.groupby-panel__item:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.groupby-panel__item--active {
+  color: var(--md-sys-color-primary);
+}
+
+.groupby-panel__icon {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  display: inline-flex;
+}
+
+.groupby-panel__item-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupby-panel__check {
+  flex-shrink: 0;
+  color: var(--md-sys-color-primary);
+}
+
+.groupby-panel__zoom-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+}
+
+.groupby-panel__zoom-toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The zoom submenu: the four period options ride one indented row under
+   their date axis. */
+.groupby-panel__zoom {
+  display: flex;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-1) var(--spacing-6);
+}
+
+.groupby-panel__zoom-option {
+  padding: var(--spacing-tiny) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.groupby-panel__zoom-option:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.groupby-panel__zoom-option--active {
+  color: var(--md-sys-color-primary);
+  font-weight: 500;
+}
+
+.groupby-panel__empty {
+  padding: var(--spacing-2);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
