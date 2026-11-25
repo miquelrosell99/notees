@@ -10,9 +10,9 @@
  *    lazy sections (hidden when empty, rows only after expand, the
  *    done-toggle write), embedded suppression.
  *  - Task sections over HubView nav=tasks: the stacked live-query sections
- *    (Overdue/Today/Upcoming/Unscheduled/Completed/Review), the section ASTs
- *    (the driving-day rule, the recurring exclusion), the done checkbox, the
- *    device-local collapse.
+ *    (Overdue/Today/Upcoming/Unscheduled — closed tasks excluded by every
+ *    section's filter), the section ASTs (the driving-day rule), the done
+ *    checkbox, the device-local collapse.
  *  - CalendarView breadth: event blocks mark the days that carry them.
  */
 
@@ -499,7 +499,7 @@ describe("PageView day branch", () => {
 // --- #5 the bucketed tasks surface -------------------------------------------------
 
 describe("Task sections (tasks hub)", () => {
-  it("the sections partition the hub members by their queries", async () => {
+  it("the sections partition the hub members by their queries — closed tasks excluded everywhere", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     await taskStatus(client);
@@ -511,22 +511,20 @@ describe("Task sections (tasks hub)", () => {
     await flushWrites();
 
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    // The section headers render immediately; the rows land with the query
-    // run — findByText waits for it (a bare getByText races the run).
+    // The date-based sections (the header renders immediately; the rows
+    // land with the query run — findByText waits for it).
     const overdue = within(await screen.findByLabelText("Overdue"));
     expect(await overdue.findByText("Overdue task")).toBeDefined();
     expect(overdue.queryByText("Today task")).toBeNull();
     expect(await within(screen.getByLabelText("Today")).findByText("Today task")).toBeDefined();
     expect(await within(screen.getByLabelText("Upcoming")).findByText("Future task")).toBeDefined();
     expect(await within(screen.getByLabelText("Unscheduled")).findByText("Undated task")).toBeDefined();
-    expect(await within(screen.getByLabelText("Completed")).findByText("Done task")).toBeDefined();
-    // The Review section lists the slipped non-recurring work (the overdue
-    // set minus recurring tasks).
-    expect(await within(screen.getByLabelText("Review")).findByText("Overdue task")).toBeDefined();
-    expect(within(screen.getByLabelText("Review")).queryByText("Done task")).toBeNull();
+    // The closed task is excluded by every section's filter — it renders in
+    // no section (the hub's other modes list the whole set).
+    expect(screen.queryByText("Done task")).toBeNull();
   });
 
-  it("the section ASTs partition by the driving-day rule (earliest of scheduled/deadline), recurring excluded from Review", async () => {
+  it("the section ASTs partition by the driving-day rule (earliest of scheduled/deadline), closed excluded", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     await taskStatus(client);
@@ -543,8 +541,16 @@ describe("Task sections (tasks hub)", () => {
     const upcoming = await createTask(client, "Upcoming", { scheduled: addDaysIso(today, 2) });
     const unscheduled = await createTask(client, "Unscheduled");
     const done = await createTask(client, "Done", { scheduled: addDaysIso(today, -1), done: true });
-    const recurring = await createTask(client, "Recurring slipped", { scheduled: addDaysIso(today, -2) });
-    await client.setProperty(recurring, SYSTEM_PROPERTY_UUIDS.repeat, "RRULE:FREQ=DAILY", 0);
+    const cancelled = await createTask(client, "Cancelled", { scheduled: today });
+    await client.setProperty(
+      cancelled,
+      SYSTEM_PROPERTY_UUIDS.taskStatus,
+      client
+        .listPropertySchemas()
+        .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!
+        .options!.find((option) => option.label === "Cancelled")!.id,
+      0,
+    );
     await flushWrites();
 
     const { TASK_SECTIONS } = await import("../src/features/classview/taskSections.js");
@@ -553,18 +559,18 @@ describe("Task sections (tasks hub)", () => {
       const result = await client.runQueryAst(def.ast, { now: new Date(`${today}T12:00:00`) });
       return result.ids;
     };
-    expect(await runSection("overdue")).toEqual(expect.arrayContaining([overdueScheduled, overdueDeadline, recurring]));
-    expect(await runSection("overdue")).not.toContain(done);
+    expect(await runSection("overdue")).toEqual(expect.arrayContaining([overdueScheduled, overdueDeadline]));
     expect(await runSection("today")).toEqual([todayBoth]);
     expect(await runSection("upcoming")).toEqual([upcoming]);
     expect(await runSection("unscheduled")).toEqual([unscheduled]);
-    expect(await runSection("completed")).toEqual([done]);
-    // Review = overdue minus recurring (a missed occurrence rolls forward).
-    expect(await runSection("review")).toEqual(expect.arrayContaining([overdueScheduled, overdueDeadline]));
-    expect(await runSection("review")).not.toContain(recurring);
+    // Done AND Cancelled are excluded by every section's filter.
+    for (const id of ["overdue", "today", "upcoming", "unscheduled"]) {
+      expect(await runSection(id)).not.toContain(done);
+      expect(await runSection(id)).not.toContain(cancelled);
+    }
   });
 
-  it("the done checkbox moves the row into Completed", async () => {
+  it("the done checkbox closes the task out of every section", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const { schema, optionId } = await taskStatus(client);
@@ -581,13 +587,11 @@ describe("Task sections (tasks hub)", () => {
         .find((entry) => entry.propertySchemaId === schema.id)?.value;
       expect(value).toBe(optionId("Done"));
     });
-    // The row left the open section and re-renders checked under Completed.
+    // The closed task leaves every section (the sections are the open-work
+    // sweeps — the hub's other modes list the whole set).
     await waitFor(() => {
-      expect(within(screen.getByLabelText("Today")).queryByRole("checkbox", { name: "Mark task done" })).toBeNull();
+      expect(screen.queryByText("Toggle me")).toBeNull();
     });
-    const completed = within(screen.getByLabelText("Completed"));
-    expect(completed.getByRole("checkbox", { name: "Reopen task" })).toBeDefined();
-    expect(completed.getByText("Toggle me")).toBeDefined();
   });
 
   it("a section collapses device-locally", async () => {

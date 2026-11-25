@@ -1,11 +1,15 @@
-/* TaskSections — the tasks hub's stacked query sections: a collapsible
-   header (chevron, icon, name, count badge, the per-section controls) over
-   the section's own NodeCollection. Tokens from variables.css. */
+/* TaskSections — the tasks hub's stacked query sections. The SECTION is a
+   strong register — a base-size semibold title over a hairline, the
+   per-section controls at the row's right — so it never reads as one more
+   group-by group: the groups inside (the shared quiet outline-group
+   register) stay small and borderless under it. Every row rides the SAME
+   flush left edge (the empty line's own padding is zeroed inside a
+   section). Tokens from variables.css. */
 
 .task-sections {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--spacing-6);
 }
 
 .task-section__header {
@@ -13,7 +17,8 @@
   align-items: center;
   gap: var(--spacing-1);
   min-width: 0;
-  padding: var(--spacing-tiny) var(--spacing-1);
+  padding: var(--spacing-1) 0;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .task-section__toggle {
@@ -42,15 +47,19 @@
   display: inline-flex;
 }
 
+/* The section title: the base-size semibold register (the group-by group
+   names stay font-size-sm/500) — the text edge aligns with the group
+   names' (their label carries a spacing-1 leading padding). */
 .task-section__name {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-left: var(--spacing-1);
   color: var(--md-sys-color-on-surface);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: 600;
 }
 
 .task-section__count {
@@ -65,4 +74,10 @@
   gap: var(--spacing-1);
   margin-left: auto;
   flex-shrink: 0;
+}
+
+/* The section body rides the same flush left edge as the group headers —
+   the shared empty line's own padding would otherwise outdent it. */
+.task-section .nt-section-empty {
+  padding-left: 0;
 }

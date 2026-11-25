@@ -371,8 +371,9 @@ describe("ensureTaskFamily", () => {
     await client.setProperty(closed, SYSTEM_PROPERTY_UUIDS.taskStatus, doneId, 0);
 
     // The surviving open-task read (the day page's partition and the tasks
-    // hub's query sections): the section ASTs over the family members,
-    // closed by the status option.
+    // hub's query sections): the section ASTs over the family members —
+    // the open task answers Today, the closed one is excluded by every
+    // section's filter.
     const { TASK_SECTIONS } = await import("../src/features/classview/taskSections.js");
     const runSection = async (id: string): Promise<string[]> => {
       const def = TASK_SECTIONS.find((section) => section.id === id)!;
@@ -381,7 +382,9 @@ describe("ensureTaskFamily", () => {
     };
     expect(await runSection("today")).toContain(open);
     expect(await runSection("today")).not.toContain(closed);
-    expect(await runSection("completed")).toContain(closed);
+    for (const section of TASK_SECTIONS) {
+      expect(await runSection(section.id)).not.toContain(closed);
+    }
   });
 });
 

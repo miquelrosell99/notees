@@ -6,9 +6,12 @@
  * hub's filtered item set — "overdue is a query, unscheduled another query
  * section".
  *
- * The bucket semantics survive verbatim, expressed in the grammar's
- * OR/NOT arms over the two date properties. The driving day is the EARLIEST
- * of Scheduled/Deadline, so:
+ * The sections are the DATE-BASED open-work sweeps (2026-11-25 revision):
+ * Overdue / Today / Upcoming / Unscheduled — every one filters the closed
+ * set OUT (a task Done or Cancelled leaves every section; the hub's other
+ * modes list the whole set). The bucket semantics survive verbatim, expressed
+ * in the grammar's OR/NOT arms over the two date properties. The driving
+ * day is the EARLIEST of Scheduled/Deadline, so:
  *   driving <  today  ⇔  scheduled < today OR deadline < today
  *   driving == today  ⇔  (scheduled == today OR deadline == today)
  *                        AND NOT (driving < today)
@@ -16,10 +19,6 @@
  *                        AND NOT (driving <= today)
  * Open = the status rides NO closed option (the derived Pending default
  * reads through the effective-values model — includeDefaults stays on).
- * Review is the overdue set minus recurring tasks (a missed occurrence
- * rolls forward — nothing to review) and minus nothing else: the retired
- * Review view's day-grouped bulk "Push to today" retired with it (the
- * per-row postpone + the date pill cover rescheduling).
  */
 
 import {
@@ -125,23 +124,14 @@ const HAS_DATE: Child = {
   children: [dateIs(SCHEDULED, "exists"), dateIs(DEADLINE, "exists")],
 };
 
-const NOT_RECURRING: Child = {
-  type: "not",
-  child: { type: "property", schemaId: SYSTEM_PROPERTY_UUIDS.repeat, op: "exists" },
-};
-
-const CLOSED: Child = {
-  type: "group",
-  logic: "or",
-  children: [statusIs(TASK_STATUS_OPTION_UUIDS.done), statusIs(TASK_STATUS_OPTION_UUIDS.cancelled)],
-};
-
 function sectionAst(...children: Child[]): QueryAst {
   const root: Group = { type: "group", logic: "and", children: [TASK_MEMBER, ...children] };
   return { version: 2, scope: { type: "entire_workspace" }, root };
 }
 
-/** The hub's stacked sections, in render order. */
+/** The hub's stacked sections, in render order — the DATE-BASED open-work
+ *  sweeps (closed tasks are excluded by every section's filter; the hub's
+ *  other modes list the whole set). */
 export const TASK_SECTIONS: readonly TaskSectionDef[] = [
   {
     id: "overdue",
@@ -166,17 +156,5 @@ export const TASK_SECTIONS: readonly TaskSectionDef[] = [
     label: "Unscheduled",
     icon: "mdi-calendar-remove",
     ast: sectionAst(OPEN, { type: "not", child: dateIs(SCHEDULED, "exists") }, { type: "not", child: dateIs(DEADLINE, "exists") }),
-  },
-  {
-    id: "completed",
-    label: "Completed",
-    icon: "mdi-check-circle-outline",
-    ast: sectionAst(CLOSED),
-  },
-  {
-    id: "review",
-    label: "Review",
-    icon: "mdi-clipboard-check-outline",
-    ast: sectionAst(OPEN, NOT_RECURRING, DRIVING_PAST),
   },
 ];

@@ -88,7 +88,7 @@ function TaskSection({
             className="task-section__chevron"
           />
         </button>
-        <Icon path={def.icon} size={0.9} className="task-section__icon" />
+        <Icon path={def.icon} size={1} className="task-section__icon" />
         <span className="task-section__name">{def.label}</span>
         {run.result !== null && (
           <Badge size="xs" className="task-section__count">
