@@ -101,6 +101,11 @@ async function ensureTaskStatus(
   };
 }
 
+/** The hub's top bar — the hub-level view switcher lives here (the tasks
+ *  hub's sections carry their OWN per-section switchers, so an unscoped
+ *  radio query matches seven toolbars). */
+const hubBar = () => within(document.querySelector(".nt-hub__surface-bar") as HTMLElement);
+
 /** WORKAROUND(store applier): class.create's contentAst never lands in the
  *  class node's content — seed the title through object.update instead. */
 async function createTitledClass(client: WorkspaceClient, title: string, id?: string): Promise<string> {
@@ -464,7 +469,7 @@ describe("the v1 node card (cards mode)", () => {
 });
 
 describe("tasks hub", () => {
-  it("lists pages AND blocks classed task, buckets by default, switchable", async () => {
+  it("lists pages AND blocks classed task, sections by default, switchable", async () => {
     const client = await seedClient();
     // The hub authors the task family on open — ensure up front
     // so no write is in flight when the test teardown closes the client.
@@ -480,14 +485,15 @@ describe("tasks hub", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    // Buckets default (the registered "buckets" view — ONE body at a time,
-    // never a prepend over the collection): both node types bucketed by
-    // their derived titles.
-    const buckets = within(await screen.findByLabelText("Task buckets"));
-    expect(buckets.getByText("Write report")).not.toBeNull();
-    expect(buckets.getByText("Call the office")).not.toBeNull();
+    // Sections default (the registered "sections" view — ONE body at a
+    // time): both node types land in the Unscheduled section by their
+    // derived titles. The section header renders immediately; the rows land
+    // with the query run — findByText waits for it.
+    const unscheduled = within(await screen.findByLabelText("Unscheduled"));
+    expect(await unscheduled.findByText("Write report")).not.toBeNull();
+    expect(await unscheduled.findByText("Call the office")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Table" }));
     // Both node types listed by their derived titles — the
     // name cell is the title block row: a div, not a
     // button (navigation rides the pinned "Open …" button).
@@ -495,11 +501,11 @@ describe("tasks hub", () => {
     expect(within(table).getByText("Write report")).not.toBeNull();
     expect(within(table).getByText("Call the office")).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
     const cards = screen.getAllByRole("article");
     expect(cards.length).toBe(2);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Outline" }));
     // The list view renders FULL block rows (the same outline row the page
     // body uses), inline-editable because the tasks hub is an editing
     // surface: one row per member, content editable in place, and the
@@ -536,7 +542,7 @@ describe("tasks hub", () => {
     // The DEFAULT group-by is the task Status (both tasks read the derived
     // Pending): the table renders ONE TABLE for the non-empty Pending group
     // — empty options render their header with an empty line, never a table.
-    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Table" }));
     const table = screen.getByRole("table");
     expect(within(table).getByText("Zoo parent task")).not.toBeNull();
     expect(within(table).getByText("Aardvark subtask")).not.toBeNull();
@@ -556,7 +562,7 @@ describe("tasks hub", () => {
 
     // The outline groups by Status too: the subtask is its own row inside
     // the Pending group (an active grouping wins over nestUnderParents).
-    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Outline" }));
     const hub = document.querySelector(".nt-hub") as HTMLElement;
     const groupSection = [...hub.querySelectorAll(".outline-group")].find((section) =>
       section.textContent?.includes("Pending"),
@@ -623,7 +629,7 @@ describe("tasks hub", () => {
     );
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Table" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Table" }));
     const nameSort = screen.getByRole("button", { name: /^Name/ });
     const rowNames = () =>
       [...screen.getByRole("table").querySelectorAll("td.nt-table-name .nt-title-content")].map(
@@ -681,7 +687,7 @@ describe("cards board (property-dimension groupBy)", () => {
 
     // The hub defaults to table; cards mode IS the board when the grouping
     // property (the task status schema) exists — kanban is not a mode.
-    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
 
     // Status option columns + None, counts in the headers.
     const titles = () =>
@@ -725,9 +731,9 @@ describe("cards board (property-dimension groupBy)", () => {
     // Kanban is gone from the switcher; the triad is unchanged.
     expect(screen.queryByRole("radio", { name: "Kanban" })).toBeNull();
     for (const label of ["Outline", "Cards", "Table"]) {
-      expect(screen.getByRole("radio", { name: label })).not.toBeNull();
+      expect(hubBar().getByRole("radio", { name: label })).not.toBeNull();
     }
-    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
     expect(document.querySelector(".board")).not.toBeNull();
 
     // A hub whose members carry no usable select property renders the flat
@@ -2016,7 +2022,7 @@ describe("cards board polish: multi-select grouping, collapsible columns", () =>
     await client.setProperty(task, schemaId, optionId("Backlog"), 0);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
 
     // The bucket section also lists "Solo"; the collapse
     // assertions scope to the board itself.
@@ -2135,7 +2141,7 @@ describe("card covers and asset thumbnails", () => {
     await ensureTaskFamily(client);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
     expect(document.querySelector(".board")).not.toBeNull();
 
     // No flow toggle on the board toolbar (the flat grid's toolbar only).

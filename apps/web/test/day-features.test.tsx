@@ -2,16 +2,17 @@
  * Dates & daily-notes feature tests (day-page branch, bucketed
  * tasks, date bars, Ctrl+Shift+T, calendar breadth):
  *
- *  - pure helpers: partitionTasksIntoBuckets, weekDaysOfIso, isoOfDateParts,
- *    scheduledIsoOf.
+ *  - pure helpers: weekDaysOfIso, isoOfDateParts, scheduledIsoOf.
  *  - openTodayKeyHandler: the Ctrl/Cmd+Shift+T chord (text-field guard).
  *  - PageView day branch: the DayPageHeader (weekday line above the title,
  *    the Today pill when the day is today, the Week-N flag after the
  *    dateFormat-formatted title; the ±1-day date bar is gone), the three
  *    lazy sections (hidden when empty, rows only after expand, the
  *    done-toggle write), embedded suppression.
- *  - TaskBuckets over HubView nav=tasks: the five buckets + counts, the
- *    done-toggle moving rows, the device-local collapse, the empty hub.
+ *  - Task sections over HubView nav=tasks: the stacked live-query sections
+ *    (Overdue/Today/Upcoming/Unscheduled/Completed/Review), the section ASTs
+ *    (the driving-day rule, the recurring exclusion), the done checkbox, the
+ *    device-local collapse.
  *  - CalendarView breadth: event blocks mark the days that carry them.
  */
 
@@ -36,12 +37,10 @@ import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import {
   addDaysIso,
   isoOfDateParts,
-  partitionTasksIntoBuckets,
   scheduledIsoOf,
   todayIsoLocal,
   weekDaysOfIso,
   weekdayLabel,
-  type TaskBucketRow,
 } from "../src/features/calendar/calendarViewUtils.js";
 import { DayStepper } from "../src/features/calendar/DayPageHeader.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
@@ -254,103 +253,6 @@ describe("calendarViewUtils day helpers", () => {
     expect(sunFirst).toHaveLength(7);
   });
 
-  it("partitionTasksIntoBuckets places every row in exactly one bucket", () => {
-    const row = (id: string, scheduledIso: string | null, deadlineIso: string | null, closed = false): TaskBucketRow => ({
-      id,
-      scheduledIso,
-      deadlineIso,
-      closed,
-      drivingIso: null,
-      priority: null,
-      repeat: null,
-      completedOccurrences: [],
-      occurrenceDone: false,
-    });
-    const today = "2026-10-04";
-    const buckets = partitionTasksIntoBuckets(
-      [
-        row("overdue-sched", "2026-10-01", null),
-        row("overdue-deadline", null, "2026-10-03"),
-        row("earliest-wins", "2026-10-04", "2026-10-01"), // deadline before scheduled
-        row("today", today, null),
-        row("upcoming-near", "2026-10-05", null),
-        row("upcoming-far", "2027-03-10", null), // unbounded: never dropped
-        row("unscheduled", null, null),
-        row("done", "2026-10-01", null, true),
-      ],
-      today,
-    );
-    // Overdue/upcoming sort by the driving day, then id (earliest-wins'
-    // deadline 10-01 ties overdue-sched's scheduled 10-01).
-    expect(buckets.overdue.map((r) => r.id)).toEqual(["earliest-wins", "overdue-sched", "overdue-deadline"]);
-    expect(buckets.today.map((r) => r.id)).toEqual(["today"]);
-    expect(buckets.upcoming.map((r) => r.id)).toEqual(["upcoming-near", "upcoming-far"]);
-    expect(buckets.upcoming[0]!.drivingIso).toBe("2026-10-05");
-    expect(buckets.unscheduled.map((r) => r.id)).toEqual(["unscheduled"]);
-    expect(buckets.completed.map((r) => r.id)).toEqual(["done"]);
-    expect(buckets.overdue[0]!.drivingIso).toBe("2026-10-01");
-  });
-
-  it("partitionTasksIntoBuckets sorts open buckets priority-first (Urgent → Low, unprioritized last), completed stays id-ordered", () => {
-    const row = (
-      id: string,
-      scheduledIso: string | null,
-      priority: string | null,
-      closed = false,
-    ): TaskBucketRow => ({
-      id,
-      scheduledIso,
-      deadlineIso: null,
-      closed,
-      drivingIso: null,
-      priority,
-      repeat: null,
-      completedOccurrences: [],
-      occurrenceDone: false,
-    });
-    const today = "2026-10-04";
-    const buckets = partitionTasksIntoBuckets(
-      [
-        // Overdue: priority beats the driving day (Urgent 10-03 before Low 10-01).
-        row("overdue-low", "2026-10-01", "Low"),
-        row("overdue-urgent", "2026-10-03", "Urgent"),
-        row("overdue-none", "2026-09-30", null),
-        // Today: priority beats id.
-        row("today-a-low", today, "Low"),
-        row("today-z-high", today, "High"),
-        // Upcoming: same priority falls back to the driving day.
-        row("upcoming-high-late", "2026-10-09", "High"),
-        row("upcoming-high-early", "2026-10-06", "High"),
-        row("upcoming-medium", "2026-10-05", "Medium"),
-        // Unscheduled: priority beats id; unknown labels rank unprioritized.
-        row("unsched-a", null, null),
-        row("unsched-z-urgent", null, "Urgent"),
-        row("unsched-renamed", null, "P1"),
-        // Completed: priority is an open-work signal — id order holds.
-        row("done-z-urgent", "2026-10-01", "Urgent", true),
-        row("done-a-low", "2026-10-01", "Low", true),
-      ],
-      today,
-    );
-    expect(buckets.overdue.map((r) => r.id)).toEqual(["overdue-urgent", "overdue-low", "overdue-none"]);
-    expect(buckets.today.map((r) => r.id)).toEqual(["today-z-high", "today-a-low"]);
-    expect(buckets.upcoming.map((r) => r.id)).toEqual([
-      "upcoming-high-early",
-      "upcoming-high-late",
-      "upcoming-medium",
-    ]);
-    expect(buckets.unscheduled.map((r) => r.id)).toEqual(["unsched-z-urgent", "unsched-a", "unsched-renamed"]);
-    expect(buckets.completed.map((r) => r.id)).toEqual(["done-a-low", "done-z-urgent"]);
-  });
-
-  it("taskPriorityRank: designed order reversed, null and unknown labels last", async () => {
-    const { taskPriorityRank } = await import("../src/features/calendar/calendarViewUtils.js");
-    expect(taskPriorityRank("Urgent")).toBeLessThan(taskPriorityRank("High"));
-    expect(taskPriorityRank("High")).toBeLessThan(taskPriorityRank("Medium"));
-    expect(taskPriorityRank("Medium")).toBeLessThan(taskPriorityRank("Low"));
-    expect(taskPriorityRank("Low")).toBeLessThan(taskPriorityRank(null));
-    expect(taskPriorityRank("P1")).toBe(taskPriorityRank(null));
-  });
 });
 
 // --- #8 Ctrl+Shift+T -------------------------------------------------------------
@@ -518,7 +420,7 @@ describe("PageView day branch", () => {
       expect(within(daySections()).getByText("Water the plants")).toBeDefined(),
     );
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Mark task done" }));
+    fireEvent.click(within(daySections()).getByRole("checkbox", { name: "Mark task done" }));
     await flushWrites();
     await waitFor(() => {
       const value = client
@@ -596,8 +498,8 @@ describe("PageView day branch", () => {
 
 // --- #5 the bucketed tasks surface -------------------------------------------------
 
-describe("TaskBuckets (tasks hub)", () => {
-  it("partitions the hub members into the five buckets", async () => {
+describe("Task sections (tasks hub)", () => {
+  it("the sections partition the hub members by their queries", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     await taskStatus(client);
@@ -609,42 +511,60 @@ describe("TaskBuckets (tasks hub)", () => {
     await flushWrites();
 
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const buckets = within(await screen.findByLabelText("Task buckets"));
-    expect(buckets.getByText("4 open")).toBeDefined();
-    for (const label of ["Overdue", "Today", "Upcoming", "Unscheduled", "Completed"]) {
-      expect(buckets.getByText(label)).toBeDefined();
-    }
-    expect(buckets.getByText("Overdue task")).toBeDefined();
-    expect(buckets.getByText("Today task")).toBeDefined();
-    expect(buckets.getByText("Future task")).toBeDefined();
-    expect(buckets.getByText("Undated task")).toBeDefined();
-    expect(buckets.getByText("Done task")).toBeDefined();
+    // The section headers render immediately; the rows land with the query
+    // run — findByText waits for it (a bare getByText races the run).
+    const overdue = within(await screen.findByLabelText("Overdue"));
+    expect(await overdue.findByText("Overdue task")).toBeDefined();
+    expect(overdue.queryByText("Today task")).toBeNull();
+    expect(await within(screen.getByLabelText("Today")).findByText("Today task")).toBeDefined();
+    expect(await within(screen.getByLabelText("Upcoming")).findByText("Future task")).toBeDefined();
+    expect(await within(screen.getByLabelText("Unscheduled")).findByText("Undated task")).toBeDefined();
+    expect(await within(screen.getByLabelText("Completed")).findByText("Done task")).toBeDefined();
+    // The Review section lists the slipped non-recurring work (the overdue
+    // set minus recurring tasks).
+    expect(await within(screen.getByLabelText("Review")).findByText("Overdue task")).toBeDefined();
+    expect(within(screen.getByLabelText("Review")).queryByText("Done task")).toBeNull();
   });
 
-  it("renders the priority pill and orders each open bucket priority-first", async () => {
+  it("the section ASTs partition by the driving-day rule (earliest of scheduled/deadline), recurring excluded from Review", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     await taskStatus(client);
-    await createTask(client, "Plain today", { scheduled: today });
-    await createTask(client, "Urgent today", { scheduled: today, priority: "Urgent" });
-    await createTask(client, "Low today", { scheduled: today, priority: "Low" });
+    const overdueScheduled = await createTask(client, "Overdue scheduled", { scheduled: addDaysIso(today, -1) });
+    // The earliest-of rule: a FUTURE scheduled with a PAST deadline is overdue.
+    const overdueDeadline = await createTask(client, "Overdue deadline", {
+      scheduled: addDaysIso(today, 3),
+      deadline: addDaysIso(today, -1),
+    });
+    const todayBoth = await createTask(client, "Today both", {
+      scheduled: today,
+      deadline: addDaysIso(today, 2),
+    });
+    const upcoming = await createTask(client, "Upcoming", { scheduled: addDaysIso(today, 2) });
+    const unscheduled = await createTask(client, "Unscheduled");
+    const done = await createTask(client, "Done", { scheduled: addDaysIso(today, -1), done: true });
+    const recurring = await createTask(client, "Recurring slipped", { scheduled: addDaysIso(today, -2) });
+    await client.setProperty(recurring, SYSTEM_PROPERTY_UUIDS.repeat, "RRULE:FREQ=DAILY", 0);
     await flushWrites();
 
-    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const section = await screen.findByLabelText("Task buckets");
-    const buckets = within(section);
-    const names = [...section.querySelectorAll(".task-buckets__row-name")].map(
-      (el) => el.textContent,
-    );
-    expect(names).toEqual(["Urgent today", "Low today", "Plain today"]);
-    const urgentPill = buckets.getByText("Urgent");
-    expect(urgentPill.closest(".pill")?.className).toContain("task-buckets__row-priority--urgent");
-    expect(buckets.getByText("Low")).toBeDefined();
-    // The unprioritized row renders no priority pill at all.
-    expect(section.querySelectorAll(".task-buckets__row-priority")).toHaveLength(2);
+    const { TASK_SECTIONS } = await import("../src/features/classview/taskSections.js");
+    const runSection = async (id: string): Promise<string[]> => {
+      const def = TASK_SECTIONS.find((section) => section.id === id)!;
+      const result = await client.runQueryAst(def.ast, { now: new Date(`${today}T12:00:00`) });
+      return result.ids;
+    };
+    expect(await runSection("overdue")).toEqual(expect.arrayContaining([overdueScheduled, overdueDeadline, recurring]));
+    expect(await runSection("overdue")).not.toContain(done);
+    expect(await runSection("today")).toEqual([todayBoth]);
+    expect(await runSection("upcoming")).toEqual([upcoming]);
+    expect(await runSection("unscheduled")).toEqual([unscheduled]);
+    expect(await runSection("completed")).toEqual([done]);
+    // Review = overdue minus recurring (a missed occurrence rolls forward).
+    expect(await runSection("review")).toEqual(expect.arrayContaining([overdueScheduled, overdueDeadline]));
+    expect(await runSection("review")).not.toContain(recurring);
   });
 
-  it("the done-toggle moves the row into Completed", async () => {
+  it("the done checkbox moves the row into Completed", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const { schema, optionId } = await taskStatus(client);
@@ -652,8 +572,8 @@ describe("TaskBuckets (tasks hub)", () => {
     await flushWrites();
 
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const buckets = within(await screen.findByLabelText("Task buckets"));
-    fireEvent.click(buckets.getByRole("checkbox", { name: "Mark task done" }));
+    const todaySection = within(await screen.findByLabelText("Today"));
+    fireEvent.click(await todaySection.findByRole("checkbox", { name: "Mark task done" }));
     await flushWrites();
     await waitFor(() => {
       const value = client
@@ -661,34 +581,30 @@ describe("TaskBuckets (tasks hub)", () => {
         .find((entry) => entry.propertySchemaId === schema.id)?.value;
       expect(value).toBe(optionId("Done"));
     });
-    // The row left the open buckets and re-renders checked under Completed.
-    expect(buckets.queryByRole("checkbox", { name: "Mark task done" })).toBeNull();
-    expect(buckets.getByRole("checkbox", { name: "Reopen task" })).toBeDefined();
-    expect(buckets.getByText("Toggle me")).toBeDefined();
+    // The row left the open section and re-renders checked under Completed.
+    await waitFor(() => {
+      expect(within(screen.getByLabelText("Today")).queryByRole("checkbox", { name: "Mark task done" })).toBeNull();
+    });
+    const completed = within(screen.getByLabelText("Completed"));
+    expect(completed.getByRole("checkbox", { name: "Reopen task" })).toBeDefined();
+    expect(completed.getByText("Toggle me")).toBeDefined();
   });
 
-  it("collapses device-locally and hides entirely when there are no tasks", async () => {
-    const busy = await seedClient();
-    await taskStatus(busy);
-    await createTask(busy, "Only task", { scheduled: todayIsoLocal() });
+  it("a section collapses device-locally", async () => {
+    const client = await seedClient();
+    await taskStatus(client);
+    await createTask(client, "Only task", { scheduled: todayIsoLocal() });
     await flushWrites();
-    const { unmount } = render(<HubView client={busy} nav="tasks" onOpenNode={vi.fn()} />);
-    const header = (await screen.findByLabelText("Task buckets")).querySelector(
-      ".task-buckets__header",
-    ) as HTMLElement;
-    fireEvent.click(header);
-    expect(header.getAttribute("aria-expanded")).toBe("false");
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    const todaySection = await screen.findByLabelText("Today");
+    const toggle = within(todaySection).getByRole("button", { name: "Collapse Today" });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(within(screen.getByLabelText("Today")).queryByText("Only task")).toBeNull();
+    // The choice persists device-locally (never an op).
     expect(
-      (await screen.findByLabelText("Task buckets")).querySelector(".task-buckets__rows"),
-    ).toBeNull();
-    unmount();
-
-    const empty = await seedClient();
-    await taskStatus(empty);
-    await flushWrites();
-    render(<HubView client={empty} nav="tasks" onOpenNode={vi.fn()} />);
-    await flushWrites();
-    expect(screen.queryByLabelText("Task buckets")).toBeNull();
+      window.localStorage.getItem("notees.settings.tasksHubSectionCollapsed.today"),
+    ).toBe(JSON.stringify(true));
   });
 });
 
@@ -745,7 +661,7 @@ describe("postponeTaskToTomorrow (one-tap push)", () => {
     expect(taskPostponeTargetOf(client, recurring)).toBeNull();
   });
 
-  it("the bucket row shows the hover postpone action and the click re-buckets the task", async () => {
+  it("the section row shows the hover postpone action and the click re-sections the task", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     await taskStatus(client);
@@ -754,183 +670,22 @@ describe("postponeTaskToTomorrow (one-tap push)", () => {
     await flushWrites();
 
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const section = await screen.findByLabelText("Task buckets");
+    const overdue = within(await screen.findByLabelText("Overdue"));
     // Only the scheduled row carries the action (the deadline-driven row
-    // never does).
-    const actions = section.querySelectorAll(".task-buckets__row-postpone");
+    // never does). The rows land with the query run — findAllByRole waits.
+    const actions = await overdue.findAllByRole("button", { name: "Push to tomorrow" });
     expect(actions).toHaveLength(1);
-    const groupOf = (text: string) =>
-      within(section).getByText(text).closest(".task-buckets__group");
-    expect(groupOf("Slipped")?.textContent).toContain("Overdue");
     fireEvent.click(actions[0]!);
     await flushWrites();
     await waitFor(() => {
-      expect(groupOf("Slipped")?.textContent).toContain("Upcoming");
+      expect(within(screen.getByLabelText("Upcoming")).getByText("Slipped")).toBeDefined();
     });
     // The deadline-driven row stays overdue, still without the affordance.
-    expect(groupOf("Deadline only")?.textContent).toContain("Overdue");
-    expect(
-      groupOf("Deadline only")?.querySelector(".task-buckets__row-postpone"),
-    ).toBeNull();
-  });
-
-  it("the Review row carries the same action", async () => {
-    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
-    try {
-      const client = await seedClient();
-      const today = todayIsoLocal();
-      await taskStatus(client);
-      await createTask(client, "Review me", { scheduled: addDaysIso(today, -2) });
-      await flushWrites();
-
-      render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-      const section = await screen.findByLabelText("Task review");
-      const action = section.querySelector(".task-review__row-postpone");
-      expect(action).not.toBeNull();
-      fireEvent.click(action!);
-      await flushWrites();
-      await waitFor(() => {
-        expect(screen.queryByText("Review me")).toBeNull(); // tomorrow is not reviewable
-      });
-    } finally {
-      window.localStorage.removeItem("notees.settings.viewMode.hub.tasks");
-    }
+    const overdueAfter = within(screen.getByLabelText("Overdue"));
+    expect(overdueAfter.getByText("Deadline only")).toBeDefined();
+    expect(overdueAfter.queryByRole("button", { name: "Push to tomorrow" })).toBeNull();
   });
 });
-
-// --- #5b the unreviewed-days queue -------------------------------------------------
-
-describe("TaskReview (tasks hub)", () => {
-  afterEach(() => {
-    window.localStorage.removeItem("notees.settings.viewMode.hub.tasks");
-  });
-
-  it("groupSlippedTasksByDay groups past open work by driving day, priority-first within the day", async () => {
-    const { groupSlippedTasksByDay } = await import(
-      "../src/features/calendar/calendarViewUtils.js"
-    );
-    const row = (
-      id: string,
-      scheduledIso: string | null,
-      deadlineIso: string | null,
-      priority: string | null = null,
-      closed = false,
-      repeat: TaskBucketRow["repeat"] = null,
-    ): TaskBucketRow => ({
-      id,
-      scheduledIso,
-      deadlineIso,
-      closed,
-      drivingIso: null,
-      priority,
-      repeat,
-      completedOccurrences: [],
-      occurrenceDone: false,
-    });
-    const today = "2026-10-04";
-    const groups = groupSlippedTasksByDay(
-      [
-        row("b-urgent", "2026-10-02", null, "Urgent"),
-        row("a-none", "2026-10-01", null),
-        row("b-low", null, "2026-10-02", "Low"), // deadline-driven groups under its deadline day
-        row("closed", "2026-10-01", null, null, true), // closed never lists
-        row("recurring", "2026-09-28", null, null, false, { freq: "daily", interval: 1 }), // rolls forward
-        row("today", today, null), // not past
-        row("future", "2026-10-09", null),
-        row("unscheduled", null, null),
-      ],
-      today,
-    );
-    expect(groups.map((group) => group.dayIso)).toEqual(["2026-10-01", "2026-10-02"]);
-    expect(groups[0]!.rows.map((r) => r.id)).toEqual(["a-none"]);
-    expect(groups[1]!.rows.map((r) => r.id)).toEqual(["b-urgent", "b-low"]);
-    expect(groups[1]!.rows[0]!.drivingIso).toBe("2026-10-02");
-  });
-
-  it("lists slipped days oldest-first and the checkbox completes a task out of the queue", async () => {
-    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
-    const client = await seedClient();
-    const today = todayIsoLocal();
-    await taskStatus(client);
-    await createTask(client, "Slipped yesterday", { scheduled: addDaysIso(today, -1) });
-    await createTask(client, "Slipped last week", {
-      scheduled: addDaysIso(today, -6),
-      priority: "High",
-    });
-    await createTask(client, "On track", { scheduled: today });
-    await flushWrites();
-
-    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const section = await screen.findByLabelText("Task review");
-    const review = within(section);
-    // Oldest day first; the on-track task never lists.
-    const days = [...section.querySelectorAll(".task-review__day")].map((el) => el.textContent);
-    expect(days).toEqual([addDaysIso(today, -6), addDaysIso(today, -1)]);
-    expect(review.getByText("Slipped last week")).toBeDefined();
-    expect(review.getByText("High")).toBeDefined();
-    expect(review.queryByText("On track")).toBeNull();
-
-    // The checkbox is the hub's exact write: closing the task empties its day.
-    const yesterdayGroup = review.getByText("Slipped yesterday").closest(".task-review__group")!;
-    fireEvent.click(
-      within(yesterdayGroup as HTMLElement).getByRole("checkbox", { name: "Mark task done" }),
-    );
-    await flushWrites();
-    await waitFor(() => {
-      expect(screen.queryByText("Slipped yesterday")).toBeNull();
-    });
-    expect(screen.getByText("Slipped last week")).toBeDefined();
-  });
-
-  it("push to today reschedules the day's scheduled-driven tasks only — a passed deadline is never bulk-rewritten", async () => {
-    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
-    const client = await seedClient();
-    const today = todayIsoLocal();
-    await taskStatus(client);
-    const scheduledId = await createTask(client, "Push me", {
-      scheduled: addDaysIso(today, -2),
-    });
-    const deadlineId = await createTask(client, "Deadline only", {
-      deadline: addDaysIso(today, -2),
-    });
-    await flushWrites();
-
-    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const review = within(await screen.findByLabelText("Task review"));
-    fireEvent.click(review.getByRole("button", { name: /Push to today/ }));
-    await flushWrites();
-
-    const scheduledIsoOfRow = (id: string, schemaId: string): string | null =>
-      scheduledIsoOf(
-        client.getPropertyRowShells(id).find((entry) => entry.propertySchemaId === schemaId)?.value,
-      );
-    await waitFor(() => {
-      expect(
-        scheduledIsoOfRow(scheduledId, SYSTEM_PROPERTY_UUIDS.taskScheduled),
-      ).toBe(today);
-    });
-    // The rescheduled task left the queue; the deadline-driven one stays,
-    // its deadline untouched.
-    expect(screen.queryByText("Push me")).toBeNull();
-    expect(screen.getByText("Deadline only")).toBeDefined();
-    expect(scheduledIsoOfRow(deadlineId, SYSTEM_PROPERTY_UUIDS.taskDeadline)).toBe(
-      addDaysIso(today, -2),
-    );
-  });
-
-  it("renders the honest empty line when nothing slipped", async () => {
-    window.localStorage.setItem("notees.settings.viewMode.hub.tasks", JSON.stringify("review"));
-    const client = await seedClient();
-    await taskStatus(client);
-    await createTask(client, "On track", { scheduled: todayIsoLocal() });
-    await flushWrites();
-
-    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    expect(await screen.findByText(/Nothing to review/)).toBeDefined();
-  });
-});
-
-// --- #11/#15 calendar breadth -------------------------------------------------------
 
 describe("CalendarView breadth (dots, agenda)", () => {
   it("marks days with dated objects (range-aware dots)", async () => {

@@ -160,3 +160,41 @@ button.outline-group__label:hover {
   gap: var(--spacing-1);
   margin-bottom: var(--spacing-1);
 }
+
+/* --- Task row chrome (2026-11-25): the done checkbox leads a task-classed
+   row; the postpone action hover-reveals at the row's right. ------------- */
+
+/* The checkbox centers on the row's first text line (the row is
+   flex-start aligned — the 1lh box rides the line height, never a px). */
+.outline-row__task-check {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 1lh;
+}
+
+/* The postpone action: hover-revealed (the retired buckets' register),
+   always reachable by keyboard. */
+.outline-row__task-postpone {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  height: 1lh;
+  background: none;
+  border: none;
+  padding: 0 var(--spacing-1);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0;
+}
+
+.outline-row:hover .outline-row__task-postpone,
+.outline-row__task-postpone:focus-visible {
+  opacity: 1;
+}
+
+.outline-row__task-postpone:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}

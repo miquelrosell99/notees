@@ -9,7 +9,6 @@ import {
   occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
   parseDateNodeId,
-  TASK_PRIORITY_OPTIONS,
   type RecurrenceRule,
 } from "@notees/domain";
 import type { QueryAst } from "@notees/query";
@@ -429,12 +428,12 @@ export function weekDaysOfIso(iso: string, firstDayOfWeek: number): string[] {
   return Array.from({ length: 7 }, (_, i) => addDaysIso(iso, i - offset));
 }
 
-// --- bucketed tasks --------------------------------------------------------------
+// --- task rows --------------------------------------------------------------
 
 /**
- * One task row's client-side bucket facts (derived from effective
- * properties). `drivingIso` is the earliest scheduled/deadline day — the day
- * the bucket labels and sorts by (null for unscheduled/completed).
+ * One task row's client-side facts (derived from effective properties).
+ * `drivingIso` is the earliest scheduled/deadline day — the day the
+ * calendar/task surfaces label and sort by (null for unscheduled/completed).
  */
 export interface TaskBucketRow extends OpenTaskRow {
   deadlineIso: string | null;
@@ -442,123 +441,6 @@ export interface TaskBucketRow extends OpenTaskRow {
   /** The taskPriority option's label (null when unset/unknown) — the hub's
    *  open buckets sort by it (Urgent → Low, unprioritized last). */
   priority: string | null;
-}
-
-export interface TaskBuckets {
-  /** Driving day before today. */
-  overdue: TaskBucketRow[];
-  /** Driving day exactly today. */
-  today: TaskBucketRow[];
-  /** Driving day after today (unbounded — the hub must not drop far-future tasks). */
-  upcoming: TaskBucketRow[];
-  /** Open, no scheduled/deadline day. */
-  unscheduled: TaskBucketRow[];
-  /** Closed status — the whole closed set, not just today's completions. */
-  completed: TaskBucketRow[];
-}
-
-/**
- * The priority sort rank behind the hub's open buckets: the designed option
- * order reversed (Urgent first), unprioritized/unknown labels last. The
- * label is the row's resolved taskPriority option label — the same
- * label-keyed idiom the closed-status check rides.
- */
-export function taskPriorityRank(priority: string | null): number {
-  if (priority === null) return TASK_PRIORITY_OPTIONS.length;
-  const index = TASK_PRIORITY_OPTIONS.indexOf(
-    priority as (typeof TASK_PRIORITY_OPTIONS)[number],
-  );
-  return index === -1 ? TASK_PRIORITY_OPTIONS.length : TASK_PRIORITY_OPTIONS.length - 1 - index;
-}
-
-/** One slipped day in the hub's Review view: the past driving day + its open tasks. */
-export interface SlippedDayGroup {
-  /** The past day the group's tasks were driving toward (local ISO). */
-  dayIso: string;
-  /** The day's open slipped tasks, priority-first then id. */
-  rows: TaskBucketRow[];
-}
-
-/**
- * The unreviewed-days queue behind the hub's Review view: every PAST day
- * that still carries open work, oldest first, grouped by the day the work
- * was driving toward. A task's driving day is its earliest
- * scheduled/deadline day (the buckets' exact rule). Recurring tasks never
- * list — a missed occurrence rolls forward to the next one (the calendar
- * law), so there is nothing to review. Closed tasks never list. The queue
- * is fully DERIVED: a day leaves it the moment its open tasks are closed or
- * rescheduled out of the past — no stored "reviewed" bit anywhere.
- */
-export function groupSlippedTasksByDay(
-  rows: readonly TaskBucketRow[],
-  todayIso: string,
-): SlippedDayGroup[] {
-  const byDay = new Map<string, TaskBucketRow[]>();
-  for (const row of rows) {
-    if (row.closed || row.repeat !== null) continue;
-    const days = [row.scheduledIso, row.deadlineIso]
-      .filter((day): day is string => day !== null)
-      .sort();
-    const drivingIso = days[0] ?? null;
-    if (drivingIso === null || drivingIso >= todayIso) continue;
-    const group = byDay.get(drivingIso) ?? [];
-    group.push({ ...row, drivingIso });
-    byDay.set(drivingIso, group);
-  }
-  const byPriorityThenId = (a: TaskBucketRow, b: TaskBucketRow) =>
-    taskPriorityRank(a.priority) - taskPriorityRank(b.priority) || a.id.localeCompare(b.id);
-  return [...byDay.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([dayIso, groupRows]) => ({ dayIso, rows: groupRows.sort(byPriorityThenId) }));
-}
-
-/**
- * The tasks-bucket partition, client-side over the tasks-hub members: a
- * task's driving day is its earliest scheduled/deadline day, and the bucket
- * priority is Overdue → Today → Upcoming, so every open task lands in
- * exactly one bucket. (The original OR-section queries could list one task twice;
- * the hub section keeps rows unique and unbounded-upcoming so nothing
- * scheduled vanishes.) Open buckets sort priority-first (Urgent → Low,
- * unprioritized last — the 2026-11-24 priority-surfacing ruling), then by
- * the bucket's own ordering (driving day for overdue/upcoming, id for
- * today/unscheduled); Completed stays id-ordered — priority is an open-work
- * signal, not a closed-history one.
- */
-export function partitionTasksIntoBuckets(
-  rows: readonly TaskBucketRow[],
-  todayIso: string,
-): TaskBuckets {
-  const overdue: TaskBucketRow[] = [];
-  const today: TaskBucketRow[] = [];
-  const upcoming: TaskBucketRow[] = [];
-  const unscheduled: TaskBucketRow[] = [];
-  const completed: TaskBucketRow[] = [];
-  for (const row of rows) {
-    if (row.closed) {
-      completed.push(row);
-      continue;
-    }
-    const days = [row.scheduledIso, row.deadlineIso]
-      .filter((day): day is string => day !== null)
-      .sort();
-    const drivingIso = days[0] ?? null;
-    const withDriving: TaskBucketRow = { ...row, drivingIso };
-    if (drivingIso === null) unscheduled.push(withDriving);
-    else if (drivingIso < todayIso) overdue.push(withDriving);
-    else if (drivingIso === todayIso) today.push(withDriving);
-    else upcoming.push(withDriving);
-  }
-  const byPriority = (a: TaskBucketRow, b: TaskBucketRow) =>
-    taskPriorityRank(a.priority) - taskPriorityRank(b.priority);
-  const byDay = (a: TaskBucketRow, b: TaskBucketRow) =>
-    (a.drivingIso ?? "").localeCompare(b.drivingIso ?? "") || a.id.localeCompare(b.id);
-  overdue.sort((a, b) => byPriority(a, b) || byDay(a, b));
-  upcoming.sort((a, b) => byPriority(a, b) || byDay(a, b));
-  const byId = (a: TaskBucketRow, b: TaskBucketRow) => a.id.localeCompare(b.id);
-  today.sort((a, b) => byPriority(a, b) || byId(a, b));
-  unscheduled.sort((a, b) => byPriority(a, b) || byId(a, b));
-  completed.sort(byId);
-  return { overdue, today, upcoming, unscheduled, completed };
 }
 
 /** One class's chip candidacy input (resolved by the view from the client). */

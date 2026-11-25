@@ -371,19 +371,17 @@ describe("ensureTaskFamily", () => {
     await client.setProperty(closed, SYSTEM_PROPERTY_UUIDS.taskStatus, doneId, 0);
 
     // The surviving open-task read (the day page's partition and the tasks
-    // hub's buckets): rows over the family members, closed by status label.
-    const { taskRowsOf } = await import("../src/features/calendar/calendarRows.js");
-    const { partitionTasksIntoBuckets } = await import(
-      "../src/features/calendar/calendarViewUtils.js"
-    );
-    const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
-    const buckets = partitionTasksIntoBuckets(
-      taskRowsOf(client, status, members.map((member) => member.id)),
-      "2026-10-02",
-    );
-    expect(buckets.today.map((row) => row.id)).toContain(open);
-    expect(buckets.today.map((row) => row.id)).not.toContain(closed);
-    expect(buckets.completed.map((row) => row.id)).toContain(closed);
+    // hub's query sections): the section ASTs over the family members,
+    // closed by the status option.
+    const { TASK_SECTIONS } = await import("../src/features/classview/taskSections.js");
+    const runSection = async (id: string): Promise<string[]> => {
+      const def = TASK_SECTIONS.find((section) => section.id === id)!;
+      const result = await client.runQueryAst(def.ast, { now: new Date("2026-10-02T12:00:00") });
+      return result.ids;
+    };
+    expect(await runSection("today")).toContain(open);
+    expect(await runSection("today")).not.toContain(closed);
+    expect(await runSection("completed")).toContain(closed);
   });
 });
 

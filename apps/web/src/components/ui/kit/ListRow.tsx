@@ -13,7 +13,7 @@
  * TEMPLATE-GAP finding: the only fleet-owned template with no app
  * component; its register was copy-pasted across pickers/NodeResultItem,
  * page-sections/{ActivityLog,Comments,VersionHistory}, trash/TrashHub,
- * classview/TaskBuckets, sharing/SharesHub, collection/FilterBlockBuilder).
+ * sharing/SharesHub, collection/FilterBlockBuilder).
  */
 
 import { forwardRef, type ReactNode } from 'react';

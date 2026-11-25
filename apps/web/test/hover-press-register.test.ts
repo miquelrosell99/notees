@@ -42,7 +42,6 @@ function expectHitAreaOverlay(css: string, selector: string): void {
 const paletteCss = readCss("features", "command-palette", "CommandPalette.css");
 const commentsCss = readCss("features", "page-sections", "CommentsSection.css");
 const trashCss = readCss("features", "trash", "TrashHub.css");
-const taskBucketsCss = readCss("features", "classview", "TaskBuckets.css");
 const settingsPageCss = readCss("features", "settings", "SettingsPage.css");
 const settingsModalCss = readCss("features", "settings", "settingsModal.css");
 const journalsCss = readCss("features", "calendar", "JournalsView.css");
@@ -90,23 +89,6 @@ describe("hub/list row names ride the §7 list-row register", () => {
   // stamp color rides .list-row__trailing); the hub stylesheets keep only
   // their deviations — the stamp size override and the button contracts.
   const listRowCss = readCss("components", "ui", "kit", "ListRow.css");
-
-  it("task bucket rows: primary 14px/600, the single-line ellipsis contract kept", () => {
-    const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);
-    expect(primary).not.toBeNull();
-    expect(primary![0]).toContain("font-size: var(--font-size-base)");
-    expect(primary![0]).toContain("var(--font-weight-semibold)");
-    const name = /\.task-buckets__row-name \{[^}]*\}/.exec(taskBucketsCss);
-    expect(name).not.toBeNull();
-    expect(name![0]).toContain("text-overflow: ellipsis");
-    expect(name![0]).toContain("white-space: nowrap");
-    const trailing = /\.task-buckets__row \.list-row__trailing \{[^}]*\}/.exec(taskBucketsCss);
-    expect(trailing).not.toBeNull();
-    expect(trailing![0]).toContain("font-size: var(--font-size-sm)");
-    const day = /\.task-buckets__row-day \{[^}]*\}/.exec(taskBucketsCss);
-    expect(day).not.toBeNull();
-    expect(day![0]).toContain("var(--md-sys-color-on-surface-variant)");
-  });
 
   it("trash hub rows: the name rides the register at 14px/600, the stamp 12px muted", () => {
     const primary = /\.list-row__primary \{[^}]*\}/.exec(listRowCss);

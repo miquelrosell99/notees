@@ -18,13 +18,11 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 import { parentlessBlockResolverOf } from "../renderStateLabel.js";
 import { CollectionHub } from "../../features/collection/CollectionHub.js";
 import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
-// Buckets-view registration side effect (the collection barrel's
-// self-registration precedent): registers the "buckets" view mode the tasks
-// hub offers as its default.
-import "../../features/classview/bucketsView.js";
-// Review-view registration side effect: registers the "review" view mode
-// (the unreviewed-days queue) the tasks hub offers next to Buckets.
-import "../../features/classview/reviewView.js";
+// Sections-view registration side effect (the collection barrel's
+// self-registration precedent): registers the "sections" view mode — the
+// stacked live-query sections — the tasks hub offers as its default.
+import "../../features/classview/TaskSections.js";
+import { taskTableColumns } from "../../features/classview/taskSections.js";
 import {
   CardBuckets,
   cardRowsOf,
@@ -54,30 +52,6 @@ import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import { NAV_ENTRIES, type NavKey } from "./Sidebar.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../features/collection/index.js";
 import type { AnyClient } from "./clients.js";
-
-/** Task property columns, in display order (schemas may not exist yet —
- *  the task family is authored on demand, so missing schemas drop out). */
-const TASK_PROPERTY_COLUMNS: Array<{ id: string; fallback: string }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.taskStatus, fallback: "Status" },
-  { id: SYSTEM_PROPERTY_UUIDS.taskPriority, fallback: "Priority" },
-  { id: SYSTEM_PROPERTY_UUIDS.taskScheduled, fallback: "Scheduled" },
-  { id: SYSTEM_PROPERTY_UUIDS.taskDeadline, fallback: "Deadline" },
-];
-
-function taskTableColumns(client: AnyClient): TableColumn[] {
-  const schemas = client.listPropertySchemas();
-  return [
-    { id: "name", kind: "name", label: "Name", sortable: true },
-    ...TASK_PROPERTY_COLUMNS.filter((col) => schemas.some((s) => s.id === col.id)).map((col) => ({
-      id: col.id,
-      kind: "property" as const,
-      label: schemas.find((s) => s.id === col.id)?.name ?? col.fallback,
-      propertySchemaId: col.id,
-      sortable: true,
-    })),
-    { id: "created", kind: "created", label: "Created", sortable: true },
-  ];
-}
 
 /** A select schema with options — usable as the cards-board grouping (single or multi). */
 function usableGroupingSchema(
@@ -232,11 +206,10 @@ export function HubView({
     const groupByProperty = taskGroupingProperty(client, members);
     // ONE bar for the whole hub: CollectionHub's SurfaceTopBar carries the
     // title/count/switcher; the body renders exactly ONE surface — the
-    // registered "buckets" view (Overdue/Today/Upcoming/Unscheduled/
-    // Completed) as the default mode, or the mode the user selected (the
-    // register's either/or ruling: the retired prepend stacked the buckets
-    // over every mode).
-    const modes: Array<ViewMode | string> = ["buckets", "review", "outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
+    // registered "sections" view (the stacked live-query sections: Overdue /
+    // Today / Upcoming / Unscheduled / Completed / Review) as the default
+    // mode, or the mode the user selected (the register's either/or ruling).
+    const modes: Array<ViewMode | string> = ["sections", "outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
     return (
       <div className="nt-hub-tasks">
         <CollectionHub
@@ -245,7 +218,7 @@ export function HubView({
           title={entry?.label ?? "Tasks"}
           items={members.map((node) => ({ node }))}
           modes={modes}
-          defaultMode="buckets"
+          defaultMode="sections"
           persistKey="hub.tasks"
           // A subtask (a task-classed child of a task) nests under its parent
           // in the outline and rides parent-before-child in unset table

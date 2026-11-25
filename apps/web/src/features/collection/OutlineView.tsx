@@ -82,7 +82,14 @@ import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
-import { SortMenuButton, Badge, type SortMenuOption } from "../../components/ui/kit/index.js";
+import { SortMenuButton, Badge, Checkbox, type SortMenuOption } from "../../components/ui/kit/index.js";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import {
+  postponeTaskToTomorrow,
+  setTaskDone,
+  taskPostponeTargetOf,
+  taskRowFacts,
+} from "../calendar/calendarRows.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
@@ -338,6 +345,22 @@ function FlatRows({
     openInSidebar: (id) => (onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
     defaultCollapsed,
   });
+  /**
+   * Task row chrome (2026-11-25): a task-classed row leads with the done
+   * checkbox (the shared setTaskDone write — the retired buckets' exact
+   * gesture, the Closed stamp riding the client's write seam) and carries
+   * the hover-revealed Push-to-tomorrow action when eligible — EVERY
+   * outline surface offers the task gestures coherently. Membership reads
+   * the class's member set (the extends closure — a subclassed task is a
+   * task); the facts ride the same shells read the calendar surfaces use.
+   */
+  const statusSchema = client
+    .listPropertySchemas()
+    .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
+  const taskIds = useMemo(
+    () => new Set(client.getClassMembers(SYSTEM_CLASS_UUIDS.task).map((node) => node.id)),
+    [client, items],
+  );
   const resolveName = useCallback((id: string) => titleOf(client, id), [client]);
   const showBreadcrumbs = props.showBreadcrumbs ?? true;
   // Stable identity for dnd-kit's SortableContext (the row memo's defeat
@@ -348,8 +371,22 @@ function FlatRows({
       <SortableContext items={flatIds} strategy={verticalListSortingStrategy}>
         <ul className={listClassName}>
           {visible.map((item) => {
+            const taskFacts = taskIds.has(item.node.id)
+              ? taskRowFacts(client, statusSchema, item.node.id)
+              : null;
             const row: ReactNode = (
-              <span className="outline-row">
+              <span className={`outline-row${taskFacts !== null ? " outline-row--task" : ""}`}>
+                {taskFacts !== null && statusSchema !== undefined && (
+                  <Checkbox
+                    size="sm"
+                    className="outline-row__task-check"
+                    checked={taskFacts.closed}
+                    aria-label={taskFacts.closed ? "Reopen task" : "Mark task done"}
+                    onChange={(checked) =>
+                      void setTaskDone(client, statusSchema, item.node.id, checked)
+                    }
+                  />
+                )}
                 <BlockRow
                   tree={flatTreeOf(client, item, TREE_DEPTH_CAP, pagesOnly)}
                   client={client}
@@ -361,6 +398,21 @@ function FlatRows({
                   hideProperties={props.hideProperties}
                   hideTags={props.hideTags}
                 />
+                {taskFacts !== null &&
+                  !taskFacts.closed &&
+                  taskFacts.repeat === null &&
+                  taskFacts.scheduledIso !== null &&
+                  taskPostponeTargetOf(client, item.node.id) !== null && (
+                    <button
+                      type="button"
+                      className="outline-row__task-postpone"
+                      title="Push to tomorrow"
+                      aria-label="Push to tomorrow"
+                      onClick={() => void postponeTaskToTomorrow(client, item.node.id)}
+                    >
+                      <Icon path="mdi-calendar-arrow-right" size={0.9} />
+                    </button>
+                  )}
                 {trailingAction?.(item)}
               </span>
             );
