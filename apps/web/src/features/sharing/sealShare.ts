@@ -16,7 +16,7 @@
 import { b64uEncode } from "@notees/protocol";
 
 import { blobBytes } from "../../core/workspace-client/asset-transport.js";
-import { exportSubtreeFile, type ExportClient } from "../export/exportSubtree.js";
+import { exportSubtreeFile, freshSubtreeSurface, type ExportClient } from "../export/exportSubtree.js";
 import { createShare, putShareArtifact, type ShareEntry } from "./shareApi.js";
 
 export interface SealedShare {
@@ -71,6 +71,10 @@ export async function publishSealedShare(
 }
 
 async function defaultRender(client: ExportClient, nodeUuid: string): Promise<Uint8Array> {
-  const exported = await exportSubtreeFile(client, nodeUuid, { format: "html" });
+  // The sealed artifact must carry the WHOLE subtree — the render reads the
+  // fresh subtree surface (never the render cache, which drops folded /
+  // off-screen descendants the same way the clipboard copy did).
+  const surface = await freshSubtreeSurface(client, [nodeUuid]);
+  const exported = await exportSubtreeFile(surface, nodeUuid, { format: "html" });
   return blobBytes(exported.blob);
 }

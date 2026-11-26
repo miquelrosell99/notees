@@ -8,9 +8,12 @@
  * The flow mirrors the package-serializer formats: ONE ExportDocument over
  * the root's whole subtree through the shared IR construction
  * (buildSubtreeDocument), then the react-pdf component tree renders it.
- * Assets resolve through the client's cached image read into data URLs
- * (concurrency-limited); a miss renders the placeholder box, exactly the
- * single-file conventions (no bytes leave the workspace otherwise).
+ * Assets resolve through the client's uncached image read (`getAssetDataUrl`)
+ * into data URLs (concurrency-limited); a miss renders the placeholder box,
+ * exactly the single-file conventions (no bytes leave the workspace
+ * otherwise). The subtree reads ride the export surface the modal builds —
+ * a {@link PdfExportClient} — so folded/off-screen descendants render like
+ * every other export.
  * Delivery: `pdf(<ExportPdfDocument/>).toBlob()` → one `<slug>.pdf`; a
  * batch renders every root and zips one `<slug>-<id8>.pdf` per root (the
  * task-W batch conventions: no manifest, named after the first root).
@@ -32,11 +35,20 @@ import {
   mapWithConcurrency,
   toExportNode,
   type ExportClient,
+  type ExportReadSurface,
   type ExportSubtreeOptions,
 } from "../../features/export/exportSubtree.js";
 
 import { ExportPdfDocument, pdfPageSize } from "./pdfDocument.js";
 import type { PdfLayout } from "./theme.js";
+
+/**
+ * The render entry's read shape: the subtree composition rides an
+ * {@link ExportReadSurface} (the modal builds it fresh — folded/off-screen
+ * descendants must not drop from the PDF either), plus the asset data-URL
+ * read (itself uncached on both client classes).
+ */
+export type PdfExportClient = ExportReadSurface & Pick<ExportClient, "getAssetDataUrl">;
 
 export interface RenderSubtreePdfOptions extends ExportSubtreeOptions {
   /** Layout theme (modelling decision 2); default notes. */
@@ -99,7 +111,7 @@ export function mdiIconPaths(): Promise<ReadonlyMap<string, string>> {
  * the bordered placeholder for them, and the export never goes fatal.
  */
 async function fetchAssetDataUrls(
-  client: ExportClient,
+  client: Pick<ExportClient, "getAssetDataUrl">,
   assetRefIds: readonly string[],
 ): Promise<Map<string, string>> {
   const urls = new Map<string, string>();
@@ -121,7 +133,7 @@ async function fetchAssetDataUrls(
  * application/pdf delivery MIME.
  */
 export async function renderSubtreePdf(
-  client: ExportClient,
+  client: PdfExportClient,
   rootId: string,
   options: RenderSubtreePdfOptions = {},
 ): Promise<RenderedPdfExport> {
@@ -145,7 +157,7 @@ export async function renderSubtreePdf(
  * root's whole subtree.
  */
 export async function renderSubtreePdfBatch(
-  client: ExportClient,
+  client: PdfExportClient,
   rootIds: readonly string[],
   options: RenderSubtreePdfOptions = {},
 ): Promise<RenderedPdfExport> {

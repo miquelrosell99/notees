@@ -16,7 +16,7 @@ import { useState } from "react";
 
 import { Button } from "../../components/ui/kit/Button.js";
 import { blobBytes } from "../../core/workspace-client/asset-transport.js";
-import { exportSubtreeFile, type ExportClient } from "../export/exportSubtree.js";
+import { exportSubtreeFile, freshSubtreeSurface, type ExportClient } from "../export/exportSubtree.js";
 import { sealConfidentialHtml } from "./confidentialCrypto.js";
 import { createConfidentialShare } from "./shareApi.js";
 
@@ -46,7 +46,11 @@ export function ConfidentialSection({
     setError(null);
     setDone(false);
     try {
-      const exported = await exportSubtreeFile(client, nodeUuid, { format: "html" });
+      // The sealed artifact must carry the WHOLE subtree — the render reads
+      // the fresh subtree surface (never the render cache, which drops
+      // folded / off-screen descendants the same way the clipboard did).
+      const surface = await freshSubtreeSurface(client, [nodeUuid]);
+      const exported = await exportSubtreeFile(surface, nodeUuid, { format: "html" });
       const html = await blobBytes(exported.blob);
       const sealed = await sealConfidentialHtml(html, password);
       await createConfidentialShare(serverUrl, token, {

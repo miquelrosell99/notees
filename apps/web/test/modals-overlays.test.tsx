@@ -249,29 +249,30 @@ describe("ExportPageModal", () => {
     );
   }, 10000);
 
-  it("re-runs the preview when the client's cached reads land (child blocks never stuck hidden)", async () => {
+  it("the preview renders the whole subtree from the first pass, never riding the render cache", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
-    await client.createObject({
+    const childId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Book flights" }],
     });
+    await client.createObject({
+      parentId: childId,
+      contentAst: [{ type: "text", text: "Buy guidebook" }],
+    });
 
-    // Simulate the worker client: getChildren seeds EMPTY (the cachedRead
-    // fallback) until the async fill lands and a notification fires — the
-    // exact race that used to leave the first preview without child blocks
-    // until an option toggle forced a re-run.
-    let loaded = false;
-    const listeners = new Set<() => void>();
+    // Simulate the worker client's synchronous render cache at its worst:
+    // EVERY cached read answers the empty default forever (folded subtrees
+    // never seed their keys at all). The *Fresh reads still delegate to the
+    // real client — the contract the export surface rides. The preview must
+    // carry the full subtree on the FIRST render, with no notification
+    // re-run (the modal doesn't subscribe anymore — the race is gone by
+    // construction).
     const stubbed = new Proxy(client, {
       get(target, prop, receiver) {
-        if (prop === "getChildren")
-          return (id: string) => (loaded ? target.getChildren(id) : []);
-        if (prop === "subscribe")
-          return (listener: () => void) => {
-            listeners.add(listener);
-            return () => listeners.delete(listener);
-          };
+        if (prop === "getNode" || prop === "getChildren" || prop === "getEffectiveProperties") {
+          return () => (prop === "getNode" ? undefined : []);
+        }
         return Reflect.get(target, prop, receiver);
       },
     }) as typeof client;
@@ -280,15 +281,13 @@ describe("ExportPageModal", () => {
     const preview = (await screen.findByLabelText("markdown preview", undefined, {
       timeout: 2000,
     })) as HTMLTextAreaElement;
-    await vi.waitFor(() => expect(preview.value.length).toBeGreaterThan(0), { timeout: 2000 });
-    // First pass raced the cache: the child block is not there yet.
-    expect(preview.value).not.toContain("- Book flights");
-
-    // The cache lands and notifies — the preview re-runs on its own, no
-    // toggle needed.
-    loaded = true;
-    for (const listener of listeners) listener();
-    await vi.waitFor(() => expect(preview.value).toContain("- Book flights"), { timeout: 2000 });
+    await vi.waitFor(
+      () => {
+        expect(preview.value).toContain("- Book flights");
+        expect(preview.value).toContain("  - Buy guidebook");
+      },
+      { timeout: 2000 },
+    );
   }, 10000);
 
   it("excludes text-property carrier blocks from the exported body", async () => {
@@ -500,7 +499,11 @@ describe("ExportPageModal", () => {
       pdfEngineMocks.renderSubtreePdfMock.mock.calls[
         pdfEngineMocks.renderSubtreePdfMock.mock.calls.length - 1
       ]!;
-    expect(lastCall[0]).toBe(client);
+    // The engine now reads a FRESH subtree surface (never the render cache)
+    // with the asset data-URL read attached — the PdfExportClient shape.
+    expect(lastCall[0]).not.toBe(client);
+    expect(lastCall[0].getNode(pageId)?.id).toBe(pageId);
+    expect(typeof lastCall[0].getAssetDataUrl).toBe("function");
     expect(lastCall[1]).toBe(pageId);
     expect(lastCall[2]).toEqual(
       expect.objectContaining({

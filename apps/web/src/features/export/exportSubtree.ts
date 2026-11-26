@@ -215,7 +215,7 @@ function makeExportContext(
 }
 
 /** Depth-first node list for one root: the root, then each child-page subtree. */
-function collectSubtree(client: ExportClient, rootId: string, includeChildPages: boolean): ExportNode[] {
+function collectSubtree(client: ExportReadSurface, rootId: string, includeChildPages: boolean): ExportNode[] {
   const visited = new Set<string>();
   const ordered: ExportNode[] = [];
   const collect = (id: string): void => {
@@ -263,13 +263,13 @@ function engineOptions(options: ExportSubtreeOptions): ExportOptions {
 }
 
 /**
- * The fresh-read source behind the clipboard's subtree surface — the *Fresh
+ * The fresh-read source behind the export subtree surfaces — the *Fresh
  * client reads (one raw RPC each on the worker; always-fresh aliases
- * in-process). The clipboard composition must NOT ride the synchronous
- * render cache: on the WorkerClient a cold key answers the []/undefined
- * default, and a folded or off-screen descendant's row may never have
- * seeded its cache keys — the copy would silently drop the very subtree
- * the user asked for (the getChildrenFresh precedent).
+ * in-process). Full-subtree export compositions must NOT ride the
+ * synchronous render cache: on the WorkerClient a cold key answers the
+ * []/undefined default, and a folded or off-screen descendant's row may
+ * never have seeded its cache keys — the export would silently drop the
+ * very subtree the user asked for (the getChildrenFresh precedent).
  */
 export interface FreshExportReadSource {
   getNodeFresh(id: string): Promise<ClientNode | undefined>;
@@ -279,22 +279,28 @@ export interface FreshExportReadSource {
 }
 
 /**
- * Gather the subtree rooted at `rootId` through the fresh reads and answer
+ * Gather the subtrees rooted at `rootIds` through the fresh reads and answer
  * an {@link ExportReadSurface} from the gathered rows. Every descendant in
  * BOTH child zones is walked (the export composition's own filters decide
  * what renders; reading a few extra rows is harmless). Reads the surface
- * cannot serve — display names and class chrome for ids OUTSIDE the subtree
- * (mention targets, template resolution) — delegate to the wrapped client,
- * preserving the cached path's behavior for exactly those refs.
+ * cannot serve — display names and class chrome for ids OUTSIDE the gathered
+ * subtrees (mention targets, template resolution) — delegate to the wrapped
+ * client, preserving the cached path's behavior for exactly those refs.
  */
-async function freshSubtreeSurface(
+export async function freshSubtreeSurface(
   client: ExportReadSurface & FreshExportReadSource,
-  rootId: string,
+  rootIds: readonly string[],
 ): Promise<ExportReadSurface> {
   const childrenOfId = new Map<string, ClientNode[]>();
-  const ids: string[] = [rootId];
-  const seen = new Set<string>([rootId]);
-  let frontier: string[] = [rootId];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  let frontier: string[] = [];
+  for (const rootId of rootIds) {
+    if (seen.has(rootId)) continue;
+    seen.add(rootId);
+    ids.push(rootId);
+    frontier.push(rootId);
+  }
   while (frontier.length > 0) {
     const lists = await Promise.all(
       frontier.map((id) => Promise.resolve(client.getChildrenFresh(id))),
@@ -354,7 +360,7 @@ export async function clipboardMarkdown(
   rootId: string,
   withChildren: boolean,
 ): Promise<string> {
-  const surface = await freshSubtreeSurface(client, rootId);
+  const surface = await freshSubtreeSurface(client, [rootId]);
   const root = surface.getNode(rootId);
   if (root === undefined) throw new Error("clipboardMarkdown: node not found");
   if (!withChildren) {
@@ -370,7 +376,7 @@ export async function clipboardMarkdown(
  * Depth-first: the root first, then each child-page subtree in child order.
  */
 export function exportSubtreeMarkdown(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootId: string,
   options: ExportSubtreeOptions = {},
 ): SubtreeExport {
@@ -407,7 +413,7 @@ export interface ExportSubtreeBundleOptions extends ExportSubtreeOptions {
  * collectSubtreeAssetRefIds (root, inline DFS, then child pages).
  */
 function collectSubtreeArchiveNodes(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootId: string,
   includeChildPages: boolean,
 ): ExportNode[] {
@@ -442,7 +448,7 @@ function collectSubtreeArchiveNodes(
  * children-endpoint projection.
  */
 export function exportSubtreeJsonArchive(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootIds: readonly string[],
   options: ExportSubtreeOptions = {},
 ): SubtreeFileExport {
@@ -473,7 +479,7 @@ export function exportSubtreeJsonArchive(
  * the manifest, mirroring the server zip conventions.
  */
 export function exportSubtreeBundle(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootIds: readonly string[],
   options: ExportSubtreeBundleOptions = {},
 ): ExportBundle {
@@ -574,7 +580,7 @@ export function zipExportBundle(
 }
 
 /** Batch-zip download name: the first root's title slug (E5's `<slug>.zip`). */
-export function exportZipFileName(client: ExportClient, firstRootId: string, date: Date = new Date()): string {
+export function exportZipFileName(client: ExportReadSurface, firstRootId: string, date: Date = new Date()): string {
   const root = client.getNode(firstRootId);
   const title = root === undefined ? "" : titleOfNode(root).trim();
   const slug = slugifyName(title);
@@ -620,7 +626,7 @@ export function exportTimestamp(date: Date = new Date()): string {
  * extension) comes from the web registry's table, never hardcoded here.
  */
 export function exportSubtreeBibliography(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootIds: readonly string[],
   options: { format: "bib" | "csl-json"; includeChildPages?: boolean },
 ): SubtreeFileExport {
@@ -687,7 +693,7 @@ function agentCitationName(client: ExportReadSurface, agentId: string): string |
  * `includeChildPages` off the outline keeps to inline blocks, mirroring the
  * markdown single-node read.
  */
-function subtreeChildrenOf(client: ExportClient, id: string, includeChildPages: boolean): ExportNode[] {
+function subtreeChildrenOf(client: ExportReadSurface, id: string, includeChildPages: boolean): ExportNode[] {
   const carriers = propertyCarrierIdsOf(client, id);
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
@@ -710,7 +716,7 @@ function subtreeChildrenOf(client: ExportClient, id: string, includeChildPages: 
  * through the single shared construction instead of re-deriving it.
  */
 export function buildSubtreeDocument(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootId: string,
   options: ExportSubtreeOptions,
 ): { document: ExportDocument; resolved: ResolvedExportOptions } {
@@ -765,7 +771,7 @@ export interface SubtreeFileExport {
  * only surfaces the option on the markdown card, so this never surprises.
  */
 export async function exportSubtreeFile(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootId: string,
   options: ExportSubtreeFileOptions,
 ): Promise<SubtreeFileExport> {
@@ -828,7 +834,7 @@ export async function exportSubtreeFile(
  * iframe and docx shows the static note (binary formats have no plaintext).
  */
 export function exportSubtreeTextPreview(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootIds: readonly string[],
   format: WebExportFormatId,
   options: ExportSubtreeOptions = {},
@@ -888,7 +894,7 @@ export function exportSubtreeTextPreview(
  * engine's zip (ui/export-pdf renderSubtreePdfBatch, task P1).
  */
 export async function exportSubtreeBatchFile(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootIds: readonly string[],
   options: ExportSubtreeFileOptions,
 ): Promise<SubtreeFileExport> {
@@ -937,7 +943,7 @@ export async function exportSubtreeBatchFile(
  * client and server zips bundle the same asset set.
  */
 export function collectSubtreeAssetRefIds(
-  client: ExportClient,
+  client: ExportReadSurface,
   rootIds: readonly string[],
   includeChildPages: boolean,
 ): string[] {

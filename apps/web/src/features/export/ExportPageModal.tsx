@@ -82,6 +82,7 @@ import {
   exportSubtreeBibliography,
   exportSubtreeTextPreview,
   exportZipFileName,
+  freshSubtreeSurface,
   zipExportBundle,
   collectSubtreeAssetRefIds,
   fetchSubtreeAssets,
@@ -192,32 +193,18 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
   );
 
   /**
-   * Bumps when the client's cached reads land. The worker client seeds its
-   * cache empty and notifies on fill; without this the first preview ran
-   * before the children cache populated, so child blocks were missing from
-   * the preview until any option toggle forced a re-run.
+   * Recompute the preview whenever the options change. The export engine is
+   * synchronous and local ONCE its read surface is at hand; the debounce
+   * keeps rapid setting changes from re-rendering the world per keystroke.
+   * The surface itself is gathered fresh per run (freshSubtreeSurface — the
+   * *Fresh client reads), so a folded or off-screen subtree renders in the
+   * preview exactly like a rendered one, and no client-notification re-run
+   * is needed: the render-cache race the dataVersion bump used to paper over
+   * cannot happen when the composition never reads the cache. The preview is
+   * the selected card's own plaintext projection (exportSubtreeTextPreview)
+   * for every text-serializable format; pdf rides its own iframe effect
+   * below and docx shows the static note.
    */
-  const [dataVersion, setDataVersion] = useState(0);
-  useEffect(() => {
-    if (!isOpen) return;
-    return client.subscribe(() => setDataVersion((version) => version + 1));
-  }, [isOpen, client]);
-
-  /** The PDF engine's bag — the checkbox options + the two PDF-only selects. */
-  const pdfEngineOptions = useMemo(
-    () => ({ ...engineOptions, layout, pageFormat }),
-    [engineOptions, layout, pageFormat],
-  );
-
-  // Recompute the preview whenever the options change. The export engine is
-  // synchronous and local; the debounce keeps rapid setting changes from
-  // re-rendering the world per keystroke. `dataVersion` rides the deps so a
-  // client notification (the worker's cached reads landing — the first open
-  // can race the children cache) re-runs the preview instead of leaving it
-  // stale until the next toggle. The preview is the selected card's own
-  // plaintext projection (exportSubtreeTextPreview) for every text-
-  // serializable format; pdf rides its own iframe effect below and docx
-  // shows the static note.
   useEffect(() => {
     if (!isOpen || effectiveNodeUuids.length === 0) {
       return;
@@ -230,35 +217,42 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
 
     let cancelled = false;
     const debounceTimer = window.setTimeout(() => {
-      if (cancelled) return;
       setLoading(true);
       setError(null);
-      try {
-        if (!cancelled) {
-          setPreviewContent(
-            exportSubtreeTextPreview(client, effectiveNodeUuids, formatId, engineOptions),
-          );
+      void (async () => {
+        try {
+          const surface = await freshSubtreeSurface(client, effectiveNodeUuids);
+          if (!cancelled) {
+            setPreviewContent(
+              exportSubtreeTextPreview(surface, effectiveNodeUuids, formatId, engineOptions),
+            );
+          }
+        } catch (e: unknown) {
+          if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load preview");
+        } finally {
+          if (!cancelled) setLoading(false);
         }
-      } catch (e: unknown) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load preview");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      })();
     }, 300);
 
     return () => {
       cancelled = true;
       window.clearTimeout(debounceTimer);
     };
-  }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId, format, dataVersion]);
+  }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId, format]);
+
+  /** The PDF engine's bag — the checkbox options + the two PDF-only selects. */
+  const pdfEngineOptions = useMemo(
+    () => ({ ...engineOptions, layout, pageFormat }),
+    [engineOptions, layout, pageFormat],
+  );
 
   // PDF preview (P1): render the selected subtree to a blob and show it in
   // an iframe. The engine module is lazily imported (the first import pays
   // the react-pdf + font cost — exactly the code-split boundary); failures
   // fall back to the static note instead of surfacing an error, since the
-  // Export button itself reports real render errors. `dataVersion` re-runs
-  // the render when the worker's cached reads land (same staleness contract
-  // as the markdown preview).
+  // Export button itself reports real render errors. The engine reads the
+  // same fresh surface as every other format (folded subtrees included).
   useEffect(() => {
     if (!isOpen || formatId !== "pdf" || effectiveNodeUuids.length !== 1) {
       setPdfPreviewUrl(null);
@@ -270,8 +264,13 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       void (async () => {
         try {
           const pdfModule = await import("@/ui/export-pdf/renderPdf.js");
+          const surface = await freshSubtreeSurface(client, effectiveNodeUuids);
+          const pdfClient = {
+            ...surface,
+            getAssetDataUrl: (refId: string) => client.getAssetDataUrl(refId),
+          };
           const { blob } = await pdfModule.renderSubtreePdf(
-            client,
+            pdfClient,
             effectiveNodeUuids[0]!,
             pdfEngineOptions,
           );
@@ -290,7 +289,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [isOpen, effectiveNodeUuids, client, formatId, pdfEngineOptions, dataVersion]);
+  }, [isOpen, effectiveNodeUuids, client, formatId, pdfEngineOptions]);
 
   const handleSelectFormat = useCallback((id: WebExportFormatId) => {
     const def = getExportFormat(id);
@@ -311,14 +310,24 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
     setExporting(true);
     setError(null);
     try {
+      // Every subtree read below rides ONE fresh surface (the *Fresh client
+      // reads) — the same contract as the clipboard copy: the render cache
+      // would answer cold keys empty and drop folded/off-screen descendants.
+      // Only the asset-byte fetches still reach the client itself
+      // (fetchSubtreeAssets/getAssetDataUrl are uncached REST reads).
+      const surface = await freshSubtreeSurface(client, effectiveNodeUuids);
+      const pdfClient = {
+        ...surface,
+        getAssetDataUrl: (refId: string) => client.getAssetDataUrl(refId),
+      };
       if (format.id === "pdf") {
         // Client-side PDF (P1): the lazy boundary — the pdf module,
         // react-pdf, and the font bundle load on this first import and
         // stay out of the main chunk.
         const pdfModule = await import("@/ui/export-pdf/renderPdf.js");
         const exported = isBatch
-          ? await pdfModule.renderSubtreePdfBatch(client, effectiveNodeUuids, pdfEngineOptions)
-          : await pdfModule.renderSubtreePdf(client, effectiveNodeUuids[0]!, pdfEngineOptions);
+          ? await pdfModule.renderSubtreePdfBatch(pdfClient, effectiveNodeUuids, pdfEngineOptions)
+          : await pdfModule.renderSubtreePdf(pdfClient, effectiveNodeUuids[0]!, pdfEngineOptions);
         downloadBlob(exported.blob, exported.filename);
         return;
       }
@@ -326,7 +335,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         // JSON archive: ONE notees-json-archive document over the
         // whole selection (batch included — no per-root zip), verbatim
         // node payloads with contentAst/classIds/properties/child ids/edges.
-        const exported = exportSubtreeJsonArchive(client, effectiveNodeUuids, {
+        const exported = exportSubtreeJsonArchive(surface, effectiveNodeUuids, {
           includeChildPages,
         });
         downloadBlob(exported.blob, exported.filename);
@@ -336,7 +345,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         // Bibliography: ONE document over the whole selection (the archive
         // convention) — the selected subtree's nodes projected through the
         // package's nodeToCsl, serialized as .bib or the CSL-JSON array.
-        const exported = exportSubtreeBibliography(client, effectiveNodeUuids, {
+        const exported = exportSubtreeBibliography(surface, effectiveNodeUuids, {
           format: format.id,
           includeChildPages,
         });
@@ -351,7 +360,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       if (isBatch && format.id !== "markdown") {
         // Batch delivery for html/latex/docx (task W): ONE zip carrying each
         // root's rendered file. Markdown's batch stays the E3/E7 bundle zip.
-        const exported = await exportSubtreeBatchFile(client, effectiveNodeUuids, {
+        const exported = await exportSubtreeBatchFile(surface, effectiveNodeUuids, {
           format: format.id,
           ...engineOptions,
         });
@@ -363,10 +372,10 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         const assetFiles = includeAssets
           ? await fetchSubtreeAssets(
               client,
-              collectSubtreeAssetRefIds(client, effectiveNodeUuids, includeChildPages),
+              collectSubtreeAssetRefIds(surface, effectiveNodeUuids, includeChildPages),
             )
           : undefined;
-        const bundle = exportSubtreeBundle(client, effectiveNodeUuids, {
+        const bundle = exportSubtreeBundle(surface, effectiveNodeUuids, {
           ...engineOptions,
           filenamePolicy: "slug",
           whiteboardMode: "sidecar",
@@ -375,11 +384,11 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
             : {}),
         });
         const blob = new Blob([zipExportBundle(bundle, assetFiles)], { type: "application/zip" });
-        downloadBlob(blob, exportZipFileName(client, effectiveNodeUuids[0]!));
+        downloadBlob(blob, exportZipFileName(surface, effectiveNodeUuids[0]!));
       } else {
         // Format-routed single-file delivery (task W): the selected card's
         // own bytes — markdown keeps the historical concatenated document.
-        const exported = await exportSubtreeFile(client, effectiveNodeUuids[0]!, {
+        const exported = await exportSubtreeFile(surface, effectiveNodeUuids[0]!, {
           format: format.id,
           ...engineOptions,
         });
