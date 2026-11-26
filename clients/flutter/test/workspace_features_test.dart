@@ -359,8 +359,8 @@ void main() {
       );
       expect(seeded.map((s) => s['display']), [
         'bullet', // Status
-        null, // Scheduled
-        null, // Deadline
+        'pill', // Scheduled (2026-11-26, the pills-row slice)
+        'pill', // Deadline (2026-11-26)
         null, // Priority
         null, // Closed
         null, // Recurrence
