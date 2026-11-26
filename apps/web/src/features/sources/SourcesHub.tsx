@@ -227,7 +227,6 @@ export function SourcesHub({
                 label="facets panel"
               />
             }
-            icon="mdi-bookshelf"
             title="Sources"
             titleExtra={
               <span aria-live="polite" aria-label="Source count">

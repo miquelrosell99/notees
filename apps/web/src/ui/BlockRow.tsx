@@ -250,6 +250,13 @@ interface BlockRowProps {
    */
   hideProperties?: boolean | undefined;
   /**
+   * Hide ONLY the collapsed "Properties N" section — the value-display icon
+   * buttons (the status bullet et al.) stay. The tasks hub's register (the
+   * status icon owns closing; the row previews answer "what"). Threaded
+   * down the recursion by the view that sets it.
+   */
+  hidePropertySection?: boolean | undefined;
+  /**
    * Hide the tags row (the dedicated row below the block, only rendered
    * when tags are set). Set by list projections scoping rows to identity
    * chrome only (the shell hubs' page listings). Threaded down the
@@ -283,7 +290,7 @@ interface BlockRowProps {
   autoEdit?: boolean | undefined;
 }
 
-export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, hideProperties = false, hideTags = false, condensed = false, trailingGhost = undefined, rootEnterNests = false, autoEdit = false }: BlockRowProps) {
+export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, hideProperties = false, hidePropertySection = false, hideTags = false, condensed = false, trailingGhost = undefined, rootEnterNests = false, autoEdit = false }: BlockRowProps) {
 
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
@@ -606,6 +613,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
               suppressWidgets={suppressWidgets}
               hideBacklinks={hideBacklinks}
               hideProperties={hideProperties}
+              hidePropertySection={hidePropertySection}
               hideTags={hideTags}
             />
           ))}
@@ -1236,7 +1244,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
         the block row (bullet/inline) are omitted — the button above
         already surfaces the value. Focus mode (#12) hides the whole
         section. */}
-      {!focusMode && !hideProperties && (
+      {!focusMode && !hideProperties && !hidePropertySection && (
         <PropertiesSection
           client={client}
           nodeId={node.id}

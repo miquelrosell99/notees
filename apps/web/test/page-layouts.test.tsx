@@ -165,12 +165,12 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
     second.unmount();
 
     // The tasks hub has its own key — the assets Table pick did NOT leak:
-    // the tasks hub renders its own default (the Sections view, one member so
-    // no empty state).
+    // the tasks hub renders its own default (the master–detail surface: the
+    // section panel rides beside the empty Today scope).
     const task = await client.createObject({ isEmbedded: false, name: "Solo Task" });
     await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
     const third = render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
-    expect(await screen.findByLabelText("Unscheduled")).not.toBeNull();
+    expect(await screen.findByLabelText("Task sections")).not.toBeNull();
     expect(screen.queryByRole("table")).toBeNull();
     third.unmount();
   });

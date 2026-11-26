@@ -242,7 +242,6 @@ export function ReviewSession({
       <OutlinerContext.Provider value={outliner}>
         <div className="nt-review-session">
           <SurfaceTopBar
-            icon="mdi-cards-playing-outline"
             title="Review"
             actions={
               <Button size="sm" variant="ghost" icon="mdi-close" aria-label="Exit review" onClick={onExit} />
@@ -274,7 +273,6 @@ export function ReviewSession({
     <OutlinerContext.Provider value={outliner}>
       <div className="nt-review-session">
         <SurfaceTopBar
-        icon="mdi-cards-playing-outline"
         title="Review"
         count={cards.length}
         context={

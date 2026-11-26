@@ -101,10 +101,16 @@ async function ensureTaskStatus(
   };
 }
 
-/** The hub's top bar — the hub-level view switcher lives here (the tasks
- *  hub's sections carry their OWN per-section switchers, so an unscoped
- *  radio query matches seven toolbars). */
+/** The hub's top bar — the hub-level view switcher lives here. */
 const hubBar = () => within(document.querySelector(".nt-hub__surface-bar") as HTMLElement);
+
+/** The tasks hub's section panel (the master–detail query list). */
+const sectionPanel = () => within(screen.getByLabelText("Task sections"));
+
+/** Pick a sweep in the section panel (the count badge rides the name). */
+const pickSection = async (name: RegExp) => {
+  fireEvent.click(within(await screen.findByLabelText("Task sections")).getByRole("button", { name }));
+};
 
 /** WORKAROUND(store applier): class.create's contentAst never lands in the
  *  class node's content — seed the title through object.update instead. */
@@ -469,7 +475,7 @@ describe("the v1 node card (cards mode)", () => {
 });
 
 describe("tasks hub", () => {
-  it("lists pages AND blocks classed task, sections by default, switchable", async () => {
+  it("lists pages AND blocks classed task — the section panel scopes the default outline; modes switch inside the section", async () => {
     const client = await seedClient();
     // The hub authors the task family on open — ensure up front
     // so no write is in flight when the test teardown closes the client.
@@ -485,13 +491,19 @@ describe("tasks hub", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    // Sections default (the registered "sections" view — ONE body at a
-    // time): both node types land in the Unscheduled section by their
-    // derived titles. The section header renders immediately; the rows land
-    // with the query run — findByText waits for it.
-    const unscheduled = within(await screen.findByLabelText("Unscheduled"));
-    expect(await unscheduled.findByText("Write report")).not.toBeNull();
-    expect(await unscheduled.findByText("Call the office")).not.toBeNull();
+    // The master–detail default: the section panel lists the sweeps and a
+    // fresh device opens on Today — empty for these unscheduled tasks, so
+    // the content names the scope. The Unscheduled sweep scopes both node
+    // types in by their derived titles (the rows land with the query run —
+    // findByText waits).
+    expect(screen.getByText("No tasks in this section.")).not.toBeNull();
+    expect(
+      within(await screen.findByLabelText("Task sections")).getByRole("button", { name: /^Today/ })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    await pickSection(/^Unscheduled/);
+    expect(await screen.findByText("Write report")).not.toBeNull();
+    expect(await screen.findByText("Call the office")).not.toBeNull();
 
     fireEvent.click(hubBar().getByRole("radio", { name: "Table" }));
     // Both node types listed by their derived titles — the
@@ -539,26 +551,23 @@ describe("tasks hub", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
+    // Both tasks are unscheduled — the Unscheduled sweep scopes them in.
+    await pickSection(/^Unscheduled/);
+
     // The DEFAULT group-by is the task Status (both tasks read the derived
     // Pending): the table renders ONE TABLE for the non-empty Pending group
-    // — empty options render their header with an empty line, never a table.
+    // — empty options render nothing at all (the 2026-11-26 ruling).
     fireEvent.click(hubBar().getByRole("radio", { name: "Table" }));
     const table = screen.getByRole("table");
     expect(within(table).getByText("Zoo parent task")).not.toBeNull();
     expect(within(table).getByText("Aardvark subtask")).not.toBeNull();
-    // The group headers name every status option in option order — the
-    // empty ones included (the group-by law).
+    // The only group header is the one with rows — the empty status options
+    // own no chrome (the board mode is the exception: its empty columns are
+    // the drop targets).
     const groupNames = [...document.querySelectorAll(".nt-table-group__name")].map(
       (el) => el.textContent,
     );
-    expect(groupNames).toEqual([
-      "Backlog",
-      "Pending",
-      "Doing",
-      "Reviewing",
-      "Done",
-      "Cancelled",
-    ]);
+    expect(groupNames).toEqual(["Pending"]);
 
     // The outline groups by Status too: the subtask is its own row inside
     // the Pending group (an active grouping wins over nestUnderParents).
@@ -599,7 +608,6 @@ describe("tasks hub", () => {
     const { container } = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Readonly list"
         items={[{ node: client.getNode(parentless)! }]}
         modes={["outline"]}
@@ -628,6 +636,8 @@ describe("tasks hub", () => {
       SYSTEM_CLASS_UUIDS.task,
     );
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    // Both tasks are unscheduled — the Unscheduled sweep scopes them in.
+    await pickSection(/^Unscheduled/);
 
     fireEvent.click(hubBar().getByRole("radio", { name: "Table" }));
     const nameSort = screen.getByRole("button", { name: /^Name/ });
@@ -685,7 +695,11 @@ describe("cards board (property-dimension groupBy)", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    // The hub defaults to table; cards mode IS the board when the grouping
+    // All three tasks — the closed one included — ride the All tasks scope
+    // (the date sweeps filter the closed set out).
+    await pickSection(/^All tasks/);
+
+    // The cards mode IS the board when the grouping
     // property (the task status schema) exists — kanban is not a mode.
     fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
 
@@ -727,6 +741,9 @@ describe("cards board (property-dimension groupBy)", () => {
     // the board.
     await ensureTaskFamily(client);
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    // "Lonely Task" is open and unscheduled — the Unscheduled sweep scopes
+    // it in (an empty scope renders the empty state, not the board).
+    await pickSection(/^Unscheduled/);
 
     // Kanban is gone from the switcher; the triad is unchanged.
     expect(screen.queryByRole("radio", { name: "Kanban" })).toBeNull();
@@ -993,7 +1010,6 @@ describe("outline list: rows with children collapse at the listCollapseLevel set
     const { container } = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Fold list"
         items={[{ node: client.getNode(pageId)! }]}
         modes={["outline"]}
@@ -1031,7 +1047,6 @@ describe("outline list: rows with children collapse at the listCollapseLevel set
     const { container } = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Block list"
         items={[{ node: client.getNode(blockId)! }]}
         modes={["outline"]}
@@ -1992,7 +2007,6 @@ describe("cards board polish: multi-select grouping, collapsible columns", () =>
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-checks"
         title="Tasks"
         items={items}
         modes={["cards"]}
@@ -2022,10 +2036,12 @@ describe("cards board polish: multi-select grouping, collapsible columns", () =>
     await client.setProperty(task, schemaId, optionId("Backlog"), 0);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    // "Solo" is unscheduled — the Unscheduled sweep scopes it in.
+    await pickSection(/^Unscheduled/);
     fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
 
-    // The bucket section also lists "Solo"; the collapse
-    // assertions scope to the board itself.
+    // The collapse assertions scope to the board itself (the section panel
+    // is a separate surface).
     const board = () => document.querySelector(".board") as HTMLElement;
     fireEvent.click(screen.getByRole("button", { name: "Collapse column Backlog" }));
     expect(within(board()).queryByText("Solo")).toBeNull();
@@ -2075,7 +2091,6 @@ describe("card covers and asset thumbnails", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-folder-multiple-image"
         title="Loose assets"
         items={client.getClassMembers(SYSTEM_CLASS_UUIDS.asset).map((node) => ({ node }))}
         modes={["cards"]}
@@ -2101,7 +2116,6 @@ describe("card covers and asset thumbnails", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-folder-multiple-image"
         title="Loose assets"
         items={client.getClassMembers(SYSTEM_CLASS_UUIDS.asset).map((node) => ({ node }))}
         modes={["cards"]}
@@ -2141,6 +2155,8 @@ describe("card covers and asset thumbnails", () => {
     await ensureTaskFamily(client);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
+    // "Board Task" is unscheduled — the Unscheduled sweep scopes it in.
+    await pickSection(/^Unscheduled/);
     fireEvent.click(hubBar().getByRole("radio", { name: "Cards" }));
     expect(document.querySelector(".board")).not.toBeNull();
 

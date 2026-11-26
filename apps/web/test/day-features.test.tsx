@@ -9,10 +9,10 @@
  *    dateFormat-formatted title; the ±1-day date bar is gone), the three
  *    lazy sections (hidden when empty, rows only after expand, the
  *    done-toggle write), embedded suppression.
- *  - Task sections over HubView nav=tasks: the stacked live-query sections
- *    (Overdue/Today/Upcoming/Unscheduled — closed tasks excluded by every
- *    section's filter), the section ASTs (the driving-day rule), the done
- *    checkbox, the device-local collapse.
+ *  - The Tasks hub's master–detail surface over HubView nav=tasks: the
+ *    section panel (Overdue/Today/Upcoming/Unscheduled — closed tasks
+ *    excluded by every section's filter), the section ASTs (the
+ *    driving-day rule), the status-icon close, the device-local panel toggle.
  *  - CalendarView breadth: event blocks mark the days that carry them.
  */
 
@@ -499,7 +499,7 @@ describe("PageView day branch", () => {
 // --- #5 the bucketed tasks surface -------------------------------------------------
 
 describe("Task sections (tasks hub)", () => {
-  it("the sections partition the hub members by their queries — closed tasks excluded everywhere", async () => {
+  it("the section panel partitions the hub members — clicking a section scopes the collection, closed excluded everywhere", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     await taskStatus(client);
@@ -511,17 +511,34 @@ describe("Task sections (tasks hub)", () => {
     await flushWrites();
 
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    // The date-based sections (the header renders immediately; the rows
-    // land with the query run — findByText waits for it).
-    const overdue = within(await screen.findByLabelText("Overdue"));
-    expect(await overdue.findByText("Overdue task")).toBeDefined();
-    expect(overdue.queryByText("Today task")).toBeNull();
-    expect(await within(screen.getByLabelText("Today")).findByText("Today task")).toBeDefined();
-    expect(await within(screen.getByLabelText("Upcoming")).findByText("Future task")).toBeDefined();
-    expect(await within(screen.getByLabelText("Unscheduled")).findByText("Undated task")).toBeDefined();
-    // The closed task is excluded by every section's filter — it renders in
-    // no section (the hub's other modes list the whole set).
+    // The panel lists the unfiltered scope + the four date-based sweeps; a
+    // fresh device opens on Today (the selected row is the panel's
+    // aria-pressed button).
+    const panel = within(await screen.findByLabelText("Task sections"));
+    expect(panel.getByRole("button", { name: /^All tasks/ })).not.toBeNull();
+    expect(panel.getByRole("button", { name: /^Today/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(panel.getByRole("button", { name: /^Overdue/ })).not.toBeNull();
+    expect(panel.getByRole("button", { name: /^Upcoming/ })).not.toBeNull();
+    expect(panel.getByRole("button", { name: /^Unscheduled/ })).not.toBeNull();
+    // Today scoped: only the today task renders. The rows land with the
+    // query run — findByText waits.
+    expect(await screen.findByText("Today task")).toBeDefined();
+    expect(screen.queryByText("Overdue task")).toBeNull();
+    expect(screen.queryByText("Undated task")).toBeNull();
+    // The closed task is excluded by every section's filter.
     expect(screen.queryByText("Done task")).toBeNull();
+
+    fireEvent.click(panel.getByRole("button", { name: /^Overdue/ }));
+    expect(await screen.findByText("Overdue task")).toBeDefined();
+    expect(screen.queryByText("Today task")).toBeNull();
+    fireEvent.click(panel.getByRole("button", { name: /^Upcoming/ }));
+    expect(await screen.findByText("Future task")).toBeDefined();
+    fireEvent.click(panel.getByRole("button", { name: /^Unscheduled/ }));
+    expect(await screen.findByText("Undated task")).toBeDefined();
+    // The All tasks scope is the hub's unfiltered reach — the closed task
+    // lands there (the only section that lists it).
+    fireEvent.click(panel.getByRole("button", { name: /^All tasks/ }));
+    expect(await screen.findByText("Done task")).toBeDefined();
   });
 
   it("the section ASTs partition by the driving-day rule (earliest of scheduled/deadline), closed excluded", async () => {
@@ -570,7 +587,7 @@ describe("Task sections (tasks hub)", () => {
     }
   });
 
-  it("the done checkbox closes the task out of every section", async () => {
+  it("the status icon closes the task out of the section under your hands", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const { schema, optionId } = await taskStatus(client);
@@ -578,8 +595,16 @@ describe("Task sections (tasks hub)", () => {
     await flushWrites();
 
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const todaySection = within(await screen.findByLabelText("Today"));
-    fireEvent.click(await todaySection.findByRole("checkbox", { name: "Mark task done" }));
+    // Today is the default scope — the row lands with the query run.
+    expect(await screen.findByText("Toggle me")).toBeDefined();
+    // The status bullet (the bullet display position) owns closing — the
+    // done checkbox retired 2026-11-26: open the status menu, pick Done.
+    fireEvent.click(
+      document.querySelector(`.nt-propicon[data-property-schema-id="${schema.id}"]`) as HTMLElement,
+    );
+    fireEvent.click(
+      within(await screen.findByRole("menu", { name: "Status" })).getByRole("menuitem", { name: /Done/ }),
+    );
     await flushWrites();
     await waitFor(() => {
       const value = client
@@ -587,28 +612,35 @@ describe("Task sections (tasks hub)", () => {
         .find((entry) => entry.propertySchemaId === schema.id)?.value;
       expect(value).toBe(optionId("Done"));
     });
-    // The closed task leaves every section (the sections are the open-work
-    // sweeps — the hub's other modes list the whole set).
+    // The closed task leaves the sweep (the sections are the open-work
+    // sweeps) — the row and the section badge converge on empty.
     await waitFor(() => {
       expect(screen.queryByText("Toggle me")).toBeNull();
     });
+    expect(
+      within(screen.getByLabelText("Task sections")).getByRole("button", { name: /^Today/ })
+        .textContent,
+    ).not.toContain("1");
   });
 
-  it("a section collapses device-locally", async () => {
+  it("the section panel hides via the bar toggle, device-locally", async () => {
     const client = await seedClient();
     await taskStatus(client);
     await createTask(client, "Only task", { scheduled: todayIsoLocal() });
     await flushWrites();
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const todaySection = await screen.findByLabelText("Today");
-    const toggle = within(todaySection).getByRole("button", { name: "Collapse Today" });
+    const toggle = screen.getByRole("button", { name: "Hide task sections" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByLabelText("Task sections")).not.toBeNull();
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(within(screen.getByLabelText("Today")).queryByText("Only task")).toBeNull();
+    expect(screen.queryByLabelText("Task sections")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show task sections" }).getAttribute("aria-pressed")).toBe(
+      "false",
+    );
     // The choice persists device-locally (never an op).
-    expect(
-      window.localStorage.getItem("notees.settings.tasksHubSectionCollapsed.today"),
-    ).toBe(JSON.stringify(true));
+    expect(window.localStorage.getItem("notees.settings.tasksHubPanelCollapsed")).toBe(
+      JSON.stringify(true),
+    );
   });
 });
 
@@ -674,20 +706,31 @@ describe("postponeTaskToTomorrow (one-tap push)", () => {
     await flushWrites();
 
     render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
-    const overdue = within(await screen.findByLabelText("Overdue"));
+    // The Overdue sweep scopes the content column.
+    fireEvent.click(
+      within(await screen.findByLabelText("Task sections")).getByRole("button", { name: /^Overdue/ }),
+    );
     // Only the scheduled row carries the action (the deadline-driven row
     // never does). The rows land with the query run — findAllByRole waits.
-    const actions = await overdue.findAllByRole("button", { name: "Push to tomorrow" });
+    const actions = await screen.findAllByRole("button", { name: "Push to tomorrow" });
     expect(actions).toHaveLength(1);
     fireEvent.click(actions[0]!);
     await flushWrites();
+    // Postponed out of the selected sweep…
     await waitFor(() => {
-      expect(within(screen.getByLabelText("Upcoming")).getByText("Slipped")).toBeDefined();
+      expect(screen.queryByText("Slipped")).toBeNull();
     });
+    // …and into Upcoming: the sweep click scopes it, the row is there.
+    fireEvent.click(
+      within(screen.getByLabelText("Task sections")).getByRole("button", { name: /^Upcoming/ }),
+    );
+    expect(await screen.findByText("Slipped")).toBeDefined();
     // The deadline-driven row stays overdue, still without the affordance.
-    const overdueAfter = within(screen.getByLabelText("Overdue"));
-    expect(overdueAfter.getByText("Deadline only")).toBeDefined();
-    expect(overdueAfter.queryByRole("button", { name: "Push to tomorrow" })).toBeNull();
+    fireEvent.click(
+      within(screen.getByLabelText("Task sections")).getByRole("button", { name: /^Overdue/ }),
+    );
+    expect(screen.getByText("Deadline only")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Push to tomorrow" })).toBeNull();
   });
 });
 

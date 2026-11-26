@@ -396,7 +396,6 @@ export function JournalsView({
           the calendar popup, the sidebar Today row, and each entry's
           Open-page button. */}
       <SurfaceTopBar
-        icon="mdi-notebook-outline"
         title="Journal"
         actions={
           <>

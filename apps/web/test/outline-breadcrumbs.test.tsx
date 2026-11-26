@@ -69,7 +69,6 @@ describe("outline rows: containing-page breadcrumbs", () => {
     const { container } = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Refs"
         items={[{ node: client.getNode(nested)! }]}
         modes={["outline"]}
@@ -185,7 +184,6 @@ describe("outline rows: containing-page breadcrumbs", () => {
     const { container } = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Refs"
         items={[{ node: client.getNode(carrier)! }]}
         modes={["outline"]}

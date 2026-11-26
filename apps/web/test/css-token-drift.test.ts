@@ -178,10 +178,12 @@ const REGISTERED_MD_SYS_EXTENSIONS = new Set([
 // MainContentFrame.css joined the sidebar-card homes 2026-10-23: the
 // raised-card panel registers moved there with the shared frame (the
 // .nt-page-context / .nt-page-side-panel card rules), so the alias's home
-// moved with its surface.
+// moved with its surface. TasksHub.css joined 2026-11-26: the tasks hub's
+// section panel wears the SAME raised-card register the journals
+// navigator panel does (the alias follows its register).
 const SURFACE_ALIAS_HOMES = new Map<string, RegExp>([
   ["--md-sys-color-sidebar-card",
-    /^(variables|app)\.css$|^PageCard\.css$|^MainContentFrame\.css$|^JournalsView\.css$/],
+    /^(variables|app)\.css$|^PageCard\.css$|^MainContentFrame\.css$|^JournalsView\.css$|^TasksHub\.css$/],
 ]);
 
 /**

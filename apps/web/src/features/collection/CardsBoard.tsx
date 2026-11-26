@@ -275,7 +275,7 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
    * it is the clear-drop target.
    */
   const groupPrefix = `prop:${schema.id}:`;
-  const groups = groupsForSpec(client, items, { kind: "property", schemaId: schema.id }, { noneLabel: "None" });
+  const groups = groupsForSpec(client, items, { kind: "property", schemaId: schema.id }, { noneLabel: "None", keepEmpty: true });
   const buckets = new Map<string, NodeCollectionItem[]>();
   const bucketOf = new Map<string, string>();
   for (const group of groups) {

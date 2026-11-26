@@ -261,7 +261,6 @@ export function CalendarView({
         topBar={
           <SurfaceTopBar
             className="calendar-view__topbar"
-            icon="mdi-calendar-today"
             title="Calendar"
             context={
               calendarZoom === "day" ? (

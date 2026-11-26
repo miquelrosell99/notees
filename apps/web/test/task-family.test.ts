@@ -373,7 +373,7 @@ describe("ensureTaskFamily", () => {
     // The surviving open-task read (the day page's partition and the tasks
     // hub's query sections): the section ASTs over the family members —
     // the open task answers Today, the closed one is excluded by every
-    // section's filter.
+    // date sweep's filter (the All tasks scope is the one that lists it).
     const { TASK_SECTIONS } = await import("../src/features/classview/taskSections.js");
     const runSection = async (id: string): Promise<string[]> => {
       const def = TASK_SECTIONS.find((section) => section.id === id)!;
@@ -382,7 +382,9 @@ describe("ensureTaskFamily", () => {
     };
     expect(await runSection("today")).toContain(open);
     expect(await runSection("today")).not.toContain(closed);
+    expect(await runSection("all")).toContain(closed);
     for (const section of TASK_SECTIONS) {
+      if (section.id === "all") continue;
       expect(await runSection(section.id)).not.toContain(closed);
     }
   });

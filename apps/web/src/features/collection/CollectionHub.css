@@ -16,8 +16,22 @@
   min-height: 0;
 }
 
+/* The body: a row under the bar — the optional host side panel rides the
+   left cell (flex-basis fixed, the journals panel register) and the main
+   column owns the scroll, so the panel stays pinned while the collection
+   scrolls at the card border. Panel-less hubs render the main column
+   alone: identical to the pre-panel single-column shape. */
 .nt-hub__body {
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+}
+
+.nt-hub__main {
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   display: flex;
@@ -88,6 +102,12 @@
 }
 
 @media (width <= 768px) {
+  /* Narrow screens stack the panel above the scroller (the panel host
+     switches to a strip register of its own). */
+  .nt-hub__body {
+    flex-direction: column;
+  }
+
   .nt-hub__content {
     padding: 0 var(--spacing-4) var(--spacing-6);
   }

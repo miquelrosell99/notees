@@ -217,7 +217,6 @@ describe("cards windowing", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-view-grid-outline"
         title="Big set"
         items={items}
         modes={["cards"]}
@@ -252,7 +251,6 @@ describe("board column windowing", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-view-grid"
         title="Board"
         items={items}
         modes={["cards"]}
@@ -285,7 +283,6 @@ describe("flat outline windowing", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Big list"
         items={items}
         modes={["outline"]}

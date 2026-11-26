@@ -293,7 +293,6 @@ describe("calendar as a registry view mode", () => {
     const gated = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Calendar hub"
         items={[{ node: client.getNode(plain)! }]}
         modes={["outline", "calendar"]}
@@ -309,7 +308,6 @@ describe("calendar as a registry view mode", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Calendar hub"
         items={items}
         modes={["outline", "calendar"]}

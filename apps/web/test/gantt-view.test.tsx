@@ -278,7 +278,6 @@ describe("gantt as a registry view mode", () => {
     const gated = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Gantt hub"
         items={[{ node: client.getNode(plain)! }]}
         modes={["outline", "gantt"]}
@@ -295,7 +294,6 @@ describe("gantt as a registry view mode", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Gantt hub"
         items={items}
         modes={["outline", "gantt"]}

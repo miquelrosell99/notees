@@ -237,7 +237,6 @@ describe("pivot as a registry view mode", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Pivot hub"
         items={items}
         modes={["outline", "pivot"]}
@@ -259,7 +258,6 @@ describe("pivot as a registry view mode", () => {
     const hub = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Pivot hub"
         items={items}
         modes={["outline", "pivot"]}
@@ -275,7 +273,6 @@ describe("pivot as a registry view mode", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Pivot hub"
         items={items}
         modes={["outline", "pivot"]}
@@ -305,7 +302,6 @@ describe("pivot as a registry view mode", () => {
       render(
         <CollectionHub
           client={client}
-          icon="mdi-format-list-bulleted"
           title="Gated hub"
           items={items}
           modes={["outline", GATED]}
@@ -345,7 +341,6 @@ describe("pivot as a registry view mode", () => {
       render(
         <CollectionHub
           client={client}
-          icon="mdi-format-list-bulleted"
           title="Feedable hub"
           items={items}
           modes={["outline", GATED]}

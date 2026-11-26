@@ -94,8 +94,9 @@ export function groupByContainingPage(
  * class / created / edited). Date-typed axes (datetime properties, created,
  * edited) carry a ZOOM (year / month / week / day) picked in the picker's
  * submenu. Group ORDER is semantic per axis: select/boolean ride the option
- * /enum order (empty options INCLUDED — an empty status still shows its
- * group), numbers sort numeric, dates chronological, node references and
+ * /enum order (empty groups kept ONLY where the surface asks — the cards
+ * board's columns are drop targets; everywhere else they drop, the
+ * 2026-11-26 ruling), numbers sort numeric, dates chronological, node references and
  * emails alphabetical; the no-value group always trails. Multi-value axes
  * (multi schemas, tags, classes) are multi-membership: an item rides EVERY
  * group it has a value for, so group counts can exceed the item count.
@@ -330,12 +331,20 @@ function nodeRefOf(value: unknown): string | null {
  * in at least one group (the no-value group catches the rest), so the views
  * render groups alone. `noneLabel` overrides the trailing group's label
  * (the cards board keeps its historical "None" column).
+ *
+ * Empty groups: by default buckets with no items DROP (owner ruling
+ * 2026-11-26 — the section-scoped hub surfaces drowned in dead headers: one
+ * open task rendered five 0-count status groups; the vocabulary lives in
+ * the Group by picker, not the chrome). `keepEmpty: true` preserves the
+ * original law — every select option / boolean arm keeps its group even at
+ * 0 — for the surfaces that need the fixed scaffold (the cards board: its
+ * empty columns are the drop targets).
  */
 export function groupsForSpec(
   client: AnyClient,
   items: NodeCollectionItem[],
   spec: GroupBySpec,
-  opts: { noneLabel?: string } = {},
+  opts: { noneLabel?: string; keepEmpty?: boolean } = {},
 ): CollectionGroup[] {
   const buckets: Bucket[] = [];
   const byKey = new Map<string, Bucket>();
@@ -359,8 +368,9 @@ export function groupsForSpec(
     if (schema.type === "select" || schema.type === "multi_select") {
       const options = schema.options ?? [];
       const valid = new Set(options.map((option) => option.id));
-      // Empty options INCLUDED: every option owns its group up front, in
-      // the schema's option order.
+      // Every option owns its group up front, in the schema's option order
+      // (the keepEmpty arms; empty buckets drop at the return unless the
+      // surface asked to keep them).
       for (const option of options) ensure(option.id, option.label);
       for (const item of items) {
         const hits = [...new Set(valuesOf(item).filter((value): value is string => typeof value === "string" && valid.has(value)))];
@@ -477,7 +487,7 @@ export function groupsForSpec(
     buckets.sort((a, b) => (a.key === NONE_KEY ? 1 : b.key === NONE_KEY ? -1 : a.label.localeCompare(b.label)));
   }
 
-  return buckets.map((bucket) => ({
+  return (opts.keepEmpty === true ? buckets : buckets.filter((bucket) => bucket.items.length > 0)).map((bucket) => ({
     id: `${spec.kind === "property" ? `prop:${spec.schemaId}` : spec.kind}:${bucket.key}`,
     label: bucket.label,
     icon: bucket.icon,

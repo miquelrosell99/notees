@@ -82,11 +82,10 @@ import { Icon } from "../../ui/Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
-import { Badge, ButtonWithPanel, Checkbox } from "../../components/ui/kit/index.js";
+import { Badge, ButtonWithPanel } from "../../components/ui/kit/index.js";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import {
   postponeTaskToTomorrow,
-  setTaskDone,
   taskPostponeTargetOf,
   taskRowFacts,
 } from "../calendar/calendarRows.js";
@@ -205,7 +204,7 @@ function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; pro
     <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
       {rows.map((item) => {
         const row = (
-          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} hideProperties={props.hideProperties} hideTags={props.hideTags} condensed={props.condensed} />
+          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} hideProperties={props.hideProperties} hidePropertySection={props.hidePropertySection} hideTags={props.hideTags} condensed={props.condensed} />
         );
         // Opted-out trees (the page body, Child pages, Extended by) keep the
         // bare row — no wrapper, their DOM/CSS is untouched. Breadcrumb-on
@@ -336,11 +335,10 @@ function FlatRows({
     defaultCollapsed,
   });
   /**
-   * Task row chrome (2026-11-25): a task-classed row leads with the done
-   * checkbox (the shared setTaskDone write — the retired buckets' exact
-   * gesture, the Closed stamp riding the client's write seam) and carries
-   * the hover-revealed Push-to-tomorrow action when eligible — EVERY
-   * outline surface offers the task gestures coherently. Membership reads
+   * Task row chrome (2026-11-25; the done checkbox retired 2026-11-26 — the
+   * clickable status icon in the bullet display position owns closing, one
+   * control instead of two): a task-classed row carries the
+   * hover-revealed Push-to-tomorrow action when eligible. Membership reads
    * the class's member set (the extends closure — a subclassed task is a
    * task); the facts ride the same shells read the calendar surfaces use.
    */
@@ -366,17 +364,6 @@ function FlatRows({
               : null;
             const row: ReactNode = (
               <span className={`outline-row${taskFacts !== null ? " outline-row--task" : ""}`}>
-                {taskFacts !== null && statusSchema !== undefined && (
-                  <Checkbox
-                    size="sm"
-                    className="outline-row__task-check"
-                    checked={taskFacts.closed}
-                    aria-label={taskFacts.closed ? "Reopen task" : "Mark task done"}
-                    onChange={(checked) =>
-                      void setTaskDone(client, statusSchema, item.node.id, checked)
-                    }
-                  />
-                )}
                 <BlockRow
                   tree={flatTreeOf(client, item, TREE_DEPTH_CAP, pagesOnly)}
                   client={client}
@@ -386,6 +373,7 @@ function FlatRows({
                   suppressWidgets
                   hideBacklinks={props.hideBacklinkCount}
                   hideProperties={props.hideProperties}
+                  hidePropertySection={props.hidePropertySection}
                   hideTags={props.hideTags}
                 />
                 {taskFacts !== null &&

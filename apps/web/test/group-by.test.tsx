@@ -1,7 +1,8 @@
 /**
  * Group-by tests: the generic group-by engine (groupsForSpec — every
  * property type except text + the pseudo-axes, select option order with
- * empty options included, date zooms), the picker's search + zoom submenu,
+ * empty groups dropping by default with the board's keepEmpty arm, date
+ * zooms), the picker's search + zoom submenu,
  * the grouped table (one table per group), and the per-surface persistence.
  */
 
@@ -90,19 +91,22 @@ async function itemsOf(client: WorkspaceClient, ids: string[]) {
 }
 
 describe("groupsForSpec: select", () => {
-  it("orders groups by the option order, INCLUDES empty options, trails the no-value group", async () => {
+  it("orders groups by the option order, trails the no-value group — empty options drop unless the surface keeps them", async () => {
     const client = await seedClient();
     const { schemaId, alpha, beta, gamma, empty } = await seedSelectSet(client);
-    const groups = groupsForSpec(client, await itemsOf(client, [alpha, beta, gamma, empty]), {
-      kind: "property",
-      schemaId,
-    });
-    expect(groups.map((group) => group.label)).toEqual(["Backlog", "Doing", "Reviewing", "No Status"]);
+    const items = await itemsOf(client, [alpha, beta, gamma, empty]);
+    // The default: an empty option owns NO group (the 2026-11-26 ruling —
+    // the section-scoped surfaces drowned in dead headers).
+    const groups = groupsForSpec(client, items, { kind: "property", schemaId });
+    expect(groups.map((group) => group.label)).toEqual(["Backlog", "Doing", "No Status"]);
     expect(groups[0]!.items.map((item) => item.node.id)).toEqual([alpha, gamma]);
     expect(groups[1]!.items.map((item) => item.node.id)).toEqual([beta]);
-    // The empty option still owns its group (the group-by law).
-    expect(groups[2]!.items).toEqual([]);
-    expect(groups[3]!.items.map((item) => item.node.id)).toEqual([empty]);
+    expect(groups[2]!.items.map((item) => item.node.id)).toEqual([empty]);
+    // keepEmpty (the cards board: its empty columns are the drop targets) —
+    // every option keeps its group even at 0.
+    const kept = groupsForSpec(client, items, { kind: "property", schemaId }, { keepEmpty: true });
+    expect(kept.map((group) => group.label)).toEqual(["Backlog", "Doing", "Reviewing", "No Status"]);
+    expect(kept[2]!.items).toEqual([]);
   });
 
   it("multi-membership: a multi-select item rides EVERY group it has a value for", async () => {
@@ -111,10 +115,10 @@ describe("groupsForSpec: select", () => {
     // Multi-value = one row per (schema, idx) — never an array value.
     await client.setProperty(alpha, schemaId, OPT_B, 1);
     const groups = groupsForSpec(client, await itemsOf(client, [alpha]), { kind: "property", schemaId });
-    expect(groups.map((group) => group.label)).toEqual(["Backlog", "Doing", "Reviewing"]);
+    // The empty Reviewing group drops; alpha rides every group it values.
+    expect(groups.map((group) => group.label)).toEqual(["Backlog", "Doing"]);
     expect(groups[0]!.items.map((item) => item.node.id)).toEqual([alpha]);
     expect(groups[1]!.items.map((item) => item.node.id)).toEqual([alpha]);
-    expect(groups[2]!.items).toEqual([]);
   });
 });
 
@@ -308,7 +312,7 @@ describe("the spec model", () => {
 });
 
 describe("the grouped table view", () => {
-  it("renders ONE TABLE PER GROUP — empty options show their header with an empty line", async () => {
+  it("renders ONE TABLE PER GROUP — empty options render nothing at all", async () => {
     const client = await seedClient();
     const { schemaId, alpha, beta, gamma } = await seedSelectSet(client);
     render(
@@ -321,16 +325,16 @@ describe("the grouped table view", () => {
         onNodeClick={() => {}}
       />,
     );
-    // Two non-empty groups → two tables; the empty option renders its
-    // header with the honest empty line, never a table.
+    // Two non-empty groups → two tables; the empty option renders no
+    // chrome at all (the 2026-11-26 ruling — no dead headers).
     expect(screen.getAllByRole("table").length).toBe(2);
     const groupNames = [...document.querySelectorAll(".nt-table-group__name")].map((el) => el.textContent);
-    expect(groupNames).toEqual(["Backlog", "Doing", "Reviewing"]);
-    const reviewing = [...document.querySelectorAll(".nt-table-group")].find((section) =>
-      section.textContent?.includes("Reviewing"),
-    ) as HTMLElement;
-    expect(within(reviewing).getByText("No rows.")).not.toBeNull();
-    expect(reviewing.querySelector("table")).toBeNull();
+    expect(groupNames).toEqual(["Backlog", "Doing"]);
+    expect(
+      [...document.querySelectorAll(".nt-table-group")].some((section) =>
+        section.textContent?.includes("Reviewing"),
+      ),
+    ).toBe(false);
     // Each row rides its option's table.
     const backlog = [...document.querySelectorAll(".nt-table-group")].find((section) =>
       section.textContent?.includes("Backlog"),
@@ -399,7 +403,6 @@ describe("the hub group-by persistence", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Persist hub"
         items={[{ node: client.getNode(alpha)! }]}
         modes={["outline", "table"]}

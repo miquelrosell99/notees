@@ -1,10 +1,11 @@
 /**
- * taskSections — the tasks hub's query sections (2026-11-25): the retired
- * Buckets/Review views return as STACKED LIVE-QUERY SECTIONS. Each section
+ * taskSections — the tasks hub's query sections (2026-11-25; the queries
+ * became the TasksHub master–detail panel's list 2026-11-26): each section
  * is a QueryAST over the task class, executed through the query-run seam
  * (`{today}` placeholders resolve at compile time) and intersected with the
  * hub's filtered item set — "overdue is a query, unscheduled another query
- * section".
+ * section". The TasksHub sidebar lists them; the selected one's id set
+ * narrows the collection.
  *
  * The sections are the DATE-BASED open-work sweeps (2026-11-25 revision):
  * Overdue / Today / Upcoming / Unscheduled — every one filters the closed
@@ -129,10 +130,18 @@ function sectionAst(...children: Child[]): QueryAst {
   return { version: 2, scope: { type: "entire_workspace" }, root };
 }
 
-/** The hub's stacked sections, in render order — the DATE-BASED open-work
- *  sweeps (closed tasks are excluded by every section's filter; the hub's
- *  other modes list the whole set). */
+/** The hub's sections, in panel order. "All tasks" is the whole class — the
+ *  hub's unfiltered scope, closed tasks included (the date-based sweeps
+ *  filter the closed set OUT, so without it Done/Cancelled tasks would be
+ *  unreachable in every mode). Then the DATE-BASED open-work sweeps. */
 export const TASK_SECTIONS: readonly TaskSectionDef[] = [
+  {
+    id: "all",
+    label: "All tasks",
+    icon: "mdi-format-list-bulleted",
+    // The whole class, nothing filtered — the hub's unfiltered scope.
+    ast: sectionAst(),
+  },
   {
     id: "overdue",
     label: "Overdue",

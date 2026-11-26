@@ -106,7 +106,7 @@ export function SharesHub({
       {/* The hub chrome rides the shared SurfaceTopBar,
           pinned above the body; the rows scroll at the card border inside
           the capped content column below. */}
-      <SurfaceTopBar icon="mdi-share-variant" title="Shares" count={liveShares.length} />
+      <SurfaceTopBar title="Shares" count={liveShares.length} />
 
       <div className="nt-shares-hub__body">
         <div className="nt-shares-hub__content">

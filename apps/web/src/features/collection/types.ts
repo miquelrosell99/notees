@@ -276,6 +276,13 @@ export interface NodeCollectionProps {
    */
   hideProperties?: boolean | undefined;
   /**
+   * List/tree rows hide ONLY the collapsed "Properties N" section — the
+   * value-display icon buttons (the status bullet et al.) stay. The tasks
+   * hub's register: the row previews + the status icon answer "what", the
+   * disclosure section was a third line of chrome per row.
+   */
+  hidePropertySection?: boolean | undefined;
+  /**
    * List/tree rows hide the tags row — listing surfaces scoped to identity
    * chrome only (the shell hubs' page listings) render classes but not
    * tags.

@@ -1,6 +1,6 @@
 /**
  * CollectionHub — the hub shell behind a sidebar entry: the shared
- * SurfaceTopBar chrome (icon, title, count, view switcher, the lifted
+ * SurfaceTopBar chrome (title, count, view switcher, the lifted
  * collection toolbar, header actions) pinned above a NodeCollection of the
  * hub's nodes. The transient filter layer rides the bar (the hosted tab
  * bar's contract): the FilterQuery is component state here, the quick text
@@ -24,14 +24,20 @@
  * to the default (a dead switch never resurrects). The pages/classes hubs
  * ride the outline
  * mode, opening on the Dates first sort (the hub passes `defaultSortMode`;
- * unset = the container's row order). Tasks defaults to its registered
- * "buckets" view; assets to cards with a cover-top cover
+ * unset = the container's row order). Tasks defaults to its section-scoped
+ * outline (the master–detail TasksHub passes `narrowItems`); assets to
+ * cards with a cover-top cover
  * fallback. The outline (list) mode renders the full
  * block-row surface — inline-editable when `editable` is set (the tasks
  * hub), read-only-inert otherwise (the content click does nothing; the
- * bullet opens the node). The tasks hub's body renders exactly ONE
- * surface — the bucketed Overdue/Today/… view as its default mode, or the
- * mode the user selected (never a prepend stacked over the chosen mode).
+ * bullet opens the node).
+ *
+ * Two additive layout seams serve the panelled hubs (the Tasks hub's
+ * master–detail): `sidePanel` renders a host-built aside beside the body
+ * (the host composes it with `useSidePanel`; the linked toggle rides
+ * `leading`, the bar's left-of-title slot) and `narrowItems` post-filter
+ * narrows what the COLLECTION renders while the bar's count, filter
+ * toolbar and mode gate keep reading the full pool.
  *
  * The surface shape: the root is full-bleed in the main
  * content card (the PageCard.css hub-surface exception) — the bar pins at
@@ -105,7 +111,7 @@ function applyHubFilter(
 
 export interface CollectionHubProps {
   client: AnyClient;
-  icon: string;
+  /** The bar's heading — never an icon (the view-title ruling). */
   title: string;
   /**
    * The hub's UNFILTERED item set: the transient filter layer (the toolbar
@@ -179,6 +185,12 @@ export interface CollectionHubProps {
    * answer "which nodes", not "what metadata".
    */
   hideProperties?: boolean | undefined;
+  /**
+   * List mode hides ONLY the collapsed "Properties N" section — the
+   * value-display icon buttons stay (the tasks hub: the status bullet owns
+   * closing; the disclosure was a third line of chrome per row).
+   */
+  hidePropertySection?: boolean | undefined;
   /** List mode hides the per-row tags row (identity chrome only). */
   hideTags?: boolean | undefined;
   emptyTitle?: string | undefined;
@@ -216,11 +228,32 @@ export interface CollectionHubProps {
   prepend?: ReactNode | undefined;
   onOpenNode: (nodeId: string) => void;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
+  /**
+   * Post-filter item narrowing (the Tasks hub's section selection): applied
+   * to the FILTERED set right before the collection renders, so the bar's
+   * count, the filter toolbar and the mode-availability gate keep reading
+   * the full pool while the collection shows the narrowed scope. Pure
+   * display — identity changes just re-derive the collection set.
+   */
+  narrowItems?: ((filteredItems: NodeCollectionItem[]) => NodeCollectionItem[]) | undefined;
+  /**
+   * The collection's empty-title while narrowing is in play and left zero
+   * with the filter inactive (the section-selection name: "No tasks in this
+   * section."); without it an empty narrowing falls back to `emptyTitle`.
+   */
+  narrowEmptyTitle?: string | undefined;
+  /**
+   * A left side panel rendered beside the body (the Tasks hub's section
+   * panel) — the host builds it with `useSidePanel` and passes the returned
+   * aside verbatim; the linked toggle rides `leading`.
+   */
+  sidePanel?: ReactNode | undefined;
+  /** The left-panel toggle (the `useSidePanel` pair) — SurfaceTopBar `leading`. */
+  leading?: ReactNode | undefined;
 }
 
 export function CollectionHub({
   client,
-  icon,
   title,
   items,
   modes,
@@ -237,6 +270,7 @@ export function CollectionHub({
   pagesOnly = false,
   nestUnderParents = false,
   hideProperties = false,
+  hidePropertySection = false,
   hideTags = false,
   emptyTitle,
   headerActions,
@@ -246,6 +280,10 @@ export function CollectionHub({
   prepend,
   onOpenNode,
   onOpenInSidebar,
+  narrowItems,
+  narrowEmptyTitle,
+  sidePanel,
+  leading,
 }: CollectionHubProps) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
@@ -292,6 +330,13 @@ export function CollectionHub({
     () => (filterActive ? applyHubFilter(client, items, filter, filterGroup, filterRun.result) : items),
     [client, items, filter, filterActive, filterGroup, filterRun.result],
   );
+  // The post-filter narrowing (the Tasks hub's section selection): the
+  // collection renders the narrowed scope; everything chrome-side above
+  // still reads the filtered pool.
+  const collectionItems = useMemo(
+    () => (narrowItems !== undefined ? narrowItems(filteredItems) : filteredItems),
+    [narrowItems, filteredItems],
+  );
   // The filtered-set report (the Cards hub's buckets/review): guarded by a
   // stable key so a parent setState re-render (fresh `items` identity, same
   // membership) never re-fires it — no report→render→report loop.
@@ -314,9 +359,9 @@ export function CollectionHub({
       <div className="nt-hub">
         <SurfaceTopBar
           className="nt-hub__surface-bar"
-          icon={icon}
           title={title}
           count={items.length}
+          leading={leading}
           actions={
             <>
               <NodeCollectionToolbar
@@ -339,12 +384,14 @@ export function CollectionHub({
         />
         <div className="nt-hub__bar-panel-host" ref={setPanelHost} />
         <div className="nt-hub__body">
-          <div className="nt-hub__content">
-            {prepend}
-            <NodeCollection
-              viewMode={mode}
-              client={client}
-              items={filteredItems}
+          {sidePanel}
+          <div className="nt-hub__main">
+            <div className="nt-hub__content">
+              {prepend}
+              <NodeCollection
+                viewMode={mode}
+                client={client}
+                items={collectionItems}
               viewChromeTarget={chromeSlot}
               tableColumns={tableColumns}
               defaultCoverLayout={defaultCoverLayout}
@@ -355,19 +402,28 @@ export function CollectionHub({
               groupByProperty={groupByProperty}
               groupBy={groupBySpec ?? undefined}
               // A filter emptied to zero answers "No matching rows." — the
-              // container's empty state names the UNFILTERED hub instead.
+              // container's empty state names the UNFILTERED hub instead; a
+              // narrowing (the Tasks hub's section selection) that left zero
+              // names the narrowed scope.
               {...(filterActive
                 ? { emptyText: "No matching rows." }
-                : { emptyTitle })}
+                : {
+                    emptyTitle:
+                      narrowItems !== undefined && collectionItems.length === 0
+                        ? (narrowEmptyTitle ?? emptyTitle)
+                        : emptyTitle,
+                  })}
               editable={editable}
               {...(trailingAction !== undefined ? { trailingAction } : {})}
               {...(pagesOnly ? { pagesOnly: true } : {})}
               {...(nestUnderParents ? { nestUnderParents: true } : {})}
               {...(hideProperties ? { hideProperties: true } : {})}
+              {...(hidePropertySection ? { hidePropertySection: true } : {})}
               {...(hideTags ? { hideTags: true } : {})}
               onNodeClick={onOpenNode}
               onNodeShiftClick={onOpenInSidebar}
             />
+            </div>
           </div>
         </div>
       </div>

@@ -11,24 +11,19 @@ import { useEffect, useState } from "react";
 import {
   CARD_PROPERTY_UUIDS,
   SYSTEM_CLASS_UUIDS,
-  SYSTEM_PROPERTY_UUIDS,
   rendersWithDocumentChrome,
 } from "@notees/domain";
-import type { ClientNode } from "@/core/workspace-client/index.js";
 import { parentlessBlockResolverOf } from "../renderStateLabel.js";
 import { CollectionHub } from "../../features/collection/CollectionHub.js";
-import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
-// Sections-view registration side effect (the collection barrel's
-// self-registration precedent): registers the "sections" view mode — the
-// stacked live-query sections — the tasks hub offers as its default.
-import "../../features/classview/TaskSections.js";
-import { taskTableColumns } from "../../features/classview/taskSections.js";
+import { ensureCardFamily } from "../../features/classview/cardFamily.js";
+// The tasks hub's dedicated master–detail surface (the section panel + the
+// section-scoped collection) — HubView's tasks branch renders it directly.
+import { TasksHub } from "../../features/classview/TasksHub.js";
 import {
   CardBuckets,
   cardRowsOf,
   partitionCardsIntoBuckets,
 } from "../../features/classview/CardBuckets.js";
-import { ensureCardFamily } from "../../features/classview/cardFamily.js";
 import { startCardsSession } from "../../features/cards/sessionState.js";
 import { getCardsAlgorithm, setCardsAlgorithm } from "../../features/settings/nodePrefs.js";
 import { DEFAULT_CARDS_ALGORITHM, type CardsAlgorithm } from "@/core/workspace-client/index.js";
@@ -44,7 +39,6 @@ import { titleOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { createNodeWithClasses } from "../../features/modals/quickCreate.js";
 import { requestTitleFocus } from "../titleFocusRequest.js";
-import { useTaskCreate } from "../../features/classview/useTaskCreate.js";
 import { ClassCreateModal } from "../../features/modals/ClassCreateModal.js";
 import { AssetUploadModal } from "../../features/modals/AssetUploadModal.js";
 import { Button } from "../../components/ui/kit/Button.js";
@@ -52,39 +46,6 @@ import { SelectionButton } from "../../components/ui/kit/SelectionButton.js";
 import { NAV_ENTRIES, type NavKey } from "./Sidebar.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../features/collection/index.js";
 import type { AnyClient } from "./clients.js";
-
-/** A select schema with options — usable as the cards-board grouping (single or multi). */
-function usableGroupingSchema(
-  schemas: Array<{ id: string; type: string; multi: boolean; options: Array<{ id: string; label: string }> | null }>,
-  id: string,
-) {
-  const schema = schemas.find((s) => s.id === id);
-  return schema !== undefined && schema.type === "select" && schema.options !== null && schema.options.length > 0
-    ? schema
-    : undefined;
-}
-
-/**
- * The tasks-hub cards-board grouping: the task status schema when it exists
- * with options (fixed seed id), else any select property at least one task
- * actually carries (migrated workspaces may hold the status schema under
- * another id). Undefined → the hub's cards mode renders the flat grid
- * (no board without a grouping select).
- */
-function taskGroupingProperty(client: AnyClient, members: ClientNode[]): string | undefined {
-  const schemas = client.listPropertySchemas();
-  const status = usableGroupingSchema(schemas, SYSTEM_PROPERTY_UUIDS.taskStatus);
-  if (status !== undefined) return status.id;
-  // The shells read: only the schema ids are inspected here — no values.
-  for (const member of members) {
-    for (const prop of client.getPropertyRowShells(member.id)) {
-      if (usableGroupingSchema(schemas, prop.propertySchemaId) !== undefined) {
-        return prop.propertySchemaId;
-      }
-    }
-  }
-  return undefined;
-}
 
 const HUB_ASSET_COLUMNS: TableColumn[] = [
   { id: "name", kind: "name", label: "Name", sortable: true },
@@ -107,16 +68,8 @@ export function HubView({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  /** The tasks-hub create flow (shared with the global Ctrl/Cmd+Shift+N chord). */
-  const { offerTaskCreate, taskCreateModal } = useTaskCreate({ client, onOpenNode });
-  // Author the six task property schemas + bindings on first
-  // tasks-hub open (idempotent no-op once present); before this, a fresh
-  // workspace silently dropped the Scheduled/Deadline columns.
-  useEffect(() => {
-    if (nav === "tasks") void ensureTaskFamily(client).catch(() => {});
-  }, [client, nav]);
   // The card family's six SRS schemas + bindings self-heal on Cards-hub
-  // entry (the tasks-hub pattern; idempotent no-op once present).
+  // entry (idempotent no-op once present).
   useEffect(() => {
     if (nav === "cards") void ensureCardFamily(client).catch(() => {});
   }, [client, nav]);
@@ -189,56 +142,17 @@ export function HubView({
   const entry = NAV_ENTRIES.find((e) => e.key === nav);
 
   if (nav === "tasks") {
-    // Any node classed task — pages AND blocks, table default.
-    const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
-    // New-task flow (the calendar's Tasks section retired
-    // with the day view; the hub owns creation now): the shared
-    // useTaskCreate hook — a class with bound templates opens the picker; a
-    // class without creates directly. The new task is unscheduled (the
-    // Unscheduled bucket is its honest home; the date pill schedules it).
-    const newTaskAction = (
-      <Button size="sm" variant="ghost" icon="mdi-plus" aria-label="New task" onClick={() => void offerTaskCreate()}>
-        New
-      </Button>
-    );
-    // The cards board groups by the status property; the cards mode renders
-    // it when a usable select schema exists (task family is authored on demand).
-    const groupByProperty = taskGroupingProperty(client, members);
-    // ONE bar for the whole hub: CollectionHub's SurfaceTopBar carries the
-    // title/count/switcher; the body renders exactly ONE surface — the
-    // registered "sections" view (the stacked live-query sections: Overdue /
-    // Today / Upcoming / Unscheduled / Completed / Review) as the default
-    // mode, or the mode the user selected (the register's either/or ruling).
-    const modes: Array<ViewMode | string> = ["sections", "outline", "cards", "table", "pivot", "graph", "gantt", "calendar"];
+    // The dedicated master–detail surface: the section panel (Overdue /
+    // Today / Upcoming / Unscheduled) rides a left side panel, the content
+    // column renders the selected section's collection in any mode. The
+    // family ensure, the create flow, and the section queries live there.
     return (
-      <div className="nt-hub-tasks">
-        <CollectionHub
-          client={client}
-          icon={entry?.icon ?? "mdi-format-list-checks"}
-          title={entry?.label ?? "Tasks"}
-          items={members.map((node) => ({ node }))}
-          modes={modes}
-          defaultMode="sections"
-          persistKey="hub.tasks"
-          // A subtask (a task-classed child of a task) nests under its parent
-          // in the outline and rides parent-before-child in unset table
-          // order; the buckets/kanban surface is flat by design.
-          nestUnderParents
-          tableColumns={taskTableColumns(client)}
-          defaultSort={{ key: "edited", direction: "desc" }}
-          tableEditable
-          groupByProperty={groupByProperty}
-          {...(groupByProperty !== undefined
-            ? { defaultGroupBy: { kind: "property" as const, schemaId: groupByProperty } }
-            : {})}
-          editable
-          emptyTitle="No tasks yet"
-          headerActions={newTaskAction}
-          onOpenNode={onOpenNode}
-          onOpenInSidebar={onOpenInSidebar}
-        />
-        {taskCreateModal}
-      </div>
+      <TasksHub
+        client={client}
+        title={entry?.label ?? "Tasks"}
+        onOpenNode={onOpenNode}
+        onOpenInSidebar={onOpenInSidebar}
+      />
     );
   }
 
@@ -336,7 +250,6 @@ export function HubView({
             header carries the scheduler toggle + the Review/New actions. */}
         <CollectionHub
           client={client}
-          icon={entry?.icon ?? "mdi-cards-playing-outline"}
           title={entry?.label ?? "Cards"}
           items={members.map((node) => ({ node }))}
           modes={["table", "cards", "outline"]}
@@ -392,7 +305,6 @@ export function HubView({
       <>
         <CollectionHub
           client={client}
-          icon={entry?.icon ?? "mdi-folder-multiple-image"}
           title={entry?.label ?? "Assets"}
           items={members}
           modes={["cards", "table", "pivot", "graph", "gantt", "calendar"]}
@@ -479,7 +391,6 @@ export function HubView({
     <>
       <CollectionHub
         client={client}
-        icon={entry?.icon ?? "mdi-book-open-page-variant"}
         title={entry?.label ?? "Pages"}
         items={items.map((node) => ({ node }))}
         modes={

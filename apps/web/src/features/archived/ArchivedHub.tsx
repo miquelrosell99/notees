@@ -53,7 +53,7 @@ export function ArchivedHub({
       {/* The hub chrome rides the shared SurfaceTopBar,
           pinned above the body; the rows scroll at the card border inside
           the capped content column below. */}
-      <SurfaceTopBar icon="mdi-archive-outline" title="Archived" count={entries.length} />
+      <SurfaceTopBar title="Archived" count={entries.length} />
 
       <div className="nt-archived-hub__body">
         <div className="nt-archived-hub__content">

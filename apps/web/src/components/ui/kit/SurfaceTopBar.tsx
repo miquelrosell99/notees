@@ -1,12 +1,13 @@
 /**
  * SurfaceTopBar — the in-card top bar for full-bleed hub surfaces: the NodeView's `.nt-node-topbar` register generalized into a
  * library primitive. A full-card-width row pinned above the surface's own
- * scrolling body: content cluster left (optional mdi icon + title + muted
+ * scrolling body: content cluster left (title + muted
  * count + freeform context), controls right. The hub views (Journal,
  * Calendar, Trash, Archived, Shares, the collection hubs, Search, Queries)
  * compose this instead of hand-rolled `__header` blocks so every hub's
  * chrome reads identically and the scroller underneath rides flush to the
- * card border.
+ * card border. The title never carries an icon (owner ruling 2026-11-26:
+ * the view titles read cleaner with just the word).
  *
  * The actions cluster composes fleet Buttons (`variant="ghost" size="sm"`);
  * text actions like the journal's "Today" are Buttons with children, never
@@ -37,7 +38,6 @@
 
 import type { ReactNode } from 'react';
 
-import { Icon } from '../../../ui/Icon.js';
 import { Badge } from './Badge.js';
 import './SurfaceTopBar.css';
 
@@ -48,8 +48,6 @@ export interface SurfaceTopBarProps {
    * the bar, left of the title, in every hub).
    */
   leading?: ReactNode;
-  /** Optional mdi icon path rendered before the title. */
-  icon?: string | undefined;
   /** The bar's heading; omit when `lead` carries the left cluster instead. */
   title?: string | undefined;
   /** Optional muted count after the title. */
@@ -82,7 +80,6 @@ export interface SurfaceTopBarProps {
 
 export function SurfaceTopBar({
   leading,
-  icon,
   title,
   count,
   titleExtra,
@@ -100,7 +97,6 @@ export function SurfaceTopBar({
       ) : (
         title !== undefined && (
           <h1 className="surface-topbar__title">
-            {icon !== undefined && <Icon path={icon} size={1.1} />}
             {title}
           </h1>
         )

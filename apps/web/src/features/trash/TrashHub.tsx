@@ -55,7 +55,6 @@ export function TrashHub({
           pinned above the body; the rows scroll at the card border inside
           the capped content column below. */}
       <SurfaceTopBar
-        icon="mdi-delete-outline"
         title="Trash"
         count={entries.length}
         actions={

@@ -190,7 +190,6 @@ describe("graph as a collection view mode", () => {
     const gated = render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Graph hub"
         items={unlinkedItems}
         modes={["outline", "graph"]}
@@ -207,7 +206,6 @@ describe("graph as a collection view mode", () => {
     render(
       <CollectionHub
         client={client}
-        icon="mdi-format-list-bulleted"
         title="Graph hub"
         items={items}
         modes={["outline", "graph"]}

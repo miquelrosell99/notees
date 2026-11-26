@@ -1,0 +1,106 @@
+/* TasksHub — the tasks hub's master–detail surface. The section panel rides
+   the journals navigator-panel register: the raised card (sidebar-card
+   fill, hairline frame, card radius) fixed beside the scrolling main
+   column, its rows the quiet nav-list register (sm rows, icon + name, the
+   count badge trailing). The SELECTED row is the M3 active-destination
+   state (secondary-container) — accent never paints chrome. The 0-count
+   badge dims instead of shouting. Tokens from variables.css. */
+
+.tasks-hub__panel {
+  flex: 0 0 var(--layout-size-8xl);
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  display: flex;
+  margin: 0 0 var(--spacing-3) var(--spacing-6);
+  padding: var(--spacing-2);
+  overflow-y: auto;
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-card);
+}
+
+.tasks-hub__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  width: 100%;
+}
+
+/* The section row: the nav-list register — a quiet sm row the content
+   column never confuses with its own group-by groups (those ride the
+   outline/table group registers inside the collection). */
+.tasks-hub__section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2);
+  border: none;
+  /* The row fill radius reads against the panel's card radius — the small
+     4px token cornered square inside the 20px card (the owner's selection
+     screenshot); the large token is the fleet's card-adjacent radius. */
+  border-radius: var(--shape-large);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tasks-hub__section:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The selected section: the M3 active-destination fill — the accent signal
+   a nav destination owns; hover keeps it (the active identity survives
+   hover). */
+.tasks-hub__section--selected,
+.tasks-hub__section--selected:hover {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.tasks-hub__section-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.tasks-hub__section-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-hub__section-count {
+  flex-shrink: 0;
+}
+
+/* The empty sweep reads quietly — a 0 badge is information, not alarm. */
+.tasks-hub__section-count--zero {
+  opacity: var(--opacity-55);
+}
+
+/* Narrow screens: the panel becomes a strip above the scroller (the hub
+   body's own column switch) — the sections ride as wrapping chips, the
+   toggle keeps its meaning. */
+@media (width <= 768px) {
+  .tasks-hub__panel {
+    flex: 0 0 auto;
+    margin: 0 var(--spacing-4) var(--spacing-2);
+    overflow: visible;
+  }
+
+  .tasks-hub__sections {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .tasks-hub__section {
+    width: auto;
+  }
+}
