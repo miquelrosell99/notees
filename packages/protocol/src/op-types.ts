@@ -521,10 +521,13 @@ export const propertySchemaCreatePayload = z
      * "panel" (absent/null) keeps the value in the properties section only;
      * "bullet" renders it as an icon button next to the block bullet;
      * "inline" renders it before the block content (the icon_visibility /
-     * Logseq-DB "UI position" port). A render contract only — never read by
-     * queries or appliers beyond persistence.
+     * Logseq-DB "UI position" port); "pill" (2026-11-26) renders it as a
+     * pill in a dedicated pills row UNDER the block — rendered even when
+     * the value is empty, the pill itself the add/edit affordance. A
+     * render contract only — never read by queries or appliers beyond
+     * persistence.
      */
-    display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
+    display: z.enum(["panel", "bullet", "inline", "pill"]).nullable().optional(),
     /**
      *: the render
      * contracts are PROPERTY-level — a property is hidden-when-empty
@@ -603,7 +606,7 @@ export const propertySchemaUpdatePayload = z
      * keep/clear contract like the number formats: absent keeps the stored
      * value, null clears back to the "panel" default.
      */
-    display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
+    display: z.enum(["panel", "bullet", "inline", "pill"]).nullable().optional(),
     /** The render contract (create-side doc above) — same absent-keeps /
      *  null-clears contract. (`readonly` retired outright 2026-10-21 —
      *  derived from the system list instead; the strict schema rejects it.) */

@@ -687,7 +687,7 @@ class TaskFamilySeedEntry {
   final String name;
   final String type; // 'select' | 'datetime'
   final List<Map<String, String>> options; // [{id, label, icon?, color?}]
-  final String? display; // 'panel' | 'bullet' | 'inline'
+  final String? display; // 'panel' | 'bullet' | 'inline' | 'pill'
   // The schema-level default (seeds.ts `defaultValue`: the option id for
   // select types; null = absent, NULL at the row). Only the Status schema
   // carries one — the Pending option id — the task class supplies "Pending"

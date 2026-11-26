@@ -2201,6 +2201,35 @@ void main() {
       expect(aEffective.single.eligible, isTrue);
     });
 
+    test('property-schema-display-pill: create/update accept, persist, and '
+        'clear the pill display position', () async {
+      const followUp = '0192a000-0000-7000-8000-000000000970';
+      const stage = '0192a000-0000-7000-8000-000000000971';
+      const channel = '0192a000-0000-7000-8000-000000000974';
+      final envelopes = fixtureEnvelopes('property-schema-display-pill.json');
+
+      Future<String?> displayOf(String id) async => (await raw(
+            'SELECT display FROM property_schema WHERE uuid = ?',
+            [id],
+          ))
+          .single['display'] as String?;
+
+      // Follow-up creates WITH pill; Stage creates display-less; Channel
+      // creates with pill.
+      expect(await appliers.apply(envelopes[0]), isTrue);
+      expect(await displayOf(followUp), 'pill');
+      expect(await appliers.apply(envelopes[1]), isTrue);
+      expect(await displayOf(stage), isNull);
+      // Stage updates to pill; Channel creates with pill.
+      expect(await appliers.apply(envelopes[2]), isTrue);
+      expect(await displayOf(stage), 'pill');
+      expect(await appliers.apply(envelopes[3]), isTrue);
+      expect(await displayOf(channel), 'pill');
+      // The present-null update clears back to the panel default.
+      expect(await appliers.apply(envelopes[4]), isTrue);
+      expect(await displayOf(followUp), isNull);
+    });
+
     test('property-schema-update-fields: icon/multi/validationRules and '
         'targetClassFilter/scopeClassIds keep + clear through the '
         'lifecycle', () async {

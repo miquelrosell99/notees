@@ -186,7 +186,7 @@ _DISPLAY_TEMPLATE_MAX_LENGTH = 1024
 _NUMBER_ROUNDING = Literal["round", "floor", "ceil", "truncate"]
 # The binding's value-display position — where a select/multi_select
 # (or boolean) value renders on a block row. A render contract only.
-_DISPLAY_POSITION = Literal["panel", "bullet", "inline"]
+_DISPLAY_POSITION = Literal["panel", "bullet", "inline", "pill"]
 
 
 class _Strict(BaseModel):

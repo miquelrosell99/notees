@@ -319,7 +319,7 @@ CREATE TABLE IF NOT EXISTS property_schema (
     number_pad INTEGER,
     number_decimals INTEGER,
     number_rounding TEXT,
-    -- The render contracts are PROPERTY-level — display (panel|bullet|inline; NULL = panel) and the
+    -- The render contracts are PROPERTY-level — display (panel|bullet|inline|pill; NULL = panel) and the
     -- hide-when-empty flag, wherever the property appears (class-bound
     -- or not). The readonly flag retired outright at v27: never user configuration (no seed ever carried it),
     -- clients DERIVE it from the system property list

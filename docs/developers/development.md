@@ -201,7 +201,8 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (51 files after the 2026-11-08 node-row-previews batch added
+verbatim (55 files after the 2026-11-26 display-pill batch added
+`property-schema-display-pill.json`; 51 files after the 2026-11-08 node-row-previews batch added
 `class-property-node-rows.json`; 44 after the 2026-10-27 tag-API batch added
 `tag-membership.json`; 43 after the 2026-10-27 pinned-binding batch added
 `class-property-pinned.json`; the 2026-10-23 external_ref batch added
@@ -233,6 +234,7 @@ scenarios:
 | `property-validation-rules.json` | validationRules value enforcement: number min/max (boundaries + normalized numeric strings), text pattern accepts (the url-shaped pattern rides a TEXT schema — the `url` property type is retired 2026-10-28), min-only/max-only, a multi element batch with one bad element, rule-free + schema-less writes unchecked — and a reject tail (out-of-range, pattern misses, un compilable pattern) that must throw on apply |
 | `trash-empty.json` | the `trash.empty` bulk op: apply-time permanent delete of every trashed root, a restore-before-empty survives |
 | `tag-membership.json` | tag membership (SCHEMA.md "Tags"): the `object.create` `tagIds` OR-Set seed, the re-issued create on an existing id as the assign carrier (tree untouched), the `tag.unassign` tombstone, and the add-wins resurrection by a newer add (the `>` actor-tiebreak asymmetry vs classIds) |
+| `property-schema-display-pill.json` | the `display` render contract's fourth value: a datetime schema creates WITH `"pill"`, a select schema updates to it, a boolean schema creates with it, and a present-null update clears back to the panel default (the keep/clear contract) |
 | `external-ref.json` | the `external_ref.*` plugin-mapping family (owner requirement 2026-10-23): set/move/delete LWW per ref, the racing-set winner, a stale set dropped by the delete's tombstone after reorder, and the hard-delete purge of the node's rows |
 
 The gate is enforced by `packages/protocol/test/protocol.test.ts`:

@@ -570,7 +570,7 @@ class OperationPayloads {
   /// date qualifiers (metadata startDate/endDate as date-node refs).
   ///
   /// Owner review 2026-10-05: the render contracts are
-  /// PROPERTY-level — [display] ('panel' | 'bullet' | 'inline'; where a
+  /// PROPERTY-level — [display] ('panel' | 'bullet' | 'inline' | 'pill'; where a
   /// select/multi_select/boolean value renders on a block row; NULL/'panel'
   /// = the properties section only) and [hideWhenEmpty] (a property is
   /// hidden-when-empty everywhere it appears, whatever
@@ -1225,7 +1225,7 @@ class OperationPayloads {
         // The PROPERTY-level render contracts — nullable+optional
         // (absent keeps, null clears; stored NULL = 'panel' / unset).
         // `required` is deliberately NOT here: it stays on the class binding.
-        _enum(payload, 'display', {'panel', 'bullet', 'inline'}, required: false);
+        _enum(payload, 'display', {'panel', 'bullet', 'inline', 'pill'}, required: false);
         _boolNullable(payload, 'hideWhenEmpty', required: false);
       case 'propertySchema.update':
         _strict(payload, {
@@ -1264,7 +1264,7 @@ class OperationPayloads {
         _enum(payload, 'numberRounding', _numberRoundings, required: false);
         // render contracts — the same keep/clear contract as the
         // number formats (absent keeps, present null clears).
-        _enum(payload, 'display', {'panel', 'bullet', 'inline'}, required: false);
+        _enum(payload, 'display', {'panel', 'bullet', 'inline', 'pill'}, required: false);
         _boolNullable(payload, 'hideWhenEmpty', required: false);
       case 'propertySchema.delete':
         _strict(payload, {'propertySchemaId'});

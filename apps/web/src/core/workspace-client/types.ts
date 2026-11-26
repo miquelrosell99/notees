@@ -357,7 +357,7 @@ export function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
 }
 
 /** Where a select/multi_select (or boolean) value renders on a block row. */
-export type PropertyDisplay = "panel" | "bullet" | "inline";
+export type PropertyDisplay = "panel" | "bullet" | "inline" | "pill";
 
 /**
  * The schema's value-validation rules (SCHEMA.md "Class properties",

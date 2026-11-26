@@ -73,6 +73,7 @@ void main() {
     'property-datetime.json',
     'property-schema-delete.json',
     'property-schema-scope.json',
+    'property-schema-display-pill.json',
     'property-schema-update-fields.json',
     'property-set-lww.json',
     'property-validation-rules.json',

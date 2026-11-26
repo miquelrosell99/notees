@@ -51,7 +51,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the fifty-four required fixtures", () => {
+  it("has exactly the fifty-five required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "card-review.json",
@@ -95,6 +95,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "property-date-qualifier.json",
       "property-datetime.json",
       "property-schema-delete.json",
+      "property-schema-display-pill.json",
       "property-schema-scope.json",
       "property-schema-update-fields.json",
       "property-set-lww.json",
@@ -458,6 +459,33 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
         type: "file",
       }).success,
     ).toBe(false);
+    // Strict schema: an unknown display position is rejected outright (the
+    // "pill" value is the only addition — fixture property-schema-display-pill).
+    expect(
+      payloadSchemaFor("propertySchema.create")!.safeParse({
+        propertySchemaId: "0192a000-0000-7000-8000-000000000541",
+        name: "x",
+        type: "text",
+        display: "nonsense",
+      }).success,
+    ).toBe(false);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("property-schema-display-pill fixture accepts, persists, and clears the pill position", () => {
+    const fixture = fixtures.find((f) => f.name === "property-schema-display-pill.json")!;
+    const createPill = fixture.envelopes.find(
+      (env) => env.opType === "propertySchema.create" && (env.payload as { name: string }).name === "Follow-up",
+    )!;
+    expect((createPill.payload as { display: string }).display).toBe("pill");
+    const setPill = fixture.envelopes.find((env) => env.opType === "propertySchema.update" && (env.payload as { display?: string }).display === "pill")!;
+    expect(setPill).toBeDefined();
+    const clear = fixture.envelopes.find(
+      (env) => env.opType === "propertySchema.update" && (env.payload as { display?: string | null }).display === null,
+    )!;
+    expect(clear).toBeDefined();
     // Applicable in sequence: HLCs strictly ascend.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
