@@ -207,10 +207,13 @@ export function TimeGrid({
     setCreateAt({ iso, time: timeOfMinutes(start), endTime: timeOfMinutes(end) });
   };
 
-  // The red now-line (the Google register): a THIN line spans every visible
-  // day column; TODAY's column rides a THICKER segment over its overlap
-  // (the dot marks the segment's left edge). One re-render per minute,
-  // cleaned up with the grid; nothing renders when today is not visible.
+  // The red now-line (the Google register): a THIN line marks the current
+  // hour across every visible day column — it rides WHICHEVER week/day the
+  // grid shows (an off-week keeps the hour marker; owner ruling 2026-11-26).
+  // TODAY's column additionally rides a THICKER segment over the thin line's
+  // overlap (the dot marks the segment's left edge); the thick half renders
+  // only while today is on screen. One re-render per minute, cleaned up
+  // with the grid.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);
@@ -475,13 +478,11 @@ export function TimeGrid({
               </div>
             );
           })}
-          {todayIndex >= 0 && (
-            <div
-              className="cal-timegrid__now-line"
-              data-minutes={nowMinutes}
-              style={{ top: `${(nowMinutes / MINUTES_PER_DAY) * 100}%` }}
-            />
-          )}
+          <div
+            className="cal-timegrid__now-line"
+            data-minutes={nowMinutes}
+            style={{ top: `${(nowMinutes / MINUTES_PER_DAY) * 100}%` }}
+          />
         </div>
       </div>
 

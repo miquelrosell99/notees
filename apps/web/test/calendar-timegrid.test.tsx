@@ -404,6 +404,27 @@ describe("TimeGrid (the Day/Week zoom)", () => {
     expect(thin.style.top).toBe(segment.style.top);
   });
 
+  it("the thin now-line rides a week that does NOT contain today — only the thick half is today-bound", async () => {
+    const client = await seedClient();
+    window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("week"));
+    // A day ten days out sits in the next Monday-anchored window.
+    const away = addDaysIso(todayIsoLocal(), 10);
+    render(
+      <CalendarView
+        client={client}
+        onOpenPage={vi.fn()}
+        route={{ zoom: "week", iso: away }}
+      />,
+    );
+    const grid = await screen.findByLabelText("Calendar week view");
+    const thin = grid.querySelector(".cal-timegrid__now-line") as HTMLElement;
+    expect(thin).not.toBeNull();
+    // The thick today segment is gone — today is not on screen.
+    expect(grid.querySelector(".cal-timegrid__now-today")).toBeNull();
+    const now = new Date();
+    expect(thin.getAttribute("data-minutes")).toBe(String(now.getHours() * 60 + now.getMinutes()));
+  });
+
   it("dropping a timed card on another day+hour rewrites the value preserving the duration", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
