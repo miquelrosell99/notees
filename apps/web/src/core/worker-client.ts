@@ -11,6 +11,14 @@
  * keys the change payload actually invalidates — and notifies its own
  * subscribers. A first read of an unseen key returns the empty default and
  * kicks a refresh, so the UI converges on the next notification.
+ *
+ * Local writes skip that convoy: the worker staples a write-through ack
+ * (WorkerWriteAck — the change payload folded out of the coalescing window
+ * plus the fresh values of every served cache key the apply moved) onto the
+ * write RPC's response, and the proxy applies it BEFORE resolving the
+ * write's promise — read-your-writes for awaited writes, one-round-trip
+ * convergence for fire-and-forget ones, and an urgent (non-transition)
+ * notify because the render is the user's own gesture feedback.
  */
 
 import { startTransition } from "react";
@@ -74,6 +82,7 @@ import type {
   WorkerInitMessage,
   WorkerRequestMessage,
   WorkerResponseMessage,
+  WorkerWriteAck,
 } from "../worker/worker-core.js";
 
 /**
@@ -332,9 +341,31 @@ export class WorkerClient {
     const entry = this.pending.get(response.id);
     if (entry === undefined) return;
     this.pending.delete(response.id);
+    // Write-through ack: fold the refreshed values + the change into the
+    // cache and notify BEFORE the write's promise resolves — an awaited
+    // write then reads fresh (read-your-writes), and a fire-and-forget
+    // write's echo renders in this same task instead of waiting for the
+    // coalesced changed → macrotask → multiRead convoy.
+    if (response.ack !== undefined) this.applyWriteAck(response.ack);
     if (response.error !== undefined) entry.reject(new Error(response.error));
     else entry.resolve(response.result);
   };
+
+  /**
+   * Apply a write-through ack (worker-core.ts): the refreshed entries are
+   * exactly the served cache keys the write's apply moved (the worker's
+   * stamp-ledger walk), so the cache update is a plain set; the notify is
+   * URGENT — synchronous listener calls, no startTransition — because this
+   * render is the user's own gesture feedback, not background sync churn
+   * (the transition stays for the coalesced path).
+   */
+  private applyWriteAck(ack: WorkerWriteAck): void {
+    this.lastChange = ack.change;
+    for (const [key, value] of ack.refreshed) {
+      if (this.cache.has(key)) this.cache.set(key, value);
+    }
+    for (const listener of this.listeners) listener(this.lastChange);
+  }
 
   /**
    * Incremental cache invalidation: a structural or scope-unknown

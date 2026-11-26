@@ -272,7 +272,15 @@ export type EditorCaret = CaretPlacement | { x: number; y: number };
 interface BlockTextEditorProps {
   node: ClientNode;
   caret: EditorCaret;
-  onExitEdit: () => void;
+  /**
+   * Leaves edit mode, carrying the session's committed AST (post-flush) so
+   * the row can render it as a pending echo until the store's own echo
+   * lands — the read-mode swap never regresses below what was typed, even
+   * for the one round trip the write-through ack still costs. Callers that
+   * have no committed content to hand over (the code editor's exit) pass
+   * nothing.
+   */
+  onExitEdit: (committed?: ContentAst) => void;
   /**
    * "title" — the page header's title row (BlockRow variant="title"): the
    * structural Enter/Backspace/Delete gestures are suppressed so the page
@@ -920,7 +928,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", ro
         });
       }
       requestQueryBuilderOpen(nodeRef.current.id);
-      onExitEdit();
+      onExitEdit(committedRef.current);
       return;
     }
     if (commandId === "date") {
@@ -1070,7 +1078,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", ro
           console.warn("[capture] /table failed:", error);
         }
       })();
-      onExitEdit();
+      onExitEdit(committedRef.current);
       return;
     }
     if (commandId === "property") {
@@ -2470,7 +2478,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block", ro
           setCapture(null);
           setVerb(null);
           setSelectedAtomKey(null);
-          onExitEdit();
+          onExitEdit(committedRef.current);
         }}
       />
       )}

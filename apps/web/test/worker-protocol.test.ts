@@ -11,16 +11,19 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { newEnvelope } from "@notees/protocol";
 
 import type { OpfsStore } from "../src/worker/opfs.js";
 import {
   WorkerCore,
   handleMessage,
   type WorkerContext,
+  type WorkerCoreOptions,
   type WorkerInitMessage,
   type WorkerRequestMessage,
   type WorkerResponseMessage,
 } from "../src/worker/worker-core.js";
+import { READ_UNCHANGED } from "../src/core/workspace-client/read-revisions.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const FILE = `${WS}.db`;
@@ -54,7 +57,9 @@ function createMemoryOpfs(): { opfs: OpfsStore; files: Map<string, Uint8Array> }
 }
 
 /** A WorkerContext shaped like the worker entry's, but with in-memory wiring. */
-function createTestContext(options: { serverUrl?: string; apiKey?: string } = {}): {
+function createTestContext(
+  options: { serverUrl?: string; apiKey?: string; onNotify?: (change: unknown) => void; notifyDebounceMs?: number } = {},
+): {
   ctx: WorkerContext;
   files: Map<string, Uint8Array>;
 } {
@@ -72,6 +77,10 @@ function createTestContext(options: { serverUrl?: string; apiKey?: string } = {}
         // (per-user prefs calls need it in the client).
         ...(options.serverUrl !== undefined ? { serverUrl: options.serverUrl } : {}),
         ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
+        ...(options.onNotify !== undefined
+          ? { onNotify: options.onNotify as NonNullable<WorkerCoreOptions["onNotify"]> }
+          : {}),
+        ...(options.notifyDebounceMs !== undefined ? { notifyDebounceMs: options.notifyDebounceMs } : {}),
       });
       cores.push(core);
       ctx.core = core;
@@ -289,5 +298,127 @@ describe("worker message protocol (handleMessage)", () => {
       { url: "https://notees.example.com/api/grants/inbox", credential: "Bearer nt_workerkey" },
     ]);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("write-through ack (read-your-writes)", () => {
+  const INIT = {
+    sqlWasmUrl: "/x.wasm",
+    workspaceId: WS,
+    serverUrl: "https://x.example.com",
+    apiKey: "k",
+  } satisfies WorkerInitMessage;
+
+  it("a write RPC carries the change + the refreshed served keys; the ledger then answers READ_UNCHANGED", async () => {
+    const { ctx } = createTestContext();
+    await send(ctx, "init", [INIT]);
+    const page = await send(ctx, "createObject", [{ isEmbedded: false, name: "P" }], 2);
+    const pageId = page.result as string;
+    const block = await send(
+      ctx,
+      "createObject",
+      [{ parentId: pageId, contentAst: [{ type: "text", text: "old" }] }],
+      3,
+    );
+    const blockId = block.result as string;
+
+    // Seed the served-stamp ledger the way the main thread's cache refresh does.
+    const treeKey = JSON.stringify(["getBlockTree", [pageId, null]]);
+    const nodeKey = JSON.stringify(["getNode", [blockId]]);
+    const seeded = await send(ctx, "multiRead", [[treeKey, nodeKey]], 4);
+    expect(seeded.error).toBeUndefined();
+
+    const updated = await send(
+      ctx,
+      "updateObject",
+      [blockId, { contentAst: [{ type: "text", text: "new" }] }],
+      5,
+    );
+    expect(updated.error).toBeUndefined();
+    const ack = updated.ack;
+    expect(ack).toBeDefined();
+    expect(ack!.change.affectedNodeIds ?? []).toContain(blockId);
+    const refreshed = new Map(ack!.refreshed);
+    const tree = refreshed.get(treeKey) as Array<{ node: { id: string; contentAst: unknown } }>;
+    expect(tree[0]!.node.contentAst).toEqual([{ type: "text", text: "new" }]);
+    expect((refreshed.get(nodeKey) as { contentAst: unknown }).contentAst).toEqual([
+      { type: "text", text: "new" },
+    ]);
+
+    // The ack advanced the ledger: the follow-up refresh is all-unchanged.
+    const delta = await send(ctx, "multiRead", [[treeKey, nodeKey]], 6);
+    expect(delta.result).toEqual([READ_UNCHANGED, READ_UNCHANGED]);
+  });
+
+  it("read RPCs carry no ack", async () => {
+    const { ctx } = createTestContext();
+    await send(ctx, "init", [INIT]);
+    const page = await send(ctx, "createObject", [{ isEmbedded: false, name: "P" }], 2);
+    const read = await send(ctx, "getPage", [page.result as string], 3);
+    expect(read.error).toBeUndefined();
+    expect(read.ack).toBeUndefined();
+  });
+
+  it("the ack folds the pending notification out of the coalescing window — no double emission", async () => {
+    vi.useFakeTimers();
+    try {
+      const emitted: unknown[] = [];
+      const { ctx } = createTestContext({
+        onNotify: (change) => emitted.push(change),
+        notifyDebounceMs: 50,
+      });
+      await send(ctx, "init", [INIT]);
+      const page = await send(ctx, "createObject", [{ isEmbedded: false, name: "P" }], 2);
+      const pageId = page.result as string;
+      // Settle the bootstrap + create burst fully.
+      await vi.advanceTimersByTimeAsync(200);
+      emitted.length = 0;
+
+      const updated = await send(
+        ctx,
+        "updateObject",
+        [pageId, { contentAst: [{ type: "text", text: "renamed" }] }],
+        3,
+      );
+      expect(updated.ack).toBeDefined();
+      // The window elapses with NOTHING emitted — the ack was the notification.
+      await vi.advanceTimersByTimeAsync(500);
+      expect(emitted).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("remote-apply batches stay on the coalesced path (no ack, one merged emission)", async () => {
+    vi.useFakeTimers();
+    try {
+      const emitted: unknown[] = [];
+      const { ctx } = createTestContext({
+        onNotify: (change) => emitted.push(change),
+        notifyDebounceMs: 50,
+      });
+      await send(ctx, "init", [INIT]);
+      const page = await send(ctx, "createObject", [{ isEmbedded: false, name: "P" }], 2);
+      const pageId = page.result as string;
+      await vi.advanceTimersByTimeAsync(200);
+      emitted.length = 0;
+
+      const remote = newEnvelope({
+        workspaceId: WS,
+        actorId: "0192a000-0000-7000-8000-0000000000b0",
+        deviceId: "other-device",
+        hlc: { physical: 1_800_000_000_000, logical: 0 },
+        affectedNodeIds: [pageId],
+        opType: "object.update",
+        payload: { objectId: pageId, contentAst: [{ type: "text", text: "remote" }] },
+      });
+      const applied = await send(ctx, "applyBatch", [[remote]], 3);
+      expect(applied.error).toBeUndefined();
+      expect(applied.ack).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(emitted).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

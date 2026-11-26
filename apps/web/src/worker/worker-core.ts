@@ -105,10 +105,25 @@ export interface WorkerRequestMessage {
   args: unknown[];
 }
 
+/**
+ * Read-your-writes payload stapled to a local-write RPC response: the change
+ * notification the apply produced (folded out of the coalescing window — the
+ * ack IS the notification) plus the fresh values of every served cache key
+ * whose revision stamp the apply moved. The proxy applies it before resolving
+ * the write's promise, so an awaited write reads fresh and a fire-and-forget
+ * write converges in one round trip instead of notify-coalesce → macrotask →
+ * multiRead.
+ */
+export interface WorkerWriteAck {
+  change: ChangeNotification;
+  refreshed: Array<[string, unknown]>;
+}
+
 export interface WorkerResponseMessage {
   id: number;
   result?: unknown;
   error?: string;
+  ack?: WorkerWriteAck;
 }
 
 /** Everything handleMessage needs beyond the core; init wiring (sql.js init, OPFS, transport) lives in the caller. */
@@ -134,8 +149,10 @@ export async function handleMessage(
     if (ctx.core === null) {
       throw new Error(`worker: init required before "${message.method}"`);
     }
+    const baseline = ctx.core.notifyRevision;
     const result = await ctx.core.invoke(message.method, message.args);
-    return { id: message.id, result };
+    const ack = await ctx.core.takeWriteAck(message.method, baseline);
+    return { id: message.id, result, ...(ack !== null ? { ack } : {}) };
   } catch (error) {
     return { id: message.id, error: error instanceof Error ? error.message : String(error) };
   }
@@ -155,6 +172,21 @@ const DEFAULT_DEBOUNCE_MS = 500;
  * data. Payloads merge (affected-union, structural-OR).
  */
 const DEFAULT_NOTIFY_DEBOUNCE_MS = 50;
+
+/**
+ * Methods whose applies never ride a write-through ack: remote/import bulk
+ * paths (sync catch-up, snapshot bootstrap, log imports) apply unbounded
+ * envelope sets where the coalesced notify + delta multiRead is the right
+ * shape — the ack exists for the bounded local gestures (editor flushes,
+ * creates, undo) whose latency the user feels.
+ */
+const ACK_EXCLUDED_METHODS: ReadonlySet<string> = new Set([
+  "syncOnce",
+  "push",
+  "pull",
+  "bootstrapWorkspace",
+  "applyBatch",
+]);
 
 /**
  * Read-only methods served through the main thread's read cache (the exact
@@ -387,6 +419,7 @@ export class WorkerCore {
       clearTimeout.bind(globalThis),
     );
     client.subscribe((change) => {
+      core.seenRevision = change.revision;
       // A self-persisting backend (OPFS VFS) needs no whole-file export save.
       if (!persistent) core.schedulePersist();
       core.scheduleNotify(change);
@@ -479,13 +512,62 @@ export class WorkerCore {
 
   /** Emit a notification still sitting in its coalescing window (flush/close). */
   private flushPendingNotify(): void {
+    const pending = this.takePendingNotify();
+    if (pending !== null) this.emitNotify(pending);
+  }
+
+  /** Extract the pending coalesced notification, cancelling its window timer. */
+  private takePendingNotify(): ChangeNotification | null {
     if (this.notifyTimer !== null) {
       this.clearTimer(this.notifyTimer);
       this.notifyTimer = null;
     }
     const pending = this.notifyPending;
     this.notifyPending = null;
-    if (pending !== null) this.emitNotify(pending);
+    return pending;
+  }
+
+  // --- write-through ack (read-your-writes) ---------------------------------------
+
+  /**
+   * The last notify revision the client's synchronous subscribe callback
+   * delivered. handleMessage captures it before a write invoke; a change
+   * means the call applied envelopes.
+   */
+  private seenRevision = 0;
+
+  get notifyRevision(): number {
+    return this.seenRevision;
+  }
+
+  /**
+   * Build the write-through ack for a just-finished RPC, or null when the
+   * method doesn't qualify. Qualifies when the revision advanced during the
+   * call AND a coalesced notification is still pending — a null pending
+   * means an interleaved call already folded this window's changes into its
+   * own ack (the proxy applies acks generically, so attribution between
+   * interleaved calls is irrelevant; every change reaches the main thread
+   * exactly once). The ack folds the pending notification out of the
+   * coalescing window (no double emission) and refreshes every served cache
+   * key whose stamp moved — the stamp walk is the multiRead delta protocol
+   * run proactively, and the worker thread's serialized messages guarantee
+   * no apply interleaves between the write and the walk.
+   */
+  async takeWriteAck(method: string, baseline: number): Promise<WorkerWriteAck | null> {
+    if (ACK_EXCLUDED_METHODS.has(method)) return null;
+    if (this.seenRevision === baseline) return null;
+    const change = this.takePendingNotify();
+    if (change === null) return null;
+    const refreshed: Array<[string, unknown]> = [];
+    for (const [key, served] of this.servedStamps) {
+      const [readMethod, args] = JSON.parse(key) as [string, unknown[]];
+      const stamp = this.client.readStamp(readMethod, args);
+      if (stamp === served) continue;
+      const value = await this.invoke(readMethod, args);
+      this.noteServed(key, stamp);
+      refreshed.push([key, value]);
+    }
+    return { change, refreshed };
   }
 
   private emitNotify(change: ChangeNotification): void {

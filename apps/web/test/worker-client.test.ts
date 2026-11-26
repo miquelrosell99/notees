@@ -11,7 +11,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { WorkerClient } from "../src/core/worker-client.js";
 
-/** Minimal fake Worker speaking the worker-core wire protocol. */
+/** Minimal fake Worker speaking the worker-core wire protocol. A handler
+ *  returning `{ __response: { result, ack? } }` shapes the full wire
+ *  response (the write-through ack path); anything else is the result. */
 function fakeWorker(
   handler: (method: string, args: unknown[]) => unknown | Promise<unknown>,
 ): Worker {
@@ -29,7 +31,13 @@ function fakeWorker(
           : Promise.resolve(handler(message.method, message.args));
       void run
         .then(
-          (result) => ({ id: message.id, result }),
+          (outcome) => {
+            if (outcome !== null && typeof outcome === "object" && "__response" in outcome) {
+              const shaped = (outcome as { __response: { result: unknown; ack?: unknown } }).__response;
+              return { id: message.id, ...shaped };
+            }
+            return { id: message.id, result: outcome };
+          },
           (error: unknown) => ({
             id: message.id,
             error: error instanceof Error ? error.message : String(error),
@@ -392,6 +400,58 @@ describe("incremental cache invalidation", () => {
       pushChanged({ revision: 4, affectedNodeIds: [], structural: false });
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(calls.size).toBe(0);
+    } finally {
+      client.close();
+    }
+  });
+});
+
+describe("WorkerClient write-through ack", () => {
+  it("applies the ack before the write resolves: awaited writes read fresh, subscribers notified synchronously", async () => {
+    const treeKey = JSON.stringify(["getBlockTree", ["page-1", undefined]]);
+    const freshTree = [{ node: { id: "b1", contentAst: [{ type: "text", text: "new" }] }, children: [] }];
+    let multiReads = 0;
+    const client = await makeClient((method) => {
+      if (method === "init") return null;
+      if (method === "getBlockTree") return [];
+      if (method === "updateObject") {
+        return {
+          __response: {
+            result: undefined,
+            ack: {
+              change: { revision: 7, affectedNodeIds: ["b1", "page-1"], structural: false },
+              refreshed: [[treeKey, freshTree]],
+            },
+          },
+        };
+      }
+      return null;
+    });
+    const counting = client as unknown as { call: (m: string, a: unknown[]) => Promise<unknown> };
+    const originalCall = counting.call.bind(client);
+    counting.call = (m: string, a: unknown[]) => {
+      if (m === "multiRead") multiReads += 1;
+      return originalCall(m, a);
+    };
+    try {
+      // Seed the cache key so the ack has an entry to refresh, and let the
+      // seed drain + its notify settle before subscribing.
+      expect(client.getBlockTree("page-1")).toEqual([]);
+      await vi.waitFor(() => {
+        expect(multiReads).toBeGreaterThan(0);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const seen: number[] = [];
+      client.subscribe((change) => seen.push(change.revision));
+      const multiReadsBefore = multiReads;
+
+      await client.updateObject("b1", { contentAst: [{ type: "text", text: "new" }] });
+
+      // Read-your-writes: fresh SYNCHRONOUSLY after the await — no drain, no
+      // multiRead round-trip, no coalescing window.
+      expect(client.getBlockTree("page-1")).toEqual(freshTree);
+      expect(seen).toEqual([7]);
+      expect(multiReads).toBe(multiReadsBefore);
     } finally {
       client.close();
     }

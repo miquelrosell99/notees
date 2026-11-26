@@ -358,6 +358,45 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   const dragSources = useContext(DragSourcesContext);
   const [editing, setEditing] = useState(autoEdit);
   const [caret, setCaret] = useState<EditorCaret>("end");
+  /**
+   * Pending echo: the editor's committed AST, handed over at exit-edit. The
+   * write is in flight (worker RPC + write-through ack), so the tree prop
+   * still carries the pre-edit content — rendering the override keeps the
+   * read-mode swap from ever regressing below what was typed. Cleared by
+   * the store's own echo (deep-equal) or by a content change naming this
+   * node (the store's LWW truth supersedes the override).
+   */
+  const [echoOverride, setEchoOverride] = useState<ClientNode["contentAst"] | null>(null);
+  const echoOverrideRef = useRef<ClientNode["contentAst"] | null>(null);
+  echoOverrideRef.current = echoOverride;
+  const exitEdit = (committed?: ClientNode["contentAst"]) => {
+    if (committed !== undefined) setEchoOverride(committed);
+    setEditing(false);
+  };
+  useEffect(() => {
+    if (echoOverride !== null && JSON.stringify(node.contentAst) === JSON.stringify(echoOverride)) {
+      setEchoOverride(null);
+    }
+  }, [node.contentAst, echoOverride]);
+  // The echo's own notification (a content change naming this node — the
+  // write-through ack fires it with the cache already fresh) retires the
+  // override in the same batch the host re-renders with the fresh tree; a
+  // remote LWW winner clears it the same way. Structural payloads keep the
+  // override — a child create under this node says nothing about its
+  // content echo; the deep-equal effect above covers that landing.
+  useEffect(
+    () =>
+      client.subscribe((change) => {
+        if (echoOverrideRef.current === null) return;
+        const affected = change.affectedNodeIds;
+        if (affected === undefined || (change.structural !== true && affected.includes(node.id))) {
+          setEchoOverride(null);
+        }
+      }),
+    [client, node.id],
+  );
+  /** The AST read-mode chrome renders: the pending echo until the store's own lands. */
+  const displayAst = echoOverride ?? node.contentAst;
   // Right-gutter backlink toggle (SCHEMA.md:117): the badge reads the
   // materialized count (cheap stored number, renders unconditionally at 0
   // hides the toggle); the linked-references query stays lazy until the
@@ -567,7 +606,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // surface), and typing anything else turns the block back into an
   // ordinary block by construction. Children are not rendered: a rule
   // terminates a section.
-  const ruleDisplay = !editing && isRuleContent(node.contentAst);
+  const ruleDisplay = !editing && isRuleContent(displayAst);
 
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
@@ -787,12 +826,12 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // still swaps in the block editor; only the display projection
   // transforms.
   const linkOnlyTarget =
-    isTitle || tableRow || suppressWidgets ? null : linkOnlyMentionTarget(node.contentAst);
+    isTitle || tableRow || suppressWidgets ? null : linkOnlyMentionTarget(displayAst);
   const tokens = linkOnlyTarget !== null ? (
     <EmbedView nodeId={linkOnlyTarget} />
   ) : (
     <InlineTokens
-      tokens={node.contentAst}
+      tokens={displayAst}
       resolveName={resolveName}
       resolveFullTitle={(id) => titleOf(client, id, { budget: "full" })}
       resolveLabelTokens={(id) => client.getNode(id)?.contentAst ?? undefined}
@@ -863,7 +902,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // the prose spans stay one coordinate system.
   const classLabel = (classId: string) => outlinerClient.getDisplayName(classId) ?? "";
   const mentionLabel = (targetId: string) => outlinerClient.getDisplayName(targetId);
-  const excerpt = condensed ? excerptOf(node.contentAst, classLabel, mentionLabel) : null;
+  const excerpt = condensed ? excerptOf(displayAst, classLabel, mentionLabel) : null;
   const stretchedFull = condensed && stretched.has(node.id);
   const excerpted =
     condensed && !editing && excerpt !== null && excerpt.text !== "" && excerpt.truncated && !stretchedFull;
@@ -872,7 +911,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
   // render-only by decree).
   const hiddenLinks =
     excerpted && excerpt !== null
-      ? hiddenLinksOf(node.contentAst, excerpt.cutOffset, classLabel, mentionLabel)
+      ? hiddenLinksOf(displayAst, excerpt.cutOffset, classLabel, mentionLabel)
       : [];
   // A mixed block (sentence + inline image) names its prose-less payload in
   // the excerpt row — nothing silently hidden.
@@ -886,7 +925,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
         else if ((t.type === "quote" || t.type === "heading") && Array.isArray(t.children)) walk(t.children);
       }
     };
-    walk(node.contentAst);
+    walk(displayAst);
     return count;
   })();
 
@@ -909,7 +948,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
               <BlockTextEditor
                 node={node}
                 caret={caret}
-                onExitEdit={() => setEditing(false)}
+                onExitEdit={exitEdit}
                 variant="title"
               />
             ) : (
@@ -1083,7 +1122,7 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
             // shows the raw dashes, so the block is never invisible/trapped).
             <hr className="nt-block-rule" />
           ) : editing ? (
-            <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} rootEnterNests={rootEnterNests} />
+            <BlockTextEditor node={node} caret={caret} onExitEdit={exitEdit} rootEnterNests={rootEnterNests} />
           ) : excerpted && excerpt !== null ? (
             <>
               <span className="nt-block-excerpt">{excerpt.text}</span>
