@@ -74,6 +74,13 @@
   align-items: baseline;
   gap: var(--nt-row-gap);
   padding: var(--spacing-micro) 0;
+  /* The hover-revealed "+ Add class" pill (BlockRowDnD.css) is taller than
+     the text line, so its reveal used to GROW the row on hover — every
+     hovered block pushed its siblings down. The row floors itself at the
+     pill's box instead (the pill's block padding + its 18px icon + the
+     dashed border, plus the row's own micro padding): rows carry the
+     pill's height at all times and the reveal changes nothing. */
+  min-height: calc(2 * var(--spacing-micro) + 2 * var(--spacing-1) + var(--spacing-4-5) + 2 * var(--border-width-default));
   /* Room for the hover-revealed collapse chevron, which sits in this gutter
      (absolute, left of the bullet) so bullets stay aligned at every level.
      Rides the grid's first track — same var, single source. */
