@@ -3589,6 +3589,213 @@ function readImportFile(filePath: string): string {
   }
 }
 
+/**
+ * `notees import koreader <dir>` — the KOReader connector (docsettings
+ * sidecars: reading state + highlights). The executable half of the
+ * koreader plugin's importer declaration (the runtime is parked; the
+ * manifest bridges to it). Per sidecar: find-or-create the book source
+ * (title match against the library, the bibliography idiom), sync the
+ * reading state onto the workspace's `Estado`/`Primera lectura`/`Última
+ * lectura`/`Abandonado el` properties when present (skipped with a count
+ * when absent — the tracker is personal vocabulary, never assumed), and
+ * land the highlights as quote blocks under the book with the
+ * `KOReader ·` marker convention (idempotent: quote text is the upsert
+ * identity). `--dry-run` plans and writes nothing.
+ */
+async function importKoreader(ctx: CommandContext, dir: string, options: { dryRun?: boolean }): Promise<void> {
+  const { readdirSync, statSync } = await import("node:fs");
+  const { join: joinPath } = await import("node:path");
+  const luaFiles: string[] = [];
+  const walk = (current: string): void => {
+    for (const entry of readdirSync(current)) {
+      const full = joinPath(current, entry);
+      const stat = statSync(full);
+      if (stat.isDirectory()) walk(full);
+      else if (entry.endsWith(".lua")) luaFiles.push(full);
+    }
+  };
+  try {
+    walk(dir);
+  } catch (error) {
+    throw new CliError(EXIT.usage, `cannot read ${dir}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (luaFiles.length === 0) {
+    throw new CliError(EXIT.domain, `no .lua docsettings sidecars found under ${dir}`);
+  }
+
+  const { parseKoreaderSidecar } = await import("./koreader.js");
+  const books = [];
+  const skipped: Array<{ file: string; error: string }> = [];
+  for (const file of luaFiles) {
+    try {
+      books.push(parseKoreaderSidecar(file, readImportFile(file)));
+    } catch (error) {
+      skipped.push({ file, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const dryRun = options.dryRun === true;
+  const local = await ctx.local();
+  // Reading-state vocabulary: present only in workspaces that carry the
+  // tracker (the owner's); resolved once, by name.
+  const estado = await resolvePropertySchemaRef(ctx, "Estado").catch(() => null);
+  const estadoOptions = new Map<string, string>();
+  if (estado !== null) {
+    const full = await ctx.client.getJson<{ propertySchema: { options?: Array<{ id: string; label: string }> } }>(
+      `/api/property-schemas/${estado.id}`,
+    );
+    for (const option of full.propertySchema.options ?? []) estadoOptions.set(option.label, option.id);
+  }
+  const dateSchemas: Record<string, string | null> = {};
+  for (const name of ["Primera lectura", "Última lectura", "Abandonado el"]) {
+    dateSchemas[name] = await resolvePropertySchemaRef(ctx, name).then((s) => s.id).catch(() => null);
+  }
+
+  const counts = {
+    books: books.length,
+    matched: 0,
+    created: 0,
+    readStateSynced: 0,
+    readStateSkipped: 0,
+    highlightsAdded: 0,
+    highlightsExisting: 0,
+    skipped: skipped.length,
+  };
+  const skippedFiles = skipped;
+  const report: Array<{ title: string; action: string }> = [];
+
+  const norm = (s: string): string =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  const findBook = async (title: string): Promise<string | null> => {
+    const words = norm(title).split(" ").slice(0, 6).join(" ");
+    if (words === "") return null;
+    const body = await local.listObjects({ q: words });
+    let best: { id: string; score: number } | null = null;
+    const target = norm(title);
+    for (const object of body.objects as Array<{ id: string; name?: string | null }>) {
+      const candidate = norm(object.name ?? "");
+      if (candidate === "") continue;
+      // Containment, not length ratio: similar-length non-matches (highlight
+      // marker blocks, unrelated titles) must NOT score — only exact titles
+      // or one containing the other (subtitle/edition variants) qualify.
+      const score =
+        target === candidate
+          ? 1
+          : target.length > 0 && candidate.length > 0 && (candidate.includes(target) || target.includes(candidate))
+            ? Math.min(target.length, candidate.length) / Math.max(target.length, candidate.length)
+            : 0;
+      if (score >= 0.6 && (best === null || score > best.score)) best = { id: object.id, score };
+    }
+    return best?.id ?? null;
+  };
+
+  for (const book of books) {
+    let bookId = await findBook(book.title);
+    let action: string;
+    if (bookId === null) {
+      action = "create";
+      if (!dryRun) {
+        const name = book.author !== null ? `${book.title}, de ${book.author}` : book.title;
+        const created = await local.createObject({ isEmbedded: false, name, classIds: [SYSTEM_CLASS_UUIDS.book] });
+        bookId = created.id;
+      }
+      counts.created += 1;
+    } else {
+      action = "match";
+      counts.matched += 1;
+    }
+    if (bookId === null) continue; // dry-run would-create
+
+    // Reading state (only when the tracker vocabulary exists).
+    if (estado === null || estadoOptions.size === 0) {
+      counts.readStateSkipped += book.lastRead !== null || book.status !== "unknown" ? 1 : 0;
+    } else {
+      const targetLabel =
+        book.status === "finished" || book.status === "complete"
+          ? "Consumido"
+          : book.status === "abandoned"
+            ? "Abandonado"
+            : book.status === "reading" && book.percentFinished > 0
+              ? "Leyendo"
+              : null;
+      if (targetLabel !== null && estadoOptions.has(targetLabel)) {
+        counts.readStateSynced += 1;
+        if (!dryRun) {
+          await local.setProperty(bookId, { propertySchemaId: estado.id, value: estadoOptions.get(targetLabel)! });
+          if (book.lastRead !== null) {
+            const iso = new Date(book.lastRead * 1000).toISOString().slice(0, 10);
+            const ref = await ensureDateChainRef(ctx, iso, "day");
+            const ultima = dateSchemas["Última lectura"];
+            if (ultima != null) await local.setProperty(bookId, { propertySchemaId: ultima, value: ref });
+            const primera = dateSchemas["Primera lectura"];
+            if (primera != null) {
+              const held = fullPropertiesOf(await getFullObject(ctx, bookId)).some(
+                (p) => p.schemaId === primera,
+              );
+              if (!held) await local.setProperty(bookId, { propertySchemaId: primera, value: ref });
+            }
+            const abandon = dateSchemas["Abandonado el"];
+            if (abandon != null) {
+              if (targetLabel === "Abandonado") {
+                await local.setProperty(bookId, { propertySchemaId: abandon, value: ref });
+              } else {
+                const held = fullPropertiesOf(await getFullObject(ctx, bookId)).some((p) => p.schemaId === abandon);
+                if (held) await local.unsetProperty(bookId, abandon, 0);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Highlights: quote blocks under the book; quote text is the identity.
+    if (book.annotations.length > 0) {
+      const children = (await local.listObjects({ parent: bookId })).objects as Array<{ id: string; name?: string | null }>;
+      const existingQuotes = new Set(children.map((c) => norm(c.name ?? "")));
+      for (const annotation of book.annotations) {
+        if (existingQuotes.has(norm(annotation.text))) {
+          counts.highlightsExisting += 1;
+          continue;
+        }
+        counts.highlightsAdded += 1;
+        if (dryRun) continue;
+        const quote = await local.createObject({
+          isEmbedded: true,
+          parentId: bookId,
+          contentAst: [{ type: "text", text: annotation.text }],
+        });
+        const markerParts = ["KOReader"];
+        if (annotation.page !== null) markerParts.push(`p. ${annotation.page}`);
+        if (annotation.chapter !== null) markerParts.push(annotation.chapter);
+        if (annotation.datetime !== null) markerParts.push(annotation.datetime);
+        await local.createObject({
+          isEmbedded: true,
+          parentId: quote.id,
+          contentAst: [{ type: "text", text: markerParts.join(" · ") }],
+        });
+        if (annotation.note !== null) {
+          await local.createObject({
+            isEmbedded: true,
+            parentId: quote.id,
+            contentAst: [{ type: "text", text: `KOReader note · ${annotation.note}` }],
+          });
+        }
+      }
+    }
+    report.push({ title: book.title, action });
+  }
+
+  const human =
+    `koreader sync (${dir}) — ${counts.books} books (${counts.matched} matched, ${counts.created} created), ` +
+    `read state ${counts.readStateSynced} synced / ${counts.readStateSkipped} skipped, ` +
+    `highlights ${counts.highlightsAdded} added / ${counts.highlightsExisting} existing` +
+    (counts.skipped > 0 ? `, ${counts.skipped} sidecars skipped (unparsable)` : "") +
+    (dryRun ? " — dry run, nothing written" : "") +
+    `\n`;
+  emit(ctx, human, { ...counts, dryRun, skippedFiles, report });
+}
+
+
 /** The property schemas an import may touch (citekey always; the rest only when used). */
 function usedSchemaNames(items: CslItem[]): Set<SystemPropertyName> {
   const used = new Set<SystemPropertyName>(["citekey"]);
@@ -4881,7 +5088,7 @@ const HELP_ROWS: Record<string, { flags: string }> = {
   doctor: { flags: "(resolves flag > env > stored)" },
   shell: { flags: "[script]" },
   export: { flags: "markdown · json · bibtex" },
-  import: { flags: "bibtex · csl-json · zotero-rdf · logseq-db" },
+  import: { flags: "bibtex · csl-json · zotero-rdf · koreader · logseq-db" },
   source: { flags: "fetch-metadata <id> [--dry-run]" },
   help: { flags: "<command> [subcommand]" },
 };
@@ -5730,6 +5937,17 @@ function buildProgram(): Command {
     )
     .action(async (filePath: string, options: SourceImportOptions, command: Command) => {
       await importZoteroRdf(ctxOf(command), filePath, options);
+    });
+  importCmd
+    .command("koreader <dir>")
+    .description(
+      "sync a KOReader docsettings folder (reading state + highlights): find-or-create book sources by title, " +
+        "mirror status/last-read onto the workspace's reading-tracker properties when present (skipped with a count otherwise), " +
+        "and land highlights as quote blocks under the book (KOReader · marker convention; idempotent — quote text is the upsert identity)",
+    )
+    .option("--dry-run", "plan only: report what would sync, write nothing", false)
+    .action(async (dir: string, options: { dryRun?: boolean }, command: Command) => {
+      await importKoreader(ctxOf(command), dir, options);
     });
   importCmd
     .command("logseq-db <file>")

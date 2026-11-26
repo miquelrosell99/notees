@@ -1057,6 +1057,124 @@ describe("bibliography round-trip (bibtex)", () => {
   });
 });
 
+describe("import koreader (reading state + highlights)", () => {
+  const FINISHED_LUA = `return {
+    ["annotations"] = {
+        [1] = {
+            ["chapter"] = "Capítulo 1",
+            ["datetime"] = "2026-11-20 21:15:00",
+            ["note"] = "interesante",
+            ["pageno"] = 42,
+            ["text"] = "El éxito del tratamiento depende de la anatomía del defecto",
+        },
+        [2] = {
+            ["chapter"] = "Capítulo 2",
+            ["datetime"] = "2026-11-21 08:00:00",
+            ["note"] = "",
+            ["pageno"] = 87,
+            ["text"] = "La regeneración es predecible en defectos contenidos",
+        },
+    },
+    ["doc_path"] = "/books/periimplantitis.pdf",
+    ["doc_props"] = { ["authors"] = "Schwarz F", ["title"] = "Surgical therapy of peri-implantitis" },
+    ["last_read"] = 1730000000,
+    ["percent_finished"] = 1,
+    ["status"] = "finished",
+}
+`;
+  // 1730000000 = 2024-10-27 (UTC).
+  const READING_LUA = `return {
+    ["annotations"] = {
+        [1] = { ["pageno"] = 10, ["text"] = "Primera aproximación al problema" },
+    },
+    ["doc_props"] = { ["title"] = "Epidemiología de las periimplantopatías" },
+    ["last_read"] = 1730086400,
+    ["percent_finished"] = 0.3,
+    ["status"] = "reading",
+}
+`;
+  const BROKEN_LUA = `return { ["annotations"] = { [1] = { ["text"] = "unterminated `;
+
+  async function seedTracker(h: typeof harness): Promise<{ estadoId: string; consumido: string; leyendo: string }> {
+    expect(await h.runCli("--json", "property", "create", "Estado", "--type", "select",
+      "--option", "Pendiente", "--option", "Leyendo", "--option", "Consumido", "--option", "Abandonado")).toBe(EXIT.ok);
+    const estadoId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    for (const name of ["Primera lectura", "Última lectura", "Abandonado el"]) {
+      expect(await h.runCli("property", "create", name, "--type", "datetime")).toBe(EXIT.ok);
+    }
+    const schemas = JSON.parse(
+      (await h.runCli("--json", "property", "list"), h.io.stdoutText),
+    ) as { propertySchemas: Array<{ id: string; name: string; options?: Array<{ id: string; label: string }> }> };
+    const estado = schemas.propertySchemas.find((x) => x.name === "Estado")!;
+    return {
+      estadoId: estado.id,
+      consumido: estado.options!.find((o) => o.label === "Consumido")!.id,
+      leyendo: estado.options!.find((o) => o.label === "Leyendo")!.id,
+    };
+  }
+
+  it("syncs reading state onto the tracker properties and lands highlights as idempotent blocks", async () => {
+    const h = harness;
+    const tracker = await seedTracker(h);
+    const dir = join(h.dataDir, "koreader-docsettings");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "book1.pdf.lua"), FINISHED_LUA);
+    writeFileSync(join(dir, "book2.pdf.lua"), READING_LUA);
+    writeFileSync(join(dir, "broken.lua"), BROKEN_LUA);
+
+    expect(await h.runCli("--json", "import", "koreader", dir)).toBe(EXIT.ok);
+    const result = JSON.parse(h.io.stdoutText) as { created: number; matched: number; readStateSynced: number; highlightsAdded: number; highlightsExisting: number; skipped: number };
+    expect(result).toMatchObject({ created: 2, matched: 0, readStateSynced: 2, highlightsAdded: 3, highlightsExisting: 0, skipped: 1 });
+
+    // Book 1: created with author, finished state + both read dates on the 2024-10-27 day node.
+    await h.runCli("--json", "object", "list", "--q", "Surgical therapy of peri-implantitis");
+    const book1 = (JSON.parse(h.io.stdoutText).objects as Array<{ id: string; name?: string | null }>).find(
+      (o) => o.name === "Surgical therapy of peri-implantitis, de Schwarz F",
+    )!;
+    expect(book1).toBeDefined();
+    await h.runCli("--json", "object", "get", book1.id);
+    const props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    const bySchema = (id: string) => props.filter((p) => p.schemaId === id).map((p) => p.value);
+    expect(bySchema(tracker.estadoId)).toEqual([tracker.consumido]);
+    const ultima = bySchema(
+      (await h.runCli("--json", "property", "get", "Última lectura"), (JSON.parse(h.io.stdoutText).propertySchema as { id: string }).id),
+    )[0] as { nodeId: string };
+    await h.runCli("--json", "object", "get", ultima.nodeId);
+    expect(JSON.parse(h.io.stdoutText).object.classIds).toContain(SYSTEM_CLASS_UUIDS.day);
+
+    // Highlights: two quote blocks with marker + note children.
+    await h.runCli("--json", "object", "children", book1.id);
+    const children = JSON.parse(h.io.stdoutText).children as Array<{ name: string | null }>;
+    expect(children.map((c) => c.name)).toContain("El éxito del tratamiento depende de la anatomía del defecto");
+    expect(children.map((c) => c.name)).toContain("La regeneración es predecible en defectos contenidos");
+
+    // Book 2: reading state only (no completion dates).
+    await h.runCli("--json", "object", "list", "--q", "Epidemiologia de las periimplantopatias");
+    const book2 = (JSON.parse(h.io.stdoutText).objects as Array<{ id: string; name?: string | null }>).find(
+      (o) => (o.name ?? "").includes("Epidemiología"),
+    )!;
+    await h.runCli("--json", "object", "get", book2.id);
+    const props2 = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    expect(props2.filter((p) => p.schemaId === tracker.estadoId).map((p) => p.value)).toEqual([tracker.leyendo]);
+
+    // Idempotency: a second run plans and adds nothing.
+    expect(await h.runCli("--json", "import", "koreader", dir)).toBe(EXIT.ok);
+    const again = JSON.parse(h.io.stdoutText) as { created: number; matched: number; highlightsAdded: number; highlightsExisting: number };
+    expect(again).toMatchObject({ created: 0, matched: 2, highlightsAdded: 0, highlightsExisting: 3 });
+  });
+
+  it("skips reading-state sync when the tracker vocabulary is absent", async () => {
+    const h = harness;
+    const dir = join(h.dataDir, "koreader-plain");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "book.pdf.lua"), READING_LUA.replace("Epidemiología de las periimplantopatías", "Hábitos atómicos, de James Clear"));
+    expect(await h.runCli("--json", "import", "koreader", dir)).toBe(EXIT.ok);
+    const result = JSON.parse(h.io.stdoutText) as { created: number; readStateSynced: number; readStateSkipped: number; highlightsAdded: number };
+    // The tracker schemas from the previous test persist (shared workspace) — read state syncs.
+    expect(result).toMatchObject({ created: 1, readStateSynced: 1, readStateSkipped: 0, highlightsAdded: 1 });
+  });
+});
+
 describe("source fetch-metadata", () => {
   // The resolver is the server's ONLY egress; the in-process server rides
   // this test's global fetch stub exactly like the server's own suite.
