@@ -21,7 +21,7 @@ import type { AnyClient } from "./shared.js";
 export function propertyGroupsOf(
   client: AnyClient,
   nodeId: string,
-  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline">,
+  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline" | "pill">,
   /**
    * The effective rows to group — defaults to the FULL read. Callers that
    * only count or classify (never render values) may pass the SHELLS read
@@ -31,7 +31,7 @@ export function propertyGroupsOf(
   effectiveRows?: EffectiveProperty[],
 ) {
   const omittedByDisplay = (display: PropertyDisplay | null): boolean =>
-    (display === "bullet" || display === "inline") &&
+    (display === "bullet" || display === "inline" || display === "pill") &&
     (omitDisplayPositions?.includes(display) ?? false);
   const node = client.getNode(nodeId);
   // Class pages: the class's has-template values render in the dedicated

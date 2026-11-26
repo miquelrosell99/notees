@@ -68,7 +68,7 @@ export interface EffectivePropertySchema {
   numberRounding: "round" | "floor" | "ceil" | "truncate" | null;
   /** PROPERTY-level render contracts (NULL = panel / unset). `readonly`
    *  retired 2026-10-21 — derived from the system list, not stored. */
-  display: "panel" | "bullet" | "inline" | null;
+  display: "panel" | "bullet" | "inline" | "pill" | null;
   hideWhenEmpty: boolean | null;
 }
 
@@ -104,7 +104,7 @@ export interface EffectiveProperty {
    *  system property list since the field
    *  left the wire and the store together.) */
   hideWhenEmpty: boolean | null;
-  display: "panel" | "bullet" | "inline" | null;
+  display: "panel" | "bullet" | "inline" | "pill" | null;
   /**
    * R3 eligibility: false when the schema's
    * scopeClassIds excludes the node (its class closure misses the list) —
@@ -163,8 +163,8 @@ function parseOptions(raw: string | null): ReadonlyArray<{ id: string }> {
 
 const flag = (v: number | null): boolean | null => (v === null || v === undefined ? null : v === 1);
 /** Sanitize the stored position (NULL/unknown = the "panel" default). */
-const displayOf = (v: string | null): "panel" | "bullet" | "inline" | null =>
-  v === "bullet" || v === "inline" ? v : null;
+const displayOf = (v: string | null): "panel" | "bullet" | "inline" | "pill" | null =>
+  v === "bullet" || v === "inline" || v === "pill" ? v : null;
 
 export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveProperty[] {
   return buildEffectiveRows(db, nodeId, "full");

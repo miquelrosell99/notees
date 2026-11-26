@@ -1482,7 +1482,10 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * above). `display` (property-LEVEL after the owner review) rides the
  * SCHEMA entry — the Status schema defaults to "bullet" (its value rides
  * the block bullet as an icon button, the Logseq-DB "beginning of the
- * block" behavior); the rest stay in the properties panel. Binding rows
+ * block" behavior); Scheduled and Deadline default to "pill" (2026-11-26 —
+ * the dedicated pills row under the block, the empty pill the add/edit
+ * affordance, the display-position program); the rest stay in the
+ * properties panel. Binding rows
  * carry NO order: class panels render in pin tiers, alphabetical by
  * property name within each tier (`sequence` retired from the binding;
  * `pinned` is a classification, never an order). DECLARED 2026-10-27 (the
@@ -1509,7 +1512,7 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   name: string;
   type: "select" | "datetime";
   options?: ReadonlyArray<{ id: string; label: string; icon?: string; color?: string }>;
-  display?: "panel" | "bullet" | "inline";
+  display?: "panel" | "bullet" | "inline" | "pill";
   /** The binding row's tier flag (see SystemPropertySpec.pinned). */
   pinned?: boolean;
   /** The binding row's node-row preview flag (see
@@ -1535,8 +1538,8 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
     showInNodeRows: true,
     defaultValue: TASK_STATUS_OPTION_UUIDS.pending,
   },
-  { property: "taskScheduled", name: "Scheduled", type: "datetime", pinned: true },
-  { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true, showInNodeRows: true },
+  { property: "taskScheduled", name: "Scheduled", type: "datetime", pinned: true, display: "pill" },
+  { property: "taskDeadline", name: "Deadline", type: "datetime", pinned: true, showInNodeRows: true, display: "pill" },
   {
     property: "taskPriority",
     name: "Priority",

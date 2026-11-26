@@ -236,4 +236,18 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
       await client.updatePropertySchema(status.id, patch);
     }
   }
+  // The pills-row convergence (2026-11-26, the display-position program):
+  // Scheduled and Deadline ride display "pill" (the dedicated pills row
+  // under the block — the empty pill is the add/edit affordance). Same
+  // one-update-when-drifted self-heal as the status pass above; live
+  // workspaces converge here on the hub's ensure and by
+  // scripts/migrate-task-date-pills.mts for the non-web stores.
+  for (const key of ["taskScheduled", "taskDeadline"] as const) {
+    const schema = client
+      .listPropertySchemas()
+      .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS[key]);
+    if (schema !== undefined && schema.display !== "pill") {
+      await client.updatePropertySchema(schema.id, { display: "pill" });
+    }
+  }
 }

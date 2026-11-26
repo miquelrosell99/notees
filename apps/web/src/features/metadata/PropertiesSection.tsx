@@ -38,7 +38,7 @@ export function PropertiesSection({
   /** Schema display positions the host renders itself (the block
    *  row's bullet/inline icon buttons) — rows carrying them are filtered
    *  out of this panel so the value never reads twice. */
-  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
+  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline" | "pill"> | undefined;
   readOnly?: boolean | undefined;
 }) {
   // The collapsed-header count probes the SHELLS read: the count classifies

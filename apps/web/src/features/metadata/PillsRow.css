@@ -1,0 +1,44 @@
+/* PillsRow — the pill display position's register: a row of rounded pills
+   under the block, one per pill-position property. The valued pill wears
+   the quiet bordered chip; the EMPTY pill (the add affordance) reads dim
+   with a dashed border — clickable, never a dead control. The panel rides
+   the ButtonWithPanel floating surface. Token-only (variables.css). */
+
+.nt-block-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding-left: var(--spacing-6);
+  min-width: 0;
+}
+
+.nt-prop-pill {
+  border-radius: var(--shape-full);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  min-height: 0;
+  height: auto;
+  padding: var(--spacing-tiny) var(--spacing-2);
+}
+
+.nt-prop-pill:hover {
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The empty state — the add affordance register (dashed + dimmed). */
+.nt-prop-pill--empty {
+  border-style: dashed;
+  opacity: var(--opacity-80);
+}
+
+.nt-prop-pill--empty:hover {
+  opacity: 1;
+}
+
+.nt-prop-pill-panel {
+  padding: var(--spacing-2);
+}

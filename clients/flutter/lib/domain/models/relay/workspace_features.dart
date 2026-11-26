@@ -753,11 +753,13 @@ const List<TaskFamilySeedEntry> taskFamilySeed = [
     schemaId: SystemPropertyUuids.taskScheduled,
     name: 'Scheduled',
     type: 'datetime',
+    display: 'pill',
   ),
   TaskFamilySeedEntry(
     schemaId: SystemPropertyUuids.taskDeadline,
     name: 'Deadline',
     type: 'datetime',
+    display: 'pill',
   ),
   TaskFamilySeedEntry(
     schemaId: SystemPropertyUuids.taskPriority,

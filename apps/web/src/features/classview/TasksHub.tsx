@@ -223,7 +223,7 @@ function TasksHubBody({
         }
         if (root !== undefined && root !== id) {
           const rootNode = client.getNode(root);
-          const dateClass = [SYSTEM_CLASS_UUIDS.year, SYSTEM_CLASS_UUIDS.month, SYSTEM_CLASS_UUIDS.day];
+          const dateClass: string[] = [SYSTEM_CLASS_UUIDS.year, SYSTEM_CLASS_UUIDS.month, SYSTEM_CLASS_UUIDS.day];
           if (rootNode !== undefined && !rootNode.classIds.some((classId) => dateClass.includes(classId))) {
             projects.add(root);
           }

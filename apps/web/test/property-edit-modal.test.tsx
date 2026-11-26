@@ -77,6 +77,42 @@ function renderModal(client: WorkspaceClient, schemaId: string, onClose = () => 
   return { ...view, sync };
 }
 
+describe("S2 PropertySettingsModal — the value-display position field (2026-11-26)", () => {
+  it("a datetime schema offers the panel default + the pill row; the icon-button positions stay select/boolean-gated", async () => {
+    const client = await seedClient();
+    const dateSchema = await client.createPropertySchema({ name: "Follow-up", type: "datetime" });
+    renderModal(client, dateSchema);
+    // The field's visible label names the row; the SelectionButton options
+    // ride it.
+    const row = screen.getByText("Value display").closest(".nt-property-settings__field") as HTMLElement;
+    expect(row).not.toBeNull();
+    // Icon-only options — the labels ride the accessible names.
+    const labels = [...row.querySelectorAll("button")].map(
+      (button) => button.getAttribute("aria-label") ?? button.getAttribute("title") ?? "",
+    );
+    expect(labels).toEqual(["Properties panel", "Pill row"]);
+  });
+
+  it("a select schema offers all four positions; picking Pill writes update {display: 'pill'}", async () => {
+    const client = await seedClient();
+    const selectSchema = await client.createPropertySchema({
+      name: "Stage",
+      type: "select",
+      options: [{ id: "opt-1", label: "Alpha" }],
+    });
+    const { sync } = renderModal(client, selectSchema);
+    const row = screen.getByText("Value display").closest(".nt-property-settings__field") as HTMLElement;
+    expect(row).not.toBeNull();
+    const labels = [...row.querySelectorAll("button")].map(
+      (button) => button.getAttribute("aria-label") ?? button.getAttribute("title") ?? "",
+    );
+    expect(labels).toEqual(["Properties panel", "Next to bullet", "Before content", "Pill row"]);
+    fireEvent.click(within(row).getByRole("radio", { name: "Pill row" }));
+    await sync();
+    expect(schemaOf(client, selectSchema)?.display).toBe("pill");
+  });
+});
+
 describe("S2 PropertySettingsModal — the base-definition writes", () => {
   it("renames through update {name}", async () => {
     const client = await seedClient();

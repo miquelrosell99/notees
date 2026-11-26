@@ -45,7 +45,7 @@ export function PropertiesTable({
   onOpenInSidebar?: ((pageId: string) => void) | undefined;
   /** Schema display positions (bullet/inline) the host surfaces
    *  itself — filter out. */
-  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
+  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline" | "pill"> | undefined;
   readOnly?: boolean | undefined;
 }) {
   const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId, omitDisplayPositions);

@@ -275,19 +275,12 @@ export function CalendarView({
                 </div>
               ) : (
                 /* The period navigator: centered in the
-                   top bar — Today, the prev/next chevrons stepping by the
-                   zoom's period, and the panel/popup title buttons (month
-                   prominent, year greyed) opening the date-chain pages. */
+                   top bar — the prev/next chevrons stepping by the
+                   zoom's period flank the panel/popup title buttons (month
+                   prominent, year greyed) opening the date-chain pages.
+                   The Today jump rides the actions cluster at the bar's
+                   right (the owner ruling: left of the view-mode switcher). */
                 <div className="calendar-view__period-nav">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    title="Jump to today"
-                    aria-label="Jump to today"
-                    onClick={jumpToToday}
-                  >
-                    Today
-                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -340,6 +333,15 @@ export function CalendarView({
             }
             actions={
               <div className="calendar-view__ladder">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  title="Jump to today"
+                  aria-label="Jump to today"
+                  onClick={jumpToToday}
+                >
+                  Today
+                </Button>
                 <SelectionButton
                   size="sm"
                   options={CALENDAR_ZOOMS.map((zoom) => ({

@@ -129,6 +129,7 @@ import { AssetView } from "./AssetView.js";
 import { BlockBacklinkPanel, BlockBacklinkToggle } from "./BlockBacklinks.js";
 import { BlockTextEditor, type EditorCaret } from "../features/block-editor/index.js";
 import { PropertiesSection, TagsRow } from "../features/metadata/index.js";
+import { PillsRow } from "../features/metadata/PillsRow.js";
 import { PropertyIconButton } from "../features/metadata/PropertyIconButton.js";
 import type { SelectionOption } from "../features/pickers/SelectionPropertyControl.js";
 import { NodePills } from "../features/metadata/NodePills.js";
@@ -153,8 +154,9 @@ import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableCo
 import { deriveListMarker } from "./listStyle.js";
 
 /** Display positions (schema-level) a block row surfaces itself; the
- *  collapsed properties panel below omits them (no duplicated value read). */
-const ROW_DISPLAY_POSITIONS = ["bullet", "inline"] as const;
+ *  collapsed properties panel below omits them (no duplicated value read).
+ *  "pill" joined 2026-11-26 — the pills row under the block owns it. */
+const ROW_DISPLAY_POSITIONS = ["bullet", "inline", "pill"] as const;
 
 /** Total recursive descendants of a block-tree level — the count hidden
  *  under a collapse (walked once per subtree change, memoized at the row). */
@@ -1233,6 +1235,9 @@ export function BlockRowRenderer({ tree, client, resolveName, readOnly = false, 
           rides the `#` trigger). Read-only projections render the same row
           with static pills (edit/read alignment). Focus mode (#12) hides
           them with the rest of the block metadata. */}
+      {!focusMode && !hideProperties && (
+        <PillsRow client={client} nodeId={node.id} classIds={node.classIds} readOnly={readOnly} />
+      )}
       {!focusMode && !hideTags && node.tagIds.length > 0 && (
         <div className="nt-block-tags">
           <TagsRow client={client} nodeId={node.id} tagIds={node.tagIds} onOpenPage={openNode} readOnly={readOnly} />

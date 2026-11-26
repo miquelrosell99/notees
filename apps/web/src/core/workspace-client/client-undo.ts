@@ -195,7 +195,7 @@ export function buildUndoCaptureSource(ctx: ClientContext): UndoCaptureSource {
           : null,
         datePrecision: row.date_precision,
         dateQualified: nullableBool(row.date_qualified),
-        display: row.display === "bullet" || row.display === "inline" ? row.display : null,
+        display: row.display === "bullet" || row.display === "inline" || row.display === "pill" ? row.display : null,
         hideWhenEmpty: nullableBool(row.hide_when_empty),
         defaultValue: row.default_value === null ? null : parseJson(row.default_value),
       };

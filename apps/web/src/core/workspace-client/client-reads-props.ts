@@ -317,7 +317,7 @@ export class WorkspaceClientReadsProps {
         // The render contracts (PROPERTY-level; null = panel / unset).
         // (`readonly` retired 2026-10-21 — derived from the system list,
         // not stored.)
-        display: row.display === "bullet" || row.display === "inline" ? row.display : null,
+        display: row.display === "bullet" || row.display === "inline" || row.display === "pill" ? row.display : null,
         hideWhenEmpty:
           row.hide_when_empty === null || row.hide_when_empty === undefined
             ? null

@@ -7,7 +7,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -184,7 +184,7 @@ describe("BlockRow metadata section", () => {
 describe("BlockRow value-display buttons", () => {
   /** A block whose class binds a select schema at the given display
    *  position (display is property-level — set on the schema). */
-  async function seedDisplayBlock(display: "bullet" | "inline" | "panel") {
+  async function seedDisplayBlock(display: "bullet" | "inline" | "panel" | "pill") {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({
       name: "status",
@@ -253,6 +253,46 @@ describe("BlockRow value-display buttons", () => {
     expect(inlineProps).not.toBeNull();
     expect(inlineProps!.querySelector(".nt-propicon")).not.toBeNull();
     expect(block.querySelector(":scope > .node-metadata-section")).toBeNull();
+  });
+
+  it("a pill-displayed binding renders the pills row under the block — the empty pill is the add affordance", async () => {
+    const { client, pageId, blockId, schemaId } = await seedDisplayBlock("pill");
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const block = container.querySelector(`[data-block-id="${blockId}"]`)!;
+    // The pills row rides under the block, after the row chrome — never
+    // inside the content.
+    const pills = block.querySelector(":scope > .nt-block-pills");
+    expect(pills).not.toBeNull();
+    expect(pills!.querySelector(".nt-block-content")).toBeNull();
+    // The unvalued pill reads the dim add affordance.
+    const pill = pills!.querySelector(".nt-prop-pill") as HTMLElement;
+    expect(pill).not.toBeNull();
+    expect(pill.classList.contains("nt-prop-pill--empty")).toBe(true);
+    expect(pill.textContent).toContain("+ status");
+    // The value is set from the pill, so the collapsed panel duplicates
+    // nothing — it is omitted entirely (no other properties).
+    expect(block.querySelector(":scope > .node-metadata-section")).toBeNull();
+
+    // Value the property: the pill reads the value and sheds the empty state.
+    await client.setProperty(blockId, schemaId, "opt-1", 0);
+    const { container: container2 } = render(<PageView client={client} pageId={pageId} />);
+    const pill2 = container2.querySelector(`[data-block-id="${blockId}"] .nt-prop-pill`) as HTMLElement;
+    expect(pill2.textContent).toContain("Doing");
+    expect(pill2.classList.contains("nt-prop-pill--empty")).toBe(false);
+  });
+
+  it("clicking a pill opens the shared value editor in its panel", async () => {
+    const { client, pageId, blockId } = await seedDisplayBlock("pill");
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const pill = container.querySelector(`[data-block-id="${blockId}"] .nt-prop-pill`) as HTMLElement;
+    fireEvent.click(pill);
+    // The panel mounts the shared per-type editor (the GroupedPropertyRow
+    // machinery) — the option control surfaces the schema's option.
+    const panel = await screen.findByRole("dialog");
+    expect(within(panel).getByText("status")).not.toBeNull();
+    expect(panel.querySelector("input, select, button")).not.toBeNull();
   });
 
   it("a panel-displayed (default) binding renders no button and keeps the section", async () => {

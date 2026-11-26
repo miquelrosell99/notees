@@ -111,6 +111,10 @@ describe("ensureTaskFamily", () => {
     );
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskScheduled)?.type).toBe("datetime");
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskDeadline)?.type).toBe("datetime");
+    // The date pills (2026-11-26, the display-position program): Scheduled
+    // and Deadline ride the pills row — display "pill" from the first author.
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskScheduled)?.display).toBe("pill");
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskDeadline)?.display).toBe("pill");
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskClosedDate)?.type).toBe("datetime");
     expect(
       schemas.get(SYSTEM_PROPERTY_UUIDS.taskPriority)?.options?.map((option) => option.label),
@@ -304,6 +308,10 @@ describe("ensureTaskFamily", () => {
 
     expect(spy.mock.calls.map(([, fields]) => fields)).toEqual([
       { display: "bullet", defaultValue: TASK_STATUS_OPTION_UUIDS.pending },
+      // The date-pills upgrade pass (2026-11-26) rides the same ensure:
+      // the authored date schemas also converge to the pills row.
+      { display: "pill" },
+      { display: "pill" },
     ]);
     const status = client
       .listPropertySchemas()
@@ -335,6 +343,26 @@ describe("ensureTaskFamily", () => {
       { id: "kept-done-id", label: "Done", icon: "mdiCheckCircle", color: "green" },
       { id: "custom-id", label: "Blocked" },
     ]);
+  });
+
+  it("the date-pills upgrade pass converges a display-less Scheduled/Deadline schema on re-ensure", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    // Simulate a pre-program workspace: the date schemas authored without
+    // the pill position.
+    for (const id of [SYSTEM_PROPERTY_UUIDS.taskScheduled, SYSTEM_PROPERTY_UUIDS.taskDeadline]) {
+      await client.updatePropertySchema(id, { display: null });
+    }
+    expect(
+      client.listPropertySchemas().find((s) => s.id === SYSTEM_PROPERTY_UUIDS.taskScheduled)?.display,
+    ).toBeNull();
+    await ensureTaskFamily(client);
+    expect(
+      client.listPropertySchemas().find((s) => s.id === SYSTEM_PROPERTY_UUIDS.taskScheduled)?.display,
+    ).toBe("pill");
+    expect(
+      client.listPropertySchemas().find((s) => s.id === SYSTEM_PROPERTY_UUIDS.taskDeadline)?.display,
+    ).toBe("pill");
   });
 
   it("a converged family issues no updatePropertySchema write on re-run", async () => {

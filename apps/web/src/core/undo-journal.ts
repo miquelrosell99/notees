@@ -218,7 +218,7 @@ export interface UndoSchemaSnapshot {
   dateQualified: boolean | null;
   /** The render contracts (PROPERTY-level): null = panel / unset.
    *  (`readonly` retired 2026-10-21 — derived from the system list.) */
-  display: "panel" | "bullet" | "inline" | null;
+  display: "panel" | "bullet" | "inline" | "pill" | null;
   hideWhenEmpty: boolean | null;
   /** The GLOBAL default: null = none. */
   defaultValue: unknown;

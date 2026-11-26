@@ -384,12 +384,15 @@ class TestTaskFamilySeed:
         priority = TASK_FAMILY_SEED[3]
         assert all(option.icon is None and option.color is None for option in priority.options)
 
-    def test_only_the_status_entry_defaults_to_bullet_display(self) -> None:
-        """The Status schema defaults to "bullet" (the manifest's
-        display rides the SCHEMA row the ensure authors); every other entry
-        keeps display None ('panel', the properties section)."""
+    def test_the_display_positions_seed_on_the_manifest(self) -> None:
+        """The Status schema defaults to "bullet" and Scheduled/Deadline
+        to "pill" (2026-11-26, the pills-row slice — the display rides the
+        SCHEMA row the ensure authors); every other entry keeps display
+        None ('panel', the properties section)."""
         assert TASK_FAMILY_SEED[0].display == "bullet"
-        assert all(entry.display is None for entry in TASK_FAMILY_SEED[1:])
+        assert TASK_FAMILY_SEED[1].display == "pill"  # Scheduled
+        assert TASK_FAMILY_SEED[2].display == "pill"  # Deadline
+        assert all(entry.display is None for entry in TASK_FAMILY_SEED[3:])
 
     def test_only_the_status_entry_carries_a_default_value(self) -> None:
         """The Status schema seeds ``defaultValue`` = the Pending option id

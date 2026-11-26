@@ -737,10 +737,12 @@ class TaskFamilySeedEntry:
     # as a DERIVED read (never materialized into property values).
     default_value: str | None = None
     # the value-display position rides
-    # the SCHEMA entry the ensure authors — only the Status schema defaults
+    # the SCHEMA entry the ensure authors — the Status schema defaults
     # to "bullet" (the status value rides the block bullet as an icon
-    # button); the rest stay NULL ("panel", the properties section).
-    display: Literal["panel", "bullet", "inline"] | None = None
+    # button) and Scheduled/Deadline default to "pill" (2026-11-26, the
+    # pills-row slice); the rest stay NULL ("panel", the properties
+    # section).
+    display: Literal["panel", "bullet", "inline", "pill"] | None = None
     # The `project` relation's cardinality: MULTI — a task may span several
     # projects (the seeds.ts spec's ``multi: true``; absent = single-value).
     multi: bool = False
@@ -782,8 +784,8 @@ TASK_FAMILY_SEED: tuple[TaskFamilySeedEntry, ...] = (
         display="bullet",
         default_value=TASK_STATUS_OPTION_UUIDS["pending"],
     ),
-    TaskFamilySeedEntry("taskScheduled", "Scheduled", "datetime"),
-    TaskFamilySeedEntry("taskDeadline", "Deadline", "datetime"),
+    TaskFamilySeedEntry("taskScheduled", "Scheduled", "datetime", display="pill"),
+    TaskFamilySeedEntry("taskDeadline", "Deadline", "datetime", display="pill"),
     TaskFamilySeedEntry(
         "taskPriority",
         "Priority",

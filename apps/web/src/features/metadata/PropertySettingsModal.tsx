@@ -202,23 +202,37 @@ export function PropertySettingsModal({
           />
         </PropertyField>
 
-        {/* Value display — select / multi_select / boolean types only (the
-            block-row button register; the render contract is property-level). */}
-        {(schema.type === "select" || schema.type === "multi_select" || schema.type === "boolean") && (
-          <PropertyField label="Value display">
-            <SelectionButton
-              size="sm"
-              aria-label="Value display"
-              options={[
-                { value: "panel", icon: "mdi-format-list-bulleted-square", label: "Properties panel" },
-                { value: "bullet", icon: "mdi-circle-medium", label: "Next to bullet" },
-                { value: "inline", icon: "mdi-format-align-left", label: "Before content" },
-              ]}
-              value={schema.display ?? "panel"}
-              onChange={(value) => patch({ display: value as PropertyDisplay })}
-            />
-          </PropertyField>
-        )}
+        {/* Value display (the render contract is property-level). The
+            bullet/inline positions ride the icon-button register
+            (select/multi_select/boolean only); the panel default and the
+            pill row — the dedicated pills row under the block, the empty
+            pill the add affordance (2026-11-26, the display-position
+            program) — are type-agnostic. */}
+        {(() => {
+          const iconButtonCapable =
+            schema.type === "select" || schema.type === "multi_select" || schema.type === "boolean";
+          const options = [
+            { value: "panel", icon: "mdi-format-list-bulleted-square", label: "Properties panel" },
+            ...(iconButtonCapable
+              ? [
+                  { value: "bullet", icon: "mdi-circle-medium", label: "Next to bullet" },
+                  { value: "inline", icon: "mdi-format-align-left", label: "Before content" },
+                ]
+              : []),
+            { value: "pill", icon: "mdi-pill", label: "Pill row" },
+          ];
+          return (
+            <PropertyField label="Value display">
+              <SelectionButton
+                size="sm"
+                aria-label="Value display"
+                options={options}
+                value={schema.display ?? "panel"}
+                onChange={(value) => patch({ display: value as PropertyDisplay })}
+              />
+            </PropertyField>
+          );
+        })()}
 
         {/* No Read-only toggle: the render contract retired — readonly-ness derives from the system property
             list (@notees/domain isReadonlyProperty), it is not user
