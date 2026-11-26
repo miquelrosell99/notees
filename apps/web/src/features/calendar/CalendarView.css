@@ -86,5 +86,14 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
+  /* The group hugs its content and centers as a unit (the owner ruling:
+     the period chevrons ride the central text, not the bar's edges). The
+     shared .calendar-title wears flex: 1 for the popup/panel hosts —
+     inside the nav it must shrink to the period names. */
   margin-inline: auto;
+  width: fit-content;
+}
+
+.calendar-view__period-nav .calendar-title {
+  flex: 0 0 auto;
 }
