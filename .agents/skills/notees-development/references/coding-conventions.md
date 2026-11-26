@@ -18,6 +18,11 @@ the fleet `typescript-conventions` skill.
 - SQL: positional `?` params only; no AUTOINCREMENT in the derived schema —
   derived ids are content hashes (determinism: wipe → replay → identical).
 - Comments point at the spec they implement (e.g. `// see SCHEMA.md`).
+- Test conventions (canonical: `docs/developers/development.md` §6):
+  never `toBe()` a live client object (a failing identity assertion makes
+  the diff formatter deep-serialize the client graph — worker OOM); stub
+  the sync reads cold via a Proxy to regression-test render-cache bugs the
+  in-process client can't otherwise reproduce.
 
 ## Commits
 

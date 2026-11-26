@@ -386,6 +386,18 @@ Convergence is asserted by comparing serialized database dumps, not row samples 
 same standard everywhere. When adding sync behavior, extend the two-device MemoryRelay test,
 not a mocked-transport unit test.
 
+Assertion hygiene on live clients: never assert OBJECT IDENTITY (`toBe(client)`) on a
+live `WorkspaceClient`/`WorkerClient` — or any object embedding one — in a rendering
+test. When such an assertion fails, Vitest's diff formatter deep-serializes the client
+graph (sql.js store, caches, circular refs) and can OOM the whole test worker at the
+4 GB heap limit (2026-11-26: the export-modal spec, where the fix was to assert the
+passed object's BEHAVIOR — `getNode(pageId)?.id`, the method shape — never its
+identity). The in-process client's reads are always fresh, so a render-cache-dependent
+bug also can't reproduce in these suites unless the test stubs the sync reads cold
+(the Proxy that answers `getNode`/`getChildren`/`getEffectiveProperties` with the
+empty default while the `*Fresh` reads delegate to the real client — the export
+slices' cold-cache regression pattern).
+
 ### Visual verification (browser probes)
 
 For "does the surface actually render like this" checks, drive the app through
