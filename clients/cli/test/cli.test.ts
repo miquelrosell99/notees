@@ -500,7 +500,7 @@ describe("export markdown", () => {
     const h = harness;
     const target = await h.createPage("expm-target-x", [{ type: "text", text: "seed body" }]);
     await h.createPage("expm-referrer-r", [
-      { type: "mention", targetNodeId: target, text: "expm-target-x" },
+      { type: "mention", targetNodeId: target, customLabel: "expm-target-x" },
       { type: "text", text: " points here" },
     ]);
 
@@ -550,10 +550,10 @@ describe("export markdown", () => {
     const h = harness;
     const target = await h.createPage("expm-depth-target", []);
     const direct = await h.createPage("expm-depth-direct", [
-      { type: "mention", targetNodeId: target, text: "expm-depth-target" },
+      { type: "mention", targetNodeId: target, customLabel: "expm-depth-target" },
     ]);
     const transitive = await h.createPage("expm-depth-transitive", [
-      { type: "mention", targetNodeId: direct, text: "expm-depth-direct" },
+      { type: "mention", targetNodeId: direct, customLabel: "expm-depth-direct" },
     ]);
     expect(transitive).toBeDefined();
 
@@ -730,10 +730,10 @@ describe("export markdown", () => {
     // fixpoint path is exercised with a referrer chain instead.
     const a = await h.createPage("expm-fp-a", []);
     const b = await h.createPage("expm-fp-b", [
-      { type: "mention", targetNodeId: a, text: "expm-fp-a" },
+      { type: "mention", targetNodeId: a, customLabel: "expm-fp-a" },
     ]);
     const c = await h.createPage("expm-fp-c", [
-      { type: "mention", targetNodeId: b, text: "expm-fp-b" },
+      { type: "mention", targetNodeId: b, customLabel: "expm-fp-b" },
     ]);
     expect(c).toBeDefined();
 
@@ -978,7 +978,7 @@ describe("bibliography round-trip (bibtex)", () => {
 
     // A reading-notes page mentions the book; a bare page does not.
     await h.createPage("bib-notes", [
-      { type: "mention", targetNodeId: entries[0], text: "bib-notes-target" },
+      { type: "mention", targetNodeId: entries[0], customLabel: "bib-notes-target" },
     ]);
 
     expect(await h.runCli("--json", "export", "bibtex", "--linked-to", entries[0]!, "--depth", "0")).toBe(EXIT.ok);
@@ -2212,7 +2212,7 @@ describe("search (query language)", () => {
         isEmbedded: true,
         parentId: notes,
         contentAst: [
-          { type: "mention", targetNodeId: target, text: "the linked paper" },
+          { type: "mention", targetNodeId: target, customLabel: "the linked paper" },
           { type: "text", text: "revolutionary ideas" },
         ],
       }),
@@ -3788,6 +3788,34 @@ describe("object create --batch", () => {
     expect(await h.runCliWithStdin("{}", "--json", "object", "create", "--batch")).toBe(EXIT.usage);
     expect(await h.runCliWithStdin("[]", "--json", "object", "create", "--batch")).toBe(EXIT.usage);
   });
+
+  it("contentAst is validated against the content grammar: a mention's retired captured text fails as usage (create, update, batch, stdin)", async () => {
+    const h = harness;
+    const target = await h.seedObject("mention-target", []);
+    const retired = `[{"type":"mention","targetNodeId":"${target}","text":"the old captured key"}]`;
+    const valid = `[{"type":"mention","targetNodeId":"${target}","customLabel":"the Republic"}]`;
+
+    // create --content: retired key rejected, customLabel accepted.
+    expect(await h.runCli("object", "create", "--parent", target, "--content", retired)).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("customLabel");
+    expect(await h.runCli("--json", "object", "create", "--parent", target, "--content", valid)).toBe(EXIT.ok);
+    const created = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    await h.runCli("--json", "object", "get", created);
+    const ast = JSON.parse(h.io.stdoutText).object.contentAst as Array<{ customLabel?: string }>;
+    expect(ast[0]?.customLabel).toBe("the Republic");
+
+    // update --content: same rejection.
+    expect(await h.runCli("object", "update", created, "--content", retired)).toBe(EXIT.usage);
+
+    // create --stdin and --batch bodies: same rejection, naming the entry.
+    expect(
+      await h.runCliWithStdin(JSON.stringify({ isEmbedded: true, parentId: target, contentAst: JSON.parse(retired) }), "object", "create", "--stdin"),
+    ).toBe(EXIT.usage);
+    expect(
+      await h.runCliWithStdin(JSON.stringify([{ name: "ok" }, { name: "bad", contentAst: JSON.parse(retired) }]), "object", "create", "--batch"),
+    ).toBe(EXIT.usage);
+    expect(h.io.stderrText).toContain("entry 1");
+  });
 });
 
 describe("object upsert", () => {
@@ -4182,7 +4210,7 @@ describe("export json", () => {
     const h = harness;
     const target = await h.createPage("expj-target", [{ type: "text", text: "target body" }]);
     const referrer = await h.createPage("expj-referrer", [
-      { type: "mention", targetNodeId: target, text: "expj-target" },
+      { type: "mention", targetNodeId: target, customLabel: "expj-target" },
       { type: "text", text: " links out" },
     ]);
 
@@ -4482,7 +4510,7 @@ describe("object create/update --content", () => {
     // token's replacement — SCHEMA.md render grammar).
     const ast = JSON.stringify([
       { type: "text", text: "See [the example](https://example.com) and " },
-      { type: "mention", targetNodeId: target, text: "content-target" },
+      { type: "mention", targetNodeId: target, customLabel: "content-target" },
     ]);
     expect(await h.runCli("--json", "object", "create", "--parent", holder, "--content", ast)).toBe(EXIT.ok);
     const id = (JSON.parse(h.io.stdoutText) as { id: string }).id;
@@ -4491,7 +4519,7 @@ describe("object create/update --content", () => {
     const got = JSON.parse(h.io.stdoutText).object as { contentAst: Array<Record<string, unknown>> };
     expect(got.contentAst).toEqual([
       { type: "text", text: "See [the example](https://example.com) and " },
-      { type: "mention", targetNodeId: target, text: "content-target" },
+      { type: "mention", targetNodeId: target, customLabel: "content-target" },
     ]);
   });
 
@@ -4650,7 +4678,7 @@ describe("search by uuid", () => {
         JSON.stringify({
           isEmbedded: true,
           parentId: notes,
-          contentAst: [{ type: "mention", targetNodeId: target, text: "uuid-link-target" }],
+          contentAst: [{ type: "mention", targetNodeId: target, customLabel: "uuid-link-target" }],
         }),
         "--json", "object", "create", "--stdin",
       ),

@@ -57,7 +57,7 @@ import {
   yearFromDate,
   type CslItem,
 } from "@notees/export";
-import { OP_CATALOG, WORKSPACE_FEATURES, describeOp, type ContentAst, type WorkspaceFeature } from "@notees/protocol";
+import { OP_CATALOG, WORKSPACE_FEATURES, contentAstSchema, describeOp, type ContentAst, type WorkspaceFeature } from "@notees/protocol";
 import {
   looksLikeQueryLanguage,
   parseQueryLanguage,
@@ -306,9 +306,12 @@ function buildCreateBody(options: {
 
 /**
  * `--content <json>`: a contentAst token array (mentions, markdown links as
- * `[label](href)` spans inside text tokens, … — the server is the strict
- * shape gate). The array-ness is validated
- * client-side so a mistyped scalar fails as usage, not as a wire error.
+ * `[label](href)` spans inside text tokens, …). The content grammar
+ * (SCHEMA.md "Content grammar") is the strict shape gate and it is checked
+ * CLIENT-SIDE, before any write: retired token keys — a mention's captured
+ * `text`/`displayText`, replaced by the optional `customLabel` — fail as
+ * usage, never as a wire error. The array-ness is validated too so a
+ * mistyped scalar fails as usage.
  */
 function parseContentAstOption(raw: string | undefined): unknown[] | undefined {
   if (raw === undefined) return undefined;
@@ -319,7 +322,24 @@ function parseContentAstOption(raw: string | undefined): unknown[] | undefined {
     throw new CliError(EXIT.usage, "--content is not valid JSON");
   }
   if (!Array.isArray(parsed)) failUsage("--content expects a JSON array of content tokens (a contentAst)");
+  assertContentAst(parsed, "--content");
   return parsed;
+}
+
+/**
+ * The content grammar's strict check (the retired-key rejection, SCHEMA.md
+ * "Content grammar"): a mention stores an optional `customLabel` and never a
+ * captured `text`. `what` names the surface in the usage error.
+ */
+function assertContentAst(value: unknown, what: string): void {
+  const result = contentAstSchema.safeParse(value);
+  if (result.success) return;
+  const issue = result.error.issues[0];
+  const path = issue !== undefined && issue.path.length > 0 ? ` at token ${issue.path.join(".")}` : "";
+  failUsage(
+    `${what}${path}: invalid content token (${issue?.message ?? "shape mismatch"}) — ` +
+      "mentions carry an optional customLabel, never a captured text key",
+  );
 }
 
 /** Flag value that must parse as a non-negative integer (undefined passes through). */
@@ -349,6 +369,7 @@ async function objectCreate(ctx: CommandContext, options: {
     } catch {
       throw new CliError(EXIT.usage, "--stdin body is not valid JSON");
     }
+    if (body.contentAst !== undefined) assertContentAst(body.contentAst, "--stdin body contentAst");
   }
   // Title-is-content: --name IS single-token content, so a rich --content
   // array and --name cannot combine (the server would see both shapes).
@@ -379,8 +400,9 @@ async function objectCreate(ctx: CommandContext, options: {
 /**
  * `notees object create --batch` — bulk import from a JSON array on stdin:
  * one create per entry, each entry a POST /api/objects body (`name`,
- * `contentAst`, `parentId`, `isEmbedded`, `classIds`, … — the server
- * validates). Entries group by parent and groups run concurrently; entries
+ * `contentAst`, `parentId`, `isEmbedded`, `classIds`, … — each entry's
+ * contentAst rides the same client-side content-grammar check as --content).
+ * Entries group by parent and groups run concurrently; entries
  * under one parent stay sequential, because child position follows apply
  * order and bulk blocks under a single parent must keep their array order.
  * Human output prints the created ids one per line, in input order.
@@ -402,6 +424,7 @@ async function objectCreateBatch(ctx: CommandContext, options: {
   if (entries.length === 0) failUsage("--batch expects a non-empty JSON array");
   entries.forEach((entry, index) => {
     if (!isRecord(entry)) failUsage(`--batch entry ${index} is not a JSON object`);
+    if (entry.contentAst !== undefined) assertContentAst(entry.contentAst, `--batch entry ${index} contentAst`);
   });
 
   const jobs = Number.parseInt(options.jobs ?? "8", 10);
@@ -4940,7 +4963,7 @@ function buildProgram(): Command {
     .option("--name <name>", "object name")
     .option(
       "--content <json>",
-      "contentAst token array for rich content (mentions, markdown links [label](href) in text tokens, …; mutually exclusive with --name)",
+      "contentAst token array for rich content (mentions, markdown links [label](href) in text tokens, …; mutually exclusive with --name; validated against the content grammar — a mention's custom label rides the optional customLabel key, never a captured text)",
     )
     .option("--class <id>", "class id (repeatable)", (value: string, previous: string[]) => previous.concat([value]), [] as string[])
     .option("--parent <id>", "parent object id")
@@ -5148,7 +5171,7 @@ function buildProgram(): Command {
     .option("--name <name>", "new name")
     .option(
       "--content <json>",
-      "replace the node's content with this contentAst token array (mentions, markdown links [label](href) in text tokens, …; mutually exclusive with --name)",
+      "replace the node's content with this contentAst token array (mentions, markdown links [label](href) in text tokens, …; mutually exclusive with --name; validated against the content grammar — a mention's custom label rides the optional customLabel key, never a captured text)",
     )
     .addOption(
       new Option("--isEmbedded", "demote: embed the node in the parent's body (the Block role)").default(

@@ -8,6 +8,9 @@ history.
 
 ## 2026-11-26
 
+- **fix: user-supplied contentAst is validated against the content grammar before any write — the retired mention `text`/`displayText` keys fail loud as usage (exit 2), naming the `customLabel` replacement.** The drift a live task exposed: the op payloads keep `contentAst` loose by design (mid-log foreign tokens must not break replay) and no live HTTP surface parses caller contentAst, so nothing stood between a mistyped token shape and the log — `object create/update --content`, `--stdin` bodies, and `--batch` entries now ride `contentAstSchema` client-side first. The web editor constructs its own tokens; SCHEMA.md names the enforcement point; the manipulation skill teaches `customLabel`. No wire change — no lockstep. **Verification**: the suite green (327 — the rejection/acceptance spec across create/update/stdin/batch); typecheck clean.
+  - Files: `src/cli.ts`, `test/cli.test.ts`, `CHANGELOG.md`.
+
 - **feat(source): `notees source fetch-metadata <id> [--dry-run]` — resolve the source's DOI (else PMID) through the metadata resolver and fill the empty fields.** The resolver had no first-class CLI path (the shell `api` backdoor was the only way); the new `source` command group lands it: Notees-wins (owner-fixed values survive; the title/authors already present are never rewritten), a field the node's class doesn't bind never fills (the import's binding gate), the publication date riding the year date-chain node. The web's Sources detail pane ships the same gesture (the root changelog's entry covers the slice). **Verification**: the CLI suite green (165 — the fill/Notees-wins/dry-run/domain-error specs, the resolver egress stubbed with real-fetch delegation); CLI typecheck clean.
   - Files: `src/cli.ts`, `test/cli.test.ts`, `README.md`, `CHANGELOG.md`.
 
