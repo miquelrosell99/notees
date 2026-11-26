@@ -8,6 +8,9 @@ history.
 
 ## 2026-11-26
 
+- **chore(release): cli-v4.6.4 — the bibliography-import improvements, `source fetch-metadata`, and the content-grammar gate.** Since 4.6.3: `import bibtex|csl-json` fills the binding-gated venue set (container title, volume, issue, pages, ISSN) and decodes LaTeX accent macros to Unicode; the new `source` command group carries `fetch-metadata <id> [--dry-run]` (resolve the DOI/PMID, fill the empty fields — Notees-wins); user-supplied contentAst is validated against the content grammar before any write (a mention's retired captured `text` key fails loud as usage, naming `customLabel`). `CLI_VERSION` 4.6.3 → 4.6.4; the PKGBUILD records the 4.6.4 bundle hash.
+  - Files: `src/cli.ts` (CLI_VERSION), `packaging/arch/PKGBUILD`, `CHANGELOG.md`.
+
 - **fix: user-supplied contentAst is validated against the content grammar before any write — the retired mention `text`/`displayText` keys fail loud as usage (exit 2), naming the `customLabel` replacement.** The drift a live task exposed: the op payloads keep `contentAst` loose by design (mid-log foreign tokens must not break replay) and no live HTTP surface parses caller contentAst, so nothing stood between a mistyped token shape and the log — `object create/update --content`, `--stdin` bodies, and `--batch` entries now ride `contentAstSchema` client-side first. The web editor constructs its own tokens; SCHEMA.md names the enforcement point; the manipulation skill teaches `customLabel`. No wire change — no lockstep. **Verification**: the suite green (327 — the rejection/acceptance spec across create/update/stdin/batch); typecheck clean.
   - Files: `src/cli.ts`, `test/cli.test.ts`, `CHANGELOG.md`.
 
