@@ -443,6 +443,15 @@ failure that vanishes on an unloaded re-run is a load symptom, not a verdict:
 root-cause before retrying (the block-dnd lesson — memory pressure surfaces
 as timing flakes).
 
+**Creating gates is the same economy, upstream** (owner direction
+2026-11-26): a gate earns its place only by catching a failure class nothing
+already in the pipeline catches — name that class when adding one, and don't
+add it if an existing gate already owns it. Gates accrete; every redundant
+one taxes every run forever (wall time, host memory, flake surface), so the
+default answer to "should we also check X here" is no unless X's failure
+would otherwise reach main. When two gates overlap, merge them or delete the
+weaker — never layer a third over the disagreement.
+
 ## 7. Code conventions
 
 Verified against `tsconfig.base.json`, the package manifests, and git history:
