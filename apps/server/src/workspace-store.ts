@@ -60,6 +60,19 @@ interface WorkspaceHandle {
    * the next boot. The sweep reconciles open handles between boots.
    */
   lastSeq: number;
+  /**
+   * Drift-audit watermark: the highest seq covered by a CLEAN create-entity
+   * audit (see auditCreates). The sweep audits only the delta above this.
+   */
+  auditedSeq: number;
+  /**
+   * Sticky divergence flag: set when a post-heal audit STILL finds
+   * created-entities missing from the derived store — the projection is
+   * lying (the known vector: a poisoned snapshot whose applied_envelope
+   * claims coverage its content does not have). Surfaced via convergence()
+   * and loud logs; never silently trusted.
+   */
+  diverged: boolean;
   /** The self-heal sweep timer (cleared on close/drop). */
   sweepTimer?: NodeJS.Timeout;
 }
@@ -106,6 +119,34 @@ type Db = InstanceType<typeof Database>;
 const SQLITE_MAGIC = Buffer.from("SQLite format 3\0");
 
 /**
+ * The drift audit's canary set: creation-typed ops. Every applicable create
+ * MUST have its created entity present in the derived store — no exceptions,
+ * because the cursor checks (hasApplied / lastSeq vs latestSeq) can all lie
+ * in the same way at once: a poisoned snapshot restores applied_envelope
+ * rows claiming coverage the content tables do not have, and every
+ * convergence signal reads clean while reads through the projection miss
+ * rows. Entity-present is an independent, content-level invariant.
+ *
+ * propertySchema.create is safe to audit by presence alone (propertySchema
+ * rows are soft-deleted). Node creates need purge awareness: permanent
+ * deletes (object.delete {permanent: true}, trash.empty) HARD-purge node
+ * rows, so a missing node is only a violation when no delete op in the
+ * window legitimizes its absence.
+ */
+const AUDITED_CREATE_OPS: Record<string, { idField: string; table: "node" | "property_schema" }> = {
+  "object.create": { idField: "objectId", table: "node" },
+  "class.create": { idField: "classId", table: "node" },
+  "propertySchema.create": { idField: "propertySchemaId", table: "property_schema" },
+};
+
+interface AuditOutcome {
+  /** Create envelopes whose entity is missing with no legitimizing delete. */
+  violations: Envelope[];
+  /** Highest seq the audit paged through. */
+  throughSeq: number;
+}
+
+/**
  * Re-point every workspace-scoped row of a store image at `workspaceId`.
  * An image cloned from another workspace still carries the source's
  * workspace_id everywhere; every table with such a column is rewritten in
@@ -142,6 +183,8 @@ export class WorkspaceManager {
       hydrated: false,
       pending: 0,
       lastSeq: 0,
+      auditedSeq: 0,
+      diverged: false,
     };
     this.handles.set(workspaceId, handle);
     this.hydrate(handle, workspaceId);
@@ -151,6 +194,108 @@ export class WorkspaceManager {
 
   private pathFor(workspaceId: string): string {
     return join(this.derivedDir, `${workspaceId}.db`);
+  }
+
+  /** Loud-by-default drift reporting (docker captures stdout). */
+  private log(level: "warn" | "error", message: string): void {
+    const line = `[derived-audit] ${message}`;
+    if (level === "error") console.error(line);
+    else console.warn(line);
+  }
+
+  /**
+   * The drift audit: walk the log window (fromSeq, latestSeq] and check
+   * every creation-typed applicable envelope's entity for presence in the
+   * derived store. `skipped` (not-yet-applicable replay skips) and
+   * encrypted payloads are excluded — never applicable, never violations.
+   * Delete ops in the window legitimize missing nodes (permanent purge, or
+   * trash followed by a trash.empty).
+   */
+  private auditCreates(
+    handle: WorkspaceHandle,
+    workspaceId: string,
+    fromSeq: number,
+    skipped: ReadonlySet<string>,
+  ): AuditOutcome {
+    const permanentDeletes = new Set<string>();
+    const trashed = new Map<string, number>(); // nodeId → seq
+    const trashEmptySeqs: number[] = [];
+    const candidates: Array<{ envelope: Envelope; id: string; table: "node" | "property_schema" }> = [];
+    let cursor = fromSeq;
+    let ordinal = 0;
+    for (;;) {
+      const page = this.relay.catchUp(workspaceId, cursor, 10_000);
+      for (const envelope of page.envelopes) {
+        if (skipped.has(envelope.id) || isEncryptedPayload(envelope.payload)) continue;
+        // catchUp pages in seq order; the ordinal stands in for the
+        // envelope's seq (storedToEnvelope drops it) — order within the
+        // window is all the purge-legitimacy pairing needs.
+        ordinal += 1;
+        const seq = ordinal;
+        const payload = envelope.payload as Record<string, unknown>;
+        if (envelope.opType === "object.delete") {
+          if (payload.permanent === true) permanentDeletes.add(String(payload.objectId));
+          else trashed.set(String(payload.objectId), seq);
+          continue;
+        }
+        if (envelope.opType === "trash.empty") {
+          trashEmptySeqs.push(seq);
+          continue;
+        }
+        const spec = AUDITED_CREATE_OPS[envelope.opType];
+        if (spec === undefined) continue;
+        const id = payload[spec.idField];
+        if (typeof id === "string") candidates.push({ envelope, id, table: spec.table });
+      }
+      if (!page.hasMore || page.nextAfterSeq === null) break;
+      cursor = page.nextAfterSeq;
+    }
+    const throughSeq = this.relay.latestSeq(workspaceId);
+    const violations: Envelope[] = [];
+    for (const candidate of candidates) {
+      const found = handle.store.database
+        .prepare(`SELECT 1 AS ok FROM ${candidate.table} WHERE id = ?`)
+        .get(candidate.id);
+      if (found !== undefined) continue;
+      if (candidate.table === "property_schema") {
+        violations.push(candidate.envelope);
+        continue;
+      }
+      const legit =
+        permanentDeletes.has(candidate.id) ||
+        (() => {
+          const trashSeq = trashed.get(candidate.id);
+          return trashSeq !== undefined && trashEmptySeqs.some((emptySeq) => emptySeq > trashSeq);
+        })();
+      if (!legit) violations.push(candidate.envelope);
+    }
+    return { violations, throughSeq };
+  }
+
+  /**
+   * Full rebuild from the log (the poisoned-snapshot response): close and
+   * delete the derived file, reopen empty, replay everything. Expensive at
+   * live scale — called only when the audit PROVED the current projection
+   * untrustworthy.
+   */
+  private rebuildFromLog(handle: WorkspaceHandle, workspaceId: string): { skipped: Set<string> } {
+    try {
+      handle.store.close();
+    } catch {
+      // Already closed — nothing to close.
+    }
+    try {
+      unlinkSync(this.pathFor(workspaceId));
+    } catch {
+      // File already gone — nothing to unlink.
+    }
+    handle.store = Store.openFile(this.pathFor(workspaceId));
+    handle.store.beginBulk();
+    try {
+      return this.replaySince(handle, workspaceId, 0);
+    } finally {
+      handle.store.endBulk();
+    }
   }
 
   /**
@@ -167,7 +312,25 @@ export class WorkspaceManager {
     const timer = setInterval(() => {
       const task = handle.queue.then(() => {
         if (!handle.hydrated) return;
-        this.replaySince(handle, workspaceId, handle.lastSeq);
+        const { skipped } = this.replaySince(handle, workspaceId, handle.lastSeq);
+        // Incremental drift audit over the delta since the last clean
+        // audit (O(delta) per sweep — the boot audit covered the full log
+        // window). Runtime violations latch `diverged` loud: mid-session
+        // rebuilds are the boot audit's job (a wipe+full replay under
+        // live reads), the sweep only promises to never stay silent.
+        const latest = this.relay.latestSeq(workspaceId);
+        if (latest > handle.auditedSeq) {
+          const outcome = this.auditCreates(handle, workspaceId, handle.auditedSeq, skipped);
+          if (outcome.violations.length > 0) {
+            handle.diverged = true;
+            this.log(
+              "error",
+              `workspace ${workspaceId}: derived store DIVERGED from the log — ${outcome.violations.length} created entities missing; reads are stale until the derived store rebuilds (restart converges it)`,
+            );
+          } else {
+            handle.auditedSeq = outcome.throughSeq;
+          }
+        }
       });
       handle.queue = task.catch(() => undefined);
       void task.catch(() => undefined);
@@ -181,10 +344,13 @@ export class WorkspaceManager {
    * updating lastSeq/pending. Pages through catchUp (O(delta) per sweep —
    * an allEnvelopes scan per tick would reread a million-row log every
    * interval). StoreError skips count as pending, never poison the pass.
+   * Returns the skipped envelope ids (not-yet-applicable) so the drift
+   * audit never mistakes a pending skip for divergence.
    */
-  private replaySince(handle: WorkspaceHandle, workspaceId: string, afterSeq: number): void {
+  private replaySince(handle: WorkspaceHandle, workspaceId: string, afterSeq: number): { skipped: Set<string> } {
     let cursor = afterSeq;
     let pending = 0;
+    const skipped = new Set<string>();
     for (;;) {
       const page = this.relay.catchUp(workspaceId, cursor, 10_000);
       for (const envelope of page.envelopes) {
@@ -195,6 +361,7 @@ export class WorkspaceManager {
         } catch (error) {
           if (error instanceof StoreError) {
             pending += 1;
+            skipped.add(envelope.id);
             continue;
           }
           throw error;
@@ -205,6 +372,7 @@ export class WorkspaceManager {
     }
     handle.lastSeq = Math.max(handle.lastSeq, this.relay.latestSeq(workspaceId));
     handle.pending = pending;
+    return { skipped };
   }
 
   private hydrate(handle: WorkspaceHandle, workspaceId: string): void {
@@ -223,6 +391,12 @@ export class WorkspaceManager {
     // strict up_to_seq >= maxSeq gate only protected against double-
     // applying envelopes the restore already carries — the replay skips
     // them by id, so the gate bought nothing the idempotency didn't.
+    //
+    // DRIFT CAVEAT (the audit below exists because of it): the restored
+    // bytes are TRUSTED here. A snapshot whose applied_envelope claims
+    // coverage its content lacks passes every cursor check (hasApplied,
+    // lastSeq) with clean convergence while rows are missing — the
+    // post-replay audit is what catches it and rebuilds from the log.
     let afterSeq = 0;
     if (appliedCount === 0 && snapshot !== null && snapshot.sealed !== 1) {
       const bytes = this.relay.readSnapshotData(snapshot.id);
@@ -249,12 +423,52 @@ export class WorkspaceManager {
     // the difference between minutes and seconds at log scale. The sweep's
     // incremental replaySince stays online (never wraps a window).
     handle.store.beginBulk();
+    let replaySkipped: Set<string>;
     try {
-      this.replaySince(handle, workspaceId, afterSeq);
+      replaySkipped = this.replaySince(handle, workspaceId, afterSeq).skipped;
     } finally {
       handle.store.endBulk();
     }
     handle.hydrated = true;
+
+    // Post-hydration drift audit: every creation-typed envelope in the log
+    // must have its entity present (replay skips and encrypted payloads
+    // excluded — never applicable). Any violation means this projection
+    // cannot be trusted — whether the bytes came from a poisoned snapshot
+    // (applied_envelope claiming coverage the content lacks) or from an
+    // earlier process's miss — so the honest response is always the same:
+    // rebuild once from the log (the authority) and re-audit everything.
+    // A residual failure latches `diverged` — loud in the logs and in
+    // /api/admin/convergence — because reads through a diverged projection
+    // are stale reads.
+    // (fromSeq is always 0, not the replay watermark: when a snapshot
+    // restored the bulk of the store, that bulk is exactly the untrusted
+    // input — auditing only the tail would bless poisoned bytes.)
+    let outcome = this.auditCreates(handle, workspaceId, 0, replaySkipped);
+    if (outcome.violations.length > 0) {
+      this.log(
+        "error",
+        `workspace ${workspaceId}: derived store failed the post-hydration drift audit ` +
+          `(${outcome.violations.length} created entities missing) — rebuilding from the log`,
+      );
+      const rebuilt = this.rebuildFromLog(handle, workspaceId);
+      outcome = this.auditCreates(handle, workspaceId, 0, rebuilt.skipped);
+    }
+    if (outcome.violations.length > 0) {
+      handle.diverged = true;
+      const first = outcome.violations[0]!;
+      this.log(
+        "error",
+        `workspace ${workspaceId}: derived store DIVERGED from the log — ` +
+          `${outcome.violations.length} created entities missing ` +
+          `(e.g. ${first.opType} ${(first.payload as Record<string, unknown>).objectId ?? (first.payload as Record<string, unknown>).propertySchemaId ?? "?"}). ` +
+          "Reads through this projection are stale; rebuild the derived store " +
+          "(stop notees-sync, move derived/<workspaceId>.db aside, start — it rehydrates from the log).",
+      );
+    } else {
+      handle.diverged = false;
+      handle.auditedSeq = outcome.throughSeq;
+    }
     this.ensureSnapshotAfterReplay(workspaceId, handle);
   }
 
@@ -347,7 +561,10 @@ export class WorkspaceManager {
 
   /**
    * The convergence snapshot the admin surface reports: how far the open
-   * handle has applied the log, and how many envelopes are pending skips.
+   * handle has applied the log, how many envelopes are pending skips, and
+   * the drift-audit state (`diverged` latches when created entities the
+   * log guarantees are missing from the projection even after a heal —
+   * reads through this server are stale until the derived store rebuilds).
    * Read-only (no sweep trigger — sweepNow is the explicit nudge).
    */
   convergence(workspaceId: string): {
@@ -356,6 +573,8 @@ export class WorkspaceManager {
     latestSeq: number;
     pending: number;
     appliedCount: number;
+    auditedSeq: number;
+    diverged: boolean;
   } {
     const handle = this.handle(workspaceId);
     return {
@@ -368,6 +587,8 @@ export class WorkspaceManager {
           n: number;
         }
       ).n,
+      auditedSeq: handle.auditedSeq,
+      diverged: handle.diverged,
     };
   }
 
