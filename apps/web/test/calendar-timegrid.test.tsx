@@ -385,7 +385,7 @@ describe("TimeGrid (the Day/Week zoom)", () => {
     expect((within(dialog).getByLabelText("Start time") as HTMLInputElement).value).toBe("09:00");
   });
 
-  it("the red now-line rides today's column at the current minutes", async () => {
+  it("the red now-line rides today's column at the current minutes — thin across the grid, thick on today", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     window.localStorage.setItem("notees.settings.calendarZoom", JSON.stringify("day"));
@@ -393,11 +393,15 @@ describe("TimeGrid (the Day/Week zoom)", () => {
     const grid = await screen.findByLabelText("Calendar day view");
 
     const column = grid.querySelector(`.cal-timegrid__day[data-day="${today}"]`) as HTMLElement;
-    const line = column.querySelector(".cal-timegrid__now") as HTMLElement;
-    expect(line).not.toBeNull();
+    const segment = column.querySelector(".cal-timegrid__now-today") as HTMLElement;
+    const thin = grid.querySelector(".cal-timegrid__now-line") as HTMLElement;
+    expect(segment).not.toBeNull();
+    expect(thin).not.toBeNull();
     const now = new Date();
-    expect(line.getAttribute("data-minutes")).toBe(String(now.getHours() * 60 + now.getMinutes()));
-    expect(line.style.top).toBe(`${((now.getHours() * 60 + now.getMinutes()) / 1440) * 100}%`);
+    const minutes = String(now.getHours() * 60 + now.getMinutes());
+    expect(segment.getAttribute("data-minutes")).toBe(minutes);
+    expect(segment.style.top).toBe(`${((now.getHours() * 60 + now.getMinutes()) / 1440) * 100}%`);
+    expect(thin.style.top).toBe(segment.style.top);
   });
 
   it("dropping a timed card on another day+hour rewrites the value preserving the duration", async () => {

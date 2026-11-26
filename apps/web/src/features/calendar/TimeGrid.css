@@ -146,6 +146,8 @@
   display: flex;
   gap: var(--spacing-1);
   align-items: stretch;
+  /* The now-line's full-width thin half positions against this row. */
+  position: relative;
 }
 
 .cal-timegrid__hour-gutter {
@@ -228,15 +230,27 @@
 }
 
 /* The red now-line (today's column): a hairline + the leading dot. */
-.cal-timegrid__now {
+/* The now-line pair (the Google register): the THIN half spans every
+   visible day column from the row level; the THICK half rides today's own
+   column (exact alignment — it lives inside the day cell), the dot marking
+   the segment's left edge. */
+.cal-timegrid__now-line {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: var(--border-width-medium) solid var(--md-sys-color-error);
+  border-top: var(--border-width-default) solid var(--md-sys-color-error);
   pointer-events: none;
 }
 
-.cal-timegrid__now::before {
+.cal-timegrid__now-today {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: var(--border-width-thick) solid var(--md-sys-color-error);
+  pointer-events: none;
+}
+
+.cal-timegrid__now-today::before {
   content: "";
   position: absolute;
   left: 0;

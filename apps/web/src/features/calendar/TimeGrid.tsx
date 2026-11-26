@@ -10,8 +10,10 @@
  * cards (top = start minutes / 60 × the hour height, height = the
  * duration — a timed point without an end = the 1h default). Overlapping
  * events split side by side (the interval-graph clustering:
- * calendarViewUtils.clusterTimedEvents). A red now-line rides today's
- * column at the current wall-clock minutes (re-rendered once a minute).
+ * calendarViewUtils.clusterTimedEvents). The red now-line rides the Google
+ * register: a THIN half spans every visible day column, TODAY's column
+ * carrying a THICKER segment over the overlap (the dot at its left edge),
+ * re-rendered once a minute; nothing renders when today is off-screen.
  *
  * Interactions (refining the Google click-to-create
  * register): a SINGLE CLICK on an empty hour area spawns an inline GHOST
@@ -205,13 +207,17 @@ export function TimeGrid({
     setCreateAt({ iso, time: timeOfMinutes(start), endTime: timeOfMinutes(end) });
   };
 
-  // The red now-line: one re-render per minute, cleaned up with the grid.
+  // The red now-line (the Google register): a THIN line spans every visible
+  // day column; TODAY's column rides a THICKER segment over its overlap
+  // (the dot marks the segment's left edge). One re-render per minute,
+  // cleaned up with the grid; nothing renders when today is not visible.
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(timer);
   }, []);
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayIndex = days.indexOf(todayIso);
 
   const rowsByIso = useMemo(() => {
     const map = new Map<string, ReturnType<typeof eventRowsForDays>>();
@@ -451,7 +457,7 @@ export function TimeGrid({
                 </div>
                 {iso === todayIso && (
                   <div
-                    className="cal-timegrid__now"
+                    className="cal-timegrid__now-today"
                     data-minutes={nowMinutes}
                     style={{ top: `${(nowMinutes / MINUTES_PER_DAY) * 100}%` }}
                   />
@@ -469,6 +475,13 @@ export function TimeGrid({
               </div>
             );
           })}
+          {todayIndex >= 0 && (
+            <div
+              className="cal-timegrid__now-line"
+              data-minutes={nowMinutes}
+              style={{ top: `${(nowMinutes / MINUTES_PER_DAY) * 100}%` }}
+            />
+          )}
         </div>
       </div>
 
