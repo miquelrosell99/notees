@@ -824,6 +824,56 @@ describe("bibliography round-trip (bibtex)", () => {
     expect(classes.find((c) => c.id === SYSTEM_CLASS_UUIDS.person)?.memberCount ?? 0).toBe(0);
   });
 
+  it("import decodes LaTeX accents and fills the venue fields (container/volume/issue/pages/ISSN)", async () => {
+    const h = harness;
+    const file = join(h.dataDir, "bib-import-venue.bib");
+    writeFileSync(
+      file,
+      `@article{rosAlcaraz2025outcomes,
+  title   = {Outcomes of Surgical Treatment of Peri-implantitis},
+  author  = {Ros-Alcaraz, Claudia and Garc{\\'i}a-Garc{\\'i}a, Marta and Valmaseda-Castell{\\'o}n, Eduard},
+  journal = {Int J Oral Maxillofac Implants},
+  year    = 2025,
+  volume  = 40,
+  number  = 3,
+  pages   = {591--598},
+  issn    = {1056-6161},
+  doi     = {10.11607/jomi.11018},
+}`,
+    );
+    expect(await h.runCli("--json", "import", "bibtex", file)).toBe(EXIT.ok);
+    const counts = JSON.parse(h.io.stdoutText) as { created: number; entries: string[]; entryFills: Array<{ fills: Array<{ name: string }> }> };
+    expect(counts).toMatchObject({ created: 1 });
+    // The venue set is reported per entry, same surface as the zotero-rdf fills.
+    expect(counts.entryFills[0]!.fills.map((f) => f.name)).toEqual([
+      "publicationTitle",
+      "volume",
+      "issue",
+      "pages",
+      "issn",
+    ]);
+
+    await h.runCli("--json", "object", "get", counts.entries[0]!);
+    const paper = JSON.parse(h.io.stdoutText).object;
+    expect(paper.classIds).toContain(SYSTEM_CLASS_UUIDS.journal_article);
+    const props = paper.properties as { schemaId: string; value: unknown }[];
+    const bySchema = (schemaId: string) => props.filter((p) => p.schemaId === schemaId).map((p) => p.value);
+    // LaTeX accent macros decode to Unicode on import (the resolver records
+    // are Unicode; stored sources read clean).
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.authors)).toEqual([
+      "Ros-Alcaraz, Claudia",
+      "García-García, Marta",
+      "Valmaseda-Castellón, Eduard",
+    ]);
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationTitle)?.value).toBe(
+      "Int J Oral Maxillofac Implants",
+    );
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.volume)?.value).toBe("40");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.issue)?.value).toBe("3");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.pages)?.value).toBe("591--598");
+    expect(props.find((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.issn)?.value).toBe("1056-6161");
+  });
+
   it("re-import dedupes by citekey (no duplicates, still no persons)", async () => {
     const h = harness;
     const file = join(h.dataDir, "bib-import-2.bib");

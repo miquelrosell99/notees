@@ -71,6 +71,7 @@ import {
 } from "@notees/domain";
 
 import type { BibEntry } from "./bibtex.js";
+import { decodeLatexText } from "./bibtex.js";
 import type { ExportPropertyValue } from "./document.js";
 
 // --- CSL-JSON subset -----------------------------------------------------------
@@ -396,18 +397,26 @@ export function bibToCsl(entry: BibEntry): CslItem {
     type: CLASS_NAME_TO_CSL_TYPE[bibTypeToClassName(entry.entryType)],
   };
   const fields = entry.fields;
-  if (fields.title !== undefined && fields.title.length > 0) item.title = fields.title;
-  const authors = parseAuthors(fields.author);
+  // LaTeX accent/symbol macros decode on IMPORT (decodeLatexText): stored
+  // sources read clean like resolver records. Identifier-ish fields (doi,
+  // isbn, issn, url, year, volume/issue/pages) never decode — no accents
+  // belong there and a flattened `\url{…}` must survive untouched.
+  if (fields.title !== undefined && fields.title.length > 0) item.title = decodeLatexText(fields.title);
+  const authors = parseAuthors(fields.author !== undefined ? decodeLatexText(fields.author) : undefined);
   if (authors.length > 0) item.author = authors;
-  const editors = parseAuthors(fields.editor);
+  const editors = parseAuthors(fields.editor !== undefined ? decodeLatexText(fields.editor) : undefined);
   if (editors.length > 0) item.editor = editors;
   const yearText = fields.year ?? fields.date;
   const year = yearText !== undefined ? yearFromDate(yearText) : undefined;
   if (year !== undefined) item.issued = { "date-parts": [[year]] };
-  const container = fields.journal ?? fields.booktitle;
-  if (container !== undefined && container.length > 0) item["container-title"] = container;
-  const publisher = fields.publisher ?? fields.school ?? fields.institution;
-  if (publisher !== undefined && publisher.length > 0) item.publisher = publisher;
+  const containerRaw = fields.journal ?? fields.booktitle;
+  if (containerRaw !== undefined && containerRaw.length > 0) {
+    item["container-title"] = decodeLatexText(containerRaw);
+  }
+  const publisherRaw = fields.publisher ?? fields.school ?? fields.institution;
+  if (publisherRaw !== undefined && publisherRaw.length > 0) {
+    item.publisher = decodeLatexText(publisherRaw);
+  }
   if (fields.volume !== undefined) item.volume = fields.volume;
   if (fields.number !== undefined) item.issue = fields.number;
   if (fields.pages !== undefined) item.page = fields.pages;

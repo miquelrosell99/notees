@@ -3341,6 +3341,10 @@ interface SourceImportOptions {
   fillOnlyEmpty?: boolean;
   /** Per-item extra schema fills beyond the shared CSL spec (zotero-rdf). */
   extraFills?: (item: CslItem) => SourceFieldFill[];
+  /** The venue fills (bibtex / csl-json): container-title/volume/issue/page/ISSN
+   *  from the shared CSL item, binding-gated. Written with the format's
+   *  entry-authoritative semantics (setIfChanged on create and update). */
+  venueFills?: (item: CslItem) => SourceFieldFill[];
   /** zotero-rdf parser counters/reports folded into the machine report. */
   parserExtras?: {
     keylessSkipped: Array<{ id: string; title: string }>;
@@ -3382,7 +3386,9 @@ interface ImportEntryPlan {
   persons: Array<{ literal: string; action: "existing" | "create"; nodeId?: string }>;
   /** Class the adoption would assign (eligibility repair) — absent when not needed. */
   classAssign?: string;
-  /** Per-field schema fills planned for this entry (zotero-rdf) — [] when nothing would fill. */
+  /** Per-field schema fills planned for this entry (zotero-rdf's Notees-wins
+   *  set; the venue set — container/volume/issue/pages/ISSN — for
+   *  bibtex/csl-json) — [] when nothing would fill. */
   fills?: SourceFieldFill[];
 }
 
@@ -3416,6 +3422,46 @@ function sourceClassProperties(className: string): ReadonlySet<SystemPropertyNam
     for (const ref of bindings) allowed.add(sourceBindingPropertyOf(ref));
   }
   return allowed;
+}
+
+/**
+ * bibtex / csl-json: the venue fills the shared CSL item carries —
+ * container-title/volume/issue/page/ISSN (bibToCsl parses them; without this
+ * they silently vanished). Gated by the item's class binding roster like the
+ * zotero-rdf extras: a field the class does not bind never becomes a fill.
+ * The container title lands on the class's container property — a book
+ * section's parent is the Book title, a proceedings paper's the Proceedings
+ * title, a web page's the Website title (the zotero-rdf parser's tag-driven
+ * containerTitleProperty convention, CSL type as the tag); everything else
+ * takes the Publication title.
+ */
+const VENUE_CONTAINER_PROPERTY: Partial<Record<string, SystemPropertyName>> = {
+  book_section: "bookTitle",
+  conference: "proceedingsTitle",
+  conference_paper: "proceedingsTitle",
+  presentation: "proceedingsTitle",
+  web_page: "websiteTitle",
+  blog_post: "blogTitle",
+  forum_post: "forumTitle",
+};
+
+function venueFillsOf(item: CslItem): SourceFieldFill[] {
+  const className = cslTypeToClassName(item.type);
+  const allowed = sourceClassProperties(className);
+  const fills: SourceFieldFill[] = [];
+  const push = (name: SystemPropertyName, value: string | undefined): void => {
+    if (value !== undefined && value.length > 0 && allowed.has(name)) {
+      fills.push({ name, value });
+    }
+  };
+  if (item["container-title"] !== undefined && item["container-title"].length > 0) {
+    push(VENUE_CONTAINER_PROPERTY[className] ?? "publicationTitle", item["container-title"]);
+  }
+  push("volume", item.volume);
+  push("issue", item.issue);
+  push("pages", item.page);
+  push("issn", item.ISSN);
+  return fills;
 }
 
 /**
@@ -3537,14 +3583,20 @@ function usedSchemaNames(items: CslItem[]): Set<SystemPropertyName> {
 
 async function importBibtex(ctx: CommandContext, filePath: string, options: SourceImportOptions): Promise<void> {
   const entries = parseBibtex(readImportFile(filePath));
-  await runSourceImport(ctx, "bibtex", filePath, entries.map(bibToCsl), 0, options);
+  await runSourceImport(ctx, "bibtex", filePath, entries.map(bibToCsl), 0, {
+    ...options,
+    venueFills: venueFillsOf,
+  });
 }
 
 async function importCslJson(ctx: CommandContext, filePath: string, options: SourceImportOptions): Promise<void> {
   const items = parseCslJson(readImportFile(filePath), (message) => {
     throw new CliError(EXIT.usage, `cannot import ${filePath}: ${message}`);
   });
-  await runSourceImport(ctx, "csl-json", filePath, items, 0, options);
+  await runSourceImport(ctx, "csl-json", filePath, items, 0, {
+    ...options,
+    venueFills: venueFillsOf,
+  });
 }
 
 async function importZoteroRdf(ctx: CommandContext, filePath: string, options: SourceImportOptions): Promise<void> {
@@ -3641,11 +3693,17 @@ async function runSourceImport(
   const specs = items.map(cslToNodeSpecs);
 
   // Schema ensure — part of the plan under --dry-run (write nothing). The
-  // extra-fill schemas (zotero-rdf) join the shared CSL schema set.
+  // extra-fill schemas (zotero-rdf) and the venue-fill schemas
+  // (bibtex/csl-json) join the shared CSL schema set.
   const schemaNames = new Set<SystemPropertyName>(usedSchemaNames(items));
   if (options.extraFills !== undefined) {
     for (const item of items) {
       for (const fill of options.extraFills(item)) schemaNames.add(fill.name);
+    }
+  }
+  if (options.venueFills !== undefined) {
+    for (const item of items) {
+      for (const fill of options.venueFills(item)) schemaNames.add(fill.name);
     }
   }
   const schemaPlan: Array<{ name: SystemPropertyName; status: "present" | "ensured" | "would-ensure" }> = [];
@@ -3748,13 +3806,15 @@ async function runSourceImport(
     // Per-field fills (zotero-rdf): Notees-wins — only the fields the matched
     // node does not already hold a value for. Freshly created nodes hold
     // nothing, so creation fills everything. The same list drives the dry-run
-    // plan, the report, and the writes in upsertSource.
+    // plan, the report, and the writes in upsertSource. The venue fills
+    // (bibtex/csl-json) ride the same report/plan but write through the
+    // format's entry-authoritative branch.
     const heldSchemaIds = new Set(
       (matched === undefined ? [] : fullPropertiesOf(matched)).map((p) => p.schemaId),
     );
     const fills =
       options.extraFills === undefined
-        ? []
+        ? (options.venueFills?.(items[specIndex]!) ?? [])
         : plannedFills(spec, items[specIndex]!, heldSchemaIds, fillOnlyEmpty);
 
     if (dryRun) {
@@ -3765,7 +3825,7 @@ async function runSourceImport(
         title: spec.title,
         persons: [],
         ...(needsClassAssign ? { classAssign: spec.className } : {}),
-        ...(options.extraFills !== undefined ? { fills } : {}),
+        ...(options.extraFills !== undefined || options.venueFills !== undefined ? { fills } : {}),
       });
       if (action === "create") counts.created += 1;
       else if (action === "adopt") counts.adopted += 1;
@@ -3775,14 +3835,16 @@ async function runSourceImport(
 
     const id = await upsertSource(ctx, spec, counts, action, matched, needsClassAssign, fillOnlyEmpty, fills);
     importedIds.push(id);
-    if (options.extraFills !== undefined) entryFills.push({ citekey: spec.citekey, nodeId: id, action, fills });
+    if (options.extraFills !== undefined || options.venueFills !== undefined) {
+      entryFills.push({ citekey: spec.citekey, nodeId: id, action, fills });
+    }
   }
 
   if (dryRun) {
     const summary =
       `${counts.created} create, ${counts.updated} update, ${counts.adopted} adopt, ` +
       `${counts.skipped} skip (${counts.ambiguous} ambiguous title collisions)`;
-    const withFills = options.extraFills !== undefined;
+    const withFills = options.extraFills !== undefined || options.venueFills !== undefined;
     const rows = plans.map((plan) => [
       plan.citekey ?? "(unkeyed)",
       plan.action,
@@ -3824,7 +3886,7 @@ async function runSourceImport(
 
   const machine: Record<string, unknown> = { ...counts, entries: importedIds };
   if (skippedEntries.length > 0) machine.skippedEntries = skippedEntries;
-  if (options.extraFills !== undefined) machine.entryFills = entryFills;
+  if (options.extraFills !== undefined || options.venueFills !== undefined) machine.entryFills = entryFills;
   if (options.parserExtras !== undefined) {
     machine.keylessSkipped = options.parserExtras.keylessSkipped;
   }
@@ -3991,6 +4053,13 @@ async function upsertSource(
     } else {
       await setIfChanged(SYSTEM_PROPERTY_UUIDS.publicationDate, spec.publicationDate);
     }
+  }
+  // Venue fills (bibtex/csl-json — in this branch `fills` is the
+  // binding-gated container/volume/issue/pages/ISSN set): same
+  // entry-authoritative semantics as the spec fields above; the values were
+  // already filtered to what the item's class binds.
+  for (const fill of fills) {
+    await setIfChanged(SYSTEM_PROPERTY_UUIDS[fill.name], fill.value);
   }
   // Authorship rides the CSL text properties only:
   // `authors` carries the "Family, Given" text literals (the citation track

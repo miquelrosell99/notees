@@ -17,6 +17,10 @@
  *  - Duplicate field names keep the LAST occurrence (LWW-ish).
  *  - Unterminated entries/values clamp at EOF instead of throwing.
  *
+ * Import direction: {@link decodeLatexText} decodes LaTeX accent/symbol
+ * macros to Unicode for the BibTeX→CSL mapping; the parser itself stays
+ * raw so a parse→serialize round trip is lossless.
+ *
  * Serializer: stable field order (the canonical list below, then unknown
  * fields in insertion order), braced values with minimal escaping
  * (`{`/`}` backslash-escaped, newlines folded to spaces).
@@ -203,6 +207,119 @@ export function parseBibtex(text: string): BibEntry[] {
     entries.push({ entryType, citeKey, fields });
   }
   return entries;
+}
+
+// --- LaTeX text decoding (import direction) -------------------------------------
+
+/** Combining marks for the accent macros real bibliographies carry. The
+ *  decoded pair normalizes to the precomposed character (NFC), so `\'e`
+ *  decodes to `é`, not an accent orphan. */
+const ACCENT_MARKS: Record<string, string> = {
+  "'": "́", // acute
+  '"': "̈", // diaeresis
+  "`": "̀", // grave
+  "^": "̂", // circumflex
+  "~": "̃", // tilde
+  "=": "̄", // macron
+  ".": "̇", // dot over
+  u: "̆", // breve
+  v: "̌", // caron
+  H: "̋", // double acute
+  c: "̧", // cedilla
+  k: "̨", // ogonek
+  r: "̊", // ring
+  b: "̱", // bar under
+  d: "̣", // dot under
+};
+
+/** Standalone ligature/symbol macros (the set Zotero/citeproc decode). All
+ *  are 1–2 letters, so the 3+-letter control-word guard in
+ *  {@link decodeLatexText} never shadows them. */
+const SYMBOL_MACROS: Record<string, string> = {
+  ss: "ß",
+  ae: "æ",
+  AE: "Æ",
+  oe: "œ",
+  OE: "Œ",
+  aa: "å",
+  AA: "Å",
+  o: "ø",
+  O: "Ø",
+  l: "ł",
+  L: "Ł",
+  i: "i", // dotless i — Unicode text wants the dotted form
+  j: "j", // dotless j
+};
+
+/** Placeholder wrapper for control words deferred past the accent pass. */
+const PROTECT_OPEN = "";
+const PROTECT_CLOSE = "";
+
+/**
+ * LaTeX control words whose flattened form must survive the accent pass —
+ * `\url{…}` arrives as the run `url…` after brace-flattening, which the
+ * accent pass must not read as `\u`+`r`. A flattened accent is always `\`
+ * + one accent letter + one base letter (`\cc`, `\vS`), so a startsWith
+ * match against this table disambiguates the two readings. The symbol
+ * macros are all 1–2 letters and never collide with it. Curated common set
+ * (text markup, greek, math, structure) — an unknown control word may still
+ * misdecode, the tolerance the header documents.
+ */
+const CONTROL_WORDS: readonly string[] = [
+  "url", "href", "cite", "citet", "citep", "nocite",
+  "emph", "textbf", "textit", "texttt", "textsf", "textrm", "textsc", "textnormal",
+  "footnote", "thanks", "caption", "copyright",
+  "vspace", "hspace", "vskip", "hfill", "vfill", "newline", "linebreak", "pagebreak",
+  "noindent", "indent", "quad", "qquad",
+  "label", "ref", "eqref", "pageref", "include", "input", "bibliography", "bibliographystyle",
+  "begin", "end", "item", "section", "subsection", "subsubsection", "chapter", "paragraph",
+  "title", "author", "date", "maketitle",
+  "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa",
+  "lambda", "mu", "nu", "xi", "pi", "rho", "sigma", "tau", "upsilon", "phi", "chi", "psi", "omega",
+  "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon", "Phi", "Chi", "Psi", "Omega",
+  "leq", "geq", "neq", "pm", "mp", "times", "cdot", "ast", "div", "infty",
+  "sum", "prod", "int", "iint", "frac", "dfrac", "sqrt", "vec", "bar", "dot", "hat", "tilde",
+  "overline", "underline", "left", "right", "big",
+];
+
+/**
+ * Decode LaTeX accent/symbol macros to Unicode — the import direction of the
+ * bibliography round-trip (bibToCsl), so an imported source stores clean
+ * text like the resolver's records, never `Garc\'ia` escapes. Applied AFTER
+ * parsing: the parser has already flattened brace groups, so `{\'i}` arrives
+ * as `\'i` and `\c{c}` as `\cc`. Fail-soft by design:
+ *
+ *  - Control words ({@link CONTROL_WORDS} — `\url`, `\vspace`,
+ *    `\copyright`) pass through untouched: after brace-flattening
+ *    `\url{…}` arrives as one run of letters, which the accent pass must
+ *    not read as `\u`+`r`. A flattened accent is always the accent letter
+ *    plus ONE base letter (`\cc`, `\vS`), so the two readings never
+ *    collide. Every symbol macro is 1–2 letters, so the table never
+ *    shadows them.
+ *  - A symbol macro inside a word (`\ssr`) stays raw — only whole
+ *    macro tokens decode.
+ *  - An accent macro not followed by a letter stays raw.
+ */
+export function decodeLatexText(text: string): string {
+  const protectedWords: string[] = [];
+  let out = text.replace(/\\[A-Za-z]{3,}/g, (raw) => {
+    const word = raw.slice(1);
+    if (!CONTROL_WORDS.some((control) => word.startsWith(control))) return raw;
+    protectedWords.push(raw);
+    return `${PROTECT_OPEN}${protectedWords.length - 1}${PROTECT_CLOSE}`;
+  });
+  out = out.replace(/\\([A-Za-z]+)/g, (raw, macro: string) => SYMBOL_MACROS[macro] ?? raw);
+  out = out.replace(
+    /\{?\\(['"`^~=.uvHckrbd])\s*\{?([A-Za-z])\}?/g,
+    (raw, accent: string, letter: string) => {
+      const mark = ACCENT_MARKS[accent];
+      return mark !== undefined ? (letter + mark).normalize("NFC") : raw;
+    },
+  );
+  for (const [index, word] of protectedWords.entries()) {
+    out = out.replace(`${PROTECT_OPEN}${index}${PROTECT_CLOSE}`, word);
+  }
+  return out;
 }
 
 // --- serializer ----------------------------------------------------------------

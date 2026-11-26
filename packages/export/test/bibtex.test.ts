@@ -15,6 +15,7 @@ import {
   cslToNodeSpecs,
   CSL_TYPE_TO_BIB_TYPE,
   cslTypeToClassName,
+  decodeLatexText,
   nodeToCsl,
   parseAuthorName,
   parseAuthors,
@@ -150,6 +151,60 @@ describe("author name parsing", () => {
       { family: "Barton", given: "D. E." },
     ]);
     expect(parseAuthors(undefined)).toEqual([]);
+  });
+});
+
+describe("decodeLatexText (import direction)", () => {
+  it("decodes braced accent groups, bare accents, cedilla, caron, and ligatures", () => {
+    // The parser flattens one brace level before decoding (see parseBibtex),
+    // so `{\'i}` arrives as `\'i` and `\c{c}` as `\cc`; unflattened forms
+    // decode too.
+    expect(decodeLatexText("Garc\\'ia")).toBe("García");
+    expect(decodeLatexText("{\\'i}")).toBe("í");
+    expect(decodeLatexText("\\cc")).toBe("ç");
+    expect(decodeLatexText("\\v{S}pil\\'ak")).toBe("Špilák");
+    expect(decodeLatexText("M\\\"uller M{\\\"u}ller")).toBe("Müller Müller");
+    expect(decodeLatexText("\\ss \\ae \\AE \\oe \\o \\O \\l \\L \\aa \\AA \\i \\j")).toBe(
+      "ß æ Æ œ ø Ø ł Ł å Å i j",
+    );
+  });
+
+  it("leaves control words and macro lookalikes inside words untouched", () => {
+    // Curated control words survive brace-flattening (`\url{…}` → `\url…`)
+    // — the table keeps the accent pass from reading `\u`+`r`.
+    expect(decodeLatexText("\\url{https://example.org} \\copyright \\vspace{2em} \\emph{hi}")).toBe(
+      "\\url{https://example.org} \\copyright \\vspace{2em} \\emph{hi}",
+    );
+    // A symbol macro inside a word is not a macro token.
+    expect(decodeLatexText("\\ssr{}")).toBe("\\ssr{}");
+    expect(decodeLatexText("plain text, no macros")).toBe("plain text, no macros");
+  });
+
+  it("bibToCsl decodes accents in title/authors/container but never in identifiers", () => {
+    const [item] = [
+      bibToCsl(
+        parseBibtex(
+          `@article{demo2025,
+        title   = {Peri-implantitis \\'a la Garc{\\'i}a},
+        author  = {Garc{\\'i}a-Garc{\\'i}a, Marta and \\v{S}pil\\'ak, Ji\\v{r}\\'i and Fran\\c{c}ois, Ren\\'e},
+        journal = {Int J Oral Maxillofac Implants},
+        year    = 2025,
+        doi     = {10.11607/jomi.11018},
+        url     = {https://example.org/\\'eta},
+      }`,
+        )[0]!,
+      ),
+    ];
+    expect(item.title).toBe("Peri-implantitis á la García");
+    expect((item.author ?? []).map((name) => [name.family, name.given])).toEqual([
+      ["García-García", "Marta"],
+      ["Špilák", "Jiří"],
+      ["François", "René"],
+    ]);
+    expect(item["container-title"]).toBe("Int J Oral Maxillofac Implants");
+    // Identifier-ish fields pass through raw.
+    expect(item.DOI).toBe("10.11607/jomi.11018");
+    expect(item.URL).toBe("https://example.org/\\'eta");
   });
 });
 
