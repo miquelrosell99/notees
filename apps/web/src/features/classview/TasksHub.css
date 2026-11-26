@@ -104,3 +104,67 @@
     width: auto;
   }
 }
+
+/* The Projects group below the sweeps: a hairline separation, a quiet
+   toggle row, a compact filter, and a height-capped scrollable list (the
+   owner's register: collapsible, limited height, searchable). */
+.tasks-hub__projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-1);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  min-height: 0;
+}
+
+.tasks-hub__projects-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-large);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tasks-hub__projects-toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.tasks-hub__projects-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tasks-hub__projects-count {
+  flex-shrink: 0;
+  opacity: var(--opacity-55);
+}
+
+.tasks-hub__projects-search {
+  flex-shrink: 0;
+}
+
+.tasks-hub__projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-height: 0;
+  /* The height cap rides the viewport (the owner's register) — the group
+     scrolls inside the panel, the panel itself stays pinned. */
+  max-height: 28vh;
+  overflow-y: auto;
+}
+
+.tasks-hub__projects-empty {
+  padding: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}

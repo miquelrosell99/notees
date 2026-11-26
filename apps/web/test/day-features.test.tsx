@@ -623,6 +623,93 @@ describe("Task sections (tasks hub)", () => {
     ).not.toContain("1");
   });
 
+  it("the Projects group lists the tasks' project contexts — explicit property, containing page, No project — and scopes the collection", async () => {
+    const client = await seedClient();
+    await taskStatus(client);
+    // A task nested under a project page (the containing-page fallback)…
+    const alpha = await client.createObject({ isEmbedded: false, name: "Alpha project" });
+    const nested = await client.createObject({
+      isEmbedded: false,
+      parentId: alpha,
+      name: "Nested task",
+      classIds: [SYSTEM_CLASS_UUIDS.task],
+    });
+    // …a task linked through the explicit Project property (the property's
+    // targetClassFilter demands a project-classed target)…
+    const beta = await client.createObject({
+      isEmbedded: false,
+      name: "Beta project",
+      classIds: [SYSTEM_CLASS_UUIDS.project],
+    });
+    const linked = await client.createObject({
+      isEmbedded: false,
+      name: "Linked task",
+      classIds: [SYSTEM_CLASS_UUIDS.task],
+    });
+    await client.setProperty(linked, SYSTEM_PROPERTY_UUIDS.project, { nodeId: beta }, 0);
+    // …and a task with neither context.
+    await client.createObject({
+      isEmbedded: false,
+      name: "Loose task",
+      classIds: [SYSTEM_CLASS_UUIDS.task],
+    });
+    await flushWrites();
+
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    const panel = within(await screen.findByLabelText("Task sections"));
+    // All three contexts list with their open-task counts.
+    expect(panel.getByRole("button", { name: /^Alpha project/ })).not.toBeNull();
+    expect(panel.getByRole("button", { name: /^Beta project/ })).not.toBeNull();
+    expect(panel.getByRole("button", { name: /^No project/ })).not.toBeNull();
+
+    // Clicking a project scopes the collection to its tasks alone.
+    fireEvent.click(panel.getByRole("button", { name: /^Alpha project/ }));
+    expect(await screen.findByText("Nested task")).toBeDefined();
+    expect(screen.queryByText("Linked task")).toBeNull();
+    expect(screen.queryByText("Loose task")).toBeNull();
+    fireEvent.click(panel.getByRole("button", { name: /^Beta project/ }));
+    expect(await screen.findByText("Linked task")).toBeDefined();
+    expect(screen.queryByText("Nested task")).toBeNull();
+    fireEvent.click(panel.getByRole("button", { name: /^No project/ }));
+    expect(await screen.findByText("Loose task")).toBeDefined();
+    expect(screen.queryByText("Nested task")).toBeNull();
+
+    // The sweeps keep working untouched beside the projects.
+    fireEvent.click(panel.getByRole("button", { name: /^All tasks/ }));
+    expect(await screen.findByText("Nested task")).toBeDefined();
+    expect(await screen.findByText("Linked task")).toBeDefined();
+    expect(await screen.findByText("Loose task")).toBeDefined();
+  });
+
+  it("the Projects group filters by title and collapses device-locally", async () => {
+    const client = await seedClient();
+    await taskStatus(client);
+    for (const name of ["Alpaca venture", "Bamboo venture"]) {
+      const page = await client.createObject({ isEmbedded: false, name });
+      await client.createObject({
+        isEmbedded: false,
+        parentId: page,
+        name: `Task for ${name}`,
+        classIds: [SYSTEM_CLASS_UUIDS.task],
+      });
+    }
+    await flushWrites();
+
+    render(<HubView client={client} nav="tasks" onOpenNode={vi.fn()} />);
+    const panel = within(await screen.findByLabelText("Task sections"));
+    fireEvent.change(panel.getByLabelText("Filter projects"), { target: { value: "alp" } });
+    expect(panel.getByRole("button", { name: /^Alpaca venture/ })).not.toBeNull();
+    expect(panel.queryByRole("button", { name: /^Bamboo venture/ })).toBeNull();
+    fireEvent.change(panel.getByLabelText("Filter projects"), { target: { value: "" } });
+
+    // Collapse hides the list and persists device-locally (never an op).
+    fireEvent.click(panel.getByRole("button", { name: /^Projects/ }));
+    expect(panel.queryByLabelText("Filter projects")).toBeNull();
+    expect(window.localStorage.getItem("notees.settings.tasksHubProjectsCollapsed")).toBe(
+      JSON.stringify(true),
+    );
+  });
+
   it("the section panel hides via the bar toggle, device-locally", async () => {
     const client = await seedClient();
     await taskStatus(client);
