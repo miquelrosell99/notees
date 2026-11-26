@@ -214,8 +214,11 @@ export function AddSourceDialog({
   const fetchedPdfUrl =
     fetched !== null && !oaDismissed && file === null ? (fetched.record.pdf?.url ?? null) : null;
 
-  const resolve = async () => {
+  const resolve = async (pickedFile?: File | null) => {
     if (busy) return;
+    // The drop zone passes its just-picked file: auto-resolve on pick/drop
+    // (state hasn't re-rendered, so the override is the only fresh read).
+    const activeFile = pickedFile !== undefined ? pickedFile : file;
     setBusy(true);
     setError(null);
     // The local short-circuit: no fetch when the resolver is off — the
@@ -228,9 +231,9 @@ export function AddSourceDialog({
       return;
     }
     try {
-      if (file !== null) {
-        const record = await resolvePdfFile(serverUrl, credential, file, file.name);
-        setFetched({ record, pdfFile: file });
+      if (activeFile !== null) {
+        const record = await resolvePdfFile(serverUrl, credential, activeFile, activeFile.name);
+        setFetched({ record, pdfFile: activeFile });
       } else {
         // The ADS credential rides its own header (wrapped prefs are opaque
         // server-side — plan 07); fetched lazily, only for ADS inputs.
@@ -535,6 +538,11 @@ export function AddSourceDialog({
               setInput("");
               setFetched(null);
               setOaDismissed(false);
+              // Auto-resolve: dropping/picking a PDF reads its DOI and lands
+              // the preview without the extra Fetch click (the resolver-off
+              // and no-DOI honest errors surface here, pointing at the
+              // manual path). A pick while a fetch is in flight waits it out.
+              void resolve(picked);
             }}
             onClear={() => {
               setFile(null);

@@ -26,7 +26,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import {
@@ -39,6 +39,7 @@ import {
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { SourcesHub } from "../src/features/sources/SourcesHub.js";
+import { registerResolveCoordinates } from "../src/features/sources/resolveCoordinates.js";
 import { DEFAULT_SOURCES_QUERY } from "../src/features/sources/sourcesQuery.js";
 
 const WS = "0192b000-0000-7000-8000-00000000d001";
@@ -59,8 +60,13 @@ beforeAll(async () => {
 const clients: WorkspaceClient[] = [];
 
 afterEach(() => {
+  // Unmount BEFORE closing the clients: RTL's global cleanup would otherwise
+  // flush the metadata rows' auto-unset effect against a closed database.
+  cleanup();
+  registerResolveCoordinates(null);
   while (clients.length > 0) clients.pop()!.close();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   window.localStorage.clear();
 });
 
@@ -318,5 +324,166 @@ describe("SourcesDetail — the type-aware detail editor", () => {
     expect(
       within(detailPane()).getByRole("heading", { name: "On the Analytical Engine" }),
     ).not.toBeNull();
+  });
+});
+
+describe("SourcesDetail — fetch metadata (the resolver-backed empty-field fill)", () => {
+  /** The unified record the stubbed resolver answers (journal article). */
+  const RESOLVER_RECORD = {
+    classKey: "journal_article",
+    title: "The Test Article",
+    authors: ["Skłodowska, Maria"],
+    editors: [],
+    fields: {
+      publicationTitle: "Journal of Testing & Practice",
+      volume: "7",
+      issue: "2",
+      pages: "123-145",
+      issn: "1234-5678",
+    },
+    doi: "10.1000/xyz123",
+    url: "https://doi.org/10.1000/xyz123",
+    year: 2023,
+    publisher: "Test Press",
+  };
+
+  /** Seed the base-family schemas the fill can write + the ISSN binding. */
+  async function seedFetchSchemas(client: WorkspaceClient): Promise<void> {
+    const P = SYSTEM_PROPERTY_UUIDS;
+    const SOURCE = SYSTEM_CLASS_UUIDS.source;
+    for (const key of ["doi", "url", "publisher", "issn"] as const) {
+      await client.createPropertySchema({
+        id: P[key],
+        name: SYSTEM_PROPERTY_DISPLAY_NAMES[key],
+        type: "text",
+        scopeClassIds: [SOURCE],
+      });
+      await client.setClassProperty(
+        key === "issn" ? SYSTEM_CLASS_UUIDS.journal_article : SOURCE,
+        P[key],
+        {},
+      );
+    }
+    await client.createPropertySchema({
+      id: P.publicationDate,
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES.publicationDate,
+      type: "datetime",
+      datePrecision: "year",
+      scopeClassIds: [SOURCE],
+    });
+    await client.setClassProperty(SOURCE, P.publicationDate, {});
+  }
+
+  function stubResolver(): void {
+    registerResolveCoordinates({ serverUrl: "http://resolver.test", credential: "test-key" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const [input] = args;
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.startsWith("http://resolver.test/api/resolve?")) {
+          return new Response(JSON.stringify(RESOLVER_RECORD), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+  }
+
+  it("resolves the DOI and fills only the empty fields — authored values survive", async () => {
+    const { client } = await seedClient();
+    await seedFetchSchemas(client);
+    const P = SYSTEM_PROPERTY_UUIDS;
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "The Test Article",
+      classIds: [SYSTEM_CLASS_UUIDS.journal_article],
+    });
+    await client.setProperty(sourceId, P.doi, "10.1000/xyz123", 0);
+    await client.setProperty(sourceId, P.authors, "Curie, Marie", 0);
+    await client.setProperty(sourceId, P.volume, "42", 0);
+    stubResolver();
+
+    renderHub(client);
+    await rowsReady();
+    await selectRow(client, sourceId);
+    fireEvent.click(within(detailPane()).getByRole("button", { name: "Fetch metadata" }));
+    await waitFor(() => {
+      expect(within(detailPane()).getByText(/Filled \d+/)).not.toBeNull();
+    });
+
+    const props = client.getEffectiveProperties(sourceId);
+    const bySchema = (schemaId: string) =>
+      props.filter((row) => row.propertySchemaId === schemaId).map((row) => row.value);
+    // Empty fields filled from the record (the &amp; decoded at the funnel).
+    expect(bySchema(P.publicationTitle)).toEqual(["Journal of Testing & Practice"]);
+    expect(bySchema(P.issue)).toEqual(["2"]);
+    expect(bySchema(P.pages)).toEqual(["123-145"]);
+    expect(bySchema(P.issn)).toEqual(["1234-5678"]);
+    expect(bySchema(P.publisher)).toEqual(["Test Press"]);
+    expect(bySchema(P.url)).toEqual(["https://doi.org/10.1000/xyz123"]);
+    // Notees-wins: authored values are never clobbered — the resolver's
+    // volume "7" and its author both lose to what the node already holds.
+    expect(bySchema(P.volume)).toEqual(["42"]);
+    expect(bySchema(P.authors)).toEqual(["Curie, Marie"]);
+    // The publication date rides the year date-chain node.
+    const pubRows = bySchema(P.publicationDate);
+    expect(pubRows).toHaveLength(1);
+    const yearId = (pubRows[0] as { nodeId: string }).nodeId;
+    await waitFor(() => {
+      expect(client.getNode(yearId)).not.toBeUndefined();
+    });
+    // Date-chain nodes are NAMED by their compact form ("20230000"); the
+    // display derivation flattens to "2023" (dateNodeDisplayLabel).
+    expect(deriveDisplayName(client.getNode(yearId)!)).toBe("2023");
+  });
+
+  it("a source without a DOI/PMID renders the button disabled with the why in its title", async () => {
+    const { client, items } = await seedClient();
+    stubResolver();
+    renderHub(client);
+    await rowsReady();
+    await selectRow(client, items.web);
+    const button = within(detailPane()).getByRole("button", { name: "Fetch metadata" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.title).toContain("set a DOI or PMID");
+  });
+
+  it("everything held answers the honest nothing-to-fill note", async () => {
+    const { client } = await seedClient();
+    await seedFetchSchemas(client);
+    const P = SYSTEM_PROPERTY_UUIDS;
+    const sourceId = await client.createObject({
+      isEmbedded: false,
+      name: "The Test Article",
+      classIds: [SYSTEM_CLASS_UUIDS.journal_article],
+    });
+    await client.setProperty(sourceId, P.doi, "10.1000/xyz123", 0);
+    // Fill every field the record can write, ahead of the click.
+    for (const [schemaId, value] of [
+      [P.publicationTitle, "Journal of Testing & Practice"],
+      [P.volume, "7"],
+      [P.issue, "2"],
+      [P.pages, "123-145"],
+      [P.issn, "1234-5678"],
+      [P.publisher, "Test Press"],
+      [P.url, "https://doi.org/10.1000/xyz123"],
+      [P.authors, "Skłodowska, Maria"],
+    ] as const) {
+      await client.setProperty(sourceId, schemaId, value, 0);
+    }
+    await client.ensureDateChain("2023-01-01");
+    await client.setDatetimeProperty(sourceId, P.publicationDate, { iso: "2023-01-01" });
+    stubResolver();
+
+    renderHub(client);
+    await rowsReady();
+    await selectRow(client, sourceId);
+    fireEvent.click(within(detailPane()).getByRole("button", { name: "Fetch metadata" }));
+    await waitFor(() => {
+      expect(within(detailPane()).getByText(/already filled/)).not.toBeNull();
+    });
   });
 });

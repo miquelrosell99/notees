@@ -90,6 +90,7 @@ Every command takes a credential via `--key` / `NOTEES_API_KEY`, or falls back t
 | `shell` | scripting REPL over the object API | `[script]` |
 | `export` | Markdown / JSON archive / BibTeX bundles | `markdown --ids`, `json --class` |
 | `import` | bibtex / csl-json (citekey upsert; fills the shared CSL fields plus the binding-gated venue set — container title, volume, issue, pages, ISSN; BibTeX accent macros decode to Unicode) / zotero-rdf (value-filling upsert over the full aligned Zotero vocabulary, gated by the item class's bound field roster; match citekey → doi → isbn → title → create) / logseq-db sources | `--dry-run` |
+| `source` | source-library operations | `fetch-metadata <id> [--dry-run]` (resolve the source's DOI/PMID through the metadata resolver and fill the empty fields — Notees-wins) |
 
 Destructive commands refuse without `--yes`: they print a blast-radius preview and exit 2. Exit codes: 0 ok, 1 domain, 2 usage, 3 auth, 4 conflict, 5 network.
 

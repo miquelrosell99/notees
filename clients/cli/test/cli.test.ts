@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 
 // One real server per file (was: per test — repeated boots accumulated
@@ -1054,6 +1054,115 @@ describe("bibliography round-trip (bibtex)", () => {
     writeFileSync(empty, "% only a comment\n");
     expect(await h.runCli("import", "bibtex", empty)).toBe(EXIT.domain);
     expect(h.io.stderrText).toContain("no importable entries");
+  });
+});
+
+describe("source fetch-metadata", () => {
+  // The resolver is the server's ONLY egress; the in-process server rides
+  // this test's global fetch stub exactly like the server's own suite.
+  const RESOLVER_FETCH_ROUTES = {
+    "https://api.crossref.org/works/": () =>
+      new Response(
+        JSON.stringify({
+          message: {
+            DOI: "10.1000/xyz123",
+            type: "journal-article",
+            title: ["The Test Article"],
+            author: [{ family: "Curie", given: "Marie" }],
+            "container-title": ["Journal of Testing &amp; Practice"],
+            volume: "7",
+            issue: "2",
+            page: "123-145",
+            ISSN: ["1234-5678"],
+            publisher: "Test Press",
+            URL: "https://doi.org/10.1000/xyz123",
+            issued: { "date-parts": [[2023, 4, 1]] },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    "https://api.unpaywall.org/v2/": () =>
+      new Response(JSON.stringify({ best_oa_location: null }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+  };
+
+  function stubResolverFetch(): void {
+    // The CLI's own API calls ride the same global fetch — delegate every
+    // non-resolver URL to the real implementation.
+    const realFetch = globalThis.fetch.bind(globalThis);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (...args: Parameters<typeof fetch>) => {
+        const [input, init] = args;
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        for (const [route, respond] of Object.entries(RESOLVER_FETCH_ROUTES)) {
+          if (url.startsWith(route)) return respond();
+        }
+        return realFetch(...args);
+      }),
+    );
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("resolves the source's DOI and fills only the properties it does not already hold", async () => {
+    const h = harness;
+    stubResolverFetch();
+    const id = await h.seedObject("The Test Article", [SYSTEM_CLASS_UUIDS.journal_article]);
+    await h.seedProperty(id, SYSTEM_PROPERTY_UUIDS.doi, "10.1000/xyz123");
+    // An owner-fixed value fetch-metadata must never clobber.
+    await h.seedProperty(id, SYSTEM_PROPERTY_UUIDS.pages, "999-999");
+
+    // Dry run plans without writing.
+    expect(await h.runCli("--json", "source", "fetch-metadata", id, "--dry-run")).toBe(EXIT.ok);
+    const plan = JSON.parse(h.io.stdoutText) as { filled: string[]; dryRun: boolean };
+    expect(plan.dryRun).toBe(true);
+    expect(plan.filled).toEqual(
+      expect.arrayContaining(["publicationTitle", "volume", "issue", "issn", "publisher", "url", "publicationDate", "authors"]),
+    );
+    await h.runCli("--json", "object", "get", id);
+    expect(
+      (JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string }>).some(
+        (p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.publicationTitle,
+      ),
+    ).toBe(false);
+
+    expect(await h.runCli("--json", "source", "fetch-metadata", id)).toBe(EXIT.ok);
+    const result = JSON.parse(h.io.stdoutText) as { filled: string[] };
+    expect(result.filled).not.toContain("pages"); // already held — Notees-wins
+    await h.runCli("--json", "object", "get", id);
+    const props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    const bySchema = (schemaId: string) => props.filter((p) => p.schemaId === schemaId).map((p) => p.value);
+    // The resolver's &amp; decodes at the record funnel (server-side).
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.publicationTitle)).toEqual(["Journal of Testing & Practice"]);
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.volume)).toEqual(["7"]);
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.issue)).toEqual(["2"]);
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.issn)).toEqual(["1234-5678"]);
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.publisher)).toEqual(["Test Press"]);
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.authors)).toEqual(["Curie, Marie"]);
+    expect(bySchema(SYSTEM_PROPERTY_UUIDS.pages)).toEqual(["999-999"]); // untouched
+    const pubRef = bySchema(SYSTEM_PROPERTY_UUIDS.publicationDate)[0] as { nodeId: string };
+    await h.runCli("--json", "object", "get", pubRef.nodeId);
+    expect(JSON.parse(h.io.stdoutText).object.name).toBe("2023");
+
+    // Re-run: everything held, nothing to fill.
+    expect(await h.runCli("--json", "source", "fetch-metadata", id)).toBe(EXIT.ok);
+    expect(JSON.parse(h.io.stdoutText).filled).toEqual([]);
+  });
+
+  it("domain errors: no source class, and no DOI/PMID to resolve", async () => {
+    const h = harness;
+    stubResolverFetch();
+    const plain = await h.seedObject("Just A Page", []);
+    expect(await h.runCli("source", "fetch-metadata", plain)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("no source class");
+    const bare = await h.seedObject("Bare Source", [SYSTEM_CLASS_UUIDS.journal_article]);
+    expect(await h.runCli("source", "fetch-metadata", bare)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toContain("no DOI or PMID");
   });
 });
 

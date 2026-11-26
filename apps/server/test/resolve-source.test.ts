@@ -120,6 +120,27 @@ describe("GET /api/resolve — metadata branch", () => {
     );
   });
 
+  it("XML entities in Crossref text decode at the record funnel (&amp; in the journal name, author given names)", async () => {
+    server = await makeTestServer();
+    stubFetch({
+      "https://api.crossref.org/works/": () =>
+        jsonResponse({
+          message: {
+            ...CROSSREF_JOURNAL_WORK,
+            author: [{ family: "Fish", given: "Amy &amp; Brook" }],
+            "container-title": ["Journal of Testing &amp; Practice"],
+          },
+        }),
+      "https://api.unpaywall.org/v2/": () => jsonResponse({ best_oa_location: null }),
+    });
+
+    const res = await api("GET", "/api/resolve?doi=10.1000/xyz123");
+    expect(res.statusCode).toBe(200);
+    const record = res.json() as { authors: string[]; fields: Record<string, string> };
+    expect(record.authors).toEqual(["Fish, Amy & Brook"]);
+    expect(record.fields["publicationTitle"]).toBe("Journal of Testing & Practice");
+  });
+
   it("an Unpaywall open-access location adds pdf:{url} to the record", async () => {
     server = await makeTestServer();
     stubFetch({

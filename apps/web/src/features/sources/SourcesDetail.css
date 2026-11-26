@@ -39,3 +39,13 @@
 .nt-sources-detail__spacer {
   flex: 1;
 }
+
+.nt-sources-detail__fetch-note {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-sources-detail__fetch-note--error {
+  color: var(--md-sys-color-error);
+}

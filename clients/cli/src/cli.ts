@@ -3581,6 +3581,125 @@ function usedSchemaNames(items: CslItem[]): Set<SystemPropertyName> {
   return used;
 }
 
+/** The server's /api/resolve unified record (the shape buildRecord emits —
+ *  not a CslItem: `fields` is already filtered to the RESOLVED class's own
+ *  bindings, creators are formatted "Family, Given" strings). */
+interface ResolverRecord {
+  classKey: string;
+  title: string;
+  authors: string[];
+  editors: string[];
+  fields: Record<string, string>;
+  doi?: string;
+  isbn?: string;
+  pmid?: string;
+  pmcid?: string;
+  url?: string;
+  year?: number;
+  publisher?: string;
+}
+
+/**
+ * `notees source fetch-metadata <id>` — resolve the source's DOI (else its
+ * PMID) through the server's metadata resolver and fill the properties the
+ * node does not already hold. Notees-wins: owner-fixed values are never
+ * clobbered; title and class are never rewritten (the node is the
+ * authority on its own identity). The record's `fields` (already the
+ * resolved class's OWN bindings server-side) gate through the NODE's class
+ * binding roster — a node carrying a different source type only fills what
+ * its own class binds, the imports' contract. Authors/Editors fill only
+ * when the node holds none (the citation track present wins); the
+ * publication date rides the year date-chain node, the import's
+ * ensure-then-link idiom. `--dry-run` reports the plan and writes nothing.
+ */
+async function fetchSourceMetadata(
+  ctx: CommandContext,
+  id: string,
+  options: { dryRun?: boolean },
+): Promise<void> {
+  const object = await getFullObject(ctx, id);
+  const className = sourceClassOf(object.classIds);
+  if (className === undefined) {
+    throw new CliError(EXIT.domain, `node ${id} carries no source class — fetch-metadata is for library sources`);
+  }
+  const properties = fullPropertiesOf(object);
+  const heldSchemaIds = new Set(properties.map((p) => p.schemaId));
+  const textValue = (schemaId: string): string | undefined => {
+    const value = properties.find((p) => p.schemaId === schemaId)?.value;
+    return typeof value === "string" && value.length > 0 ? value : undefined;
+  };
+  const doi = textValue(SYSTEM_PROPERTY_UUIDS.doi);
+  const pmid = textValue(SYSTEM_PROPERTY_UUIDS.pmid);
+  if (doi === undefined && pmid === undefined) {
+    throw new CliError(EXIT.domain, "the source carries no DOI or PMID to resolve — set one, then re-run");
+  }
+  const query = doi !== undefined ? `doi=${encodeURIComponent(doi)}` : `pmid=${encodeURIComponent(pmid!)}`;
+  const record = await ctx.client.getJson<ResolverRecord>(`/api/resolve?${query}`);
+
+  const allowed = sourceClassProperties(className);
+  const filled: SourceFieldFill[] = [];
+  const push = (name: SystemPropertyName, value: string | number | undefined): void => {
+    if (value === undefined) return;
+    const text = String(value);
+    if (text.length === 0 || !allowed.has(name)) return;
+    if (heldSchemaIds.has(SYSTEM_PROPERTY_UUIDS[name])) return;
+    filled.push({ name, value: text });
+  };
+  for (const [key, value] of Object.entries(record.fields)) {
+    push(key as SystemPropertyName, value);
+  }
+  // A PMID-resolved record can still carry the DOI — and vice versa.
+  push("doi", record.doi);
+  push("isbn", record.isbn);
+  push("pmid", record.pmid);
+  push("pmcid", record.pmcid);
+  push("url", record.url);
+  push("publisher", record.publisher);
+  const fillDate = !heldSchemaIds.has(SYSTEM_PROPERTY_UUIDS.publicationDate) && record.year !== undefined;
+  const authorLiterals = record.authors.filter((literal) => literal.length > 0);
+  const fillAuthors = authorLiterals.length > 0 && !heldSchemaIds.has(SYSTEM_PROPERTY_UUIDS.authors);
+  const editorLiterals = record.editors.filter((literal) => literal.length > 0);
+  const fillEditors = editorLiterals.length > 0 && !heldSchemaIds.has(SYSTEM_PROPERTY_UUIDS.editors);
+  const plannedNames = [
+    ...filled.map((fill) => fill.name),
+    ...(fillDate ? ["publicationDate"] : []),
+    ...(fillAuthors ? ["authors"] : []),
+    ...(fillEditors ? ["editors"] : []),
+  ];
+
+  const dryRun = options.dryRun === true;
+  if (!dryRun) {
+    for (const fill of filled) {
+      await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS[fill.name], fill.value);
+    }
+    if (fillDate) {
+      const yearId = dateNodeId(`${record.year}-01-01`, "year");
+      await ensureYearNode(ctx, yearId, String(record.year));
+      await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.publicationDate, { nodeId: yearId });
+    }
+    for (const [index, literal] of authorLiterals.entries()) {
+      await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.authors, literal, index);
+    }
+    for (const [index, literal] of editorLiterals.entries()) {
+      await setProperty(ctx, id, SYSTEM_PROPERTY_UUIDS.editors, literal, index);
+    }
+  }
+
+  const identifier = doi ?? pmid ?? "";
+  const human =
+    `resolved ${identifier} → "${record.title}" (${record.classKey})\n` +
+    (plannedNames.length > 0
+      ? `${dryRun ? "planned" : "filled"} ${plannedNames.length} (${plannedNames.join(", ")})\n`
+      : "nothing to fill — every resolved field is already held\n");
+  emit(ctx, human, {
+    nodeId: id,
+    identifier,
+    resolved: { classKey: record.classKey, title: record.title, year: record.year ?? null },
+    filled: plannedNames,
+    dryRun,
+  });
+}
+
 async function importBibtex(ctx: CommandContext, filePath: string, options: SourceImportOptions): Promise<void> {
   const entries = parseBibtex(readImportFile(filePath));
   await runSourceImport(ctx, "bibtex", filePath, entries.map(bibToCsl), 0, {
@@ -4740,6 +4859,7 @@ const HELP_ROWS: Record<string, { flags: string }> = {
   shell: { flags: "[script]" },
   export: { flags: "markdown · json · bibtex" },
   import: { flags: "bibtex · csl-json · zotero-rdf · logseq-db" },
+  source: { flags: "fetch-metadata <id> [--dry-run]" },
   help: { flags: "<command> [subcommand]" },
 };
 
@@ -5612,6 +5732,18 @@ function buildProgram(): Command {
       dryRun?: boolean;
     }, command: Command) => {
       await importLogseqDb(ctxOf(command), filePath, options);
+    });
+
+  const sourceCmd = program.command("source").description("source-library operations");
+  sourceCmd
+    .command("fetch-metadata <id>")
+    .description(
+      "resolve the source's DOI (else its PMID) through the metadata resolver and fill the properties it does not already hold " +
+        "(Notees-wins: owner-fixed values survive; the title/class and any authors already present are never rewritten; a field the node's class does not bind never fills)",
+    )
+    .option("--dry-run", "plan only: report the resolved record and the planned fills, write nothing", false)
+    .action(async (id: string, options: { dryRun?: boolean }, command: Command) => {
+      await fetchSourceMetadata(ctxOf(command), id, options);
     });
 
   // `notees help` replaces commander's built-in help command (addHelpCommand

@@ -22,6 +22,14 @@
  *    DELETE asks in the reusable ConfirmationModal (danger, naming the
  *    display name — never a raw uuid) and trashes through deleteObject,
  *    the node-menu's confirm pattern.
+ *  - FETCH METADATA (the action row, beside Open) resolves the source's
+ *    DOI/PMID through the metadata resolver and fills the EMPTY fields
+ *    only (Notees-wins — the fetchMetadataFill plan/apply pair), the
+ *    on-node counterpart of the Add Source dialog's create-time fetch and
+ *    the CLI's `notees source fetch-metadata`. The Attachments-row Fetch
+ *    button's gate: resolver setting on + coordinates registered; a source
+ *    without a DOI/PMID renders the button disabled with the why in its
+ *    title. Outcome/error reads as one note line under the row.
  *
  * Live by subscription (the facets/table idiom): an edit here re-reads
  * through the client's notify. Nothing selected (or the node is gone)
@@ -49,6 +57,16 @@ import {
 } from "../../components/ui/kit/index.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { PropertiesTable, metadataRowCount } from "../metadata/index.js";
+import { readSourceSettings } from "../modals/quickCreate.js";
+import { resolveCoordinates } from "./resolveCoordinates.js";
+import { resolveSourceInput } from "./resolver.js";
+import {
+  applyFetchMetadataFill,
+  planFetchMetadataFill,
+  planFillNames,
+  planIsEmpty,
+  sourceIdentifierOf,
+} from "./fetchMetadataFill.js";
 import { sourceTypeKey } from "./sourcesQuery.js";
 import "./SourcesDetail.css";
 
@@ -72,6 +90,9 @@ export function SourcesDetail({
   const [titleEditing, setTitleEditing] = useState(false);
   /** The latched delete-confirm target (the node-menu latch idiom). */
   const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
+  /** The Fetch-metadata resolver round: busy latch + outcome/error note. */
+  const [fetchingMetadata, setFetchingMetadata] = useState(false);
+  const [fetchNote, setFetchNote] = useState<{ kind: "outcome" | "error"; text: string } | null>(null);
 
   const node =
     client !== undefined && selectedId !== undefined && selectedId !== null
@@ -100,6 +121,41 @@ export function SourcesDetail({
       void client.updateObject(node.id, { contentAst: [{ type: "text", text: value }] });
     }
     setTitleEditing(false);
+  };
+
+  // The Fetch-metadata surface gate: the resolver setting on, coordinates
+  // registered (online), and a resolvable identifier on the node — the
+  // Attachments-row Fetch gate's sibling (AssetPropertyRow).
+  const identifier = sourceIdentifierOf(client, node.id);
+  const fetchMetadataEligible =
+    readSourceSettings(client).resolverEnabled && resolveCoordinates() !== null;
+
+  const schemaNameOf = (schemaId: string): string =>
+    client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? schemaId;
+
+  const fetchMetadata = async (): Promise<void> => {
+    if (fetchingMetadata) return;
+    const coords = resolveCoordinates();
+    if (coords === null || identifier === null) return;
+    setFetchingMetadata(true);
+    setFetchNote(null);
+    try {
+      const record = await resolveSourceInput(coords.serverUrl, coords.credential, identifier.value, {
+        getAdsApiToken: async () => (await client.getPrefs())?.adsApiToken ?? "",
+      });
+      const plan = planFetchMetadataFill(client, node, record);
+      if (planIsEmpty(plan)) {
+        setFetchNote({ kind: "outcome", text: "Everything the resolver knows is already filled." });
+        return;
+      }
+      await applyFetchMetadataFill(client, node.id, plan);
+      const names = planFillNames(plan, schemaNameOf);
+      setFetchNote({ kind: "outcome", text: `Filled ${names.length} (${names.join(", ")}).` });
+    } catch (err) {
+      setFetchNote({ kind: "error", text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setFetchingMetadata(false);
+    }
   };
 
   return (
@@ -134,6 +190,22 @@ export function SourcesDetail({
           <span>{typeLabel}</span>
         </span>
         <span className="nt-sources-detail__spacer" />
+        {fetchMetadataEligible && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi-cloud-sync-outline"
+            aria-label="Fetch metadata"
+            title={
+              identifier === null
+                ? "Fetch metadata — set a DOI or PMID on this source first"
+                : `Fetch metadata — resolve ${identifier.kind === "doi" ? "the DOI" : "the PMID"} and fill the empty fields`
+            }
+            loading={fetchingMetadata}
+            disabled={fetchingMetadata || identifier === null}
+            onClick={() => void fetchMetadata()}
+          />
+        )}
         {onOpenNode !== undefined && (
           <Button
             variant="ghost"
@@ -153,6 +225,18 @@ export function SourcesDetail({
           onClick={() => setPendingDelete({ id: node.id, label: title })}
         />
       </div>
+      {fetchNote !== null && (
+        <p
+          role={fetchNote.kind === "error" ? "alert" : undefined}
+          className={
+            fetchNote.kind === "error"
+              ? "nt-sources-detail__fetch-note nt-sources-detail__fetch-note--error"
+              : "nt-sources-detail__fetch-note"
+          }
+        >
+          {fetchNote.text}
+        </p>
+      )}
 
       {/* The type-aware field set: the shared metadata panel over the
           effective read (extends-aware — the picked type's own bindings

@@ -322,26 +322,30 @@ function buildRecord(input: {
   year?: number | undefined;
   publisher?: string | undefined;
 }): SourceMetadataRecord {
+  // Crossref/mEDRA carry XML-escaped text (`&amp;` in journal names) — decode
+  // at the single funnel so every consumer (the web dialog, the CLI, the PDF
+  // flow) reads clean strings; the arXiv arm already decodes at parse.
+  // Identifiers stay verbatim (a DOI can't carry markup; never rewrite one).
   const fields: Record<string, string> = {};
   for (const ref of SYSTEM_SOURCE_CLASS_BINDINGS[input.classKey] ?? []) {
     const key = sourceBindingPropertyOf(ref);
     const value = input.candidates[key];
-    if (value !== undefined && value.length > 0) fields[key] = value;
+    if (value !== undefined && value.length > 0) fields[key] = decodeXmlEntities(value);
   }
   const record: SourceMetadataRecord = {
     classKey: input.classKey,
-    title: input.title,
-    authors: input.authors,
-    editors: input.editors,
+    title: decodeXmlEntities(input.title),
+    authors: input.authors.map((name) => decodeXmlEntities(name)),
+    editors: input.editors.map((name) => decodeXmlEntities(name)),
     fields,
   };
   if (input.doi !== undefined) record.doi = input.doi;
   if (input.isbn !== undefined) record.isbn = input.isbn;
   if (input.pmid !== undefined) record.pmid = input.pmid;
   if (input.pmcid !== undefined) record.pmcid = input.pmcid;
-  if (input.url !== undefined) record.url = input.url;
+  if (input.url !== undefined) record.url = decodeXmlEntities(input.url);
   if (input.year !== undefined) record.year = input.year;
-  if (input.publisher !== undefined) record.publisher = input.publisher;
+  if (input.publisher !== undefined) record.publisher = decodeXmlEntities(input.publisher);
   return record;
 }
 

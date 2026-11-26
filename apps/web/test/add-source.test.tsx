@@ -569,8 +569,9 @@ describe("AddSourceDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
+    // The pick auto-resolves — no Fetch click (the drop zone fires the
+    // resolver itself).
     pickPdf(dialog, file);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     await previewCardOf(dialog);
     fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
     await waitFor(() => expect(created.length).toBe(1));
@@ -592,6 +593,39 @@ describe("AddSourceDialog", () => {
     const info = client.getAssetInfo(created[0]!);
     expect(info?.assetId).toBe("11111111-1111-7111-8000-111111111111");
     expect(info?.originalName).toBe("paper.pdf");
+  });
+
+  it("a picked PDF auto-resolves on pick; a no-DOI PDF surfaces the honest error without a click", async () => {
+    const client = await seedClient();
+    await seedFamilies(client);
+    await ensureCitationFamily(client);
+    stubFetch((url) => {
+      if (url.includes("/api/resolve/pdf") && !url.includes("?url=")) {
+        return jsonResponse(422, {
+          error: {
+            code: "no_identifier_found",
+            message: "the PDF carried no extractable DOI",
+            status: 422,
+          },
+        });
+      }
+      return undefined;
+    });
+    render(
+      <AddSourceDialog
+        isOpen
+        client={client}
+        serverUrl="http://resolver.test"
+        credential="test-key"
+        onClose={() => {}}
+      />,
+    );
+    const dialog = await screen.findByRole("dialog", { name: /add source/i });
+    pickPdf(dialog, new File(["%PDF-fake"], "no-doi.pdf", { type: "application/pdf" }));
+    // The honest error lands on pick alone — Create stays disabled.
+    await screen.findByText(/carried no extractable doi/i);
+    expect(createButtonOf(dialog).disabled).toBe(true);
+    expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.source).length).toBe(0);
   });
 
   it("a failed CAS upload creates no half-source (the upload runs before the create)", async () => {
@@ -622,8 +656,9 @@ describe("AddSourceDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
+    // The pick auto-resolves — no Fetch click (the drop zone fires the
+    // resolver itself).
     pickPdf(dialog, file);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     await previewCardOf(dialog);
     fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
 
@@ -968,8 +1003,9 @@ describe("AddSourceDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: /add source/i });
     const file = new File(["%PDF-fake"], "paper.pdf", { type: "application/pdf" });
+    // The pick auto-resolves — no Fetch click (the drop zone fires the
+    // resolver itself).
     pickPdf(dialog, file);
-    fireEvent.click(within(dialog).getByRole("button", { name: /^fetch$/i }));
     await previewCardOf(dialog);
 
     // The picked file wins: no OA link row, the file row shows instead (the
