@@ -39,7 +39,7 @@ import type { ContentAst, ListStyle } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
 import { extractBlockToPage } from "@/core/extractToPage.js";
-import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/index.js";
+import type { ClientNode, ClientPropertySchema, EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { titleOfNode } from "../../ui/dateDisplay.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
@@ -87,6 +87,10 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   getChildrenFresh(id: string): Promise<ClientNode[]> | ClientNode[];
   /** The Copy › markdown shapes compose through exportSubtree's read surface. */
   listPropertySchemas(): ClientPropertySchema[];
+  /** The fresh reads behind Copy › Markdown with children (see OutlinerClient). */
+  getNodeFresh(id: string): Promise<ClientNode | undefined>;
+  getEffectivePropertiesFresh(id: string): Promise<EffectiveProperty[]>;
+  listPropertySchemasFresh(): Promise<ClientPropertySchema[]>;
   effectiveClassColor(classId: string): string | null;
   effectiveClassIcons(): ReadonlyMap<string, string | null>;
   getDisplayName(id: string): string | null;
@@ -319,17 +323,21 @@ export function NodeContextMenu({
       () => notificationStore.error("Couldn't copy", "Clipboard access was denied."),
     );
   };
-  /** The Copy › markdown shapes — exportSubtree composes, we clipboard it. */
+  /** The Copy › markdown shapes — exportSubtree composes (async: the
+   *  with-children shape gathers the subtree through the fresh reads), we
+   *  clipboard the result. */
   const copyMarkdown = (withChildren: boolean): void => {
-    try {
-      copyText(
-        clipboardMarkdown(client, node.id, withChildren),
-        withChildren ? "Markdown with children copied" : "Markdown copied",
-      );
-    } catch (error: unknown) {
-      console.warn(`[context-menu] copy markdown (${node.id}) failed:`, error);
-      notificationStore.error("Couldn't copy as markdown", name);
-    }
+    clipboardMarkdown(client, node.id, withChildren).then(
+      (markdown) =>
+        copyText(
+          markdown,
+          withChildren ? "Markdown with children copied" : "Markdown copied",
+        ),
+      (error: unknown) => {
+        console.warn(`[context-menu] copy markdown (${node.id}) failed:`, error);
+        notificationStore.error("Couldn't copy as markdown", name);
+      },
+    );
   };
 
   const items: ContextMenuItem[] = [

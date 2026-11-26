@@ -248,6 +248,10 @@ export class WorkspaceClient {
     return this.reads.getNodeRawFresh(id);
   }
 
+  getNodeFresh(id: string) {
+    return this.reads.getNodeFresh(id);
+  }
+
   getDisplayName(id: string) {
     return this.reads.getDisplayName(id);
   }

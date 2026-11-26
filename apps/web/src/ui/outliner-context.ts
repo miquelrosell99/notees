@@ -154,6 +154,18 @@ export interface OutlinerClient {
   ): Promise<void>;
   /** Raw store read (no projection) — the date suggestion's existence check. */
   getNodeRaw(id: string): ClientNode | undefined;
+  /**
+   * Uncached node read (raw RPC on the worker; fresh alias in-process) — the
+   * clipboard markdown copy's subtree surface rides this with
+   * getChildrenFresh: a cached read answers a cold key with the undefined
+   * default, and a folded or off-screen descendant's row may never have
+   * seeded it, silently dropping the subtree from the copied markdown.
+   */
+  getNodeFresh(id: string): Promise<ClientNode | undefined>;
+  /** Uncached effective-properties read — the same subtree surface. */
+  getEffectivePropertiesFresh(id: string): Promise<EffectiveProperty[]>;
+  /** Uncached property-schema registry read — the same subtree surface. */
+  listPropertySchemasFresh(): Promise<ClientPropertySchema[]>;
   /** Ensure the year/month/day journal chain; returns the three node ids. */
   ensureDateChain(isoDate: string): Promise<{ year: string; month: string; day: string }>;
 }

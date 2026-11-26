@@ -550,6 +550,17 @@ export class WorkerClient {
     return (await this.call("getNodeRaw", [id])) as ClientNode | undefined;
   }
 
+  /**
+   * Uncached node read — one raw RPC straight to the store (the
+   * getChildrenFresh precedent). Full-subtree compositions that must not
+   * ride the render cache (the clipboard markdown copy) read THIS: the
+   * cached getNode seeds undefined on a cold key, and a folded or
+   * off-screen descendant's row may never have seeded it.
+   */
+  async getNodeFresh(id: string): Promise<ClientNode | undefined> {
+    return (await this.call("getNode", [id])) as ClientNode | undefined;
+  }
+
   getDisplayName(id: string): string | null {
     return this.cachedRead("getDisplayName", [id], null);
   }

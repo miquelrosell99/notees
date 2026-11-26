@@ -45,6 +45,15 @@ export class WorkspaceClientReads {
     return this.ctx.mapNodeCached(row);
   }
 
+  /**
+   * Uncached alias of {@link getNode} for full-subtree compositions that must
+   * not ride the render cache (the clipboard markdown copy): in-process reads
+   * are already fresh, so this just matches the WorkerClient's raw-RPC shape.
+   */
+  getNodeFresh(id: string): Promise<ClientNode | undefined> {
+    return Promise.resolve(this.getNode(id));
+  }
+
   /** A single node, regardless of active state (backlink sources may be trashed). */
   getNodeRaw(id: string): ClientNode | undefined {
     const row = this.ctx.store.getNode(id);

@@ -263,26 +263,106 @@ function engineOptions(options: ExportSubtreeOptions): ExportOptions {
 }
 
 /**
+ * The fresh-read source behind the clipboard's subtree surface — the *Fresh
+ * client reads (one raw RPC each on the worker; always-fresh aliases
+ * in-process). The clipboard composition must NOT ride the synchronous
+ * render cache: on the WorkerClient a cold key answers the []/undefined
+ * default, and a folded or off-screen descendant's row may never have
+ * seeded its cache keys — the copy would silently drop the very subtree
+ * the user asked for (the getChildrenFresh precedent).
+ */
+export interface FreshExportReadSource {
+  getNodeFresh(id: string): Promise<ClientNode | undefined>;
+  getChildrenFresh(id: string): Promise<ClientNode[]> | ClientNode[];
+  getEffectivePropertiesFresh(id: string): Promise<EffectiveProperty[]>;
+  listPropertySchemasFresh(): Promise<ClientPropertySchema[]>;
+}
+
+/**
+ * Gather the subtree rooted at `rootId` through the fresh reads and answer
+ * an {@link ExportReadSurface} from the gathered rows. Every descendant in
+ * BOTH child zones is walked (the export composition's own filters decide
+ * what renders; reading a few extra rows is harmless). Reads the surface
+ * cannot serve — display names and class chrome for ids OUTSIDE the subtree
+ * (mention targets, template resolution) — delegate to the wrapped client,
+ * preserving the cached path's behavior for exactly those refs.
+ */
+async function freshSubtreeSurface(
+  client: ExportReadSurface & FreshExportReadSource,
+  rootId: string,
+): Promise<ExportReadSurface> {
+  const childrenOfId = new Map<string, ClientNode[]>();
+  const ids: string[] = [rootId];
+  const seen = new Set<string>([rootId]);
+  let frontier: string[] = [rootId];
+  while (frontier.length > 0) {
+    const lists = await Promise.all(
+      frontier.map((id) => Promise.resolve(client.getChildrenFresh(id))),
+    );
+    const next: string[] = [];
+    frontier.forEach((id, index) => {
+      const children = lists[index] ?? [];
+      childrenOfId.set(id, children);
+      for (const child of children) {
+        if (seen.has(child.id)) continue;
+        seen.add(child.id);
+        ids.push(child.id);
+        next.push(child.id);
+      }
+    });
+    frontier = next;
+  }
+  const [nodesList, propertiesList, schemas] = await Promise.all([
+    Promise.all(ids.map((id) => client.getNodeFresh(id))),
+    Promise.all(ids.map((id) => client.getEffectivePropertiesFresh(id))),
+    client.listPropertySchemasFresh(),
+  ]);
+  const nodes = new Map<string, ClientNode>();
+  ids.forEach((id, index) => {
+    const node = nodesList[index];
+    if (node !== undefined) nodes.set(id, node);
+  });
+  const properties = new Map<string, EffectiveProperty[]>(ids.map((id, index) => [id, propertiesList[index] ?? []]));
+  return {
+    getNode: (id) => nodes.get(id) ?? client.getNode(id),
+    getChildren: (id) => childrenOfId.get(id) ?? client.getChildren(id),
+    getEffectiveProperties: (id) => properties.get(id) ?? client.getEffectiveProperties(id),
+    listPropertySchemas: () => schemas,
+    effectiveClassColor: (classId) => client.effectiveClassColor(classId),
+    effectiveClassIcons: () => client.effectiveClassIcons(),
+    getDisplayName: (id) => client.getDisplayName(id),
+    effectiveClassParentlessBlock: (classId) => client.effectiveClassParentlessBlock(classId),
+  };
+}
+
+/**
  * Clipboard markdown — the node context menu's Copy › submenu composes its
  * two shapes through here: the node's own content only (`renderContent` —
  * no children), or the node with its inline block tree as nested bullets
  * (`nodeToMarkdown` over the block-children context, frontmatter OFF —
  * pasted text carries no YAML noise, and child pages stay files: only the
  * inline body rides along, the export read's own convention).
+ *
+ * Async since both shapes read the node through the *Fresh reads — the
+ * with-children shape gathers the WHOLE subtree fresh (see
+ * freshSubtreeSurface): composing over the render cache drops folded /
+ * off-screen descendants on the WorkerClient (a cold key answers the empty
+ * default), which is exactly the "copied only the main block" failure.
  */
-export function clipboardMarkdown(
-  client: ExportReadSurface,
+export async function clipboardMarkdown(
+  client: ExportReadSurface & FreshExportReadSource,
   rootId: string,
   withChildren: boolean,
-): string {
-  const root = client.getNode(rootId);
+): Promise<string> {
+  const surface = await freshSubtreeSurface(client, rootId);
+  const root = surface.getNode(rootId);
   if (root === undefined) throw new Error("clipboardMarkdown: node not found");
   if (!withChildren) {
-    return renderContent(root.contentAst, makeExportContext(client));
+    return renderContent(root.contentAst, makeExportContext(surface));
   }
-  const node = toExportNode(client, rootId);
+  const node = toExportNode(surface, rootId);
   if (node === undefined) throw new Error("clipboardMarkdown: node not found");
-  return nodeToMarkdown(node, makeExportContext(client), { includeFrontmatter: false });
+  return nodeToMarkdown(node, makeExportContext(surface), { includeFrontmatter: false });
 }
 
 /**

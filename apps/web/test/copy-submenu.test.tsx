@@ -161,3 +161,86 @@ describe("NodeContextMenu Copy › submenu", () => {
     await waitFor(() => expect(second).toEqual([nodeLinkUrl(blockId)]));
   });
 });
+
+describe("Copy › markdown under a cold render cache", () => {
+  /**
+   * Simulates the WorkerClient's synchronous read cache answering keys the
+   * render never seeded (folded / off-screen subtrees) with the empty
+   * default — the browser condition behind "Markdown with children copies
+   * only the main block". The *Fresh reads still delegate to the real
+   * client, which is exactly the contract the clipboard composition rides.
+   */
+  function coldCacheStub(client: WorkspaceClient): WorkspaceClient {
+    return new Proxy(client, {
+      get(target, prop, receiver) {
+        if (prop === "getNode" || prop === "getChildren" || prop === "getEffectiveProperties") {
+          return () => (prop === "getNode" ? undefined : []);
+        }
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+  }
+
+  async function seededThreeLevelTree() {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Question?" }],
+    });
+    const childId = await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "text", text: "Nested detail" }],
+    });
+    await client.createObject({
+      parentId: childId,
+      contentAst: [{ type: "text", text: "Deep detail" }],
+    });
+    return { client, blockId };
+  }
+
+  it("Markdown with children still copies the whole subtree from the fresh reads", async () => {
+    const { client, blockId } = await seededThreeLevelTree();
+    const written = stubClipboard();
+
+    const { getByText } = render(
+      <NodeContextMenu
+        state={{ x: 0, y: 0, node: client.getNode(blockId)!, isPage: false }}
+        client={coldCacheStub(client)}
+        onClose={() => {}}
+        onOpenNode={() => {}}
+      />,
+    );
+
+    fireEvent.click(getByText("Copy"));
+    fireEvent.click(getByText("Markdown with children"));
+
+    await waitFor(() => expect(written).toHaveLength(1));
+    expect(written[0]).toContain("Question?");
+    expect(written[0]).toContain("- Nested detail");
+    expect(written[0]).toContain("  - Deep detail");
+    expect(written[0]).not.toContain("isClass:");
+  });
+
+  it("Markdown (no children) still copies the block's own content", async () => {
+    const { client, blockId } = await seededThreeLevelTree();
+    const written = stubClipboard();
+
+    const { getByText } = render(
+      <NodeContextMenu
+        state={{ x: 0, y: 0, node: client.getNode(blockId)!, isPage: false }}
+        client={coldCacheStub(client)}
+        onClose={() => {}}
+        onOpenNode={() => {}}
+      />,
+    );
+
+    fireEvent.click(getByText("Copy"));
+    fireEvent.click(getByText("Markdown"));
+
+    await waitFor(() => expect(written).toHaveLength(1));
+    expect(written[0]).toContain("Question?");
+    expect(written[0]).not.toContain("Nested detail");
+  });
+});
