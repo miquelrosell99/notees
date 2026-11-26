@@ -36,6 +36,7 @@ test('every violation class is flagged with its line', () => {
 test('allowlist: hairlines, zero, tap floors in min-*, media conditions', () => {
   const css = [
     '.a { border: 1px solid var(--md-sys-color-outline); }',
+    '.a2 { transform: translateY(-1px); }',          // ±1px hairline-class, any property
     '.b { top: 0px; }',
     '.c { min-height: 48px; min-width: 48px; }',
     '@media (width <= 768px) {',
@@ -43,7 +44,7 @@ test('allowlist: hairlines, zero, tap floors in min-*, media conditions', () => 
     '}',
   ].join('\n');
   const v = scanCss(css);
-  assert.deepEqual(v, [{ line: 5, kind: 'PX', match: '12px' }]);
+  assert.deepEqual(v, [{ line: 6, kind: 'PX', match: '12px' }]);
 });
 
 test('48px outside min-* properties is flagged', () => {

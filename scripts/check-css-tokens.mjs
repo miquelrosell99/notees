@@ -111,10 +111,10 @@ export function scanCss(rawContent) {
       for (const m of line.matchAll(/cubic-bezier\([^)]*\)/g)) {
         violations.push({ line: lineNo, kind: 'MOTION', match: m[0] });
       }
-      // PX (allowlist: 0px, 1px, 48px in a min-* declaration, media conditions already blanked)
+      // PX (allowlist: 0px, ±1px, 48px in a min-* declaration, media conditions already blanked)
       for (const m of line.matchAll(/(?<![-\w.])(-?\d+(?:\.\d+)?)px\b/gi)) {
         const px = parseFloat(m[0]);
-        if (px === 0 || px === 1) continue;
+        if (px === 0 || Math.abs(px) === 1) continue;
         // The 48px exemption is declaration-scoped: the match is exempt only
         // when the declaration it sits in — the text back to the nearest '{',
         // ';', or '}' — opens with a min-* property; a 48px in any other
