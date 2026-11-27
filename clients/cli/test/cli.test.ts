@@ -1089,7 +1089,11 @@ describe("source reading gestures", () => {
 
     expect(await h.runCli("--json", "source", "mark-read", id)).toBe(EXIT.ok);
     await h.runCli("--json", "object", "get", id);
-    let props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    let props = JSON.parse(h.io.stdoutText).object.properties as Array<{
+      schemaId: string;
+      value: unknown;
+      schemaName?: string;
+    }>;
     const bySchema = (schemaId: string) => props.filter((p) => p.schemaId === schemaId);
     expect(bySchema(tracker.estadoId)[0]?.value).toBe(tracker.options.get("Consumido"));
     expect(bySchema(tracker.estadoId)).toHaveLength(1);
@@ -1097,14 +1101,14 @@ describe("source reading gestures", () => {
     // Re-read: mark-read again — primera stays single (fill-once).
     expect(await h.runCli("--json", "source", "mark-read", id)).toBe(EXIT.ok);
     await h.runCli("--json", "object", "get", id);
-    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
-    const primera = props.filter((p) => typeof p.schemaName === "string" && p.schemaName === "Primera lectura");
+    props = JSON.parse(h.io.stdoutText).object.properties as typeof props;
+    const primera = props.filter((p) => p.schemaName === "Primera lectura");
     expect(primera).toHaveLength(1);
 
     // Abandon with a reason: the mirror date + the note block.
     expect(await h.runCli("--json", "source", "abandon", id, "--reason", "repetitivo")).toBe(EXIT.ok);
     await h.runCli("--json", "object", "get", id);
-    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown; schemaName?: string }>;
+    props = JSON.parse(h.io.stdoutText).object.properties as typeof props;
     expect(props.find((p) => p.schemaName === "Estado")?.value).toBe(tracker.options.get("Abandonado"));
     expect(props.filter((p) => p.schemaName === "Abandonado el")).toHaveLength(1);
     await h.runCli("--json", "object", "children", id);
@@ -1114,7 +1118,7 @@ describe("source reading gestures", () => {
     // Resume: Leyendo + the abandon mirror clears.
     expect(await h.runCli("--json", "source", "resume", id)).toBe(EXIT.ok);
     await h.runCli("--json", "object", "get", id);
-    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown; schemaName?: string }>;
+    props = JSON.parse(h.io.stdoutText).object.properties as typeof props;
     expect(props.find((p) => p.schemaName === "Estado")?.value).toBe(tracker.options.get("Leyendo"));
     expect(props.filter((p) => p.schemaName === "Abandonado el")).toHaveLength(0);
   });
