@@ -3589,6 +3589,9 @@ function readImportFile(filePath: string): string {
   }
 }
 
+/** Articles/prepositions dropped before title matching (EN + ES) — they overmatch. */
+const TITLE_STOPWORDS = new Set(["a", "an", "the", "of", "in", "on", "for", "and", "or", "to", "de", "del", "la", "el", "las", "los", "y", "en", "con", "por", "para", "un", "una", "al"]);
+
 /**
  * `notees import koreader <dir>` — the KOReader connector (docsettings
  * sidecars: reading state + highlights). The executable half of the
@@ -3664,8 +3667,11 @@ async function importKoreader(ctx: CommandContext, dir: string, options: { dryRu
   const skippedFiles = skipped;
   const report: Array<{ title: string; action: string }> = [];
 
+  // Hyphens/apostrophes JOIN words ("peri-implantitis" is ONE term — splitting
+  // it makes components overmatch across different works); other punctuation
+  // separates.
   const norm = (s: string): string =>
-    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[-']/g, "").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
   const findBook = async (title: string): Promise<string | null> => {
     const words = norm(title).split(" ").slice(0, 6).join(" ");
     if (words === "") return null;
@@ -3675,16 +3681,16 @@ async function importKoreader(ctx: CommandContext, dir: string, options: { dryRu
     for (const object of body.objects as Array<{ id: string; name?: string | null }>) {
       const candidate = norm(object.name ?? "");
       if (candidate === "") continue;
-      // Containment, not length ratio: similar-length non-matches (highlight
-      // marker blocks, unrelated titles) must NOT score — only exact titles
-      // or one containing the other (subtitle/edition variants) qualify.
-      const score =
-        target === candidate
-          ? 1
-          : target.length > 0 && candidate.length > 0 && (candidate.includes(target) || target.includes(candidate))
-            ? Math.min(target.length, candidate.length) / Math.max(target.length, candidate.length)
-            : 0;
-      if (score >= 0.6 && (best === null || score > best.score)) best = { id: object.id, score };
+      // Word-containment over CONTENT words (stopwords dropped — "of"/"de"
+      // overmatch across unrelated titles): every target word present in the
+      // candidate wins (author suffixes still match); similar-length unrelated
+      // strings (highlight marker blocks) share few content words and fail.
+      const targetWords = new Set(target.split(" ").filter((w) => !TITLE_STOPWORDS.has(w)));
+      const candidateWords = new Set(candidate.split(" "));
+      let hits = 0;
+      for (const word of targetWords) if (candidateWords.has(word)) hits += 1;
+      const score = targetWords.size === 0 ? 0 : hits / targetWords.size;
+      if (score >= 0.75 && (best === null || score > best.score)) best = { id: object.id, score };
     }
     return best?.id ?? null;
   };

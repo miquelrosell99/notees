@@ -18,6 +18,7 @@ import { AppError } from "./errors.js";
 import { IdempotencyStore } from "./idempotency.js";
 import { FixedWindowLimiter } from "./rate-limit.js";
 import { RelayStorage } from "./relay-storage.js";
+import { KosyncStorage } from "./routes-kosync.js";
 import { PluginRegistry } from "./routes-plugins.js";
 import { ResolveCache } from "./resolve-source.js";
 import { seedWorkspace, type SeedResult } from "./seed.js";
@@ -41,6 +42,8 @@ export class ServerContext {
   readonly auth: AuthStorage;
   /** The inert plugin-manifest registry (runtime parked). */
   readonly plugins: PluginRegistry;
+  /** KOReader progress-sync (kosync) credentials + progress rows. */
+  readonly kosync: KosyncStorage;
   /** Read-only public share tokens (server coordination). */
   readonly shares: ShareStorage;
   /** One-way iCal calendar subscriptions (server coordination — the shares ruling). */
@@ -95,6 +98,7 @@ export class ServerContext {
     );
     this.auth = new AuthStorage(`${config.dataDir}/relay.db`);
     this.plugins = new PluginRegistry(`${config.dataDir}/relay.db`);
+    this.kosync = new KosyncStorage(`${config.dataDir}/relay.db`);
     this.shares = new ShareStorage(`${config.dataDir}/relay.db`);
     this.calendars = new CalendarSubscriptionStorage(`${config.dataDir}/relay.db`);
     this.externalRefs = new ExternalRefStorage(`${config.dataDir}/relay.db`);

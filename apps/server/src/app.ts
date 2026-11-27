@@ -29,6 +29,7 @@ import { registerAdminRoutes } from "./routes-admin.js";
 import { registerIdempotencyHooks } from "./idempotency.js";
 import { registerAuthRoutes, resolvePrincipal } from "./routes-auth.js";
 import { registerCaptureRoutes } from "./routes-capture.js";
+import { registerKosyncRoutes } from "./routes-kosync.js";
 import { registerCalendarRoutes } from "./routes-calendars.js";
 import { CalendarPoller } from "./calendar-subscriptions.js";
 import { registerFeatureRoutes } from "./routes-features.js";
@@ -188,6 +189,7 @@ export async function buildServer(
       registerAuthRoutes(api, ctx);
       registerPrefsRoutes(api, ctx);
       registerSectionViewRoutes(api, ctx);
+      registerKosyncRoutes(api, ctx);
     },
     { prefix: "/api" },
   );

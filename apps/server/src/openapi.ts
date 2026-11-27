@@ -726,6 +726,42 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
 
   // --- search & query -------------------------------------------------------------------
 
+  ["get", "/api/kosync/healthcheck", {
+    summary: "KOReader Progress Sync (kosync) health check",
+    description: "Device-facing kosync endpoint — answers { state: \"OK\" } unauthenticated (KOReader pings it when validating a custom sync server). Part of the KOReader connector: the device points Progress sync → Custom sync server at `<server>/api/kosync`.",
+    tags: ["KOReader Sync"],
+  }],
+  ["get", "/api/kosync/health", {
+    summary: "KOReader sync health check (alternate spelling)",
+    description: "The community-variant health route ({ status: \"ok\" }); some kosync clients ping /health instead of /healthcheck.",
+    tags: ["KOReader Sync"],
+  }],
+  ["post", "/api/kosync/users/create", {
+    summary: "Register kosync credentials (Notees-side gesture)",
+    description: "Creates the device credential { username, password } the KOReader device later LOGS IN with (x-auth-user / x-auth-key headers; the key rides as KOReader sends it — md5(password) — stored verbatim). REQUIRES Notees auth: registration happens inside Notees (settings UI or an authenticated call); the device's Register button answers 403 with this pointer. 409 when the username is taken. The credential binds to the caller's workspace (x-workspace-id header or the default).",
+    tags: ["KOReader Sync"],
+    requiredScope: "admin",
+  }],
+  ["get", "/api/kosync/users/auth", {
+    summary: "Validate kosync credentials",
+    description: "Device-facing: validates x-auth-user / x-auth-key against the registered credential → 200 / 401.",
+    tags: ["KOReader Sync"],
+  }],
+  ["put", "/api/kosync/syncs/progress", {
+    summary: "Upsert reading progress (KOReader device)",
+    description: "Device-facing kosync PUT: { document (partial-md5 hex), progress (xpath/percent), percentage 0..1, device, device_id, metadata? { filename, title, authors } }. Server-stamped LWW timestamp (clients send none). Best-effort mirror onto the workspace's reading-tracker properties when the metadata title matches a source node: percentage ≥ 0.99 → Estado Consumido + Primera/Última lectura (primera fill-once) on the day chain; otherwise Leyendo + Última lectura — never blocks the sync response. Unmatched documents store progress regardless (the table is the durability boundary).",
+    tags: ["KOReader Sync"],
+  }],
+  ["get", "/api/kosync/syncs/progress/:document", {
+    summary: "Fetch reading progress (KOReader device)",
+    description: "Device-facing: the stored record for the document → 200 / 404.",
+    tags: ["KOReader Sync"],
+  }],
+  ["get", "/api/kosync/syncs/documents", {
+    summary: "List synced documents (dashboards)",
+    description: "Every document for the credential, newest first (unused by the KOReader client — dashboard surface).",
+    tags: ["KOReader Sync"],
+  }],
   ["get", "/api/resolve", {
     summary: "Resolve a node id from its exact display name, OR source metadata from an identifier (DOI / ISBN / arXiv / PMID / ADS bibcode)",
     description:
