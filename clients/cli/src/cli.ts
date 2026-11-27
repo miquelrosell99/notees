@@ -67,6 +67,7 @@ import {
 import { ApiClient } from "./client.js";
 import { expandAssetInputs, uploadAssetFile, assertObjectExists } from "./assets-lib.js";
 import { parseCslJson } from "./csl-json.js";
+import { parseKoreaderSidecar } from "./koreader.js";
 import { CliError, EXIT } from "./exit-codes.js";
 import { openLocalWorkspace, type LocalWorkspace } from "./local-workspace.js";
 import {
@@ -2198,7 +2199,7 @@ async function runWordServe(command: Command, options: { port?: string; restart?
 }
 
 /** CLI release version — aligned with the server release train. */
-const CLI_VERSION = "4.6.5";
+const CLI_VERSION = "4.6.6";
 
 /** "3.0.0-m1" → [3, 0] (major, minor) for the drift comparison. */
 function versionMajorMinor(version: string): [number, number] {
@@ -3626,7 +3627,6 @@ async function importKoreader(ctx: CommandContext, dir: string, options: { dryRu
     throw new CliError(EXIT.domain, `no .lua docsettings sidecars found under ${dir}`);
   }
 
-  const { parseKoreaderSidecar } = await import("./koreader.js");
   const books = [];
   const skipped: Array<{ file: string; error: string }> = [];
   for (const file of luaFiles) {

@@ -6,6 +6,9 @@ goes; those stay static guidance. Before implementing a change, skim this
 file for recent related work. Anything before 2026-10-06 lives in git
 history.
 
+- **fix(release): cli-v4.6.6 — the bundle is single-file again (4.6.5's dynamic `import("./koreader.js")` split a chunk the release assets/PKGBUILD don't carry).** The pacman smoke caught it (`ERR_MODULE_NOT_FOUND: chunk-HYC62CK3.js`, the pipeline doing its job); the import is static now (the module is pure), the build verifies one artifact, and the never-re-tag law makes this the patch. `CLI_VERSION` 4.6.5 → 4.6.6; PKGBUILD hash re-recorded. **Verification**: `ls dist` = one file, `cli.js` carries zero chunk imports, `--version` 4.6.6, suite green (328).
+  - Files: `src/cli.ts` (import + CLI_VERSION), `packaging/arch/PKGBUILD`, `CHANGELOG.md`.
+
 ## 2026-11-27
 
 - **chore(release): cli-v4.6.5 — the KOReader connector and the reading-tracker gestures.** Since 4.6.4: `notees import koreader <dir>` syncs a KOReader docsettings folder (reading state onto the tracker's Estado/fechas properties + idempotent highlight blocks), and `notees source mark-read|resume|abandon <id>` carry the tracker gestures (`--reason` lands the abandon note block). `CLI_VERSION` 4.6.4 → 4.6.5; the PKGBUILD records the 4.6.5 bundle hash.
