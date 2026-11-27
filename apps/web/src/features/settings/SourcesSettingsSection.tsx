@@ -53,6 +53,7 @@ import {
   DEFAULT_CITEKEY_PATTERN,
   compileCitekeyPattern,
 } from "../sources/citekey.js";
+import { ensureReadingTracker } from "../sources/readingTracker.js";
 
 import "./SourcesSettingsSection.css";
 
@@ -73,6 +74,8 @@ const SOURCE_TYPE_CLASS_ROSTER = Object.keys(SYSTEM_SOURCE_CLASS_BINDINGS) as Sy
 export interface SourcesFeatureSettings {
   citekeyPattern: string | undefined;
   resolverEnabled: boolean;
+  /** The reading tracker (proposal 2026-11-26): off unless explicitly enabled. */
+  readingTracker: boolean;
 }
 
 function readSourcesSettings(
@@ -85,6 +88,7 @@ function readSourcesSettings(
     // The server gate's default is ON (an absent row/key allows) — the
     // toggle mirrors that contract, not an absent-means-off reading.
     resolverEnabled: settings.resolverEnabled !== false,
+    readingTracker: settings.readingTracker === true,
   };
 }
 
@@ -130,6 +134,20 @@ export function SourcesSettingsSection({
     setDraft(trimmed);
     setCommitted(trimmed);
     writeSettings({ citekeyPattern: trimmed });
+  };
+
+  const toggleReadingTracker = (next: boolean) => {
+    if (next) {
+      // The seed rides the same gesture (idempotent) BEFORE the toggle
+      // flips, so the vocabulary exists the moment the UI surfaces read it.
+      void ensureReadingTracker(client)
+        .then(() => writeSettings({ readingTracker: true }))
+        .catch((error: unknown) => {
+          console.warn("[sources] reading-tracker seed failed:", error);
+        });
+    } else {
+      writeSettings({ readingTracker: false });
+    }
   };
 
   const toggleClass = (name: SystemClassName, next: boolean) => {
@@ -209,6 +227,24 @@ export function SourcesSettingsSection({
           }
           checked={settings.resolverEnabled}
           onChange={(checked) => writeSettings({ resolverEnabled: checked })}
+          labelPosition="left"
+        />
+      </div>
+
+      <div className="settings-item">
+        <BooleanToggle
+          label="Reading tracker"
+          description={
+            <>
+              Track reading state on every source — Pendiente / Leyendo / Consumido / Abandonado plus
+              first- and last-read dates (an abandon date rides the state and clears on resume). Enabling
+              creates the four properties once (scoped to the source family); turning it off keeps your
+              data and hides the surfaces. KOReader devices can sync straight into it (Progress sync →
+              custom server).
+            </>
+          }
+          checked={settings.readingTracker}
+          onChange={toggleReadingTracker}
           labelPosition="left"
         />
       </div>

@@ -3848,6 +3848,77 @@ interface ResolverRecord {
  * publication date rides the year date-chain node, the import's
  * ensure-then-link idiom. `--dry-run` reports the plan and writes nothing.
  */
+/**
+ * `notees source mark-read|resume|abandon <id>` — the reading-tracker
+ * gestures (the web detail pane's CLI twin): Estado LWW + the dates per
+ * their semantics (primera fill-once, última overwrite, abandonado-el
+ * mirror), resolved by schema NAME (the tracker is opt-in vocabulary —
+ * absent schemas fail loud naming the fix). `abandon --reason <text>` lands
+ * the why as a note block under the source (content, not a property).
+ */
+async function sourceReadingGesture(
+  ctx: CommandContext,
+  id: string,
+  gesture: "mark-read" | "resume" | "abandon",
+  options: { reason?: string },
+): Promise<void> {
+  const estado = await resolvePropertySchemaRef(ctx, "Estado").catch(() => null);
+  if (estado === null) {
+    throw new CliError(EXIT.domain, "the reading tracker is not set up in this workspace — enable it in Sources settings (or create the 'Estado' property)");
+  }
+  const estadoSchema = await ctx.client.getJson<{ propertySchema: { options?: Array<{ id: string; label: string }> } }>(
+    `/api/property-schemas/${estado.id}`,
+  );
+  const optionOf = (label: string): string | undefined =>
+    estadoSchema.propertySchema.options?.find((o) => o.label === label)?.id;
+  const targetLabel = gesture === "mark-read" ? "Consumido" : gesture === "resume" ? "Leyendo" : "Abandonado";
+  const optionId = optionOf(targetLabel);
+  if (optionId === undefined) {
+    throw new CliError(EXIT.domain, `the Estado select has no ${JSON.stringify(targetLabel)} option`);
+  }
+  const local = await ctx.local();
+  const object = await getFullObject(ctx, id);
+  if (sourceClassOf(object.classIds) === undefined) {
+    throw new CliError(EXIT.domain, `node ${id} carries no source class — the reading tracker is for library sources`);
+  }
+  const held = new Set(
+    fullPropertiesOf(object)
+      .filter((p) => typeof p.value === "string" && p.value.length > 0 || (typeof p.value === "object" && p.value !== null))
+      .map((p) => p.schemaId),
+  );
+  await setProperty(ctx, id, estado.id, optionId);
+  const today = todayIsoLocal();
+  const clearAbandon = async (): Promise<void> => {
+    const abandonId = await resolvePropertySchemaRef(ctx, "Abandonado el").then((s) => s.id).catch(() => null);
+    if (abandonId !== null && held.has(abandonId)) await local.unsetProperty(id, abandonId, 0);
+  };
+  if (gesture === "resume") {
+    await clearAbandon();
+  } else {
+    const ref = await ensureDateChainRef(ctx, today, "day");
+    if (gesture === "abandon") {
+      const abandonId = await resolvePropertySchemaRef(ctx, "Abandonado el").then((s2) => s2.id).catch(() => null);
+      if (abandonId !== null) await setProperty(ctx, id, abandonId, ref);
+      const reason = options.reason?.trim() ?? "";
+      if (reason !== "") {
+        await local.createObject({
+          isEmbedded: true,
+          parentId: id,
+          contentAst: [{ type: "text", text: `Abandonado: ${reason}` }],
+        });
+      }
+    } else {
+      const ultimaId = await resolvePropertySchemaRef(ctx, "Última lectura").then((s2) => s2.id).catch(() => null);
+      if (ultimaId !== null) await setProperty(ctx, id, ultimaId, ref);
+      const primeraId = await resolvePropertySchemaRef(ctx, "Primera lectura").then((s2) => s2.id).catch(() => null);
+      if (primeraId !== null && !held.has(primeraId)) await setProperty(ctx, id, primeraId, ref);
+      await clearAbandon();
+    }
+  }
+  await warnIfPushPending(ctx, local);
+  emit(ctx, `${targetLabel} → ${deriveDisplayName(object) ?? id}\n`, { nodeId: id, state: targetLabel });
+}
+
 async function fetchSourceMetadata(
   ctx: CommandContext,
   id: string,
@@ -5982,6 +6053,21 @@ function buildProgram(): Command {
     });
 
   const sourceCmd = program.command("source").description("source-library operations");
+  for (const gesture of ["mark-read", "resume", "abandon"] as const) {
+    sourceCmd
+      .command(`${gesture} <id>`)
+      .description(
+        gesture === "mark-read"
+          ? "mark the source read: Estado Consumido + Primera lectura (fill-once) + Última lectura (overwrite)"
+          : gesture === "resume"
+            ? "mark the source as reading now: Estado Leyendo, clears the abandon date (read dates survive)"
+            : "abandon the source: Estado Abandonado + Abandonado el (--reason lands a note block)",
+      )
+      .option("--reason <text>", "abandon only: the why — lands as a note block under the source", undefined)
+      .action(async (id: string, options: { reason?: string }, command: Command) => {
+        await sourceReadingGesture(ctxOf(command), id, gesture, options);
+      });
+  }
   sourceCmd
     .command("fetch-metadata <id>")
     .description(

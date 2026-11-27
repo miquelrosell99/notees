@@ -67,6 +67,13 @@ import {
   planIsEmpty,
   sourceIdentifierOf,
 } from "./fetchMetadataFill.js";
+import {
+  ensureReadingTracker,
+  readingStateOf,
+  readingTrackerEnabled,
+  setReadingState,
+  type ReadingState,
+} from "./readingTracker.js";
 import { sourceTypeKey } from "./sourcesQuery.js";
 import "./SourcesDetail.css";
 
@@ -90,6 +97,8 @@ export function SourcesDetail({
   const [titleEditing, setTitleEditing] = useState(false);
   /** The latched delete-confirm target (the node-menu latch idiom). */
   const [pendingDelete, setPendingDelete] = useState<{ id: string; label: string } | null>(null);
+  /** The reading-tracker abandon reason draft (null = the abandon row is closed). */
+  const [abandonDraft, setAbandonDraft] = useState<string | null>(null);
   /** The Fetch-metadata resolver round: busy latch + outcome/error note. */
   const [fetchingMetadata, setFetchingMetadata] = useState(false);
   const [fetchNote, setFetchNote] = useState<{ kind: "outcome" | "error"; text: string } | null>(null);
@@ -132,6 +141,32 @@ export function SourcesDetail({
 
   const schemaNameOf = (schemaId: string): string =>
     client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? schemaId;
+
+  // Reading-tracker gestures (Phase 2): enabled by the Sources settings
+  // toggle; the reading rows themselves render via the shared properties
+  // panel (the seeded bindings are class-bound).
+  const trackerOn = readingTrackerEnabled(client);
+  const readingState = trackerOn ? readingStateOf(client, node.id) : null;
+
+  const mark = async (state: ReadingState): Promise<void> => {
+    await ensureReadingTracker(client);
+    await setReadingState(client, node.id, state);
+  };
+
+  const abandon = async (reason: string): Promise<void> => {
+    await mark("abandonado");
+    const text = reason.trim();
+    if (text !== "") {
+      // The why is content, not a property: a one-line note block in the
+      // owner's convention.
+      await client.createObject({
+        isEmbedded: true,
+        parentId: node.id,
+        contentAst: [{ type: "text", text: `Abandonado: ${text}` }],
+      });
+    }
+    setAbandonDraft(null);
+  };
 
   const fetchMetadata = async (): Promise<void> => {
     if (fetchingMetadata) return;
@@ -236,6 +271,59 @@ export function SourcesDetail({
         >
           {fetchNote.text}
         </p>
+      )}
+
+      {trackerOn && (
+        <div className="nt-sources-detail__row nt-sources-detail__reading" role="group" aria-label="Reading state">
+          <span className="nt-sources-detail__type">
+            {readingState === null
+              ? "Sin estado"
+              : readingState === "pendiente"
+                ? "Pendiente"
+                : readingState === "leyendo"
+                  ? "Leyendo"
+                  : readingState === "consumido"
+                    ? "Consumido"
+                    : "Abandonado"}
+          </span>
+          <span className="nt-sources-detail__spacer" />
+          {readingState !== "consumido" && (
+            <Button variant="ghost" size="sm" onClick={() => void mark("consumido")} title="Mark read (sets both read dates)">
+              Mark read
+            </Button>
+          )}
+          {readingState !== "leyendo" && (
+            <Button variant="ghost" size="sm" onClick={() => void mark("leyendo")} title="Mark as reading now">
+              Reading
+            </Button>
+          )}
+          {abandonDraft === null ? (
+            <Button variant="ghost" size="sm" onClick={() => setAbandonDraft("")} title="Abandon (optionally with a reason note)">
+              Abandon
+            </Button>
+          ) : (
+            <span className="nt-sources-detail__abandon">
+              <TextField
+                size="sm"
+                autoFocus
+                value={abandonDraft}
+                onChange={(event) => setAbandonDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void abandon(event.currentTarget.value);
+                  if (event.key === "Escape") setAbandonDraft(null);
+                }}
+                placeholder="Why (optional) — becomes a note block"
+                aria-label="Abandon reason"
+              />
+              <Button variant="outline" size="sm" onClick={() => void abandon(abandonDraft)}>
+                Confirm
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setAbandonDraft(null)}>
+                Cancel
+              </Button>
+            </span>
+          )}
+        </div>
       )}
 
       {/* The type-aware field set: the shared metadata panel over the

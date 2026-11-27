@@ -53,6 +53,14 @@ The Sources section under the workspace feature toggles:
 
 Every settings change is one write to the feature row, so the keys never clobber each other — and a family toggle off/on keeps them (the row is one whole-row unit; turning Sources off hides the family's surfaces, instances keep their data).
 
+## The reading tracker
+
+An opt-in Sources-settings toggle ("Reading tracker") adds four properties to the whole source family: **`Estado`** (select — Pendiente / Leyendo / Consumido / Abandonado, exclusive by construction, shown in node rows) and three day-precision dates — **`Primera lectura`** (set on the first completion, never overwritten: ever-read can never be erased), **`Última lectura`** (set on every completion), and **`Abandonado el`** (set on abandon, cleared on resume — a mirror of the state, never a stale date on a finished book). Consumido means *finished*, always; an abandon never wears the done badge, and the *why* is content, not a property — a one-line note block under the source. Enabling seeds the four schemas once (fixed ids, scoped to the source family, bound on `source` so all 39 type-classes inherit); turning the toggle off keeps the data and hides the surfaces.
+
+- **Sources hub detail pane**: the seeded rows render through the shared metadata panel; the gesture row offers Mark read / Reading / Abandon (with an optional reason) with the dates' write semantics (fill-once primera, overwrite última, mirror abandon date).
+- **CLI**: `notees source mark-read|resume|abandon <id>` (`--reason` lands the note block), and `notees source fetch-metadata`'s sibling gestures.
+- **KOReader**: Notees is a kosync server — point the device's Progress sync → Custom sync server at `<server>/api/kosync` and register the credential in Notees (Settings); pushes mirror onto the tracker when the book's metadata title matches a source, and `notees import koreader <dir>` syncs a docsettings folder's reading state + highlights (idempotent quote blocks with the `KOReader ·` marker convention).
+
 ## Export: .bib and CSL-JSON
 
 The export dialog registers **BibTeX (.bib)** and **CSL JSON** beside the other formats. Both are one document over the whole selection — every source-classed node becomes one entry, batch included, deduplicated by node id; body blocks are content, never entries. Entries project through the same dual-track read everywhere ([exporting.md](exporting.md)): `authors` first, `linkedAuthors`-derived names when empty, the type's venue fields through its Zotero bindings. The LaTeX export's bibliography reads the same contract.

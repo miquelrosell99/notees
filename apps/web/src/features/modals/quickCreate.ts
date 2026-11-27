@@ -1088,6 +1088,8 @@ export interface SourceSettingsSnapshot {
    * key is the server default ON — only an explicit `false` disables.
    */
   resolverEnabled: boolean;
+  /** The reading tracker (proposal 2026-11-26): off unless explicitly enabled. */
+  readingTracker: boolean;
 }
 
 /**
@@ -1107,6 +1109,7 @@ export function readSourceSettings(client: AnyClient): SourceSettingsSnapshot {
     citekeyPattern: typeof settings.citekeyPattern === "string" ? settings.citekeyPattern : undefined,
     sourcesEnabled: row === undefined || row.enabled !== false,
     resolverEnabled: settings.resolverEnabled !== false,
+    readingTracker: settings.readingTracker === true,
   };
 }
 

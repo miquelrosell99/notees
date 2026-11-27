@@ -7,6 +7,9 @@ file for recent related work. Anything before 2026-10-06 lives in git
 history.
 
 ## 2026-11-26
+- **feat(source): the reading-tracker gestures — `notees source mark-read|resume|abandon <id>` (`--reason` lands the abandon note block), the web detail pane's CLI twin.** Estado LWW + Primera fill-once / Última overwrite / Abandonado-el mirror, resolved by name, failing loud when the tracker is absent. **Verification**: the gesture spec + full suite green (328).
+  - Files: `src/cli.ts`, `test/cli.test.ts`, `CHANGELOG.md`.
+
 
 - **feat(import): `notees import koreader <dir>` — the KOReader connector.** KOReader docsettings sidecars (`.metadata.lua`) sync two ways: reading state (status/last-read onto the workspace's `Estado`/`Primera lectura`/`Última lectura`/`Abandonado el` properties when present, skipped with a count otherwise) and highlights (idempotent quote blocks with the `KOReader ·` marker convention under the book sources, matched/created by title). The importer manifest rides the plugin registry (`dev.miquelrosell.notees.koreader-sync`, installed + enabled) — the runtime stays parked; the CLI command is the executable half. **Verification**: the koreader suite (2) + full suite green (326); typecheck clean.
   - Files: `src/koreader.ts` (new), `src/cli.ts`, `test/cli.test.ts`, `README.md`, `CHANGELOG.md`.

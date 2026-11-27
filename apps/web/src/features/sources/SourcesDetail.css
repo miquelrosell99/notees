@@ -49,3 +49,13 @@
 .nt-sources-detail__fetch-note--error {
   color: var(--md-sys-color-error);
 }
+
+.nt-sources-detail__reading {
+  margin-top: var(--spacing-1);
+}
+
+.nt-sources-detail__abandon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}

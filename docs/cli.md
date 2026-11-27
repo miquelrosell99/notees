@@ -209,6 +209,23 @@ local cursor: seq 0 — 54 behind
 
 Useful supporting commands: `notees object list --isEmbedded --q <text> --limit 20 --cursor <id>` (add `--all` to follow the cursor to exhaustion; `--parent <id>` and `--trashed` filter direct children and the trash), `notees object get <id>` (`--ids <uuid…>` fetches many, in order), `notees object children <id>`, `notees object restore <id>…`, `notees object property set|delete <id> <schema> <value> [--idx N]`, `notees object update <id> --name … --isEmbedded|--no-isEmbedded --icon … --color …` (`--color` takes a preset token — `red orange yellow green teal sky blue purple pink gray` — or a custom `#RRGGBB` hex; `--color none` clears; this is also promotion/demotion — flipping the embedding flag in place, identity and links intact; see [features/pages.md](features/pages.md#promotion-and-demotion)), and `notees ops [opType]` — the operation catalog (one-line description, example payload, affected-node shape per op) that backs the shell's `submitOp`.
 
+## Reading tracker + KOReader
+
+With the Sources settings "Reading tracker" on, sources carry `Estado` (Pendiente / Leyendo / Consumido / Abandonado) and first/last-read dates:
+
+```bash
+notees source mark-read <id>                 # Consumido + both read dates (primera fill-once, última overwrite)
+notees source abandon <id> --reason "…"      # Abandonado + the date; the reason lands as a note block
+notees source resume <id>                    # Leyendo; clears the abandon date, the read dates survive
+notees source fetch-metadata <id>            # resolve the DOI/PMID and fill the empty fields (Notees-wins)
+```
+
+KOReader feeds it two ways: the device syncs progress straight in (Progress sync → Custom sync server → `<server>/api/kosync`, credentials registered in Notees Settings), or a docsettings folder syncs offline:
+
+```bash
+notees import koreader /path/to/koreader-docsettings   # reading state + highlights (idempotent)
+```
+
 ## Use cases
 
 **Seeding a class from a dataset** — build a JSON array of create bodies and import it in one process with `object create --batch` (the 1,025-species Pokédex imports in about a minute). Each entry is exactly one `POST /api/objects` body — `name`/`contentAst`, `parentId`, `isEmbedded`, `classIds`:

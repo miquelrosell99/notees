@@ -40,6 +40,11 @@ import {
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { SourcesHub } from "../src/features/sources/SourcesHub.js";
 import { registerResolveCoordinates } from "../src/features/sources/resolveCoordinates.js";
+import {
+  ensureReadingTracker,
+  READING_TRACKER,
+  readingStateOf,
+} from "../src/features/sources/readingTracker.js";
 import { DEFAULT_SOURCES_QUERY } from "../src/features/sources/sourcesQuery.js";
 
 const WS = "0192b000-0000-7000-8000-00000000d001";
@@ -324,6 +329,70 @@ describe("SourcesDetail — the type-aware detail editor", () => {
     expect(
       within(detailPane()).getByRole("heading", { name: "On the Analytical Engine" }),
     ).not.toBeNull();
+  });
+});
+
+describe("SourcesDetail — the reading tracker (settings-seeded gestures)", () => {
+  it("the gestures write the state and dates with their semantics; abandon takes an optional reason note", async () => {
+    const { client, items } = await seedClient();
+    await ensureReadingTracker(client);
+    await client.setFeatureSettings("sources", { readingTracker: true });
+    renderHub(client);
+    await rowsReady();
+    await selectRow(client, items.journal);
+
+    const pane = detailPane();
+    expect(within(pane).getByText("Sin estado")).not.toBeNull();
+
+    // Mark read: Consumido + both dates (primera fill-once, última overwrite).
+    fireEvent.click(within(pane).getByRole("button", { name: "Mark read" }));
+    await waitFor(() => {
+      expect(readingStateOf(client, items.journal)).toBe("consumido");
+    });
+    // Authored rows only — the schemas stay bound after a clear, and the
+    // effective read synthesizes bound-but-empty rows that must not count.
+    const bySchema = (id: string) =>
+      client
+        .getEffectiveProperties(items.journal)
+        .filter((r) => r.propertySchemaId === id && r.source === "authored");
+    expect(bySchema(READING_TRACKER.primeraLectura).length).toBe(1);
+    expect(bySchema(READING_TRACKER.ultimaLectura).length).toBe(1);
+
+    // Abandon with a reason: state + mirror date + the note block child.
+    fireEvent.click(within(pane).getByRole("button", { name: "Abandon" }));
+    fireEvent.change(within(pane).getByLabelText("Abandon reason"), {
+      target: { value: "no aguanté el capítulo 5" },
+    });
+    fireEvent.click(within(pane).getByRole("button", { name: "Confirm" }));
+    await waitFor(() => {
+      expect(readingStateOf(client, items.journal)).toBe("abandonado");
+    });
+    expect(bySchema(READING_TRACKER.abandonadoEl).length).toBe(1);
+    await waitFor(() => {
+      const kids = client.getChildren(items.journal) as Array<{ id: string }>;
+      const texts = kids.map((k) => {
+        const node = client.getNode(k.id);
+        const token = (node?.contentAst ?? [])[0] as { text?: string } | undefined;
+        return token?.text ?? null;
+      });
+      expect(texts).toContain("Abandonado: no aguanté el capítulo 5");
+    });
+
+    // Resume: Leyendo + the abandon mirror clears; the read dates survive.
+    fireEvent.click(within(pane).getByRole("button", { name: "Reading" }));
+    await waitFor(() => {
+      expect(readingStateOf(client, items.journal)).toBe("leyendo");
+    });
+    expect(bySchema(READING_TRACKER.abandonadoEl).length).toBe(0);
+    expect(bySchema(READING_TRACKER.primeraLectura).length).toBe(1);
+  });
+
+  it("the gestures render nothing while the tracker is off", async () => {
+    const { client, items } = await seedClient();
+    renderHub(client);
+    await rowsReady();
+    await selectRow(client, items.journal);
+    expect(within(detailPane()).queryByRole("button", { name: "Mark read" })).toBeNull();
   });
 });
 

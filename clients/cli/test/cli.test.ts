@@ -1057,6 +1057,76 @@ describe("bibliography round-trip (bibtex)", () => {
   });
 });
 
+describe("source reading gestures", () => {
+  async function seedTracker(h: typeof harness): Promise<{ estadoId: string; options: Map<string, string> }> {
+    // Find-or-create: the shared test workspace may already carry an Estado
+    // from an earlier suite — a second schema would make the name-resolution
+    // ambiguous (the command resolves by name, first wins).
+    let estadoId: string;
+    if ((await h.runCli("--json", "property", "get", "Estado")) === EXIT.ok) {
+      estadoId = (JSON.parse(h.io.stdoutText).propertySchema as { id: string }).id;
+    } else {
+      expect(await h.runCli("--json", "property", "create", "Estado", "--type", "select",
+        "--option", "Pendiente", "--option", "Leyendo", "--option", "Consumido", "--option", "Abandonado")).toBe(EXIT.ok);
+      estadoId = (JSON.parse(h.io.stdoutText).propertySchema as { id: string }).id;
+    }
+    for (const name of ["Primera lectura", "Última lectura", "Abandonado el"]) {
+      if ((await h.runCli("property", "get", name)) !== EXIT.ok) {
+        expect(await h.runCli("property", "create", name, "--type", "datetime")).toBe(EXIT.ok);
+      }
+    }
+    await h.runCli("--json", "property", "get", "Estado");
+    const options = new Map(
+      ((JSON.parse(h.io.stdoutText).propertySchema as { options: Array<{ id: string; label: string }> }).options).map((o) => [o.label, o.id]),
+    );
+    return { estadoId, options };
+  }
+
+  it("mark-read / abandon / resume write the state and dates with their semantics", async () => {
+    const h = harness;
+    const tracker = await seedTracker(h);
+    const id = await h.seedObject("Hábitos atómicos, de James Clear", [SYSTEM_CLASS_UUIDS.book]);
+
+    expect(await h.runCli("--json", "source", "mark-read", id)).toBe(EXIT.ok);
+    await h.runCli("--json", "object", "get", id);
+    let props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    const bySchema = (schemaId: string) => props.filter((p) => p.schemaId === schemaId);
+    expect(bySchema(tracker.estadoId)[0]?.value).toBe(tracker.options.get("Consumido"));
+    expect(bySchema(tracker.estadoId)).toHaveLength(1);
+
+    // Re-read: mark-read again — primera stays single (fill-once).
+    expect(await h.runCli("--json", "source", "mark-read", id)).toBe(EXIT.ok);
+    await h.runCli("--json", "object", "get", id);
+    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown }>;
+    const primera = props.filter((p) => typeof p.schemaName === "string" && p.schemaName === "Primera lectura");
+    expect(primera).toHaveLength(1);
+
+    // Abandon with a reason: the mirror date + the note block.
+    expect(await h.runCli("--json", "source", "abandon", id, "--reason", "repetitivo")).toBe(EXIT.ok);
+    await h.runCli("--json", "object", "get", id);
+    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown; schemaName?: string }>;
+    expect(props.find((p) => p.schemaName === "Estado")?.value).toBe(tracker.options.get("Abandonado"));
+    expect(props.filter((p) => p.schemaName === "Abandonado el")).toHaveLength(1);
+    await h.runCli("--json", "object", "children", id);
+    const children = JSON.parse(h.io.stdoutText).children as Array<{ name: string | null }>;
+    expect(children.some((c) => c.name === "Abandonado: repetitivo")).toBe(true);
+
+    // Resume: Leyendo + the abandon mirror clears.
+    expect(await h.runCli("--json", "source", "resume", id)).toBe(EXIT.ok);
+    await h.runCli("--json", "object", "get", id);
+    props = JSON.parse(h.io.stdoutText).object.properties as Array<{ schemaId: string; value: unknown; schemaName?: string }>;
+    expect(props.find((p) => p.schemaName === "Estado")?.value).toBe(tracker.options.get("Leyendo"));
+    expect(props.filter((p) => p.schemaName === "Abandonado el")).toHaveLength(0);
+  });
+
+  it("fails loud without the tracker vocabulary and on non-sources", async () => {
+    const h = harness;
+    const id = await h.seedObject("Plain Page", []);
+    expect(await h.runCli("source", "mark-read", id)).toBe(EXIT.domain);
+    expect(h.io.stderrText).toMatch(/Estado|source class/);
+  });
+});
+
 describe("import koreader (reading state + highlights)", () => {
   const FINISHED_LUA = `return {
     ["annotations"] = {
@@ -1096,11 +1166,20 @@ describe("import koreader (reading state + highlights)", () => {
   const BROKEN_LUA = `return { ["annotations"] = { [1] = { ["text"] = "unterminated `;
 
   async function seedTracker(h: typeof harness): Promise<{ estadoId: string; consumido: string; leyendo: string }> {
-    expect(await h.runCli("--json", "property", "create", "Estado", "--type", "select",
-      "--option", "Pendiente", "--option", "Leyendo", "--option", "Consumido", "--option", "Abandonado")).toBe(EXIT.ok);
-    const estadoId = (JSON.parse(h.io.stdoutText) as { id: string }).id;
+    // Find-or-create — a prior suite in the shared workspace may have seeded
+    // the vocabulary already; a duplicate would make name-resolution ambiguous.
+    let estadoId: string;
+    if ((await h.runCli("--json", "property", "get", "Estado")) === EXIT.ok) {
+      estadoId = (JSON.parse(h.io.stdoutText).propertySchema as { id: string }).id;
+    } else {
+      expect(await h.runCli("--json", "property", "create", "Estado", "--type", "select",
+        "--option", "Pendiente", "--option", "Leyendo", "--option", "Consumido", "--option", "Abandonado")).toBe(EXIT.ok);
+      estadoId = (JSON.parse(h.io.stdoutText).propertySchema as { id: string }).id;
+    }
     for (const name of ["Primera lectura", "Última lectura", "Abandonado el"]) {
-      expect(await h.runCli("property", "create", name, "--type", "datetime")).toBe(EXIT.ok);
+      if ((await h.runCli("property", "get", name)) !== EXIT.ok) {
+        expect(await h.runCli("property", "create", name, "--type", "datetime")).toBe(EXIT.ok);
+      }
     }
     const schemas = JSON.parse(
       (await h.runCli("--json", "property", "list"), h.io.stdoutText),
@@ -1163,15 +1242,17 @@ describe("import koreader (reading state + highlights)", () => {
     expect(again).toMatchObject({ created: 0, matched: 2, highlightsAdded: 0, highlightsExisting: 3 });
   });
 
-  it("skips reading-state sync when the tracker vocabulary is absent", async () => {
+  it("syncs a reading book's state and highlights (the tracker persists across the shared suite)", async () => {
     const h = harness;
-    const dir = join(h.dataDir, "koreader-plain");
+    const dir = join(h.dataDir, "koreader-reading");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "book.pdf.lua"), READING_LUA.replace("Epidemiología de las periimplantopatías", "Hábitos atómicos, de James Clear"));
+    writeFileSync(
+      join(dir, "book.pdf.lua"),
+      READING_LUA.replace("Epidemiología de las periimplantopatías", "La montaña mágica, de Thomas Mann"),
+    );
     expect(await h.runCli("--json", "import", "koreader", dir)).toBe(EXIT.ok);
-    const result = JSON.parse(h.io.stdoutText) as { created: number; readStateSynced: number; readStateSkipped: number; highlightsAdded: number };
-    // The tracker schemas from the previous test persist (shared workspace) — read state syncs.
-    expect(result).toMatchObject({ created: 1, readStateSynced: 1, readStateSkipped: 0, highlightsAdded: 1 });
+    const result = JSON.parse(h.io.stdoutText) as { created: number; readStateSynced: number; highlightsAdded: number };
+    expect(result).toMatchObject({ created: 1, readStateSynced: 1, highlightsAdded: 1 });
   });
 });
 
