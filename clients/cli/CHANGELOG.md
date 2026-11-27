@@ -6,6 +6,11 @@ goes; those stay static guidance. Before implementing a change, skim this
 file for recent related work. Anything before 2026-10-06 lives in git
 history.
 
+## 2026-11-27
+
+- **chore(release): cli-v4.6.5 — the KOReader connector and the reading-tracker gestures.** Since 4.6.4: `notees import koreader <dir>` syncs a KOReader docsettings folder (reading state onto the tracker's Estado/fechas properties + idempotent highlight blocks), and `notees source mark-read|resume|abandon <id>` carry the tracker gestures (`--reason` lands the abandon note block). `CLI_VERSION` 4.6.4 → 4.6.5; the PKGBUILD records the 4.6.5 bundle hash.
+  - Files: `src/cli.ts` (CLI_VERSION), `packaging/arch/PKGBUILD`, `CHANGELOG.md`.
+
 ## 2026-11-26
 - **feat(source): the reading-tracker gestures — `notees source mark-read|resume|abandon <id>` (`--reason` lands the abandon note block), the web detail pane's CLI twin.** Estado LWW + Primera fill-once / Última overwrite / Abandonado-el mirror, resolved by name, failing loud when the tracker is absent. **Verification**: the gesture spec + full suite green (328).
   - Files: `src/cli.ts`, `test/cli.test.ts`, `CHANGELOG.md`.
